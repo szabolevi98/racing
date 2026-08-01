@@ -38,6 +38,12 @@
     color: transparent;
   }
 
+  #zoneEditor.hidden { display: none !important; }
+  /* A 3D pálya élőben, a fő renderer canvas-án látszik alatta — ezért a
+     szerkesztő rétege átlátszó, csak az egérkezelést és a maszk-overlay-t adja. */
+  #zoneEditor { position: fixed; inset: 0; z-index: 40; }
+  #zoneOverlayCanvas { position: absolute; top: 0; left: 0; cursor: crosshair; }
+  #zoneToolbar { position: fixed; top: 12px; left: 12px; z-index: 41; min-width: 300px; }
 </style>
 </head>
 <body>
@@ -76,7 +82,8 @@
       WASD / nyilak: gáz, kormány, fék<br>
       R: autó visszahelyezése<br>
       <a id="backToMenuLink" class="link-info" role="button">Vissza a menübe</a><br>
-      <span id="status"></span>
+      <span id="status"></span><br>
+      Zóna: <span id="zoneIndicator">aszfalt</span>
     </div>
   </div>
 </div>
@@ -84,13 +91,43 @@
 <div id="devHud" class="hidden">
   <div class="card bg-dark bg-opacity-75 border-warning text-light">
     <div class="card-body py-2 px-3 small">
-      <strong class="text-warning">DEV MÓD — rajtrács szerkesztő</strong><br>
+      <strong class="text-warning">DEV MÓD — szabad kamera</strong><br>
       <select id="devMapSelect" class="form-select form-select-sm my-2"></select>
       Jobb egérgomb + húzás: nézelődés, WASD: mozgás, Space/Ctrl: fel/le, Shift: gyorsítás<br>
-      <strong>M</strong>: pont felvétele a kamera alatt &nbsp; <strong>Backspace</strong>: utolsó törlése<br>
-      <strong>Enter</strong>: mentés (spawn.json)<br>
-      Pontok: <span id="devSpawnCount">0</span> / 8<br>
-      <span id="devSpawnStatus"></span>
+      Rajtpontok: <span id="devSpawnCount">0</span> / 8 (a zóna szerkesztőben szerkeszthetők)<br>
+      <span id="devSpawnStatus"></span><br>
+      <button id="openZoneEditorBtn" class="btn btn-sm btn-outline-warning mt-2">Zóna / rajtrács szerkesztő</button>
+    </div>
+  </div>
+</div>
+
+<div id="zoneEditor" class="hidden">
+  <canvas id="zoneOverlayCanvas"></canvas>
+  <div id="zoneToolbar" class="card bg-dark bg-opacity-75 border-warning text-light">
+    <div class="card-body py-2 px-3 small">
+      <strong class="text-warning">Zóna / rajtrács szerkesztő</strong><br>
+      Bal gomb: festés / rajtpont &nbsp; Középső/jobb gomb + húzás: mozgatás &nbsp; Görgő: zoom<br>
+      <div class="btn-group my-2" role="group">
+        <input type="radio" class="btn-check" name="zoneBrush" id="brushAsphalt" value="0" checked>
+        <label class="btn btn-outline-light btn-sm" for="brushAsphalt">Aszfalt (törlés)</label>
+        <input type="radio" class="btn-check" name="zoneBrush" id="brushOfftrack" value="1">
+        <label class="btn btn-outline-warning btn-sm" for="brushOfftrack">Kifutó</label>
+        <input type="radio" class="btn-check" name="zoneBrush" id="brushWall" value="2">
+        <label class="btn btn-outline-danger btn-sm" for="brushWall">Fal</label>
+        <input type="radio" class="btn-check" name="zoneBrush" id="brushSpawn" value="spawn">
+        <label class="btn btn-outline-info btn-sm" for="brushSpawn">Rajtpont</label>
+      </div><br>
+      <span id="brushSizeRow">
+        Ecset sugara: <span id="brushSizeLabel">3</span> egység<br>
+        <input type="range" id="brushSizeRange" min="0.25" max="60" step="0.25" value="3" class="form-range" style="width:180px;">
+      </span>
+      <span id="spawnToolRow" class="d-none">
+        Rajtpontok: <span id="zoneSpawnCount">0</span> / 8 &nbsp;
+        <button id="undoSpawnBtn" class="btn btn-sm btn-outline-info py-0">Utolsó törlése</button><br>
+      </span>
+      <button id="saveZoneBtn" class="btn btn-sm btn-primary mt-1">Mentés</button>
+      <button id="closeZoneEditorBtn" class="btn btn-sm btn-secondary mt-1">Vissza</button>
+      <div id="zoneStatus" class="mt-2"></div>
     </div>
   </div>
 </div>

@@ -94,6 +94,22 @@ if (is_dir($mapsDir)) {
             }
         }
 
+        // Opcionális zóna-térkép (dev módban festett aszfalt/kifutó/fal maszk):
+        // assets/maps/<id>/zonemap.png + zonemap.json (world bounds + méret).
+        $zonemapPngPath = $mapDir . '/zonemap.png';
+        $zonemapJsonPath = $mapDir . '/zonemap.json';
+        if (is_file($zonemapPngPath) && is_file($zonemapJsonPath)) {
+            $zonemapMeta = json_decode(file_get_contents($zonemapJsonPath), true);
+            if (is_array($zonemapMeta) && isset($zonemapMeta['bounds'])) {
+                $mapEntry['zonemap'] = [
+                    'file' => 'maps/' . $entry . '/zonemap.png',
+                    'bounds' => $zonemapMeta['bounds'],
+                    'texW' => $zonemapMeta['texW'] ?? null,
+                    'texH' => $zonemapMeta['texH'] ?? null,
+                ];
+            }
+        }
+
         $maps[] = $mapEntry;
     }
 }
