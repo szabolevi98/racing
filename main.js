@@ -702,7 +702,10 @@ function buildVisualFloorGrid(track, box) {
   for (let i = 0; i < nx; i++) data.push(new Array(nz).fill(box.min.y - 50));
 
   const raycaster = new THREE.Raycaster();
-  raycaster.firstHitOnly = true;
+  // A LEGALSÓ találat kell, nem a legfelső. A legfelső egy épületnél a tető
+  // lenne, és a padló felkúszna a tetőig (fekete tüskék a pálya mellett).
+  // A padlónak definíció szerint minden alatt kell lennie.
+  raycaster.firstHitOnly = false;
   const dir = new THREE.Vector3(0, -1, 0);
   const rayOriginY = box.max.y + 20;
 
@@ -713,7 +716,7 @@ function buildVisualFloorGrid(track, box) {
       if (!maskHasCoverage(coverage, worldX, worldZ)) continue;
       raycaster.set(new THREE.Vector3(worldX, rayOriginY, worldZ), dir);
       const hits = raycaster.intersectObject(track, true);
-      if (hits.length) data[i][j] = hits[0].point.y;
+      if (hits.length) data[i][j] = hits[hits.length - 1].point.y;
     }
   }
   return { data, elementSize };
