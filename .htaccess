@@ -10,3 +10,14 @@
     Header set Expires 0
   </FilesMatch>
 </IfModule>
+
+# Az ütközési háló (collision.bin) nyers float/index adat, ami nagyon jól
+# tömöríthető — ez minden játékosnak letöltés, ezért érdemes.
+# FIGYELEM: a helyi XAMPP-ban a mod_deflate alapból KI van kapcsolva
+# (httpd.conf: #LoadModule deflate_module / #LoadModule filter_module).
+# Amíg nincs bekapcsolva, ez a blokk nem csinál semmit; bekapcsolás után
+# magától életbe lép. Éles szerveren érdemes bekapcsolni.
+<IfModule mod_deflate.c>
+  AddType application/octet-stream .bin
+  AddOutputFilterByType DEFLATE application/octet-stream
+</IfModule>

@@ -110,6 +110,18 @@ if (is_dir($mapsDir)) {
             }
         }
 
+        // Előre bekészített ütközési háromszögháló (dev módban generálva).
+        // Ha van, ezt használja a játék a modellből való kinyerés helyett —
+        // így minden kliens BITRE ugyanazt a geometriát kapja, ami a
+        // későbbi multiplayerhez elengedhetetlen.
+        $collisionPath = $mapDir . '/collision.bin';
+        if (is_file($collisionPath)) {
+            $mapEntry['collision'] = [
+                'file' => 'maps/' . $entry . '/collision.bin',
+                'bytes' => filesize($collisionPath),
+            ];
+        }
+
         $maps[] = $mapEntry;
     }
 }

@@ -6,10 +6,13 @@
 # maradnak, és egy véletlen törlés után visszaállíthatók.
 *.glb
 *.gltf
-*.bin
 *.hdr
 *.exr
 /assets/maps/*/textures/
+# A *.bin ide a modellek nyers puffere (scene.bin) miatt kell, de egyben
+# kizárja a collision.bin-t is — ez szándékos: az több MB, és a dev mód
+# "Ütközés bekészítése" gombjával bármikor újragenerálható a modellből.
+*.bin
 
 # IDE
 .idea/

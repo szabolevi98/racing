@@ -1,12 +1,17 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import * as CANNON from 'cannon-es';
+import RAPIER from 'rapier';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
+
+// A Rapier WebAssembly-ben fut, ezért használat előtt inicializálni kell.
+// Top-level await: a modul többi része addig nem fut le, így minden alábbi
+// RAPIER hívás biztosan kész motorral dolgozik.
+await RAPIER.init();
 
 // Az autó "hossz-tengelyét" (X vagy Z) automatikusan felismerjük, de hogy a
 // modell eleje pontosan melyik irányba néz az adott tengely mentén, az
@@ -32,6 +37,8 @@ const devHudEl = document.getElementById('devHud');
 const devSpawnCountEl = document.getElementById('devSpawnCount');
 const devSpawnStatusEl = document.getElementById('devSpawnStatus');
 const devMapSelectEl = document.getElementById('devMapSelect');
+const bakeCollisionBtn = document.getElementById('bakeCollisionBtn');
+const bakeStatusEl = document.getElementById('bakeStatus');
 const openZoneEditorBtn = document.getElementById('openZoneEditorBtn');
 const closeZoneEditorBtn = document.getElementById('closeZoneEditorBtn');
 const saveZoneBtn = document.getElementById('saveZoneBtn');
@@ -190,29 +197,27 @@ function updateSunTarget(targetPos) {
   sun.target.position.copy(targetPos);
 }
 
-// ---------- Cannon-es fizika világ ----------
-const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -9.82, 0) });
-world.broadphase = new CANNON.SAPBroadphase(world);
-world.defaultContactMaterial.friction = 0.3;
-
-const groundMaterial = new CANNON.Material('ground');
-const wheelMaterial = new CANNON.Material('wheel');
-const wheelGroundContact = new CANNON.ContactMaterial(groundMaterial, wheelMaterial, {
-  friction: 0.6,
-  restitution: 0,
-  contactEquationStiffness: 1000,
-});
-world.addContactMaterial(wheelGroundContact);
+// ---------- Rapier fizika világ ----------
+// Rapierre váltottunk a cannon-es helyett, mert az ütközés előre bekészített
+// háromszöghálóból (trimesh) jön, hogy a hidak/felüljárók is működjenek — egy
+// magasságtérkép elvileg sem tud két szintet ugyanazon (x,z) ponton. A
+// cannon-es erre alkalmatlan volt: raycastje trimesh ellen ~2 ms/sugár (a
+// négy kerékkel ~8 ms/képkocka a 16.6-ból), és Box↔Trimesh ütközése nincs is.
+// A Rapier ugyanezt ~0.0066 ms/sugárral hozza.
+const world = new RAPIER.World({ x: 0, y: -9.82, z: 0 });
+world.timestep = 1 / 60;
 
 // Biztonsági "aljzat" — arra kell, hogy a kocsi ne essen a végtelenségig, ha
-// kicsúszik a magasságtérkép lefedett területéről, VAGY ha a pálya modelljén
-// lévő lyukon esik át. Csak pár egységgel a pálya legalja alatt van, hogy ne
-// egy láthatatlan mélységbe zuhanjon az autó, hanem szinte azonnal elkapja
-// egy sötétszürke "padló", ami takarja a lyukakat.
-const safetyNetBody = new CANNON.Body({ mass: 0, material: groundMaterial });
-safetyNetBody.addShape(new CANNON.Plane());
-safetyNetBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
-world.addBody(safetyNetBody);
+// lecsúszik a pályáról, VAGY ha a pálya modelljén lévő lyukon esik át. Csak
+// pár egységgel a pálya legalja alatt van, hogy ne egy láthatatlan mélységbe
+// zuhanjon az autó, hanem szinte azonnal elkapja egy sötétszürke "padló",
+// ami takarja a lyukakat. A Rapiernek nincs végtelen síkja, ezért egy nagyon
+// nagy, lapos hasáb tölti be ezt a szerepet.
+const safetyNetBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+const safetyNetCollider = world.createCollider(
+  RAPIER.ColliderDesc.cuboid(5000, 1, 5000),
+  safetyNetBody
+);
 
 const safetyFloorMesh = new THREE.Mesh(
   new THREE.PlaneGeometry(6000, 6000),
@@ -268,60 +273,74 @@ function buildContourFloorMesh(data, elementSize, box, margin) {
 }
 
 let spawnPoint = new THREE.Vector3(0, 5, 0);
-let heightfieldBody = null;
+// A pálya ütközési háromszöghálója (a heightfieldet váltja ki).
+let trackColliderBody = null;
+let trackCollider = null;
 
-// ---------- Autó (chassis + raycast vehicle) ----------
-const chassisSize = new CANNON.Vec3(1.0, 0.4, 2.2); // fél-méretek: szélesség/2, magasság/2, hossz/2
-const chassisShape = new CANNON.Box(chassisSize);
-const chassisBody = new CANNON.Body({ mass: 250, material: groundMaterial });
-chassisBody.addShape(chassisShape);
-chassisBody.position.set(0, 5, 0);
-chassisBody.angularVelocity.set(0, 0, 0);
+// ---------- Autó (chassis + Rapier raycast vehicle) ----------
+const chassisSize = { x: 1.0, y: 0.4, z: 2.2 }; // fél-méretek: szélesség/2, magasság/2, hossz/2
+const chassisBody = world.createRigidBody(
+  RAPIER.RigidBodyDesc.dynamic()
+    .setTranslation(0, 5, 0)
+    // Enélkül a kocsi a legkisebb egyenetlenségen is pörögni kezdene; a
+    // cannon-es alapból csillapított, a Rapier nem.
+    .setLinearDamping(0.05)
+    .setAngularDamping(0.5)
+    // A pálya ütközője háromszögháló, aminek NINCS vastagsága: gyors esésnél
+    // (pl. rajtoláskor vagy ugratás után) a kasztni doboza egyetlen lépés
+    // alatt átugorhatná a felületet, és a kocsi a világ alá kerülne. A
+    // folytonos ütközésdetektálás ezt megakadályozza.
+    .setCcdEnabled(true)
+);
+const chassisCollider = world.createCollider(
+  RAPIER.ColliderDesc.cuboid(chassisSize.x, chassisSize.y, chassisSize.z).setMass(250),
+  chassisBody
+);
 
-const vehicle = new CANNON.RaycastVehicle({
-  chassisBody,
-  indexRightAxis: 0,
-  indexUpAxis: 1,
-  indexForwardAxis: 2,
-});
+const vehicle = world.createVehicleController(chassisBody);
+vehicle.indexUpAxis = 1;          // Y = fel
+vehicle.setIndexForwardAxis = 2;  // Z = előre (a .d.ts-ben tényleg így hívják a settert)
 
-const wheelOptions = {
-  radius: 0.35,
-  directionLocal: new CANNON.Vec3(0, -1, 0),
-  suspensionStiffness: 30,
-  suspensionRestLength: 0.3,
-  frictionSlip: 1.4,
-  dampingRelaxation: 2.3,
-  dampingCompression: 4.4,
-  maxSuspensionForce: 100000,
-  rollInfluence: 0.01,
-  axleLocal: new CANNON.Vec3(1, 0, 0),
-  chassisConnectionPointLocal: new CANNON.Vec3(1, 0, 1),
-  maxSuspensionTravel: 0.3,
-  customSlidingRotationalSpeed: -30,
-  useCustomSlidingRotationalSpeed: true,
-};
-
+const WHEEL_RADIUS = 0.35;
 const wheelPositions = [
-  new CANNON.Vec3(-0.85, -0.2, 1.5),  // első bal
-  new CANNON.Vec3(0.85, -0.2, 1.5),   // első jobb
-  new CANNON.Vec3(-0.85, -0.2, -1.5), // hátsó bal
-  new CANNON.Vec3(0.85, -0.2, -1.5),  // hátsó jobb
+  { x: -0.85, y: -0.2, z: 1.5 },  // 0: első bal
+  { x: 0.85, y: -0.2, z: 1.5 },   // 1: első jobb
+  { x: -0.85, y: -0.2, z: -1.5 }, // 2: hátsó bal
+  { x: 0.85, y: -0.2, z: -1.5 },  // 3: hátsó jobb
 ];
-wheelPositions.forEach((pos) => {
-  const opts = { ...wheelOptions, chassisConnectionPointLocal: pos };
-  vehicle.addWheel(opts);
+wheelPositions.forEach((pos, i) => {
+  vehicle.addWheel(pos, { x: 0, y: -1, z: 0 }, { x: -1, y: 0, z: 0 }, 0.3, WHEEL_RADIUS);
+  // A cannon-es-ből átemelt, már behangolt felfüggesztés-értékek — mindkét
+  // motor ugyanannak a Bullet-féle raycast vehicle-nek a portja, ezért
+  // közvetlenül átvihetők.
+  vehicle.setWheelSuspensionStiffness(i, 30);
+  vehicle.setWheelSuspensionCompression(i, 4.4);
+  vehicle.setWheelSuspensionRelaxation(i, 2.3);
+  vehicle.setWheelMaxSuspensionTravel(i, 0.3);
+  vehicle.setWheelMaxSuspensionForce(i, 100000);
+  vehicle.setWheelFrictionSlip(i, 1.4);
 });
-vehicle.addToWorld(world);
 
-const wheelBodies = [];
-vehicle.wheelInfos.forEach(() => {
-  const body = new CANNON.Body({ mass: 0, material: wheelMaterial });
-  body.type = CANNON.Body.KINEMATIC;
-  body.collisionFilterGroup = 0;
-  wheelBodies.push(body);
-  world.addBody(body);
-});
+// A Rapierben a merev test állapota csak settereken át írható (a getterek
+// másolatot adnak vissza), ezért kell külön függvény a visszahelyezéshez.
+function resetCarTo(pos) {
+  chassisBody.setTranslation({ x: pos.x, y: pos.y, z: pos.z }, true);
+  chassisBody.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
+  chassisBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+  chassisBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
+  lastSafePos.copy(pos);
+}
+
+function removeTrackCollider() {
+  if (trackCollider) {
+    world.removeCollider(trackCollider, false);
+    trackCollider = null;
+  }
+  if (trackColliderBody) {
+    world.removeRigidBody(trackColliderBody);
+    trackColliderBody = null;
+  }
+}
 
 // ---------- Segédfüggvény: 3D objektum erőforrásainak felszabadítása ----------
 function disposeObject3D(root) {
@@ -440,10 +459,7 @@ async function setTrack(trackUrl, mapId, spawnPoints) {
   currentMapId = mapId || null;
   currentSpawnPoints = spawnPoints || [];
 
-  if (heightfieldBody) {
-    world.removeBody(heightfieldBody);
-    heightfieldBody = null;
-  }
+  removeTrackCollider();
   if (currentTrack) {
     scene.remove(currentTrack);
     disposeObject3D(currentTrack);
@@ -482,13 +498,13 @@ async function setTrack(trackUrl, mapId, spawnPoints) {
     floorY,
     (currentTrackBox.min.z + currentTrackBox.max.z) / 2
   );
-  safetyNetBody.position.set(0, floorY, 0);
+  // A hasáb közepét kell megadni: a teteje legyen a floorY szinten.
+  safetyNetBody.setTranslation({ x: 0, y: floorY - 1, z: 0 }, true);
 
   const spot = findShowcaseSpot(track, currentTrackBox, pickSpawnSlot(currentSpawnPoints));
   spawnPoint.copy(spot).add(new THREE.Vector3(0, 2, 0));
   carPivot.position.copy(spot);
-  chassisBody.position.copy(spawnPoint);
-  lastSafePos.copy(spawnPoint);
+  resetCarTo(spawnPoint);
 
   // A pályához tartozó zóna-térkép (ha van) betöltése a vezetéshez.
   await loadZoneRuntime(manifest && findEntry(manifest.maps, mapId));
@@ -613,101 +629,104 @@ function maskHasCoverage(cov, x, z) {
   return false;
 }
 
-// Aszinkron, darabolt sugárvetés-alapú magasságtérkép építése a pálya vizuális
-// geometriájából. A cél: a fizikai "talaj" kövesse a pálya tényleges felszínét
-// (lejtők, hidak stb.), ne egy sík legyen alatta/felette. Csak Indításkor fut le.
+// ---------- Ütközési háromszögháló kinyerése a pálya modelljéből ----------
+// Ez váltja ki a korábbi magasságtérképet. Egy magasságtérkép 2D függvény —
+// egy (x,z) ponthoz egyetlen magasság —, ezért elvileg sem tud hidat/felüljárót
+// ábrázolni. Egy valódi háromszöghálónál ez magától megoldódik.
 //
-// Két javítás a korábbi (egylépéses, teljes bbox-ra szétosztott) verzióhoz
-// képest:
-// 1. A fenti fedettségi maszk alapján kihagyjuk a raycastelést azokon a
-//    finom rácspontokon, ahol úgysincs semmi — így ugyanannyi idő alatt
-//    sokkal sűrűbb (kisebb elementSize) rácsot engedhetünk meg magunknak.
-// 2. Minden rácsponton nem csak az ELSŐ találatot vesszük, hanem az összes,
-//    közeli (a legfelsőhöz képest kis magasság-különbségen belüli) találat
-//    KÖZÜL A LEGALACSONYABBAT — ez kiküszöböli, hogy a sugár hol a vékony
-//    gumicsík-overlay-t, hol magát az utat találja el elsőként (ami eddig a
-//    "hol fölötte lebeg, hol beleolvad" ingadozást okozta).
-function buildTrackHeightfield(track, box, onDone, preferXZ) {
-  const prefX = preferXZ ? preferXZ.x : 0;
-  const prefZ = preferXZ ? preferXZ.z : 0;
+// Szűrés: csak a nagyjából vízszintes lapokat tartjuk meg (a függőleges falak,
+// kerítések, épületoldalak kiesnek), így a háromszögszám nagyjából felére
+// csökken, és nem a falakon akad meg a kerék-sugár.
+const COLLISION_NORMAL_MIN_Y = 0.5;
+
+function extractDrivableTriangles(track) {
+  track.updateMatrixWorld(true);
+  const positions = [];
+  const indices = [];
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  const ab = new THREE.Vector3(), ac = new THREE.Vector3(), n = new THREE.Vector3();
+
   track.traverse((obj) => {
-    if (obj.isMesh && obj.geometry) {
-      obj.geometry.computeBoundsTree();
+    if (!obj.isMesh || !obj.geometry) return;
+    const pos = obj.geometry.attributes.position;
+    const idx = obj.geometry.index;
+    const count = idx ? idx.count : pos.count;
+    for (let i = 0; i < count; i += 3) {
+      const i0 = idx ? idx.getX(i) : i;
+      const i1 = idx ? idx.getX(i + 1) : i + 1;
+      const i2 = idx ? idx.getX(i + 2) : i + 2;
+      a.fromBufferAttribute(pos, i0).applyMatrix4(obj.matrixWorld);
+      b.fromBufferAttribute(pos, i1).applyMatrix4(obj.matrixWorld);
+      c.fromBufferAttribute(pos, i2).applyMatrix4(obj.matrixWorld);
+      ab.subVectors(b, a);
+      ac.subVectors(c, a);
+      n.crossVectors(ab, ac).normalize();
+      if (Math.abs(n.y) <= COLLISION_NORMAL_MIN_Y) continue;
+      const base = positions.length / 3;
+      positions.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+      indices.push(base, base + 1, base + 2);
     }
   });
 
-  const coverage = buildCoverageMask(track, box, 2048);
+  return { positions: new Float32Array(positions), indices: new Uint32Array(indices) };
+}
+
+function applyTrackCollider(positions, indices) {
+  removeTrackCollider();
+  trackColliderBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+  trackCollider = world.createCollider(
+    RAPIER.ColliderDesc.trimesh(positions, indices).setFriction(1.0),
+    trackColliderBody
+  );
+  // A Rapier lekérdező pipeline-ját a world.step() frissíti; enélkül a
+  // kerekek sugarai némán semmit sem találnának el az első képkockákon.
+  world.step();
+}
+
+// A LÁTHATÓ padlóhoz (ami a modell lyukait takarja) továbbra is kell egy durva
+// magasság-rács. Ez viszont csak dísz, nem fizika, ezért sokkal ritkább
+// mintavétel is elég — a fedettségi maszkkal együtt ez már gyors.
+function buildVisualFloorGrid(track, box) {
+  track.traverse((obj) => {
+    if (obj.isMesh && obj.geometry) obj.geometry.computeBoundsTree();
+  });
+  const coverage = buildCoverageMask(track, box, 1024);
 
   const sizeX = box.max.x - box.min.x;
   const sizeZ = box.max.z - box.min.z;
-
-  // Cél: kb. 5 egységes rácsméret, de időkorlát miatt legfeljebb ~250 000
-  // ténylegesen elraycastelt pont (a fedettségi maszk sokat kihagy ebből).
-  const TARGET_ELEMENT_SIZE = 5;
-  const MAX_SAMPLES = 250000;
-  let elementSize = Math.max(1.5, TARGET_ELEMENT_SIZE);
-  let nx = Math.max(2, Math.ceil(sizeX / elementSize) + 1);
-  let nz = Math.max(2, Math.ceil(sizeZ / elementSize) + 1);
-  if (nx * nz > MAX_SAMPLES * 6) {
-    // Ha a maszk becsülhetően nem hagyna ki eleget (pl. nagyon tömör pálya),
-    // durvítunk, nehogy irreálisan sokáig fusson.
-    const scale = Math.sqrt((nx * nz) / (MAX_SAMPLES * 6));
-    elementSize *= scale;
-    nx = Math.max(2, Math.ceil(sizeX / elementSize) + 1);
-    nz = Math.max(2, Math.ceil(sizeZ / elementSize) + 1);
-  }
+  const elementSize = Math.max(8, Math.sqrt((sizeX * sizeZ) / 20000));
+  const nx = Math.max(2, Math.ceil(sizeX / elementSize) + 1);
+  const nz = Math.max(2, Math.ceil(sizeZ / elementSize) + 1);
 
   const data = [];
   for (let i = 0; i < nx; i++) data.push(new Array(nz).fill(box.min.y - 50));
 
+  const raycaster = new THREE.Raycaster();
+  raycaster.firstHitOnly = true;
   const dir = new THREE.Vector3(0, -1, 0);
   const rayOriginY = box.max.y + 20;
-  const raycaster = new THREE.Raycaster();
-  raycaster.firstHitOnly = false; // kellenek a közeli, egymáshoz képest kicsit eltolt találatok is
-  const overlayBand = 1.5; // ekkora magasság-különbségen belüli találatok "ugyanaz a felszín"
 
-  let bestDist = Infinity;
-  let bestPoint = null;
-
-  let i = 0;
-  const BATCH = 250;
-
-  function step() {
-    const end = Math.min(nx, i + Math.ceil(BATCH / nz) + 1);
-    for (; i < end; i++) {
-      const worldX = box.min.x + i * elementSize;
-      for (let j = 0; j < nz; j++) {
-        const worldZ = box.max.z - j * elementSize;
-        if (!maskHasCoverage(coverage, worldX, worldZ)) continue;
-        raycaster.set(new THREE.Vector3(worldX, rayOriginY, worldZ), dir);
-        const hits = raycaster.intersectObject(track, true);
-        if (hits.length) {
-          const topY = hits[0].point.y;
-          let y = topY;
-          for (const h of hits) {
-            if (topY - h.point.y > overlayBand) break; // ez már egy külön (pl. híd alatti) réteg
-            if (h.point.y < y) y = h.point.y;
-          }
-          data[i][j] = y;
-          const d = (worldX - prefX) ** 2 + (worldZ - prefZ) ** 2;
-          if (d < bestDist) {
-            bestDist = d;
-            bestPoint = { x: worldX, y, z: worldZ };
-          }
-        }
-      }
-    }
-
-    setMenuStatus(`Pálya fizika építése... ${Math.round((i / nx) * 100)}%`);
-
-    if (i < nx) {
-      setTimeout(step, 0);
-    } else {
-      onDone({ data, elementSize, spawn: bestPoint, box });
+  for (let i = 0; i < nx; i++) {
+    const worldX = box.min.x + i * elementSize;
+    for (let j = 0; j < nz; j++) {
+      const worldZ = box.max.z - j * elementSize;
+      if (!maskHasCoverage(coverage, worldX, worldZ)) continue;
+      raycaster.set(new THREE.Vector3(worldX, rayOriginY, worldZ), dir);
+      const hits = raycaster.intersectObject(track, true);
+      if (hits.length) data[i][j] = hits[0].point.y;
     }
   }
+  return { data, elementSize };
+}
 
-  step();
+// A rajtponthoz a legközelebbi tényleges felszín megkeresése (a kocsit ide
+// tesszük Indításkor). Egyetlen lefelé lőtt sugár a kívánt X/Z fölött.
+function findGroundAt(track, box, x, z) {
+  const raycaster = new THREE.Raycaster();
+  raycaster.firstHitOnly = true;
+  raycaster.set(new THREE.Vector3(x, box.max.y + 20, z), new THREE.Vector3(0, -1, 0));
+  const hits = raycaster.intersectObject(track, true);
+  return hits.length ? hits[0].point.y : null;
 }
 
 // ---------- Zóna-térkép futásidőben (aszfalt / kifutó / fal) ----------
@@ -779,13 +798,12 @@ const _probeVec = new THREE.Vector3();
 const _probeQuat = new THREE.Quaternion();
 
 function carTouchesWall() {
-  const q = chassisBody.quaternion;
+  const q = chassisBody.rotation();
+  const pos = chassisBody.translation();
   _probeQuat.set(q.x, q.y, q.z, q.w);
   for (const local of wallProbeLocal) {
     _probeVec.copy(local).applyQuaternion(_probeQuat);
-    const x = chassisBody.position.x + _probeVec.x;
-    const z = chassisBody.position.z + _probeVec.z;
-    if (sampleZoneAt(x, z) === ZONE_WALL) return true;
+    if (sampleZoneAt(pos.x + _probeVec.x, pos.z + _probeVec.z) === ZONE_WALL) return true;
   }
   return false;
 }
@@ -795,7 +813,7 @@ function carTouchesWall() {
 // MUTATÓ sebesség-komponenst vesszük el — így a fal mentén tovább lehet
 // csúszni, nem ragad meg és nem pattan vissza.
 function applyWallConstraint() {
-  const pos = chassisBody.position;
+  const pos = chassisBody.translation();
   if (!carTouchesWall()) {
     lastSafePos.set(pos.x, pos.y, pos.z);
     return;
@@ -804,20 +822,20 @@ function applyWallConstraint() {
   const dx = pos.x - lastSafePos.x;
   const dz = pos.z - lastSafePos.z;
   const len = Math.hypot(dx, dz);
-  pos.x = lastSafePos.x;
-  pos.z = lastSafePos.z;
+  chassisBody.setTranslation({ x: lastSafePos.x, y: pos.y, z: lastSafePos.z }, true);
 
   if (len > 1e-4) {
     const nx = dx / len;
     const nz = dz / len;
-    const v = chassisBody.velocity;
+    const v = chassisBody.linvel();
     const into = v.x * nx + v.z * nz;
+    let vx = v.x;
+    let vz = v.z;
     if (into > 0) {
-      v.x -= into * nx;
-      v.z -= into * nz;
+      vx -= into * nx;
+      vz -= into * nz;
     }
-    v.x *= 0.85;
-    v.z *= 0.85;
+    chassisBody.setLinvel({ x: vx * 0.85, y: v.y, z: vz * 0.85 }, true);
   }
 }
 
@@ -843,36 +861,32 @@ function updateControls() {
   const right = keys['KeyD'] || keys['ArrowRight'];
   const brake = keys['Space'];
 
-  const zone = sampleZoneAt(chassisBody.position.x, chassisBody.position.z);
+  const pos = chassisBody.translation();
+  const zone = sampleZoneAt(pos.x, pos.z);
   const offtrack = zone === ZONE_OFFTRACK;
   zoneIndicatorEl.textContent =
     carTouchesWall() ? 'FAL' : offtrack ? 'kifutó (lassít)' : 'aszfalt';
   const forceFactor = offtrack ? OFFTRACK_FORCE_FACTOR : 1;
   const slip = offtrack ? OFFTRACK_FRICTION_SLIP : ASPHALT_FRICTION_SLIP;
-  vehicle.wheelInfos.forEach((w) => { w.frictionSlip = slip; });
+  for (let i = 0; i < 4; i++) vehicle.setWheelFrictionSlip(i, slip);
   if (offtrack) {
-    chassisBody.velocity.x *= OFFTRACK_DRAG;
-    chassisBody.velocity.z *= OFFTRACK_DRAG;
+    const v = chassisBody.linvel();
+    chassisBody.setLinvel({ x: v.x * OFFTRACK_DRAG, y: v.y, z: v.z * OFFTRACK_DRAG }, true);
   }
 
-  const force = (forward ? -maxForce : backward ? maxForce * 0.6 : 0) * forceFactor;
-  vehicle.applyEngineForce(force, 2);
-  vehicle.applyEngineForce(force, 3);
+  // A Rapiernél a pozitív motorerő hajt előre (+Z), a cannon-esnél negatív volt.
+  const force = (forward ? maxForce : backward ? -maxForce * 0.6 : 0) * forceFactor;
+  vehicle.setWheelEngineForce(2, force);
+  vehicle.setWheelEngineForce(3, force);
 
   const steer = left ? maxSteerVal : right ? -maxSteerVal : 0;
-  vehicle.setSteeringValue(steer, 0);
-  vehicle.setSteeringValue(steer, 1);
+  vehicle.setWheelSteering(0, steer);
+  vehicle.setWheelSteering(1, steer);
 
   const b = brake ? brakeForce : 0;
-  for (let i = 0; i < 4; i++) vehicle.setBrake(b, i);
+  for (let i = 0; i < 4; i++) vehicle.setWheelBrake(i, b);
 
-  if (keys['KeyR']) {
-    chassisBody.position.copy(spawnPoint);
-    chassisBody.velocity.set(0, 0, 0);
-    chassisBody.angularVelocity.set(0, 0, 0);
-    chassisBody.quaternion.set(0, 0, 0, 1);
-    lastSafePos.copy(spawnPoint);
-  }
+  if (keys['KeyR']) resetCarTo(spawnPoint);
 }
 
 // ---------- Kamera: vezetős (harmadik személyű követés) ----------
@@ -913,8 +927,8 @@ window.addEventListener('mouseup', (e) => {
 });
 
 function updateChaseCamera() {
-  const chassisPos = chassisBody.position;
-  const chassisQuat = chassisBody.quaternion;
+  const chassisPos = chassisBody.translation();
+  const chassisQuat = chassisBody.rotation();
   const q = new THREE.Quaternion(chassisQuat.x, chassisQuat.y, chassisQuat.z, chassisQuat.w);
 
   // A jobb-klikkes körbenézés extra forgatása a kocsi irányához képest.
@@ -1485,47 +1499,137 @@ window.addEventListener('resize', () => {
   if (appState === 'zone-edit') resizeZoneOverlayCanvas();
 });
 
-startBtn.addEventListener('click', () => {
+startBtn.addEventListener('click', async () => {
   if (!currentTrack || !currentTrackBox) return;
   startBtn.disabled = true;
+  setMenuStatus('Pálya fizika előkészítése...');
 
-  if (heightfieldBody) {
-    world.removeBody(heightfieldBody);
-    heightfieldBody = null;
-  }
+  try {
+    // Ha van előre bekészített ütközési fájl, azt használjuk — ez a mérvadó
+    // a multiplayerhez, mert így minden kliens BITRE ugyanazt a geometriát
+    // kapja. Ha nincs, futásidőben nyerjük ki a modellből (ez is gyors).
+    const mesh = await loadOrExtractCollision();
+    applyTrackCollider(mesh.positions, mesh.indices);
 
-  buildTrackHeightfield(currentTrack, currentTrackBox, ({ data, elementSize, spawn, box }) => {
-    const heightfieldShape = new CANNON.Heightfield(data, { elementSize });
-    heightfieldBody = new CANNON.Body({ mass: 0, material: groundMaterial });
-    heightfieldBody.addShape(heightfieldShape);
-    // A heightfield helyi (x=i*elementSize, y=j*elementSize, z=magasság) rendszerét
-    // -90 fokkal elforgatva Y-up világba állítjuk: worldX = pos.x + i*elementSize,
-    // worldZ = pos.z - j*elementSize, worldY = pos.y + data[i][j].
-    // FONTOS: a "box" itt a durva letapogatással megtalált, SZŰKÍTETT pálya-sáv
-    // (nem feltétlen ugyanaz, mint currentTrackBox), mert a data-tömb ehhez a
-    // szűkebb sávhoz igazodik.
-    heightfieldBody.position.set(box.min.x, 0, box.max.z);
-    heightfieldBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
-    world.addBody(heightfieldBody);
+    const { data, elementSize } = buildVisualFloorGrid(currentTrack, currentTrackBox);
+    buildContourFloorMesh(data, elementSize, currentTrackBox, 3);
 
-    buildContourFloorMesh(data, elementSize, box, 3);
-
-    if (spawn) {
-      spawnPoint.set(spawn.x, spawn.y + 2, spawn.z);
+    // Épp csak a nyugalmi magasság fölé tesszük a kocsit (kerék sugara +
+    // felfüggesztés + fél kasztni ~0.9), hogy egy nagy zuhanás ne verje bele
+    // a dobozt a vékony háromszöghálóba.
+    const SPAWN_HEIGHT = 1.0;
+    const slot = pickSpawnSlot(currentSpawnPoints);
+    if (slot) {
+      const y = findGroundAt(currentTrack, currentTrackBox, slot.x, slot.z);
+      spawnPoint.set(slot.x, (y ?? currentTrackBox.max.y) + SPAWN_HEIGHT, slot.z);
     } else {
-      spawnPoint.set(0, currentTrackBox.max.y + 2, 0);
+      const spot = findShowcaseSpot(currentTrack, currentTrackBox, null);
+      spawnPoint.copy(spot).add(new THREE.Vector3(0, SPAWN_HEIGHT, 0));
     }
-    chassisBody.position.copy(spawnPoint);
-    chassisBody.velocity.set(0, 0, 0);
-    chassisBody.angularVelocity.set(0, 0, 0);
-    chassisBody.quaternion.set(0, 0, 0, 1);
+    resetCarTo(spawnPoint);
 
-    setStatus(`Pálya fizika: ${data.length}x${data[0].length} pont, elementSize=${elementSize.toFixed(2)}`);
+    setStatus(`Ütközés: ${mesh.indices.length / 3} háromszög (${mesh.source})`);
     setMenuStatus('');
-    startBtn.disabled = false;
     enterDriving();
-  }, pickSpawnSlot(currentSpawnPoints));
+  } catch (err) {
+    console.error('Fizika előkészítése sikertelen', err);
+    setMenuStatus('Hiba a fizika előkészítésekor: ' + err.message);
+  } finally {
+    startBtn.disabled = false;
+  }
 });
+
+// Bekészített ütközési fájl betöltése, ha van; különben kinyerés a modellből.
+async function loadOrExtractCollision() {
+  const entry = manifest && findEntry(manifest.maps, currentMapId);
+  if (entry && entry.collision) {
+    try {
+      const res = await fetch('assets/' + entry.collision.file + '?t=' + Date.now());
+      if (res.ok) {
+        const buf = await res.arrayBuffer();
+        const view = new DataView(buf);
+        const vertexCount = view.getUint32(0, true);
+        const indexCount = view.getUint32(4, true);
+        const positions = new Float32Array(buf, 8, vertexCount * 3);
+        const indices = new Uint32Array(buf, 8 + vertexCount * 12, indexCount);
+        return { positions, indices, source: 'fájlból' };
+      }
+    } catch (err) {
+      console.warn('Bekészített ütközési fájl nem tölthető, visszaesés kinyerésre', err);
+    }
+  }
+  const mesh = extractDrivableTriangles(currentTrack);
+  return { ...mesh, source: 'modellből' };
+}
+
+// A kinyeréskor minden háromszög külön 3 csúcsot kap, így a közös csúcsok
+// sokszorosan szerepelnek. Az összevonás nagyjából harmadára csökkenti a
+// fájlt — ez minden játékosnak letöltés, ezért megéri.
+function dedupeVertices(positions, indices) {
+  const map = new Map();
+  const outPositions = [];
+  const outIndices = new Uint32Array(indices.length);
+
+  for (let i = 0; i < indices.length; i++) {
+    const v = indices[i] * 3;
+    // Milliméter-pontosságú kulcs: az ennél közelebbi csúcsok azonosnak
+    // számítanak (a pálya méretéhez képest ez elhanyagolható eltérés).
+    const key =
+      Math.round(positions[v] * 1000) + ',' +
+      Math.round(positions[v + 1] * 1000) + ',' +
+      Math.round(positions[v + 2] * 1000);
+    let idx = map.get(key);
+    if (idx === undefined) {
+      idx = outPositions.length / 3;
+      map.set(key, idx);
+      outPositions.push(positions[v], positions[v + 1], positions[v + 2]);
+    }
+    outIndices[i] = idx;
+  }
+  return { positions: new Float32Array(outPositions), indices: outIndices };
+}
+
+// Dev mód: az aktuális pálya ütközési hálójának kinyerése és kimentése
+// fájlba. Innentől a játék ezt tölti be a modellből való kinyerés helyett.
+async function bakeCollisionToFile() {
+  if (!currentTrack || !currentMapId) return;
+  bakeStatusEl.textContent = 'Kinyerés...';
+  await new Promise((r) => setTimeout(r, 0)); // hadd frissüljön a felirat
+
+  const raw = extractDrivableTriangles(currentTrack);
+  const mesh = dedupeVertices(raw.positions, raw.indices);
+
+  const vertexCount = mesh.positions.length / 3;
+  const buffer = new ArrayBuffer(8 + mesh.positions.byteLength + mesh.indices.byteLength);
+  const view = new DataView(buffer);
+  view.setUint32(0, vertexCount, true);
+  view.setUint32(4, mesh.indices.length, true);
+  new Float32Array(buffer, 8, mesh.positions.length).set(mesh.positions);
+  new Uint32Array(buffer, 8 + mesh.positions.byteLength, mesh.indices.length).set(mesh.indices);
+
+  bakeStatusEl.textContent = 'Mentés...';
+  try {
+    const res = await fetch('assets/save_collision.php?mapId=' + encodeURIComponent(currentMapId), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: buffer,
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'ismeretlen hiba');
+
+    // A manifestet is frissítjük, hogy azonnal a fájl legyen érvényben.
+    const entry = manifest && findEntry(manifest.maps, currentMapId);
+    if (entry) entry.collision = { file: `maps/${currentMapId}/collision.bin`, bytes: data.bytes };
+
+    bakeStatusEl.textContent =
+      `Kész: ${data.triangles} háromszög, ${(data.bytes / 1048576).toFixed(1)} MB ` +
+      `(${raw.positions.length / 3} → ${vertexCount} csúcs)`;
+  } catch (err) {
+    bakeStatusEl.textContent = 'Hiba: ' + err.message;
+  }
+}
+
+bakeCollisionBtn.addEventListener('click', bakeCollisionToFile);
 
 backToMenuLink.addEventListener('click', () => {
   enterMenu();
@@ -1625,25 +1729,18 @@ function animate() {
 
   if (appState === 'driving') {
     updateControls();
-    world.step(1 / 60, dt, 5);
+    // A Rapiernél a jármű-vezérlőt a világ léptetése ELŐTT kell frissíteni:
+    // ez lövi ki a kerék-sugarakat és számolja a felfüggesztés/tapadás erőket.
+    vehicle.updateVehicle(world.timestep);
+    world.step();
     applyWallConstraint();
 
     if (carLoaded) {
-      carPivot.position.set(chassisBody.position.x, chassisBody.position.y, chassisBody.position.z);
-      carPivot.quaternion.set(
-        chassisBody.quaternion.x,
-        chassisBody.quaternion.y,
-        chassisBody.quaternion.z,
-        chassisBody.quaternion.w
-      );
+      const p = chassisBody.translation();
+      const q = chassisBody.rotation();
+      carPivot.position.set(p.x, p.y, p.z);
+      carPivot.quaternion.set(q.x, q.y, q.z, q.w);
       updateSunTarget(carPivot.position);
-    }
-
-    for (let i = 0; i < vehicle.wheelInfos.length; i++) {
-      vehicle.updateWheelTransform(i);
-      const t = vehicle.wheelInfos[i].worldTransform;
-      wheelBodies[i].position.copy(t.position);
-      wheelBodies[i].quaternion.copy(t.quaternion);
     }
 
     updateChaseCamera();
@@ -1667,7 +1764,9 @@ function animate() {
 animate();
 
 window.__debug = {
-  chassisBody, vehicle, world, carPivot, camera, currentSpawnPoints, currentTrackBox,
+  RAPIER, THREE,
+  chassisBody, chassisCollider, vehicle, world, carPivot, camera, currentSpawnPoints, currentTrackBox,
+  getTrackCollider: () => trackCollider,
   zone: {
     getMask: () => zoneMaskCanvas, getBounds: () => zoneBounds, getView: () => zoneView,
     screenToWorld: zoneScreenToWorld, worldToMask: zoneWorldToMaskPixel,

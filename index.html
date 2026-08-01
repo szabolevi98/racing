@@ -97,6 +97,8 @@
       Rajtpontok: <span id="devSpawnCount">0</span> / 8 (a zóna szerkesztőben szerkeszthetők)<br>
       <span id="devSpawnStatus"></span><br>
       <button id="openZoneEditorBtn" class="btn btn-sm btn-outline-warning mt-2">Zóna / rajtrács szerkesztő</button>
+      <button id="bakeCollisionBtn" class="btn btn-sm btn-outline-info mt-2">Ütközés bekészítése</button>
+      <div id="bakeStatus" class="mt-1"></div>
     </div>
   </div>
 </div>
@@ -137,7 +139,7 @@
   "imports": {
     "three": "./vendor/three.module.js",
     "three/addons/": "./vendor/",
-    "cannon-es": "./vendor/cannon-es.js",
+    "rapier": "./vendor/rapier.es.js",
     "three-mesh-bvh": "./vendor/three-mesh-bvh.js"
   }
 }
