@@ -698,11 +698,19 @@ function buildVisualFloorGrid(track, box) {
   const nx = Math.max(2, Math.ceil(sizeX / elementSize) + 1);
   const nz = Math.max(2, Math.ceil(sizeZ / elementSize) + 1);
 
+  const NO_DATA = box.min.y - 50;
   const data = [];
-  for (let i = 0; i < nx; i++) data.push(new Array(nz).fill(box.min.y - 50));
+  const valid = [];
+  for (let i = 0; i < nx; i++) {
+    data.push(new Array(nz).fill(NO_DATA));
+    valid.push(new Array(nz).fill(false));
+  }
 
   const raycaster = new THREE.Raycaster();
-  raycaster.firstHitOnly = true;
+  // FONTOS: a LEGALSÓ találat kell, nem a legfelső. A legfelső egy épületnél
+  // a tető lenne, és a padló felkúszna a tetőig (fekete tüskék a pálya
+  // mellett). A padlónak definíció szerint minden alatt kell lennie.
+  raycaster.firstHitOnly = false;
   const dir = new THREE.Vector3(0, -1, 0);
   const rayOriginY = box.max.y + 20;
 
@@ -713,9 +721,38 @@ function buildVisualFloorGrid(track, box) {
       if (!maskHasCoverage(coverage, worldX, worldZ)) continue;
       raycaster.set(new THREE.Vector3(worldX, rayOriginY, worldZ), dir);
       const hits = raycaster.intersectObject(track, true);
-      if (hits.length) data[i][j] = hits[0].point.y;
+      if (hits.length) {
+        data[i][j] = hits[hits.length - 1].point.y;
+        valid[i][j] = true;
+      }
     }
   }
+
+  // A "levegőben lógó" minták kezelése. Ahol a pálya fölött csak vezeték
+  // (vagy hasonló lebegő geometria) van és NINCS alatta terep, ott a legalsó
+  // találat maga a vezeték — a padló felkúszna hozzá. Szomszéd-alapú
+  // kiugrás-szűrés itt NEM működik, mert a vezeték hosszan végigfut, tehát a
+  // szomszédok is ugyanolyan magasan vannak.
+  //
+  // Ehelyett a felső néhány százalékot levágjuk. A padlót LEFELÉ korlátozni
+  // mindig biztonságos: attól még minden alatt marad, legfeljebb kicsit
+  // távolabb. A valódi domborzatot alig érinti (a legfelső pár százalék
+  // úgyis közel van a küszöbhöz), a jóval magasabban lógó vezetéket viszont
+  // erősen lehúzza.
+  const heights = [];
+  for (let i = 0; i < nx; i++) {
+    for (let j = 0; j < nz; j++) if (valid[i][j]) heights.push(data[i][j]);
+  }
+  if (heights.length > 20) {
+    heights.sort((a, b) => a - b);
+    const cap = heights[Math.floor(heights.length * 0.97)];
+    for (let i = 0; i < nx; i++) {
+      for (let j = 0; j < nz; j++) {
+        if (valid[i][j] && data[i][j] > cap) data[i][j] = cap;
+      }
+    }
+  }
+
   return { data, elementSize };
 }
 
