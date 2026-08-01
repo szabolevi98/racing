@@ -1,11 +1,11 @@
-# Terv: Böngészős Trackmania-szerű multiplayer játék
+# Terv: Böngészős multiplayer autóverseny-játék
 
 ## Cél
-Egy Trackmania Nations Forever hangulatú, böngészőben futó versenyjáték, multiplayer támogatással. Backend PHP alapon, meglévő Ubuntu VPS-en (Apache + PHP + MySQL már fut, más projektek is élnek rajta — azokat nem szabad megzavarni).
+Egy böngészőben futó autóverseny-játék, multiplayer támogatással — valós pályákkal és kocsikkal, nem Trackmania-stílusú ugratós/loopingos aréna. Backend PHP alapon, meglévő Ubuntu VPS-en (Apache + PHP + MySQL már fut, más projektek is élnek rajta — azokat nem szabad megzavarni).
 
 ## Fő architektúra
 
-- **Kliens (frontend)**: Three.js vagy Babylon.js a 3D megjelenítéshez, Cannon-es / Rapier.js a jármű-fizikához (gyorsulás, ugratók, loopingok). Sima HTML5 canvas + JS.
+- **Kliens (frontend)**: Three.js a 3D megjelenítéshez, Cannon-es a jármű-fizikához (gyorsulás, kormányzás, felfüggesztés, valós pálya-domborzat követése). Sima HTML5 canvas + JS.
 - **Real-time réteg**: PHP + **Swoole** — külön, hosszú életű PHP processz, ami WebSocket szervert futtat. Ez kezeli a szobákat (race room-ok), játékos pozíció broadcastot, ghost adatokat, élő versenyzést.
 - **"Sima" backend**: a meglévő Apache + PHP (pl. Laravel/Symfony vagy akár sima PHP) marad a fiókkezelésre, pályaszerkesztőre, ranglistákra, ghost fájlok mentésére. Adatbázis: MySQL (már megvan).
 - **Fizika-modell**: ha éles ütközéses verseny kell, a szerver legyen az "igazság forrása" (authoritative server), a kliens csak predict-el és korrigál a szerver visszajelzése alapján. Ez a legnehezebb technikai rész.
