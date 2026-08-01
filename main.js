@@ -219,9 +219,11 @@ const safetyNetCollider = world.createCollider(
   safetyNetBody
 );
 
+// Világos szürke, hogy jól elüssön az aszfalttól: ahol a modell lyukas, ott
+// egyértelműen látszódjon, hogy ez a takaró padló, ne olvadjon össze az úttal.
 const safetyFloorMesh = new THREE.Mesh(
   new THREE.PlaneGeometry(6000, 6000),
-  new THREE.MeshStandardMaterial({ color: 0x1c1e22, roughness: 1, metalness: 0, side: THREE.DoubleSide })
+  new THREE.MeshStandardMaterial({ color: 0x8b9096, roughness: 1, metalness: 0, side: THREE.DoubleSide })
 );
 safetyFloorMesh.rotation.x = -Math.PI / 2;
 safetyFloorMesh.receiveShadow = true;
@@ -699,7 +701,11 @@ function buildVisualFloorGrid(track, box) {
   const nz = Math.max(2, Math.ceil(sizeZ / elementSize) + 1);
 
   const data = [];
-  for (let i = 0; i < nx; i++) data.push(new Array(nz).fill(box.min.y - 50));
+  const filled = [];
+  for (let i = 0; i < nx; i++) {
+    data.push(new Array(nz).fill(box.min.y - 50));
+    filled.push(new Array(nz).fill(false));
+  }
 
   const raycaster = new THREE.Raycaster();
   // A LEGALSÓ találat kell, nem a legfelső. A legfelső egy épületnél a tető
@@ -709,6 +715,7 @@ function buildVisualFloorGrid(track, box) {
   const dir = new THREE.Vector3(0, -1, 0);
   const rayOriginY = box.max.y + 20;
 
+  const queue = [];
   for (let i = 0; i < nx; i++) {
     const worldX = box.min.x + i * elementSize;
     for (let j = 0; j < nz; j++) {
@@ -716,9 +723,36 @@ function buildVisualFloorGrid(track, box) {
       if (!maskHasCoverage(coverage, worldX, worldZ)) continue;
       raycaster.set(new THREE.Vector3(worldX, rayOriginY, worldZ), dir);
       const hits = raycaster.intersectObject(track, true);
-      if (hits.length) data[i][j] = hits[hits.length - 1].point.y;
+      if (hits.length) {
+        data[i][j] = hits[hits.length - 1].point.y;
+        filled[i][j] = true;
+        queue.push(i * nz + j);
+      }
     }
   }
+
+  // A pálya befoglaló dobozának nagy része üres (Suzukán a cellák ~83%-a),
+  // mert a modell csak a pálya-szalagot és környékét tartalmazza. Ha ezeket
+  // a cellákat a mélyben hagynánk, a padló széle egy 68 egységes szakadék
+  // lenne — és távolról, lapos szögben pont ezen a szakadékon lehet átlátni.
+  // Ezért kifelé terjesztjük a legközelebbi érvényes magasságot, így a padló
+  // folytonosan, lépcső nélkül nyúlik túl a geometrián.
+  for (let head = 0; head < queue.length; head++) {
+    const cell = queue[head];
+    const ci = Math.floor(cell / nz);
+    const cj = cell % nz;
+    const h = data[ci][cj];
+    for (let di = -1; di <= 1; di++) {
+      for (let dj = -1; dj <= 1; dj++) {
+        const ni = ci + di, nj = cj + dj;
+        if (ni < 0 || ni >= nx || nj < 0 || nj >= nz || filled[ni][nj]) continue;
+        data[ni][nj] = h;
+        filled[ni][nj] = true;
+        queue.push(ni * nz + nj);
+      }
+    }
+  }
+
   return { data, elementSize };
 }
 
