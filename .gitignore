@@ -1,12 +1,15 @@
-# Nagy bináris asset-fájlok (pályák, kocsik, skyboxok) — nem git-be valók,
-# külön (pl. közvetlenül a szerverre) kerülnek majd fel. A PHP kód
-# (list.php, save_spawn.php) és az üres mappastruktúra viszont megmarad.
-/assets/cars/*
-/assets/maps/*
-/assets/skybox/*
-!/assets/cars/.gitkeep
-!/assets/maps/.gitkeep
-!/assets/skybox/.gitkeep
+# Nagy bináris assetek (letöltött modellek, textúrák, HDRI-k) — ezek nem
+# git-be valók, külön (pl. közvetlenül a szerverre) kerülnek fel.
+# FONTOS: fájltípus szerint zárjuk ki őket, NEM az egész mappát — így a
+# kézzel készített, pótolhatatlan adatok (zonemap.png/json a festett
+# aszfalt/kifutó/fal zónákkal, spawn.json a rajtráccsal) verziókövetve
+# maradnak, és egy véletlen törlés után visszaállíthatók.
+*.glb
+*.gltf
+*.bin
+*.hdr
+*.exr
+/assets/maps/*/textures/
 
 # IDE
 .idea/
