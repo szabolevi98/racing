@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="hu" data-bs-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Levente Racing</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<link href="vendor/bootstrap.min.css" rel="stylesheet">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #111; }
+  canvas { display: block; }
+
+  #loading {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 18px; background: #111; z-index: 30;
+  }
+  
+  #menu.hidden, #hud.hidden, #devHud.hidden { display: none !important; }
+
+  #hud, #devHud {
+    position: fixed; top: 12px; left: 12px; z-index: 10;
+  }
+  #hud .card, #devHud .card { min-width: 220px; }
+
+  #menu {
+    position: fixed; top: 0; right: 0; height: 100%; width: min(380px, 92vw);
+    background: rgba(10, 12, 17, 0.88);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: -24px 0 60px rgba(0, 0, 0, 0.55);
+    z-index: 20;
+  }
+
+  #menu h1 {
+    background: linear-gradient(90deg, #7aa2ff, #ffffff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+</style>
+</head>
+<body>
+<div id="loading">
+  <div class="text-center">
+    <div class="spinner-border text-primary mb-3" role="status"></div>
+    <div>Betöltés...</div>
+  </div>
+</div>
+
+<div id="menu" class="d-flex flex-column justify-content-center p-4 p-md-5">
+  <h1 class="fw-bold mb-4">Levente Racing</h1>
+
+  <div class="mb-3">
+    <label for="mapSelect" class="form-label text-uppercase small text-secondary">Pálya</label>
+    <select id="mapSelect" class="form-select form-select-lg" disabled></select>
+  </div>
+
+  <div class="mb-3">
+    <label for="carSelect" class="form-label text-uppercase small text-secondary">Kocsi</label>
+    <select id="carSelect" class="form-select form-select-lg" disabled></select>
+  </div>
+
+  <div class="mb-4">
+    <label for="envSelect" class="form-label text-uppercase small text-secondary">Környezet</label>
+    <select id="envSelect" class="form-select form-select-lg" disabled></select>
+  </div>
+
+  <button id="startBtn" class="btn btn-primary btn-lg fw-semibold" disabled>Indítás</button>
+  <div id="menuStatus" class="text-center small text-secondary mt-3"></div>
+</div>
+
+<div id="hud" class="hidden">
+  <div class="card bg-dark bg-opacity-75 border-secondary-subtle text-light">
+    <div class="card-body py-2 px-3 small">
+      WASD / nyilak: gáz, kormány, fék<br>
+      R: autó visszahelyezése<br>
+      <a id="backToMenuLink" class="link-info" role="button">Vissza a menübe</a><br>
+      <span id="status"></span>
+    </div>
+  </div>
+</div>
+
+<div id="devHud" class="hidden">
+  <div class="card bg-dark bg-opacity-75 border-warning text-light">
+    <div class="card-body py-2 px-3 small">
+      <strong class="text-warning">DEV MÓD — rajtrács szerkesztő</strong><br>
+      <select id="devMapSelect" class="form-select form-select-sm my-2"></select>
+      Jobb egérgomb + húzás: nézelődés, WASD: mozgás, Space/Ctrl: fel/le, Shift: gyorsítás<br>
+      <strong>M</strong>: pont felvétele a kamera alatt &nbsp; <strong>Backspace</strong>: utolsó törlése<br>
+      <strong>Enter</strong>: mentés (spawn.json)<br>
+      Pontok: <span id="devSpawnCount">0</span> / 8<br>
+      <span id="devSpawnStatus"></span>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three.module.js",
+    "three/addons/": "./vendor/",
+    "cannon-es": "./vendor/cannon-es.js",
+    "three-mesh-bvh": "./vendor/three-mesh-bvh.js"
+  }
+}
+</script>
+<script type="module" src="main.js?v=1"></script>
+</body>
+</html>

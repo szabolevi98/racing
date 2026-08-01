@@ -1,0 +1,16 @@
+# Nagy bináris asset-fájlok (pályák, kocsik, skyboxok) — nem git-be valók,
+# külön (pl. közvetlenül a szerverre) kerülnek majd fel. A PHP kód
+# (list.php, save_spawn.php) és az üres mappastruktúra viszont megmarad.
+/assets/cars/*
+/assets/maps/*
+/assets/skybox/*
+!/assets/cars/.gitkeep
+!/assets/maps/.gitkeep
+!/assets/skybox/.gitkeep
+
+# IDE
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

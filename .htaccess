@@ -1,0 +1,12 @@
+# Fejlesztés alatt: a böngésző (és a köztes cache-ek) ne tartsák meg a
+# HTML/JS/PHP fájlokat, mert állandóan frissülnek, és a stale cache
+# nagyon megtévesztő hibákat okoz (pl. "hiba" ami valójában csak régi
+# betöltött kód volt). A modellek/textúrák (assets/) cache-elése rendben
+# van, azok ritkán változnak és nagyok.
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html|js|php)$">
+    Header set Cache-Control "no-store, no-cache, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires 0
+  </FilesMatch>
+</IfModule>
