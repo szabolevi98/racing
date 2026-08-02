@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "A kerék-sarkok z=+11.29/11.4 (elöl) és z=-3.76/-3.67 (hátul) - +Z előre irányt valószínűsít (a nagyobb magasságú, teljes karosszéria-objektumok, pl 'Object2221Mtl.002', y=5.07-ig érnek, azoktól külön csoportban vannak a kerekek).",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "A modell teljesen generikus 'ObjectNNMtl.00X' neveket használ, DE a 4 kerék-sarok (mindegyiknél 7 darab: gumi/felni/tárcsa/nyereg rétegek) pontosan beazonosítható pozíció alapján, és ezeknek a sorszámai (24-30, 32-44 tartomány) NEM ütköznek a karosszéria-objektumok sorszámaival (01-2221 tartomány) - ezért az összes pontos sarok-anyagnév fel van sorolva.",
+  "wheelPattern": "Object4521Mtl|Object4621Mtl|Object4721Mtl|Object4821Mtl|Object4921Mtl|Object5021Mtl|Object5121Mtl|Object2421Mtl|Object2521Mtl|Object2621Mtl|Object271Mtl|Object2821Mtl|Object2921Mtl|Object3021Mtl|Object3721Mtl|Object361Mtl|Object3521Mtl|Object3421Mtl|Object3321Mtl|Object3221Mtl|Object3121Mtl|Object3821Mtl|Object3921Mtl|Object4021Mtl|Object4121Mtl|Object4231Mtl|Object4321Mtl|Object441Mtl"
+}
