@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "Ua. 2008-as kit-család: calliper.013, disk.013, rim.013, tread.013, side.013, brake.018 (fő fékanyag), plusz egy apró, csak az egyik saroknál lévő 'brake.017' részlet (féktömlő/kanál, aszimmetrikus, ártalmatlan extra). CSAPDA: 'brakefluid.013' (kokpit) és 'side_left.013'/'side_right.013' NEM kerekek.",
+  "wheelPattern": "brake.017|brake.018|calliper.013|disk.013|rim.013|tread.013| side(\\.|$)"
+}

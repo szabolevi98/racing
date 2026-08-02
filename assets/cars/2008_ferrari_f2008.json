@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "Ua. 2008-as kit-család, de itt más névvel: cover, material, calliper, egy önálló 'carbon' (sorszám nélkül, hátul, z=-1.65), side, tread.002. CSAPDA: 'carbon2' (nagy karosszéria-panel) NEM kerék - a puszta 'carbon' ezt is elkapná, ezért ' carbon$' (szóköz+carbon+sorvég) forma zárja ki. A 'side_left'/'side_right' és 'steeringwheel'/'steer_carbon' szintén nem kerekek.",
+  "wheelPattern": "cover|material|calliper| carbon$| side(\\.|$)|tread.002"
+}
