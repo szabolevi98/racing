@@ -3,6 +3,6 @@
 
   "yawDegrees": 0,
 
-  "_wheelPattern": "Nagyon rendetlen export (666 mesh, sok azonos nevű apró darab) — ez a tág minta viszont tisztán 4 szimmetrikus sarokra állt össze (156/156/165/165 darab), szóval a kerekek forognak/kormányoznak. FIGYELEM: a kocsi teljes szélessége gyanúsan nagynak tűnt méréskor (a törzs különböző mesh-ei 2.4 és 4.1 egység között adtak szélességet ugyanarra a kocsira) — ez extra/duplikált geometriára utalhat a fájlban, érdemes megnézni élőben, nem lóg-e ki valami furán oldalra.",
+  "_wheelPattern": "Nagyon rendetlen export (666 mesh, sok azonos nevű apró darab) — ez a tág minta viszont tisztán 4 szimmetrikus sarokra állt össze (156/156/165/165 darab), szóval a kerekek forognak/kormányoznak. (Korábban egy 'gyanúsan széles kocsi' figyelmeztetés is itt volt, de az a menü-előnézeti kocsi elforgatásából adódó mérési hiba volt — valós szélesség tisztán mérve 2.06 m, teljesen rendben.)",
   "wheelPattern": "Wheel|Caliper|Tyre|Tire|Rim|Disc|Hub"
 }
