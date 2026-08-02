@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "Az eleje +Z: a 'head_light.001' anyagú mesh z=+1.91-nél van, a 'rearlamps.001' pedig z=-2.26-nál.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "Tiszta, névvel ellátott kerék-anyagok: caliper, rotor, rim/inner_rim/outer_rim/blur_rim (a 'rim' minta mindet fogja), blur_lip (a 'lip' minta), tyre, wheel_black, badge.001 (kerékközép-embléma, ugyanoda esik mint a többi kerék-rész) - mind egy mesh-be összeolvasztva mind a 4 kerék, geometria-szétvágással. FIGYELEM: van egy 'brakes.001' nevű anyag is, de az a HÁTSÓ lökhárítónál van (z=-2.32, feltehetően hátsó féklámpa félrenevezve) - szándékosan NEM való bele a mintába, nem kerék-alkatrész.",
+  "wheelPattern": "caliper|rotor|rim|lip|tyre|wheel_black|badge.001"
+}
