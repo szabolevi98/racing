@@ -15,7 +15,7 @@
     color: #fff; font-size: 18px; background: #111; z-index: 30;
   }
   
-  #menu.hidden, #hud.hidden, #devHud.hidden,
+  #menu.hidden, #hud.hidden, #devHud.hidden, #carTesterHud.hidden,
   #raceHudWrap.hidden, #countdown.hidden, #results.hidden { display: none !important; }
 
   #raceHudWrap { position: fixed; top: 12px; right: 12px; z-index: 10; min-width: 170px; }
@@ -42,10 +42,10 @@
     background: rgba(0,0,0,0.55);
   }
 
-  #hud, #devHud {
+  #hud, #devHud, #carTesterHud {
     position: fixed; top: 12px; left: 12px; z-index: 10;
   }
-  #hud .card, #devHud .card { min-width: 220px; }
+  #hud .card, #devHud .card, #carTesterHud .card { min-width: 220px; }
 
   #menu {
     position: fixed; top: 0; right: 0; height: 100%; width: min(380px, 92vw);
@@ -171,6 +171,19 @@
       <button id="openZoneEditorBtn" class="btn btn-sm btn-outline-warning mt-2">Zóna / rajtrács szerkesztő</button>
       <button id="bakeCollisionBtn" class="btn btn-sm btn-outline-info mt-2">Ütközés bekészítése</button>
       <div id="bakeStatus" class="mt-1"></div>
+      <button id="carTesterBtn" class="btn btn-sm btn-outline-success mt-2">Autó tesztelő</button>
+    </div>
+  </div>
+</div>
+
+<div id="carTesterHud" class="hidden">
+  <div class="card bg-dark bg-opacity-75 border-success text-light">
+    <div class="card-body py-2 px-3 small">
+      <strong class="text-success">AUTÓ TESZTELŐ</strong><br>
+      <span id="carTesterCarName">-</span><br>
+      A / D vagy ← / →: kormány (csak vizuális)<br>
+      W / S vagy ↑ / ↓: előző / következő kocsi<br>
+      <button id="carTesterBackBtn" class="btn btn-sm btn-outline-warning mt-2">Vissza a dev módba</button>
     </div>
   </div>
 </div>

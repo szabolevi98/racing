@@ -37,6 +37,10 @@ const devMapSelectEl = document.getElementById('devMapSelect');
 const bakeCollisionBtn = document.getElementById('bakeCollisionBtn');
 const bakeStatusEl = document.getElementById('bakeStatus');
 const openZoneEditorBtn = document.getElementById('openZoneEditorBtn');
+const carTesterBtn = document.getElementById('carTesterBtn');
+const carTesterHudEl = document.getElementById('carTesterHud');
+const carTesterBackBtn = document.getElementById('carTesterBackBtn');
+const carTesterCarNameEl = document.getElementById('carTesterCarName');
 const openMaterialPickerBtn = document.getElementById('openMaterialPickerBtn');
 const generateCheckpointsBtn = document.getElementById('generateCheckpointsBtn');
 const autoCheckpointCountEl = document.getElementById('autoCheckpointCount');
@@ -1908,6 +1912,7 @@ function enterMenu() {
   menuEl.classList.remove('hidden');
   hudEl.classList.add('hidden');
   devHudEl.classList.add('hidden');
+  carTesterHudEl.classList.add('hidden');
   raceHudWrapEl.classList.add('hidden');
   countdownEl.classList.add('hidden');
   resultsEl.classList.add('hidden');
@@ -1920,6 +1925,7 @@ function enterDriving() {
   menuEl.classList.add('hidden');
   hudEl.classList.remove('hidden');
   devHudEl.classList.add('hidden');
+  carTesterHudEl.classList.add('hidden');
   raceHudWrapEl.classList.remove('hidden');
   scene.fog.density = NORMAL_FOG_DENSITY;
   // Ha a gombon/legördülőn maradt a fókusz, a szóköz/nyilak azt vezérelnék
@@ -1961,6 +1967,87 @@ function enterDevMode() {
 
   refreshSpawnMarkers();
 }
+
+// ---------- Autó tesztelő (dev módból nyitható): a kocsi egy helyben áll a
+// rajtponton, a kerekek folyamatosan forognak és A/D-vel (vagy a nyilakkal)
+// vizuálisan kormányoznak — így gyorsan végig lehet nézni sok kocsi
+// kerekeit anélkül, hogy tényleg vezetni kéne. A W/S (vagy fel/le nyíl) a
+// következő/előző kocsira vált a legördülő megnyitása nélkül.
+let carTestWheelAngle = 0;
+let carTestSwitching = false;
+const CARTEST_ROLL_SPEED = 6; // rad/mp — kb. 1 fordulat/mp, jól látható tempó
+
+function carTesterLabel(entry, loading) {
+  if (!manifest) return '-';
+  const idx = manifest.cars.indexOf(entry);
+  const total = manifest.cars.length;
+  return `${idx + 1}/${total}: ${entry.label}` + (loading ? ' (betöltés…)' : '');
+}
+
+function enterCarTester() {
+  if (!manifest) return;
+  appState = 'cartest';
+  devHudEl.classList.add('hidden');
+  carTesterHudEl.classList.remove('hidden');
+  carTestWheelAngle = 0;
+  // A rajtpont-jelölők kitakarnák a közelről nézett kocsit.
+  devSpawnMarkers.forEach((m) => { m.visible = false; });
+  const entry = findEntry(manifest.cars, carSelect.value);
+  carTesterCarNameEl.textContent = carTesterLabel(entry, false);
+}
+
+function exitCarTester() {
+  carTesterHudEl.classList.add('hidden');
+  appState = 'dev';
+  devHudEl.classList.remove('hidden');
+  devSpawnMarkers.forEach((m) => { m.visible = true; });
+}
+
+async function switchCarTestBy(delta) {
+  if (!manifest || carTestSwitching) return;
+  const list = manifest.cars;
+  const currentIdx = list.findIndex((c) => c.id === carSelect.value);
+  const nextIdx = ((currentIdx < 0 ? 0 : currentIdx) + delta + list.length) % list.length;
+  const entry = list[nextIdx];
+  carTestSwitching = true;
+  carTesterCarNameEl.textContent = carTesterLabel(entry, true);
+  carSelect.value = entry.id;
+  try {
+    await setCar('assets/' + entry.file, entry.id, entry.config);
+  } finally {
+    carTesterCarNameEl.textContent = carTesterLabel(entry, false);
+    carTestSwitching = false;
+  }
+}
+
+function updateCarTest(dt) {
+  carTestWheelAngle += dt * CARTEST_ROLL_SPEED;
+  const steerLeft = keys['KeyA'] || keys['ArrowLeft'];
+  const steerRight = keys['KeyD'] || keys['ArrowRight'];
+  const steer = steerLeft ? maxSteerVal : steerRight ? -maxSteerVal : 0;
+  for (let i = 0; i < wheelPivots.length; i++) {
+    const src = wheelSources[i];
+    wheelPivots[i].rotation.set(carTestWheelAngle, src.steer ? steer : 0, 0);
+  }
+  updateSunTarget(carPivot.position);
+  updateShowcaseCamera(dt);
+}
+
+carTesterBtn.addEventListener('click', enterCarTester);
+carTesterBackBtn.addEventListener('click', exitCarTester);
+
+window.addEventListener('keydown', (e) => {
+  if (appState !== 'cartest' || e.repeat) return;
+  if (e.code === 'ArrowUp' || e.code === 'KeyW') {
+    e.preventDefault();
+    switchCarTestBy(-1);
+  } else if (e.code === 'ArrowDown' || e.code === 'KeyS') {
+    e.preventDefault();
+    switchCarTestBy(1);
+  } else if (e.code === 'Escape') {
+    exitCarTester();
+  }
+});
 
 // Jobb-klikk + húzás a nézelődéshez — nem pointer lock, hogy az egérmutató
 // látható maradjon dev módban (nem tűnik el a képernyőről). A mousedown/
@@ -3095,6 +3182,8 @@ function animate() {
     updateChaseCamera();
   } else if (appState === 'dev') {
     updateDevCamera(dt);
+  } else if (appState === 'cartest') {
+    updateCarTest(dt);
   } else if (appState === 'zone-edit') {
     // A pálya élőben, valódi 3D geometriaként renderelődik felülnézetből —
     // ezért marad éles bármilyen zoomon, szemben egy fix felbontású képpel.
