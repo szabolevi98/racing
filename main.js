@@ -313,6 +313,7 @@ vehicle.indexUpAxis = 1;          // Y = fel
 vehicle.setIndexForwardAxis = 2;  // Z = előre (a .d.ts-ben tényleg így hívják a settert)
 
 const WHEEL_RADIUS = 0.35;
+const SUSPENSION_REST_LENGTH = 0.3;
 const wheelPositions = [
   { x: -0.85, y: -0.2, z: 1.5 },  // 0: első bal
   { x: 0.85, y: -0.2, z: 1.5 },   // 1: első jobb
@@ -320,7 +321,7 @@ const wheelPositions = [
   { x: 0.85, y: -0.2, z: -1.5 },  // 3: hátsó jobb
 ];
 wheelPositions.forEach((pos, i) => {
-  vehicle.addWheel(pos, { x: 0, y: -1, z: 0 }, { x: -1, y: 0, z: 0 }, 0.3, WHEEL_RADIUS);
+  vehicle.addWheel(pos, { x: 0, y: -1, z: 0 }, { x: -1, y: 0, z: 0 }, SUSPENSION_REST_LENGTH, WHEEL_RADIUS);
   // A cannon-es-ből átemelt, már behangolt felfüggesztés-értékek — mindkét
   // motor ugyanannak a Bullet-féle raycast vehicle-nek a portja, ezért
   // közvetlenül átvihetők.
@@ -331,6 +332,32 @@ wheelPositions.forEach((pos, i) => {
   vehicle.setWheelMaxSuspensionForce(i, 100000);
   vehicle.setWheelFrictionSlip(i, 1.4);
 });
+
+// Milyen mélyen van a talaj a kasztni KÖZEPE alatt, ha az autó nyugalomban áll?
+// A látható modellt ehhez igazítjuk, nem a kasztni-doboz aljához: a kerék a
+// kasztni alja alá lóg (rácsatlakozás + rugóhossz + keréksugár), ezért a
+// doboz aljához igazított modell a levegőben lóg.
+//
+// A nyugalmi rugóhosszt nem számoljuk ki képletből (a Bullet-féle rugóerő
+// pontos alakja motor-belső), hanem az első olyan képkockán MÉRJÜK, amikor
+// mind a négy kerék a talajon van és a kocsi már nem mozog függőlegesen.
+// Addig a teljesen kinyúlt rugóval számolunk.
+const WHEEL_CONNECTION_DROP = -wheelPositions[0].y;
+let groundOffset = WHEEL_CONNECTION_DROP + SUSPENSION_REST_LENGTH + WHEEL_RADIUS;
+let groundOffsetCalibrated = false;
+
+function calibrateGroundOffset() {
+  if (groundOffsetCalibrated) return;
+  if (Math.abs(chassisBody.linvel().y) > 0.05) return;
+  let sum = 0;
+  for (let i = 0; i < 4; i++) {
+    if (!vehicle.wheelIsInContact(i)) return;
+    sum += vehicle.wheelSuspensionLength(i) ?? SUSPENSION_REST_LENGTH;
+  }
+  groundOffset = WHEEL_CONNECTION_DROP + sum / 4 + WHEEL_RADIUS;
+  groundOffsetCalibrated = true;
+  applyCarModelHeight();
+}
 
 // A Rapierben a merev test állapota csak settereken át írható (a getterek
 // másolatot adnak vissza), ezért kell külön függvény a visszahelyezéshez.
@@ -403,6 +430,13 @@ function setHeadlights(on) {
 
 let carLoaded = false;
 let currentCarModel = null;
+// A betöltött modell aljának távolsága a saját origójától (a skálázás után).
+// Ebből és a groundOffsetből jön ki, hova kell tenni a modellt a carPivoton belül.
+let carModelBottomRaw = 0;
+
+function applyCarModelHeight() {
+  if (currentCarModel) currentCarModel.position.y = carModelBottomRaw - groundOffset;
+}
 let currentTrack = null;
 let currentTrackBox = null;
 let currentMapId = null;
@@ -528,7 +562,10 @@ async function setTrack(trackUrl, mapId, spawnPoints, gates) {
 
   const spot = findShowcaseSpot(track, currentTrackBox, pickSpawnSlot(currentSpawnPoints));
   spawnPoint.copy(spot).add(new THREE.Vector3(0, 2, 0));
+  // A menü-előnézetben nincs fizika, ezért a carPivotot kézzel emeljük a
+  // kasztni nyugalmi magasságába — így a modell alja pontosan a talajra kerül.
   carPivot.position.copy(spot);
+  carPivot.position.y += groundOffset;
   resetCarTo(spawnPoint);
 
   // A pályához tartozó zóna-térkép (ha van) betöltése a vezetéshez.
@@ -540,7 +577,13 @@ async function setTrack(trackUrl, mapId, spawnPoints, gates) {
 // A látható kerekek forgatásához kerekenként egy pivot kell, a kerék
 // geometriai közepén. Sorrend: 0 = első bal, 1 = első jobb, 2 = hátsó bal,
 // 3 = hátsó jobb — ugyanaz, mint a fizikai kerekeknél.
+//
+// Néhány modellben viszont a bal és a jobb kerék EGYETLEN mesh-be van
+// olvasztva (tengelyenként egy darab, a középvonalon). Ott csak a gördülést
+// tudjuk mutatni: a tengely közepe körüli kormányzás oldalra lökné a
+// kerekeket. Ilyenkor 2 pivot van (első és hátsó tengely), steer nélkül.
 let wheelPivots = [];
+let wheelSources = [];
 
 // A kerék-alkatrészeket pozíció szerint osztjuk 4 sarokba, mert a nevek
 // gyakran NEM árulják el, melyik melyik (a BMW M3-nál például a hátsó
@@ -550,6 +593,7 @@ let wheelPivots = [];
 // megtartja a világ-transzformot, így a kerék nem ugrik el.
 function buildWheelPivots(carRoot, wheelPattern) {
   wheelPivots = [];
+  wheelSources = [];
   if (!wheelPattern) return;
 
   let regex;
@@ -572,21 +616,33 @@ function buildWheelPivots(carRoot, wheelPattern) {
     new THREE.Box3().setFromObject(obj).getCenter(centre);
     parts.push({ mesh: obj, local: carPivot.worldToLocal(centre.clone()) });
   });
-  if (parts.length < 4) return;
+  if (parts.length < 2) return;
 
   const xs = parts.map((p) => p.local.x);
   const zs = parts.map((p) => p.local.z);
+  const spanX = Math.max(...xs) - Math.min(...xs);
+  const spanZ = Math.max(...zs) - Math.min(...zs);
   const midX = (Math.min(...xs) + Math.max(...xs)) / 2;
   const midZ = (Math.min(...zs) + Math.max(...zs)) / 2;
 
+  // Ha a darabok mind a középvonalon ülnek, akkor bal/jobb nincs külön
+  // mesh-ben: tengelyenként csoportosítunk, és nem kormányzunk.
+  const axleMode = spanX < spanZ * 0.25;
+
   // index: 0=FL, 1=FR, 2=RL, 3=RR — a +Z az autó eleje
-  const groups = [[], [], [], []];
+  // (tengely-módban: 0 = első tengely, 1 = hátsó tengely)
+  const groups = axleMode ? [[], []] : [[], [], [], []];
   parts.forEach((p) => {
-    const right = p.local.x > midX ? 1 : 0;
     const rear = p.local.z > midZ ? 0 : 1;
-    groups[rear * 2 + right].push(p);
+    if (axleMode) groups[rear].push(p);
+    else groups[rear * 2 + (p.local.x > midX ? 1 : 0)].push(p);
   });
   if (groups.some((g) => g.length === 0)) return;
+
+  // Melyik fizikai kerékről vegyük a gördülést, és forduljon-e a pivot.
+  wheelSources = axleMode
+    ? [{ wheel: 0, steer: false }, { wheel: 2, steer: false }]
+    : [0, 1, 2, 3].map((i) => ({ wheel: i, steer: i < 2 }));
 
   wheelPivots = groups.map((group) => {
     const pivot = new THREE.Group();
@@ -616,6 +672,7 @@ async function setCar(carUrl, carId, config) {
   }
   wheelPivots.forEach((p) => carPivot.remove(p));
   wheelPivots = [];
+  wheelSources = [];
 
   const gltf = await loadGLTF(carUrl);
   const carRoot = gltf.scene;
@@ -647,12 +704,14 @@ async function setCar(carUrl, carId, config) {
   carRoot.scale.setScalar(scale);
   carRoot.updateMatrixWorld(true);
 
-  // Végül a modellt a saját aljához igazítjuk, hogy a kerekek a chassis alján legyenek.
+  // Végül a modellt úgy toljuk el, hogy a gumik alja pontosan a talajon legyen
+  // (a groundOffset a kasztni közepétől a talajig mért távolság).
   const box3 = new THREE.Box3().setFromObject(carRoot);
-  carRoot.position.y = -box3.min.y - chassisSize.y;
+  carModelBottomRaw = -box3.min.y;
 
   carPivot.add(carRoot);
   currentCarModel = carRoot;
+  applyCarModelHeight();
   buildWheelPivots(carRoot, config && config.wheelPattern);
   carLoaded = true;
   setMenuStatus('');
@@ -801,6 +860,10 @@ function buildVisualFloorGrid(track, box) {
   // lenne, és a padló felkúszna a tetőig (fekete tüskék a pálya mellett).
   // A padlónak definíció szerint minden alatt kell lennie.
   raycaster.firstHitOnly = false;
+  // A rács ritka (több tíz méteres cellák), ezért két mintavételi pont között
+  // a padló átlósan elvághatja a domborzatot, és néhol kibukkan a talajból.
+  // Ezért az egészet lejjebb toljuk: a lyukakat így is takarja, de nem kúszik fel.
+  const FLOOR_DROP = 3.5;
   const dir = new THREE.Vector3(0, -1, 0);
   const rayOriginY = box.max.y + 20;
 
@@ -811,7 +874,7 @@ function buildVisualFloorGrid(track, box) {
       if (!maskHasCoverage(coverage, worldX, worldZ)) continue;
       raycaster.set(new THREE.Vector3(worldX, rayOriginY, worldZ), dir);
       const hits = raycaster.intersectObject(track, true);
-      if (hits.length) data[i][j] = hits[hits.length - 1].point.y;
+      if (hits.length) data[i][j] = hits[hits.length - 1].point.y - FLOOR_DROP;
     }
   }
 
@@ -945,8 +1008,9 @@ function applyWallConstraint() {
 function updateWheelVisuals() {
   if (!wheelPivots.length) return;
   for (let i = 0; i < wheelPivots.length; i++) {
-    const roll = vehicle.wheelRotation(i) ?? 0;
-    const steer = vehicle.wheelSteering(i) ?? 0;
+    const src = wheelSources[i];
+    const roll = vehicle.wheelRotation(src.wheel) ?? 0;
+    const steer = src.steer ? (vehicle.wheelSteering(src.wheel) ?? 0) : 0;
     wheelPivots[i].rotation.set(roll, steer, 0);
   }
 }
@@ -2115,6 +2179,7 @@ function animate() {
     vehicle.updateVehicle(world.timestep);
     world.step();
     applyWallConstraint();
+    calibrateGroundOffset();
     updateRace(dt);
 
     if (carLoaded) {

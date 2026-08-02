@@ -1,0 +1,8 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "Az eleje +Z: a 'lights_glass' z=+1.9, a 'tail_light' z=-2.3 körül.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "NINCS: anyag szerint darabolt modell (EXT_Rim, WHEEL stb. anyagok, Object_N nevek), a négy kerék egyetlen, teljes szélességű mesh-ben van. Forgatásukhoz a modellt kellene szétvágni."
+}

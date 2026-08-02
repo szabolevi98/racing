@@ -1,0 +1,8 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "Az eleje +Z: a 'rear_light' anyagú mesh z=-2.6-nál van.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "NINCS: ez a modell ANYAG szerint van darabolva (Object_4, Object_5, ... nevekkel), így egy mesh a teljes autószélességet átfogja — a négy kerék ugyanabban a mesh-ben van, mint a többi gumi/felni elem. Külön kerék-mesh nélkül nem lehet forgatni; ehhez a modellt kellene szétvágni."
+}
