@@ -1639,12 +1639,22 @@ function updateChaseCamera() {
   const chassisQuat = chassisBody.rotation();
   const q = new THREE.Quaternion(chassisQuat.x, chassisQuat.y, chassisQuat.z, chassisQuat.w);
 
+  // Csak a kocsi YAW-ját (merre néz felülnézetből) vesszük át — a dőlést és a
+  // bukást (pl. borulás közben) szándékosan figyelmen kívül hagyjuk. Enélkül
+  // borulásnál a "fel" és "hátra" irány a kocsival együtt fejre áll, és a
+  // kamera a föld ALÁ kerülne, onnan nézve felfelé.
+  const yawOnly = new THREE.Euler().setFromQuaternion(q, 'YXZ').y;
+  const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yawOnly);
+
   // A jobb-klikkes körbenézés extra forgatása a kocsi irányához képest.
   const orbitQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(orbitPitch, orbitYaw, 0, 'YXZ'));
-  q.multiply(orbitQuat);
+  yawQuat.multiply(orbitQuat);
 
-  const desiredOffset = chaseOffset.clone().applyQuaternion(q);
+  const desiredOffset = chaseOffset.clone().applyQuaternion(yawQuat);
   const desiredPos = new THREE.Vector3(chassisPos.x, chassisPos.y, chassisPos.z).add(desiredOffset);
+  // Biztonsági háló: a kamera sose kerüljön a kocsi alá — sem borulásnál, sem
+  // ha valaki lefelé néz körbenézés közben.
+  desiredPos.y = Math.max(desiredPos.y, chassisPos.y + 0.5);
 
   camera.position.lerp(desiredPos, manualOrbitActive ? 0.3 : 0.1);
   chaseTarget.set(chassisPos.x, chassisPos.y + 1, chassisPos.z);
