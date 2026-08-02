@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS becslés - ugyanabból a modell-családból való, mint a már bevált CLK GTR/Diablo/Porsche 911 GT1 (azonos anyagnév-stílus: black/body/frame/head_light/tail_light_lod0 stb.), azoknál +Z volt az eleje - itt is ezt feltételezem, de nem ellenőriztem élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "GYORS becslés. Tiszta, névvel ellátott kerék-anyagok (rim/outer_rim/inner_rim/blur_rim, wheel_black, tyre_fx, EXT_DISK_BRAKE, caliper), mind egy helyen (kb 0,0.32,0.05), geometria-szétvágással.",
+  "wheelPattern": "rim|wheel_black|tyre_fx|EXT_DISK_BRAKE|caliper"
+}

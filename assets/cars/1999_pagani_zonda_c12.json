@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - van egy 'badge_front' anyag is, de a pozícióját nem néztem meg, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "GYORS becslés. Tiszta, névvel ellátott kerék-anyagok: rim/rim_lugs/rim_black/rim_inner/rim_blue/rim_chrome, caliper_logo/calipers/calipers_metal, brakedisc, és 'EXT_Gomme' (olasz: gumi/gumiabroncs), mind egy helyen (kb 0,0.34,-0.13/-0.27), geometria-szétvágással.",
+  "wheelPattern": "rim|caliper|brakedisc|Gomme"
+}

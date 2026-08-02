@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "GYORS becslés. A 4 sarok már eleve külön mesh-csoport (Vehicle_Exterior_mm_rotor + Vehicle_Exterior_mm_wheel + tyre). FIGYELEM: van egy ÖTÖDIK, magányos 'tyre' anyagú mesh is (z=+2.08, x=~0, 1.95 széles) ami NEM egy kerék - valószínűleg egy első terelőlemez/spoiler tévesen 'tyre' anyaggal. Mivel a pontos név alapján nem különböztethető meg a valós gumiktól, ez bekerül a mintába és az egyik első kerékhez fog tapadni - nézd meg élőben, nem forog-e furán egy nagy lapos darab az első kerékkel.",
+  "wheelPattern": "tyre|Vehicle_Exterior_mm_rotor|Vehicle_Exterior_mm_wheel"
+}

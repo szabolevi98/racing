@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, BIZONYTALAN becslés. Az egyik fékanyag neve 'Discrf1Mtl' (talán 'Disc R.F.' = jobb-első rövidítés a lengyel/vegyes elnevezésű modellben), ez z=-4.06-nál van - ha ez tényleg az első tengely, akkor lehet, hogy 180-ra kell fordítani (mert ez negatív Z-n van, a konvenciónk szerint az elejének +Z-n kéne lennie). Alapértelmezésként most 0-t hagytam, ELLENŐRIZD ÉLŐBEN ELSŐKÉNT ezt a kocsit, és fordítsd 180-ra ha háttal indul.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "GYORS becslés. 4 sarok, sarkonként 3 rész (Felga=felni, Oponalp=gumi, Discrf/Felgahamulec=fék - lengyel elnevezések). Az alapnevek (Felga0030011Mtl, Oponalp0020011Mtl, Discrf1Mtl, Felgahamulec0050011Mtl) nem ütköznek karosszéria-résszel.",
+  "wheelPattern": "Felga0030011Mtl|Oponalp0020011Mtl|Discrf1Mtl|Felgahamulec0050011Mtl"
+}

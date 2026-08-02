@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS becslés (statikus elemzés). Az orr-elem ('Meshpart5Mtl', alacsonyan, z=+4.85) az első tengely (z=+5.51) mellett van, a magasan ülő hátsó szárny ('Meshpart6Mtl', z=-8.16) a hátsó tengely (z=-4.99) mögött - ez +Z előre irányt valószínűsít.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "GYORS becslés. A 4 sarok már eleve külön mesh-csoport: Meshpart1/2/3Mtl (és .001/.002/.003 a másik 3 saroknál) - nincs ütközés a karosszéria Meshpart4-8Mtl neveivel (más számok).",
+  "wheelPattern": "Meshpart1Mtl|Meshpart2Mtl|Meshpart3Mtl"
+}

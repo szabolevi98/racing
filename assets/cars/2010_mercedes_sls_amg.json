@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS becslés - ugyanabból a modell-családból, mint a bevált McLaren F1 GTR Gulf/Huracán GT3 (azonos Rim/Tyre/Brake_Disk/Brake_Caliper elnevezés-stílus), azoknál +Z volt az eleje - itt is ezt feltételezem, de nem ellenőriztem élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "GYORS becslés. Tiszta, névvel ellátott kerék-anyagok (Rim/Rim_Blurred_Spokes/Rim_Blurred_Solid, Tyre, Brake_Disk, Brake_Caliper), mind egy helyen (kb 0,0.36,0.04), geometria-szétvágással.",
+  "wheelPattern": "Rim|Tyre|Brake_Disk|Brake_Caliper"
+}

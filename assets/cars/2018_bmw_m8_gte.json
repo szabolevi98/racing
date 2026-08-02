@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "GYORS becslés. A 4 sarok már eleve külön mesh-csoport (bmw_m6_gt3_disc, bmw_m6_gt3_tyre, BMW_M6_GT3_RIM + BMW_M6_GT3_RIM_ALPHA) - vicces módon a fájl az M6 GT3 anyagneveit örökölte (feltehetően ugyanaz az alap-modell), de ez itt csak névfelismerésre számít, nem gond.",
+  "wheelPattern": "bmw_m6_gt3_disc|bmw_m6_gt3_tyre|BMW_M6_GT3_RIM"
+}

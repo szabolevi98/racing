@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "GYORS, KEVÉSBÉ BIZTOS becslés. A modellben nincsenek sorszámozott ismétlődések (mindegyik anyagnév egyedi), a kerekek valószínűleg OLDALANKÉNT (nem sarkonként) vannak összeolvasztva: Mesh13/14/25Mtl a jobb oldalon (x=5.42, mindkét tengelyt lefedi, z-mérete 6.4-8.5 - a splitMergedWheelMesh vágja szét elöl/hátulra), Mesh18/19Mtl a bal oldalon (x=-6.30). Ha nem megy jól, lehet hogy tengely-módra esik vissza (gördül, nem kormányoz) - nézd meg élőben.",
+  "wheelPattern": "Mesh13Mtl|Mesh14Mtl|Mesh18Mtl|Mesh19Mtl|Mesh25Mtl"
+}

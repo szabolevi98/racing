@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS becslés. Két 'chassislight' anyagú mesh van a kasztni két végén, túl a kerekeken: z=+9.63 (első tengely z=7.25 előtt) és z=-9.49 (hátsó tengely z=-5.20 mögött) - valószínűleg fényszóró/hátsólámpa, +Z előre irányt valószínűsítve.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "GYORS becslés. A 4 sarok már eleve külön mesh-csoport (Object251/2621/2421/231Mtl, sorszámmal .004-.007 a 4 saroknál) - nincs ütközés más résszel (a karosszéria Interior/Secondary/Exhaust/Mirror/Window/Paint neveket használ).",
+  "wheelPattern": "Object251Mtl|Object2621Mtl|Object2421Mtl|Object231Mtl"
+}
