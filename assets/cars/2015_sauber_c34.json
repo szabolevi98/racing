@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "Élőben megerősítve MŰKÖDIK (a felhasználó gyanakodott, hogy elsőre tévesen lett 'lehetetlennek' minősítve - jogosan). A modell mindössze 5 mesh-ből áll (Material_1..5), mindegyik az egész kocsit lefedő méretű blokk - anyagnév alapján nem lehet elkülöníteni, DE a méretük (kb a teljes 4-kerekes készlet fesztávja, nem a teljes karosszéria) félrevezető volt elsőre. A 'Material_4' Y-tartománya KIZÁRÓLAG a talajszint körül van (min -0.34, max -0.03, sosem emelkedik feljebb) - ez tisztán a kerekeket (gumi+felni) tartalmazza, karosszéria nélkül. Geometria-szétvágással 4 szimmetrikus, 1-1 darabos sarokra esik szét (±0.65 X, 1.28/-1.67 Z).",
+  "wheelPattern": "Material_4"
+}
