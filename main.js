@@ -574,12 +574,18 @@ async function setTrack(trackUrl, mapId, spawnPoints, gates) {
   // A hasáb közepét kell megadni: a teteje legyen a floorY szinten.
   safetyNetBody.setTranslation({ x: 0, y: floorY - 1, z: 0 }, true);
 
-  const spot = findShowcaseSpot(track, currentTrackBox, pickSpawnSlot(currentSpawnPoints));
+  const slot = pickSpawnSlot(currentSpawnPoints);
+  const spot = findShowcaseSpot(track, currentTrackBox, slot);
   spawnPoint.copy(spot).add(new THREE.Vector3(0, 2, 0));
   // A menü-előnézetben nincs fizika, ezért a carPivotot kézzel emeljük a
   // kasztni nyugalmi magasságába — így a modell alja pontosan a talajra kerül.
   carPivot.position.copy(spot);
   carPivot.position.y += groundOffset;
+  // A pozíció mellett a rajtpont iránya is számít — enélkül a kirakat-nézetben
+  // a kocsi mindig az alapértelmezett (0 fokos) irányba nézne, játékban viszont
+  // már a helyes irányba fordulva indul.
+  spawnHeading = slot ? slot.heading : 0;
+  carPivot.rotation.y = spawnHeading;
   resetCarTo(spawnPoint);
 
   // A pályához tartozó zóna-térkép (ha van) betöltése a vezetéshez.
