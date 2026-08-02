@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "GYORS becslés. Az első tengely (z=+7.07) nagyobb pozitív Z-n van mint a hátsó (z=-5.99) - +Z előre irányt valószínűsít.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "FONTOS: a Rim3Mtl/Tire3Mtl NEM hagyható ki (korábbi próbálkozás rosszul sült el - 'kerék kettévágva, külön forognak' hibát okozott)! A Disc1Mtl/Tire1Mtl/Rim1Mtl anyagok valójában csak az EGYIK tengelyt fedik le, méghozzá úgy, hogy kerekenként KÉT, egymáshoz nagyon közeli (kb 0.24 egység), majdnem azonos duplikált mesh-példány tartozik hozzá (exportálási hiba/LOD-maradvány). A Rim3Mtl/Tire3Mtl (a MÁSIK tengely, jóval nagyobb méretű gumi/felni) jelenléte szükséges ahhoz, hogy a globális medián (midZ) a duplikátum-párt EGYÜTT, ugyanabba a sarokba sorolja - Rim3Mtl/Tire3Mtl nélkül a medián túl közel kerül a duplikátum-párhoz, és a kód tévedésből szétválasztja a párt két külön (hamis) sarokra, amik közül az egyik kormányzást is kap - ez nézett ki úgy, mintha a kerék ketté lenne vágva és külön forogna. Az eredeti 'hatalmasat forog' panasz oka valószínűleg az, hogy a NAGYOBB (Rim3/Tire3) tengelyre esik a kormányzás - lásd yawDegrees kísérlet.",
-  "wheelPattern": "Disc1Mtl|Tire1Mtl|Rim1Mtl|Rim3Mtl|Tire3Mtl"
-}
