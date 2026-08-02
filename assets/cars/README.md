@@ -117,27 +117,16 @@ zavarja meg egyetlen kilógó pont.
    nézd meg (utána vissza kell állítani a mentett quaternion-t), vagy
    simán mérd az egyes mesh-eket helyi (nem világ-) koordinátában.
 
-## Jelenlegi állapot (kocsinként)
+## Kocsinkénti állapot
 
-| Kocsi | Kerék-mód | `wheelPattern` |
-|---|---|---|
-| `2001_bmw_m3_gtr_e46` | sarkonként (gördül + kormányoz) | `TIRE\|BRAKE_` |
-| `2004_ferrari_f2004` | sarkonként | `wheel` |
-| `1962_ferrari_250_gto` | sarkonként — geometria-szétvágással (eredetileg csak tengely-mód volt) | `LOD_A_TYRE\|LOD_A_WHEEL\|LOD_A_BRAKE_CALIPER` |
-| `1988_lamborghini_countach` | sarkonként — geometria-szétvágással | `Tyre\|EXT_metal_rim\|EXT_metal_disk\|EXT_metal_caliper` |
-| `2018_redbull_rb14` | sarkonként — geometria-szétvágással (4/4/4/4, tyre+rim+hub+disc sarkonként) | `Tyre_thread\|tyre_side\|redbull_wheel_hub\|discs` |
-| `2010_pagani_zonda_cinque` | sarkonként (156/156/165/165 darab, nagyon rendetlen export) — a felhasználó megerősítette, hogy megy | `Wheel\|Caliper\|Tyre\|Tire\|Rim\|Disc\|Hub` |
-| `2020_mclaren_mcl35` | sarkonként (2/2/2/2, kivételesen tiszta modell — gumi+felni már eleve külön node-onként a 4 sarokban, szétvágás sem kellett) | `LOD_A_TYRE\|LOD_A_WHEEL_` |
-| `2011_bmw_z4_gt3` | sarkonként (5/5/5/5: gumi+felni+tárcsa+nyereg egy csomóban) — nagyon generikus export, a legtöbb anyagnak nincs neve (`Material_NN.001`), csak az `EXT_Tyre` kapott értelmes nevet; a felni/tárcsa/nyereg névtelen anyagait EXAKT névvel (`Material_59/60/62/63.001`) kellett felvenni a mintába, mert ezek a sorszámok csak ebben az egy fájlban stabilak | `EXT_Tyre\|Material_59.001\|Material_60.001\|Material_62.001\|Material_63.001` |
-| `2006_mclaren_mp421` | sarkonként (~11/10/11/11, gumi+felni+küllő+tárcsa+nyereg+elmosás-textúra egy csomóban) — tiszta, névvel ellátott kerék-anyagok (brake/calliper/disk/blur1/blur2/MCLRIM/MCLSPOKES/side/tread/MCLHUB), geometria-szétvágással | `brake\|calliper\|disk\|blur1\|blur2\|MCLRIM\|MCLSPOKES\|side\|tread\|MCLHUB` |
-| `1967_ferrari_312` | sarkonként (10/10/10/10) — tiszta, névvel ellátott kerék-anyagok (rimblur/FERLIP/FERRIM/67FS/67TREAD/HUBNUT/FERHUB/FERSPOKE/F312B_BDISC), geometria-szétvágással. Szándékosan kihagyva: a féknyereg/fékcső/spinner anyagai, mert azok csak az ELSŐ tengelynél vannak külön mesh-ként (a modell szerint látható első fék, rejtett hátsó) | `rimblur\|FERLIP\|FERRIM\|67FS\|67TREAD\|HUBNUT\|FERHUB\|FERSPOKE\|F312B_BDISC` |
-| `1996_porsche_911_gt1` | sarkonként (~10/10/11/10) — tiszta, névvel ellátott kerék-anyagok (caliper/rotor/rim family/blur_lip/tyre/wheel_black/badge), geometria-szétvágással. Csapda: van egy `brakes.001` nevű anyag is, de az a HÁTSÓ lökhárítónál ül (félrenevezett hátsó féklámpa), szándékosan kihagyva a mintából | `caliper\|rotor\|rim\|lip\|tyre\|wheel_black\|badge.001` |
-| `2000_lamborghini_nomad_diablo_gt1` | sarkonként (8/8/8/8) — tiszta, névvel ellátott kerék-anyagok (wheel_black/rim family/Tyre/hub/rotor/caliper), geometria-szétvágással. Csapda: van 4 db `NRGHUB_2/3/4/5` nevű anyag is a pilótafülkében (nitro-gomb), amit a puszta `hub` minta tévesen elkapna — ezért pontosan `hub.001`-et használunk | `wheel_black\|rim\|Tyre\|hub.001\|rotor\|caliper` |
+Ezt NEM itt tartjuk nyilván (túl sok kocsi lesz ahhoz, hogy egy közös
+táblázat kezelhető maradjon) — minden kocsi saját `<név>.json`-jában, a
+`_wheelPattern`/`_yawDegrees` mezőkben van dokumentálva, HOGYAN lett
+kitalálva a mintája, milyen csapdák voltak benne, és mit ellenőriztünk
+élőben. Ha egy régebbi kocsinál nincs `wheelPattern`, érdemes újra
+megpróbálni a fenti lépésekkel, mielőtt "lehetetlennek" könyvelnénk el
+— korábban több kocsi is csak azért tűnt annak, mert a geometria-
+szétvágás még nem létezett.
 
-**Törölt kocsik** (a felhasználó törölte, buggos eredeti modellek — nem a kerék-szétvágással volt gond, magukkal a fájlokkal):
-- `mercedes-benz_clk_gtr`
-- `2016_bmw_m6_gt3`
-
-Ha egy kocsinál `wheelPattern` nélkül vagy "nincs" szöveggel áll a
-config, az korábbi, a geometria-szétvágás ELŐTTI állapotot tükrözhet —
-érdemes újrapróbálni, mielőtt "lehetetlennek" könyvelnénk el.
+**Törölt kocsik** (a felhasználó törölte, buggos eredeti modellek — nem
+a kerék-szétvágással volt gond, magukkal a fájlokkal): `mercedes-benz_clk_gtr`, `2016_bmw_m6_gt3`.
