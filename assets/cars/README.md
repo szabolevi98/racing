@@ -74,6 +74,14 @@ lefut, nem csak az F2004-nél — a már jól középre igazított kocsiknál
 (M3 GTR, M6 GT3, stb.) csak egy alig észrevehető, tört egységnyi
 korrekciót ad, nem árt nekik.
 
+A középpont-számítás (mind itt, mind a szétvágásnál) a talált darabok
+Z/X **mediánját** veszi, NEM az átlagát/min-max közepét — egyetlen
+eltévedt, aszimmetrikus kis darab (pl. a McLaren MP4/21 forrás-
+modelljében egy duplikált 'tread' töredék, ami messze a kerekektől,
+z=-1.95-nél lógott) a min-max közepet teljesen félrecsúsztatná
+(a kocsi jóval "előrébb" ülne, mint kellene), a mediánt viszont nem
+zavarja meg egyetlen kilógó pont.
+
 ## Hogyan tegyünk be egy új kocsit
 
 1. Tedd be a `.glb`-t ide, ez automatikusan megjelenik a menüben.

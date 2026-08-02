@@ -727,6 +727,15 @@ function splitMergedWheelMesh(mesh, midX, midZ) {
 // terében — ebből tudja a hívó, mennyivel kell eltolni a modellt, hogy a
 // kerekek a fizikai kasztni origójára (X=0, Z=0) essenek. Nem ad vissza
 // semmit, ha nincs elég találat (legalább 2 kell egy értelmes középhez).
+// A középső elem (páros elemszámnál a két középső átlaga) — a min/max
+// átlagával ellentétben nem csúszik el egyetlen kilógó (pl. egy hibás,
+// eltévedt duplikátum darab a forrásmodellben) ponttól.
+function median(values) {
+  const sorted = values.slice().sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
 function findWheelCentreOffset(carRoot, wheelPattern) {
   if (!wheelPattern) return null;
   let regex;
@@ -753,8 +762,8 @@ function findWheelCentreOffset(carRoot, wheelPattern) {
   });
   if (xs.length < 2) return null;
   return {
-    x: (Math.min(...xs) + Math.max(...xs)) / 2,
-    z: (Math.min(...zs) + Math.max(...zs)) / 2,
+    x: median(xs),
+    z: median(zs),
   };
 }
 
@@ -814,8 +823,8 @@ function buildWheelPivots(carRoot, wheelPattern) {
   if (prelim.length < 1) return;
   const prelimXs = prelim.map((p) => p.local.x);
   const prelimZs = prelim.map((p) => p.local.z);
-  const globalMidX = (Math.min(...prelimXs) + Math.max(...prelimXs)) / 2;
-  const globalMidZ = (Math.min(...prelimZs) + Math.max(...prelimZs)) / 2;
+  const globalMidX = median(prelimXs);
+  const globalMidZ = median(prelimZs);
 
   const parts = [];
   prelim.forEach(({ mesh, size }) => {
@@ -846,8 +855,8 @@ function buildWheelPivots(carRoot, wheelPattern) {
   const zs = parts.map((p) => p.local.z);
   const spanX = Math.max(...xs) - Math.min(...xs);
   const spanZ = Math.max(...zs) - Math.min(...zs);
-  const midX = (Math.min(...xs) + Math.max(...xs)) / 2;
-  const midZ = (Math.min(...zs) + Math.max(...zs)) / 2;
+  const midX = median(xs);
+  const midZ = median(zs);
 
   // Ha a darabok mind a középvonalon ülnek, akkor bal/jobb nincs külön
   // mesh-ben: tengelyenként csoportosítunk, és nem kormányzunk.
