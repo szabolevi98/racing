@@ -57,6 +57,23 @@ kinyomozni.
    átlagon, mert egy féknyereg/tárcsa messze eshet a valódi
    tengelytől, és az átlag "kilendítené" a kereket forgás közben.
 
+## Automatikus középre-igazítás (X/Z)
+
+Ha van `wheelPattern`, a játék betöltéskor (a `setCar`-ban, MÉG a
+`carPivot`-hoz adás előtt) megméri, hol van a LÁTHATÓ kerekek
+középpontja, és eltolja az egész modellt, hogy az pontosan a fizikai
+kerekek helyére (X=0, Z=0, ahol a fizika ±1.5-nél várja őket) essen.
+
+Ez azért kell, mert néhány letöltött fájl saját origója nincs a
+tengelytáv közepén (pl. a 2004 Ferrari F2004-nél a látható kerekek
+z=+2.79/-0.21-nél voltak a fájl saját koordinátáiban, nem ±1.5-nél) —
+enélkül az egész látható kocsi eltolva ülne a láthatatlan fizikai
+dobozhoz képest, és az egyik vége jobban belelógna a falba
+ütközéskor, mint kellene. Ez a lépés MINDEN `wheelPattern`-es kocsinál
+lefut, nem csak az F2004-nél — a már jól középre igazított kocsiknál
+(M3 GTR, M6 GT3, stb.) csak egy alig észrevehető, tört egységnyi
+korrekciót ad, nem árt nekik.
+
 ## Hogyan tegyünk be egy új kocsit
 
 1. Tedd be a `.glb`-t ide, ez automatikusan megjelenik a menüben.

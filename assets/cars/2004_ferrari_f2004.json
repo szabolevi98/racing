@@ -4,6 +4,6 @@
   "_yawDegrees": "Az eleje +Z: a modellben a kerekek 'fl'/'fr' (első) néven a +Z oldalon vannak, a szélesebb hátsó gumik a -Z oldalon.",
   "yawDegrees": 0,
 
-  "_wheelPattern": "A modell node-jai f2004_wheel_fl_1 / _fr_2 / _rl_3 / _rr_4 néven vannak, kerekenként 6 mesh-sel — a 'wheel' minta mind a 24-et megfogja, a játék pedig pozíció szerint osztja 4 sarokba.",
+  "_wheelPattern": "A modell node-jai f2004_wheel_fl_1 / _fr_2 / _rl_3 / _rr_4 néven vannak, kerekenként 6 mesh-sel — a 'wheel' minta mind a 24-et megfogja, a játék pedig pozíció szerint osztja 4 sarokba. Ez a fájl saját origója NEM a tengelytáv közepén volt (a kocsi ~1.3 egységgel előrébb ült, mint kellett volna) — a játék a wheelPattern alapján automatikusan középre igazítja, nem kellett kézzel javítani.",
   "wheelPattern": "wheel"
 }
