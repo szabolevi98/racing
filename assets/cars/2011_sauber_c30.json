@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "Közös 2011-es F1 kerék-kit (ua. mint Ferrari 150° Italia, HRT F111, McLaren MP4-26, Mercedes MGP W02, Renault R31, Toro Rosso STR6): wheel.012, tyre_side.012, Tyre_thread.012. CSAPDA: van egy 'steering_wheel.012' anyag is (kormánykerék) - a minta a ' wheel(.|sorvég)'-gel zárja ki (lásd Ferrari 150° Italia JSON-ja a részletes magyarázatért).",
+  "wheelPattern": " wheel(\\.|$)|tyre_side|Tyre_thread"
+}

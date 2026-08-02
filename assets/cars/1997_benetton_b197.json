@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "A 'THREAD_FRONT' explicit 'FRONT'-ot tartalmaz, z=+1.27-nél van - +Z előre.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "Közös '97-es F1 kerék-kit (ua. mint Ferrari F310, McLaren MP4/12, és a korábban megoldott Williams FW19): BENRIM2, RIM_BLUR, rim_blurred, MICHTYRE, THREAD_FRONT/THREAD_SOFT, CALIP04, METALBLACK. FIGYELEM: van 'SAUWHEELBACK'/'FA15STWHEELLOG' anyag is (kormánykerék) - a minta ezt nem fogja meg.",
+  "wheelPattern": "BENRIM2|RIM_BLUR|rim_blurred|MICHTYRE|THREAD_FRONT|THREAD_SOFT|CALIP04|METALBLACK"
+}
