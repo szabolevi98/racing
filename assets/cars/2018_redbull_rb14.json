@@ -1,8 +1,8 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
 
-  "_yawDegrees": "Az eleje +Z: a 'rear_light' anyagú mesh z=-2.6-nál van.",
+  "_yawDegrees": "Az eleje +Z: a 'rear_light' anyagú mesh a hátsó (-Z) oldalon van. A modell saját, beégetett 90 fokos X-forgatása (Z-up -> Y-up) már a fájlban benne van, ez nem ide tartozik.",
   "yawDegrees": 0,
 
-  "_wheelPattern": "NINCS: ez a modell ANYAG szerint van darabolva (Object_4, Object_5, ... nevekkel), így egy mesh a teljes autószélességet átfogja — a négy kerék ugyanabban a mesh-ben van, mint a többi gumi/felni elem. Külön kerék-mesh nélkül nem lehet forgatni; ehhez a modellt kellene szétvágni."
+  "_wheelPattern": "NINCS: ez az újabb GLB egyetlen mesh-ből áll, anyagonként külön primitívvel (pl. 'Tyre_thread', 'tyre_side', 'redbull_wheel_hub', 'discs' — ezek most már egyértelmű, kerékre utaló nevek). DE mind a 4 kerék geometriája egyetlen primitíven belül van összeolvasztva (nem 4 külön darab), így a jelenlegi, objektum-szintű csoportosítós kódunk nem tudja szétválasztani őket sarkonként. A forgatáshoz a geometriát magát kellene feldarabolni (vertex-szinten), ami jelenleg nincs megoldva."
 }
