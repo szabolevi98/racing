@@ -4,6 +4,6 @@
   "_yawDegrees": "A 'THREAD_FRONT' explicit 'FRONT'-ot tartalmaz, z=+1.27-nél van - +Z előre.",
   "yawDegrees": 0,
 
-  "_wheelPattern": "Közös '97-es F1 kerék-kit (ua. mint Ferrari F310, McLaren MP4/12, és a korábban megoldott Williams FW19): BENRIM2, RIM_BLUR, rim_blurred, MICHTYRE, THREAD_FRONT/THREAD_SOFT, CALIP04, METALBLACK. FIGYELEM: van 'SAUWHEELBACK'/'FA15STWHEELLOG' anyag is (kormánykerék) - a minta ezt nem fogja meg.",
-  "wheelPattern": "BENRIM2|RIM_BLUR|rim_blurred|MICHTYRE|THREAD_FRONT|THREAD_SOFT|CALIP04|METALBLACK"
+  "_wheelPattern": "JAVÍTVA (felhasználó jelezte: 'gumi forog, felnik nem'). Ugyanaz a hiba mint a testvér Ferrari F310/Williams FW19-nél: kimaradt több felni-réteg ('material', WHITESHADES, RENAUOZ, METALBLAKK - ez utóbbi elgépelt duplikátuma a már benne lévő METALBLACK-nak) - mindegyik egy összeolvasztott, a teljes kocsit lefedő (kb 3.1-3.7 egység), 4 kerékre szétvágandó darab, ugyanott ülve mint a BENRIM2. Közös '97-es F1 kerék-kit (ua. mint Ferrari F310, McLaren MP4/12, Williams FW19): BENRIM2, RIM_BLUR, rim_blurred, MICHTYRE, THREAD_FRONT/THREAD_SOFT, CALIP04, METALBLACK, METALBLAKK, WHITESHADES, RENAUOZ, material. FIGYELEM: van 'SAUWHEELBACK'/'FA15STWHEELLOG' anyag is (kormánykerék) - a minta ezt nem fogja meg.",
+  "wheelPattern": "BENRIM2|RIM_BLUR|rim_blurred|MICHTYRE|THREAD_FRONT|THREAD_SOFT|CALIP04|METALBLACK|METALBLAKK|WHITESHADES|RENAUOZ| material$"
 }
