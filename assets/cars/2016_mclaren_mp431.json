@@ -4,6 +4,6 @@
   "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
   "yawDegrees": 0,
 
-  "_wheelPattern": "ELSŐRE TÉVESEN 'lehetetlennek' minősítve: a látható kerék-geometria (Material.002) ugyanazt az anyagot használja mint 2 nagy karosszéria-panel, anyagnév alapján nem különíthető el. MEGOLDÁS: a SZÜLŐ node-ok neve (amit a kód a mesh nevével együtt vizsgál) egyértelműen elárulja a kerekeket: 'WheelBL_rims_10', 'WheelFL_tyres_34' stb, míg a karosszéria-részek 'chassis_carbon_fiber_50'/'skinned_mesh_carbon_fiber_68' néven futnak - a puszta 'Wheel' szó a node-névben pontosan a 4 kereket fogja meg (gumi+felni+féknyereg-jelölő), a karosszériát nem.",
-  "wheelPattern": "Wheel"
+  "_wheelPattern": "JAVÍTVA (felhasználó jelezte: 'elkapott valami nagyot ami forog'). A puszta 'Wheel' minta a KORMÁNYKEREKET (belső, kokpit) is elkapta: a node-hierarchiában van egy 'wheel_72' -> 'steer_wheel_73' -> ... lánc (a kormánykerék generikus konténere), aminek a mesh-e (carpaint anyag, a kabin közepén) a legközelebbi valódi kerék-sarokhoz lett csoportosítva, és azzal együtt pörgött - ez volt a 'nagy dolog ami forog'. A VALÓDI kerekek node-nevei mind tartalmaznak egy sarok-kódot közvetlenül a 'wheel' szó után: 'WheelBL_rims_10', 'WheelFL_tyres_34', 'bone_wheel_BL_suspension_3', 'bone_wheel_FL_steer_26' stb (BL/BR/FL/FR), míg a kormánykerék konténere csak 'wheel_72' (sima sorszám, sarok-kód NÉLKÜL) - ez a különbségtétel zárja ki a kormánykereket anélkül, hogy a valódi kerekeket (gumi+felni+féknyereg) érintené.",
+  "wheelPattern": "wheel_?(bl|br|fl|fr)"
 }
