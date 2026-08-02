@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "Olasz elnevezésű kerék-anyagok: EXT_DiscoFreni (féktárcsa), EXT_Cerchioni/EXT_Cerchioni_Blur (felni), EXT_Gomme (gumi), EXT_PinzaFreni (féknyereg), mind egy helyen (kb -0.02,0.30,-0.32).",
+  "wheelPattern": "EXT_DiscoFreni|EXT_Cerchioni|EXT_Gomme|EXT_PinzaFreni"
+}

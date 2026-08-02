@@ -4,6 +4,6 @@
   "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
   "yawDegrees": 0,
 
-  "_wheelPattern": "Ua. 2008-as kit mint a Force India VJM01/Toro Rosso STR3/Honda RA108/stb, itt sorszám nélküli névvel: calliper, BMW_BRAKES, brake, tread, side. CSAPDA: 'brakefluid' (kokpit) és 'side_left'/'side_right' (orr-panel) NEM kerekek - mivel itt nincs sorszám, ' brake$' és ' side$' (szóköz+szó+sorvég) zárja ki őket.",
-  "wheelPattern": "calliper|BMW_BRAKES| brake$|tread| side$"
+  "_wheelPattern": "JAVÍTVA (a felhasználó jelezte: 'az első kerekei akkorát fordulnak mint egy vízi malom kereke'). Az eredeti minta tartalmazta a 'side' és 'tread' anyagokat is - ezeknél az ELSŐ tengelynél a geometria-szétvágás nem vágta szét helyesen bal/jobbra (egy kb 3.4 egység SZÉLES, majdnem a teljes kocsit lefedő darab maradt egyben egy első kerék-pivoton), ami kormányzáskor hatalmas ívben lengett. A hátsó tengelynél ugyanezek az anyagok rendben szétvágódtak, de mivel a hiba egy adott mesh-példányban van (nem az anyagnévben), regex-szel nem lehet csak a hibás példányt kizárni - ezért a 'side' és 'tread' teljesen kimaradt a mintából. Csak calliper/BMW_BRAKES/brake maradt (kisebb, de MEGBÍZHATÓAN jól szétvágott darabok mind a 4 saroknál).",
+  "wheelPattern": "calliper|BMW_BRAKES| brake$"
 }

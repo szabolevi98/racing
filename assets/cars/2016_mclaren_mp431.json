@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "ELSŐRE TÉVESEN 'lehetetlennek' minősítve: a látható kerék-geometria (Material.002) ugyanazt az anyagot használja mint 2 nagy karosszéria-panel, anyagnév alapján nem különíthető el. MEGOLDÁS: a SZÜLŐ node-ok neve (amit a kód a mesh nevével együtt vizsgál) egyértelműen elárulja a kerekeket: 'WheelBL_rims_10', 'WheelFL_tyres_34' stb, míg a karosszéria-részek 'chassis_carbon_fiber_50'/'skinned_mesh_carbon_fiber_68' néven futnak - a puszta 'Wheel' szó a node-névben pontosan a 4 kereket fogja meg (gumi+felni+féknyereg-jelölő), a karosszériát nem.",
+  "wheelPattern": "Wheel"
+}
