@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "Tiszta kerék-anyagok (junior forma-autó, egyetlen kerék-csomóban): F.3_T318_CALIPERS, F3_RIM, F.3_T318_DISCLOW, F318_TTREAD2. FIGYELEM: van egy 'F.3_T318_SWHEEL' anyag is (kormánykerék) - a minta ezt nem fogja meg.",
+  "wheelPattern": "F.3_T318_CALIPERS|F3_RIM|F.3_T318_DISCLOW|F318_TTREAD2"
+}

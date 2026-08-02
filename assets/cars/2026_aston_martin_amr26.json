@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "Közös modern F1 kerék-kit (ua. mint Haas VF-26, Red Bull RB22, Williams FW48, más sorszámmal): a 4 sarok már eleve külön mesh-csoport (discs, redbull_wheel_hub, TIRE_SIDES, TIRE_TREAD - a 'redbull_wheel_hub' itt TÉNYLEG a keréken van, nem kormánykerék, a 4 sarokban pontosan a gumi/tárcsa helyén, ellentétben a 2016-os RB12-nél talált hasonló nevű kokpit-alkatrésszel).",
+  "wheelPattern": "discs|redbull_wheel_hub|TIRE_SIDES|TIRE_TREAD"
+}

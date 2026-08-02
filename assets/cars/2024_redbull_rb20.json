@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "Explicit 'FRONT_RIMS' anyag z=+1.95-nél, 'REAR_RIMS' pedig z=-1.60-nál - egyértelműen +Z előre.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "A 4 sarok már eleve külön mesh-csoport: brakes_in, FRONT_RIMS (elöl)/REAR_RIMS (hátul), TIRE_SIDES, TIRE_TREAD. A 'stickers_wheel' (apró matrica) szándékosan kimaradt.",
+  "wheelPattern": "brakes_in|FRONT_RIMS|REAR_RIMS|TIRE_SIDES|TIRE_TREAD"
+}
