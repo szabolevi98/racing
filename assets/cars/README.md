@@ -107,7 +107,7 @@ korrekciót ad, nem árt nekik.
 | `1962_ferrari_250_gto` | sarkonként — geometria-szétvágással (eredetileg csak tengely-mód volt) | `LOD_A_TYRE\|LOD_A_WHEEL\|LOD_A_BRAKE_CALIPER` |
 | `1988_lamborghini_countach` | sarkonként — geometria-szétvágással | `Tyre\|EXT_metal_rim\|EXT_metal_disk\|EXT_metal_caliper` |
 | `2018_redbull_rb14` | sarkonként — geometria-szétvágással (4/4/4/4, tyre+rim+hub+disc sarkonként) | `Tyre_thread\|tyre_side\|redbull_wheel_hub\|discs` |
-| `2009_pagani_zonda_cinque` → most `2010_pagani_zonda_cinque_roadster.glb` | **nincs config az új fájlhoz**, a régi (`2009_pagani_zonda_cinque.json`) árván maradt, más néven; az új fájlt még nem néztük meg |
+| `2010_pagani_zonda_cinque` | sarkonként (156/156/165/165 darab, nagyon rendetlen export) — a felhasználó megerősítette, hogy megy | `Wheel\|Caliper\|Tyre\|Tire\|Rim\|Disc\|Hub` |
 
 **Törölt kocsik** (a felhasználó törölte, buggos eredeti modellek — nem a kerék-szétvágással volt gond, magukkal a fájlokkal):
 - `mercedes-benz_clk_gtr`
