@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "Az eleje +Z: a 'redglass.001' anyagú hátsólámpa-mesh z=-1.93-nál van, tehát a hátulja -Z. Élőben ellenőrizve, a szétvágott kerekek is a helyes oldalon (front z=+1.18, rear z=-1.27) állnak össze.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "Nagyon generikus export: a legtöbb anyagnak csak 'Material_NN.001' neve van, csak néhány kapott értelmes nevet (chrome, alu, black, carbon, red, EXT_Tyre, Motec_Trasp). Első körben csak 'EXT_Tyre' ment (gumi forgott, felni nem, mert az névtelen anyagú mesh volt). A felni/tárcsa/nyereg 4 további, ugyanoda (kb (0,0.27,-0.05..-0.19), hasonló méret) eső, névtelen anyagú mesh - ezek EXAKT nevét (Material_59/60/62/63.001) felvéve a mintába már együtt forog a felni is a gumival. Ezek a névsorszámok EBBEN a fájlban stabilak, de máshol nem jelentenek semmit - csak emiatt az egy kocsi miatt vannak felsorolva.",
+  "wheelPattern": "EXT_Tyre|Material_59.001|Material_60.001|Material_62.001|Material_63.001"
+}

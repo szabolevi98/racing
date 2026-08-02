@@ -79,9 +79,11 @@ korrekciót ad, nem árt nekik.
 1. Tedd be a `.glb`-t ide, ez automatikusan megjelenik a menüben.
 2. Nézd meg, néz-e előre alapból (indítsd el, nézd meg a menü-
    előnézetben) — ha nem, írj egy `yawDegrees`-t a JSON-ba.
-3. A kerekekhez: nyisd meg a `.glb`-t (pl. Python szkripttel a JSON
-   chunk kibontásához), keresd meg a kerékhez tartozó mesh/anyag
-   neveket. Két tipikus eset:
+3. A kerekekhez: futtasd le rá az `inspect_glb.py`-t (ebben a
+   mappában, `python assets/cars/inspect_glb.py assets/cars/<fájl>.glb`)
+   — kiírja minden mesh node nevét, anyagát, világ-középpontját és
+   méretét. Ebből keresd meg a kerékhez tartozó mesh/anyag neveket.
+   Két tipikus eset:
    - **Névvel ellátott, külön objektumok** (pl. `LOD_A_TYRE_...`,
      `wheel_fl_1`) — ezek NEVE alapján lehet mintát írni.
    - **Anyagonként egy mesh, generikus objektum-név** (pl.
@@ -118,6 +120,7 @@ korrekciót ad, nem árt nekik.
 | `2018_redbull_rb14` | sarkonként — geometria-szétvágással (4/4/4/4, tyre+rim+hub+disc sarkonként) | `Tyre_thread\|tyre_side\|redbull_wheel_hub\|discs` |
 | `2010_pagani_zonda_cinque` | sarkonként (156/156/165/165 darab, nagyon rendetlen export) — a felhasználó megerősítette, hogy megy | `Wheel\|Caliper\|Tyre\|Tire\|Rim\|Disc\|Hub` |
 | `2020_mclaren_mcl35` | sarkonként (2/2/2/2, kivételesen tiszta modell — gumi+felni már eleve külön node-onként a 4 sarokban, szétvágás sem kellett) | `LOD_A_TYRE\|LOD_A_WHEEL_` |
+| `2011_bmw_z4_gt3` | sarkonként (5/5/5/5: gumi+felni+tárcsa+nyereg egy csomóban) — nagyon generikus export, a legtöbb anyagnak nincs neve (`Material_NN.001`), csak az `EXT_Tyre` kapott értelmes nevet; a felni/tárcsa/nyereg névtelen anyagait EXAKT névvel (`Material_59/60/62/63.001`) kellett felvenni a mintába, mert ezek a sorszámok csak ebben az egy fájlban stabilak | `EXT_Tyre\|Material_59.001\|Material_60.001\|Material_62.001\|Material_63.001` |
 
 **Törölt kocsik** (a felhasználó törölte, buggos eredeti modellek — nem a kerék-szétvágással volt gond, magukkal a fájlokkal):
 - `mercedes-benz_clk_gtr`
