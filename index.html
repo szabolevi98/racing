@@ -67,6 +67,15 @@
   #zoneEditor { position: fixed; inset: 0; z-index: 40; }
   #zoneOverlayCanvas { position: absolute; top: 0; left: 0; cursor: crosshair; }
   #zoneToolbar { position: fixed; top: 12px; left: 12px; z-index: 41; min-width: 300px; }
+
+  #materialPickerPanel.hidden { display: none !important; }
+  #materialPickerPanel { position: fixed; top: 12px; right: 12px; z-index: 42; max-width: 420px; }
+  #materialPickerGrid { max-height: 50vh; overflow-y: auto; }
+  .material-thumb {
+    width: 56px; height: 56px; cursor: pointer; border-radius: 4px;
+    border: 3px solid transparent; box-sizing: border-box;
+  }
+  .material-thumb.selected { border-color: #0dcaf0; }
 </style>
 </head>
 <body>
@@ -197,9 +206,23 @@
         Checkpointok: <span id="checkpointCount">0</span> &nbsp;
         <button id="undoGateBtn" class="btn btn-sm btn-outline-primary py-0">Utolsó törlése</button><br>
       </span>
+      <button id="openMaterialPickerBtn" class="btn btn-sm btn-outline-info mt-1">Aszfalt automatikus felismerés</button>
       <button id="saveZoneBtn" class="btn btn-sm btn-primary mt-1">Mentés</button>
       <button id="closeZoneEditorBtn" class="btn btn-sm btn-secondary mt-1">Vissza</button>
       <div id="zoneStatus" class="mt-2"></div>
+    </div>
+  </div>
+
+  <div id="materialPickerPanel" class="hidden">
+    <div class="card bg-dark bg-opacity-75 border-info text-light">
+      <div class="card-body py-2 px-3 small">
+        <strong class="text-info">Aszfalt anyagok kiválasztása</strong><br>
+        Kattints azokra a textúrákra, amik az útburkolatot ábrázolják (több is lehet), majd Generálás. Ez felülírja a jelenlegi festést.
+        <div id="materialPickerGrid" class="d-flex flex-wrap gap-1 my-2"></div>
+        <button id="generateAsphaltBtn" class="btn btn-sm btn-info mt-1">Generálás</button>
+        <button id="closeMaterialPickerBtn" class="btn btn-sm btn-secondary mt-1">Mégse</button>
+        <div id="materialPickerStatus" class="mt-1"></div>
+      </div>
     </div>
   </div>
 </div>

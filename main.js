@@ -37,6 +37,12 @@ const devMapSelectEl = document.getElementById('devMapSelect');
 const bakeCollisionBtn = document.getElementById('bakeCollisionBtn');
 const bakeStatusEl = document.getElementById('bakeStatus');
 const openZoneEditorBtn = document.getElementById('openZoneEditorBtn');
+const openMaterialPickerBtn = document.getElementById('openMaterialPickerBtn');
+const materialPickerPanelEl = document.getElementById('materialPickerPanel');
+const materialPickerGridEl = document.getElementById('materialPickerGrid');
+const generateAsphaltBtn = document.getElementById('generateAsphaltBtn');
+const closeMaterialPickerBtn = document.getElementById('closeMaterialPickerBtn');
+const materialPickerStatusEl = document.getElementById('materialPickerStatus');
 const closeZoneEditorBtn = document.getElementById('closeZoneEditorBtn');
 const saveZoneBtn = document.getElementById('saveZoneBtn');
 const zoneEditorEl = document.getElementById('zoneEditor');
@@ -784,6 +790,188 @@ function buildCoverageMask(track, box, resolution) {
   }
   return { mask, texW, texH, box };
 }
+
+// ---------- Aszfalt automatikus felismerése anyag-kiválasztás alapján ----------
+// A letöltött pályamodellek anyagai gyakran értelmetlen nevekkel jönnek
+// (pl. "282_63"), úgyhogy nem lehet név szerint megkeresni, melyik az
+// útburkolat. Ehelyett a felhasználó bélyegképek alapján, VIZUÁLISAN
+// kiválasztja, melyik anyag(ok) az aszfalt — utána ugyanazzal a felülnézeti
+// GPU-renderrel (mint buildCoverageMask), csak anyag szerint szűrve,
+// kirajzoljuk, hol van ilyen anyagú felület, és abból generáljuk a zóna-maszkot.
+const highlightMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+
+// Az össze anyag begyűjtése a pálya modelljéből, bélyegkép-készítéshez.
+// Egy anyaghoz több mesh is tartozhat — csak egyszer szerepeljen a listában.
+function collectTrackMaterials(track) {
+  const seen = new Set();
+  const list = [];
+  track.traverse((obj) => {
+    if (!obj.isMesh || !obj.material) return;
+    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+    mats.forEach((mat) => {
+      if (seen.has(mat)) return;
+      seen.add(mat);
+      list.push(mat);
+    });
+  });
+  return list;
+}
+
+// Bélyegkép egy anyagról: ha van diffúz textúrája, azt rajzoljuk ki
+// kicsiben, egyébként az anyag alapszínével töltjük ki a négyzetet.
+function drawMaterialThumb(material, canvas) {
+  const ctx = canvas.getContext('2d');
+  const tex = material.map;
+  const img = tex && tex.image;
+  if (img && (img.width || img.videoWidth)) {
+    try {
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      return;
+    } catch (err) {
+      // pl. még nem dekódolt kép — essünk vissza a színre
+    }
+  }
+  const c = material.color || new THREE.Color(0x888888);
+  ctx.fillStyle = `rgb(${Math.round(c.r * 255)}, ${Math.round(c.g * 255)}, ${Math.round(c.b * 255)})`;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+let selectedRoadMaterials = new Set();
+
+function openMaterialPicker() {
+  if (!currentTrack) return;
+  selectedRoadMaterials = new Set();
+  materialPickerGridEl.innerHTML = '';
+  materialPickerStatusEl.textContent = '';
+  const materials = collectTrackMaterials(currentTrack);
+  materials.forEach((mat) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 56;
+    canvas.height = 56;
+    canvas.className = 'material-thumb';
+    canvas.title = mat.name || '(névtelen anyag)';
+    drawMaterialThumb(mat, canvas);
+    canvas.addEventListener('click', () => {
+      if (selectedRoadMaterials.has(mat)) {
+        selectedRoadMaterials.delete(mat);
+        canvas.classList.remove('selected');
+      } else {
+        selectedRoadMaterials.add(mat);
+        canvas.classList.add('selected');
+      }
+    });
+    materialPickerGridEl.appendChild(canvas);
+  });
+  materialPickerPanelEl.classList.remove('hidden');
+}
+
+function closeMaterialPicker() {
+  materialPickerPanelEl.classList.add('hidden');
+}
+
+// Ugyanaz a GPU-s felülnézeti render, mint buildCoverageMask, csak itt csak
+// a kiválasztott anyagú mesh-ek látszanak (fehéren, világítástól függetlenül),
+// minden más el van rejtve — így a kapott kép pontosan az útburkolat alakja.
+function renderMaterialMask(track, bounds, texW, texH, materialSet) {
+  const saved = [];
+  track.traverse((obj) => {
+    if (!obj.isMesh) return;
+    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+    const uses = mats.some((m) => materialSet.has(m));
+    saved.push({ obj, visible: obj.visible, material: obj.material });
+    obj.visible = uses;
+    if (uses) obj.material = highlightMaterial;
+  });
+
+  // A "lyukakat takaró" vizuális padló és a kocsi NEM a track gyereke, hanem
+  // közvetlenül a jelenethez van adva — enélkül a fenti elrejtés után is
+  // átlátszana rajtuk a kamera, és a padló (ami mindent befed alattuk)
+  // tévesen mindenhol "fehérnek" tűnne.
+  const extraHidden = [safetyFloorMesh, carPivot, ...devSpawnMarkers].filter(Boolean);
+  const savedExtra = extraHidden.map((obj) => ({ obj, visible: obj.visible }));
+  extraHidden.forEach((obj) => { obj.visible = false; });
+
+  const width = bounds.maxX - bounds.minX;
+  const depth = bounds.maxZ - bounds.minZ;
+  const centerX = (bounds.minX + bounds.maxX) / 2;
+  const centerZ = (bounds.minZ + bounds.maxZ) / 2;
+  const topCamera = new THREE.OrthographicCamera(-width / 2, width / 2, depth / 2, -depth / 2, 0.1, (currentTrackBox.max.y - currentTrackBox.min.y) + 200);
+  topCamera.position.set(centerX, currentTrackBox.max.y + 100, centerZ);
+  topCamera.up.set(0, 0, -1);
+  topCamera.lookAt(centerX, currentTrackBox.min.y, centerZ);
+  topCamera.updateProjectionMatrix();
+
+  const prevSize = new THREE.Vector2();
+  renderer.getSize(prevSize);
+  const prevBackground = scene.background;
+  const prevFogDensity = scene.fog.density;
+  scene.background = new THREE.Color(0x000000);
+  scene.fog.density = 0;
+
+  renderer.setSize(texW, texH, false);
+  renderer.render(scene, topCamera);
+
+  const tmpCanvas = document.createElement('canvas');
+  tmpCanvas.width = texW;
+  tmpCanvas.height = texH;
+  tmpCanvas.getContext('2d').drawImage(renderer.domElement, 0, 0, texW, texH);
+  const pixels = tmpCanvas.getContext('2d').getImageData(0, 0, texW, texH).data;
+
+  scene.background = prevBackground;
+  scene.fog.density = prevFogDensity;
+  renderer.setSize(prevSize.x, prevSize.y, false);
+
+  saved.forEach((s) => {
+    s.obj.visible = s.visible;
+    s.obj.material = s.material;
+  });
+  savedExtra.forEach((s) => { s.obj.visible = s.visible; });
+
+  const mask = new Uint8Array(texW * texH);
+  for (let p = 0; p < texW * texH; p++) {
+    const o = p * 4;
+    if (pixels[o] > 40 || pixels[o + 1] > 40 || pixels[o + 2] > 40) mask[p] = 1;
+  }
+  return mask;
+}
+
+// A kiválasztott anyagok alapján legenerálja a TELJES zóna-maszkot: mindenhol
+// kifutó (a felhasználó eredeti kérése — "legyen mindenhol sárga lassító"),
+// kivéve ahol a kiválasztott anyagú felület van, ott aszfalt (törölt/átlátszó
+// pixel — pont úgy, ahogy az aszfalt-ecset is töröl). Fal nem kerül bele.
+function generateAsphaltMask() {
+  if (!currentTrack || !zoneMaskCanvas) return;
+  if (!selectedRoadMaterials.size) {
+    materialPickerStatusEl.textContent = 'Válassz ki legalább egy aszfalt-anyagot.';
+    return;
+  }
+  materialPickerStatusEl.textContent = 'Generálás...';
+  const texW = zoneMaskCanvas.width;
+  const texH = zoneMaskCanvas.height;
+  const mask = renderMaterialMask(currentTrack, zoneBounds, texW, texH, selectedRoadMaterials);
+
+  const ctx = zoneMaskCanvas.getContext('2d');
+  const imageData = ctx.createImageData(texW, texH);
+  const data = imageData.data;
+  // rgb(255,165,0) == OFFTRACK_COLOR — ugyanaz, mint amit az ecset fest.
+  for (let p = 0; p < texW * texH; p++) {
+    const o = p * 4;
+    if (mask[p]) {
+      data[o] = 0; data[o + 1] = 0; data[o + 2] = 0; data[o + 3] = 0;
+    } else {
+      data[o] = 255; data[o + 1] = 165; data[o + 2] = 0; data[o + 3] = 255;
+    }
+  }
+  ctx.clearRect(0, 0, texW, texH);
+  ctx.putImageData(imageData, 0, 0);
+
+  closeMaterialPicker();
+  zoneStatusEl.textContent = 'Aszfalt-maszk legenerálva a kiválasztott anyagokból — nézd át és finomítsd kézzel, majd Mentés.';
+}
+
+openMaterialPickerBtn.addEventListener('click', openMaterialPicker);
+closeMaterialPickerBtn.addEventListener('click', closeMaterialPicker);
+generateAsphaltBtn.addEventListener('click', generateAsphaltMask);
 
 // Van-e bármi a világ (x,z) pont közelében a maszk szerint (kis margóval,
 // hogy a pálya széle biztosan ne maradjon ki egy pixelnyi pontatlanság miatt).
