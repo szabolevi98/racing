@@ -1026,7 +1026,103 @@ function extractDrivableTriangles(track) {
     }
   });
 
-  return { positions: new Float32Array(positions), indices: new Uint32Array(indices) };
+  return pruneIsolatedDebris(new Float32Array(positions), new Uint32Array(indices));
+}
+
+// Néhány letöltött pályamodellben apró, a valódi útfelülettől teljesen
+// ELKÜLÖNÜLŐ tárgyak (pl. reklám-kockák a bokszutca szélén) is bekerülnek az
+// ütközésbe — a vizuális modellben nem is látszanak (a Sketchfab-konverzió
+// kihagyta őket), de az ütközésük megmarad, és a kocsi beléjük ragad.
+//
+// A valódi útfelület egyetlen összefüggő háromszög-háló (a kerekek sugara
+// mindig átjut egyik lapról a másikra). Ami ehhez képest KICSI ÉS elszigetelt
+// (nincs közös éle semmi mással), az nagy eséllyel egy ilyen "elszabadult"
+// tárgy — ezeket dobjuk el. A méret-küszöb óvatos: egy igazi, de kisebb
+// pályaelem (pl. egy híd egy szakasza) jóval nagyobb ennél, szóval megmarad.
+const DEBRIS_MAX_TRIANGLES = 300;
+const DEBRIS_MAX_SIZE = 3; // méter, a komponens bbox egyik oldala se legyen ennél nagyobb
+
+function pruneIsolatedDebris(positions, indices) {
+  const parent = new Map();
+  function find(key) {
+    let root = key;
+    while (parent.has(root) && parent.get(root) !== root) root = parent.get(root);
+    let cur = key;
+    while (parent.has(cur) && parent.get(cur) !== root) {
+      const next = parent.get(cur);
+      parent.set(cur, root);
+      cur = next;
+    }
+    if (!parent.has(root)) parent.set(root, root);
+    return root;
+  }
+  function union(a, b) {
+    const ra = find(a), rb = find(b);
+    if (ra !== rb) parent.set(ra, rb);
+  }
+  // Milliméter-pontosságú kulcs: az egymáshoz kapcsolódó háromszögek közös
+  // csúcsai (bár az extractDrivableTriangles nem oszt indexet) ugyanide esnek.
+  const keyOf = (i) => {
+    const x = positions[i * 3], y = positions[i * 3 + 1], z = positions[i * 3 + 2];
+    return Math.round(x * 1000) + ',' + Math.round(y * 1000) + ',' + Math.round(z * 1000);
+  };
+
+  const triCount = indices.length / 3;
+  const triKeys = new Array(triCount);
+  for (let t = 0; t < triCount; t++) {
+    const i0 = indices[t * 3], i1 = indices[t * 3 + 1], i2 = indices[t * 3 + 2];
+    const k0 = keyOf(i0), k1 = keyOf(i1), k2 = keyOf(i2);
+    union(k0, k1);
+    union(k1, k2);
+    triKeys[t] = k0;
+  }
+
+  const compTris = new Map(); // root -> [triangle indexek]
+  const compBounds = new Map(); // root -> {minX,maxX,minY,maxY,minZ,maxZ}
+  for (let t = 0; t < triCount; t++) {
+    const root = find(triKeys[t]);
+    if (!compTris.has(root)) {
+      compTris.set(root, []);
+      compBounds.set(root, { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity, minZ: Infinity, maxZ: -Infinity });
+    }
+    compTris.get(root).push(t);
+    const b = compBounds.get(root);
+    for (let k = 0; k < 3; k++) {
+      const vi = indices[t * 3 + k];
+      const x = positions[vi * 3], y = positions[vi * 3 + 1], z = positions[vi * 3 + 2];
+      if (x < b.minX) b.minX = x; if (x > b.maxX) b.maxX = x;
+      if (y < b.minY) b.minY = y; if (y > b.maxY) b.maxY = y;
+      if (z < b.minZ) b.minZ = z; if (z > b.maxZ) b.maxZ = z;
+    }
+  }
+
+  const keptPositions = [];
+  const keptIndices = [];
+  let droppedComponents = 0, droppedTriangles = 0;
+  for (const [root, tris] of compTris) {
+    const b = compBounds.get(root);
+    const size = Math.max(b.maxX - b.minX, b.maxY - b.minY, b.maxZ - b.minZ);
+    const isDebris = tris.length <= DEBRIS_MAX_TRIANGLES && size <= DEBRIS_MAX_SIZE;
+    if (isDebris) {
+      droppedComponents++;
+      droppedTriangles += tris.length;
+      continue;
+    }
+    for (const t of tris) {
+      const base = keptPositions.length / 3;
+      for (let k = 0; k < 3; k++) {
+        const vi = indices[t * 3 + k];
+        keptPositions.push(positions[vi * 3], positions[vi * 3 + 1], positions[vi * 3 + 2]);
+      }
+      keptIndices.push(base, base + 1, base + 2);
+    }
+  }
+
+  if (droppedComponents > 0) {
+    console.info(`Ütközés: ${droppedComponents} elszigetelt, kis darab kihagyva (${droppedTriangles} háromszög) — feltehetően a modellből örökölt, láthatatlan tárgyak.`);
+  }
+
+  return { positions: new Float32Array(keptPositions), indices: new Uint32Array(keptIndices) };
 }
 
 function applyTrackCollider(positions, indices) {
