@@ -4,6 +4,6 @@
   "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
   "yawDegrees": 0,
 
-  "_wheelPattern": "Tiszta kerék-anyagok: brake.001, calliper, disk, RIM_BLUR, tread, és egy 'side' nevű anyag. CSAPDA: van 'side_left'/'side_right' anyag is, ami NEM kerék, hanem az orr-elem oldalpanelje (a teljes kocsit lefedő méretű) - a puszta 'side' minta ezeket is elkapná, ezért ' side(.|sorvég)' alakot használok (a kód mindig szóközt fűz az anyagnév elé, 'side_left'-nél a 'side' után '_' jön, nem sorvég/pont).",
-  "wheelPattern": "brake.001|calliper|disk|RIM_BLUR|tread| side(\\.|$)"
+  "_wheelPattern": "JAVÍTVA (a felhasználó jelezte: 'gumi forog, felnik nem'). Kimaradt a felni SZILÁRD alapja, egy sorszám nélküli generikus 'material' anyag ugyanott. Tiszta kerék-anyagok: brake.001, calliper, disk, RIM_BLUR, tread, side, material. CSAPDA: van 'side_left'/'side_right' anyag is (orr-elem oldalpanel) - a puszta 'side' minta ezeket is elkapná, ezért ' side(.|sorvég)' alakot használok.",
+  "wheelPattern": "brake.001|calliper|disk|RIM_BLUR|tread| side(\\.|$)| material$"
 }
