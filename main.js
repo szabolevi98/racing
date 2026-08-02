@@ -38,6 +38,8 @@ const bakeCollisionBtn = document.getElementById('bakeCollisionBtn');
 const bakeStatusEl = document.getElementById('bakeStatus');
 const openZoneEditorBtn = document.getElementById('openZoneEditorBtn');
 const openMaterialPickerBtn = document.getElementById('openMaterialPickerBtn');
+const generateCheckpointsBtn = document.getElementById('generateCheckpointsBtn');
+const autoCheckpointCountEl = document.getElementById('autoCheckpointCount');
 const materialPickerPanelEl = document.getElementById('materialPickerPanel');
 const materialPickerGridEl = document.getElementById('materialPickerGrid');
 const generateAsphaltBtn = document.getElementById('generateAsphaltBtn');
@@ -62,6 +64,11 @@ const gateToolRow = document.getElementById('gateToolRow');
 const startLineStateEl = document.getElementById('startLineState');
 const checkpointCountEl = document.getElementById('checkpointCount');
 const undoGateBtn = document.getElementById('undoGateBtn');
+const guideToolRow = document.getElementById('guideToolRow');
+const guidePointCountEl = document.getElementById('guidePointCount');
+const undoGuideBtn = document.getElementById('undoGuideBtn');
+const clearGuideBtn = document.getElementById('clearGuideBtn');
+const autoCheckpointRow = document.getElementById('autoCheckpointRow');
 const lapCountSelect = document.getElementById('lapCountSelect');
 const raceHudEl = document.getElementById('raceHud');
 const raceHudWrapEl = document.getElementById('raceHudWrap');
@@ -463,6 +470,10 @@ let currentSpawnPoints = [];
 // A checkpointokat SORRENDBEN kell érinteni, utána a rajtvonal zárja a kört —
 // enélkül a rajtvonal előtt oda-vissza hajtva lehetne köröket gyűjteni.
 let currentGates = { start: null, checkpoints: [] };
+// Durva, kézzel kattintott vezetővonal a checkpont-generáláshoz — csak
+// szerkesztés közbeni segédadat, nem mentjük ki (a generálás UTÁN a
+// tényleges checkpontok már currentGates.checkpoints-ban vannak).
+let currentGuidePath = [];
 
 function pickSpawnSlot(spawnPoints, occupiedIndices = []) {
   if (!spawnPoints || !spawnPoints.length) return null;
@@ -1869,18 +1880,24 @@ function isGateTool() {
   const b = getSelectedBrush();
   return b === 'start' || b === 'checkpoint';
 }
+function isGuideTool() {
+  return getSelectedBrush() === 'guide';
+}
 function isPaintTool() {
-  return !isSpawnTool() && !isGateTool();
+  return !isSpawnTool() && !isGateTool() && !isGuideTool();
 }
 
 function updateSpawnToolUI() {
   brushSizeRow.classList.toggle('d-none', !isPaintTool());
   spawnToolRow.classList.toggle('d-none', !isSpawnTool());
   gateToolRow.classList.toggle('d-none', !isGateTool());
+  guideToolRow.classList.toggle('d-none', !isGuideTool());
+  autoCheckpointRow.classList.toggle('d-none', !isGateTool() && !isGuideTool());
   zoneSpawnCountEl.textContent = String(currentSpawnPoints.length);
   devSpawnCountEl.textContent = String(currentSpawnPoints.length);
   startLineStateEl.textContent = currentGates.start ? 'kész' : 'nincs';
   checkpointCountEl.textContent = String(currentGates.checkpoints.length);
+  guidePointCountEl.textContent = String(currentGuidePath.length);
 }
 
 // A rajtpont iránya (heading): az autó "előre" iránya a világ +Z, ezért a
@@ -1924,6 +1941,8 @@ document.querySelectorAll('input[name="zoneBrush"]').forEach((el) => {
 });
 undoSpawnBtn.addEventListener('click', removeLastSpawnPoint);
 undoGateBtn.addEventListener('click', removeLastGate);
+undoGuideBtn.addEventListener('click', () => { currentGuidePath.pop(); updateSpawnToolUI(); });
+clearGuideBtn.addEventListener('click', () => { currentGuidePath = []; updateSpawnToolUI(); });
 
 function getBrushWorldRadius() {
   return Number(brushSizeRange.value);
@@ -2046,6 +2065,26 @@ function drawZoneOverlay() {
     drawGate(drawingGate, getSelectedBrush() === 'start' ? '#28d17c' : '#4aa3ff', null);
   }
 
+  // Kézzel rajzolt vezetővonal a checkpont-generáláshoz — pontok sorban
+  // összekötve, hogy lássa a felhasználó, merre fog "menni" a generálás.
+  if (currentGuidePath.length) {
+    ctx.beginPath();
+    currentGuidePath.forEach((p, i) => {
+      const s = toScreen(p.x, p.z);
+      if (i === 0) ctx.moveTo(s.x, s.y); else ctx.lineTo(s.x, s.y);
+    });
+    ctx.strokeStyle = '#ffc107';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    currentGuidePath.forEach((p) => {
+      const s = toScreen(p.x, p.z);
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffc107';
+      ctx.fill();
+    });
+  }
+
   // Rajtrács-pontok sorszámozva — a sorrend számít (ez lesz a rajtsorrend).
   // A tüske mutatja, merre néz majd az autó.
   currentSpawnPoints.forEach((p, idx) => {
@@ -2109,6 +2148,11 @@ zoneOverlayCanvas.addEventListener('mousedown', (e) => {
     }
     if (isGateTool()) {
       drawingGate = { x1: x, z1: z, x2: x, z2: z };
+      return;
+    }
+    if (isGuideTool()) {
+      currentGuidePath.push({ x, z });
+      updateSpawnToolUI();
       return;
     }
     zonePainting = true;
@@ -2337,6 +2381,240 @@ function saveZoneMap() {
     reader.readAsDataURL(blob);
   }, 'image/png');
 }
+
+// ---------- Checkpontok automatikus generálása ----------
+// A rajtvonaltól indulva, a rajtpontok iránya szerint, "középvonal-követéssel"
+// bejárjuk a pályát: minden lépésnél merőlegesen megmérjük az aszfalt szélét
+// balra-jobbra, és a kettő közepére korrigálunk — így akkor sem szalad le a
+// vonal, ha a helyi irány kicsit pontatlan. A bejárt útvonalat a végén
+// egyenletesen felosztjuk a kért darabszámra, és minden ponton a HELYI
+// pályaszélesség alapján méretezzük a kaput (ld. lent).
+function generateCheckpoints(count) {
+  if (!zoneMaskCanvas || !currentGates.start) {
+    zoneStatusEl.textContent = 'Előbb kell rajtvonal és aszfalt-térkép.';
+    return;
+  }
+  if (!currentSpawnPoints.length) {
+    zoneStatusEl.textContent = 'Előbb kell legalább egy rajtpont (ebből tudjuk az irányt).';
+    return;
+  }
+
+  const ctx = zoneMaskCanvas.getContext('2d');
+  const w = zoneMaskCanvas.width, h = zoneMaskCanvas.height;
+  const data = ctx.getImageData(0, 0, w, h).data;
+  const worldPerPixel = (zoneBounds.maxX - zoneBounds.minX) / w;
+
+  function isAsphaltAtMaskPx(u, v) {
+    if (u < 0 || u >= w || v < 0 || v >= h) return false;
+    const alpha = data[(v * w + u) * 4 + 3];
+    return alpha < 16;
+  }
+  function isAsphaltAt(x, z) {
+    const { u, v } = zoneWorldToMaskPixel(x, z);
+    return isAsphaltAtMaskPx(Math.floor(u), Math.floor(v));
+  }
+
+  const MARCH_STEP = Math.max(0.25, worldPerPixel);
+  const MAX_MARCH = 60; // világegység — ennél szélesebb pálya nem valószínű
+
+  // Merőlegesen (perpX,perpZ) irányban, x,z-ből indulva, meddig tart az aszfalt.
+  function marchEdge(x, z, perpX, perpZ) {
+    let dist = 0;
+    while (dist < MAX_MARCH && isAsphaltAt(x + perpX * dist, z + perpZ * dist)) {
+      dist += MARCH_STEP;
+    }
+    return dist;
+  }
+
+  // Ha (x,z) maga nincs aszfalton (pl. egy kicsit pontatlan vezetővonal-pont),
+  // spirálban keresünk a közelben egy aszfalt-pontot — enélkül a lenti
+  // szélesség-mérés 0-t adna, és nulla hosszú (haszontalan) kaput építenénk.
+  function nearestAsphalt(x, z) {
+    if (isAsphaltAt(x, z)) return { x, z };
+    for (let r = 1; r <= 150; r++) {
+      const dist = r * MARCH_STEP;
+      const samples = 8 * r;
+      for (let i = 0; i < samples; i++) {
+        const a = (i / samples) * Math.PI * 2;
+        const tx = x + Math.cos(a) * dist, tz = z + Math.sin(a) * dist;
+        if (isAsphaltAt(tx, tz)) return { x: tx, z: tz };
+      }
+    }
+    return { x, z }; // nem találtunk semmit a közelben — marad az eredeti
+  }
+
+  // Az (x,z) pontot a helyi aszfaltcsík közepére tolja, és visszaadja a
+  // szélességet is (balra + jobbra mért távolság összege).
+  function recenter(x, z, dirX, dirZ) {
+    const near = nearestAsphalt(x, z);
+    const perpX = -dirZ, perpZ = dirX;
+    const left = marchEdge(near.x, near.z, perpX, perpZ);
+    const right = marchEdge(near.x, near.z, -perpX, -perpZ);
+    const shift = (left - right) / 2;
+    return { x: near.x + perpX * shift, z: near.z + perpZ * shift, width: left + right };
+  }
+
+  // Kezdőpont: a rajtvonal közepe, irány: a rajtvonalra merőleges két lehetőség
+  // közül az, amelyik az 1. rajtpont irányával egyezik (skaláris szorzat > 0).
+  const g = currentGates.start;
+  let x = (g.x1 + g.x2) / 2, z = (g.z1 + g.z2) / 2;
+  const gx = g.x2 - g.x1, gz = g.z2 - g.z1;
+  const glen = Math.hypot(gx, gz) || 1;
+  let dirX = -gz / glen, dirZ = gx / glen;
+  const heading = currentSpawnPoints[0].heading || 0;
+  const wantX = Math.sin(heading), wantZ = Math.cos(heading);
+  if (dirX * wantX + dirZ * wantZ < 0) { dirX = -dirX; dirZ = -dirZ; }
+
+  const startCentered = recenter(x, z, dirX, dirZ);
+  x = startCentered.x; z = startCentered.z;
+
+  const STEP = 2; // világegység / lépés
+  let path;
+  let closed;
+
+  // Ha van kézzel rajzolt vezetővonal, azt követjük — a felhasználó vonala
+  // eleve a helyes ágat választja kereszteződéseknél/hidaknál (pl. Suzuka
+  // "8"-as szakasza), ahol a tisztán automatikus bejárás könnyen átvágna a
+  // másik ágra. Csak rá kell simítani az aszfalt közepére.
+  if (currentGuidePath.length >= 2) {
+    path = [];
+    let arc = 0;
+    let prevX = null, prevZ = null;
+    for (let i = 0; i < currentGuidePath.length - 1; i++) {
+      const a = currentGuidePath[i], b = currentGuidePath[i + 1];
+      const segX = b.x - a.x, segZ = b.z - a.z;
+      const segLen = Math.hypot(segX, segZ);
+      if (segLen < 1e-6) continue;
+      const segDirX = segX / segLen, segDirZ = segZ / segLen;
+      const steps = Math.max(1, Math.round(segLen / STEP));
+      for (let s = i === 0 ? 0 : 1; s <= steps; s++) {
+        const t = s / steps;
+        const rec = recenter(a.x + segX * t, a.z + segZ * t, segDirX, segDirZ);
+        if (prevX !== null) arc += Math.hypot(rec.x - prevX, rec.z - prevZ);
+        path.push({ x: rec.x, z: rec.z, arc });
+        prevX = rec.x; prevZ = rec.z;
+      }
+    }
+    closed = true;
+  } else {
+
+  const path2 = [{ x, z, arc: 0 }];
+  const MAX_ITERS = 8000;
+  const MIN_ARC_BEFORE_CLOSE = 150;
+  const CLOSE_RADIUS = STEP * 2.5;
+  let arc = 0;
+  closed = false;
+  // Átlagos pályaszélesség (mozgóátlag) — ha egy pontnál a mért szélesség
+  // ennek sokszorosa, az nem éles kanyar, hanem kereszteződés/híd (pl. a
+  // Suzuka "8"-as át-/alatta-vezetése): a felülnézeti maszkban ott KÉT
+  // pályaszakasz fedi egymást, és az oldalra-korrigálás könnyen átrántaná a
+  // vonalat a másik ágra. Ilyenkor nem korrigálunk oldalra, egyenesen megyünk
+  // tovább az addigi irányban, amíg a szélesség vissza nem áll normálisra.
+  let avgWidth = startCentered.width;
+  const WIDTH_SPIKE_FACTOR = 1.8;
+
+  for (let iter = 0; iter < MAX_ITERS; iter++) {
+    const candX = x + dirX * STEP, candZ = z + dirZ * STEP;
+    if (!isAsphaltAt(candX, candZ)) {
+      // Kis oldalirányú keresés — hátha csak egy kanyar szélén csúszott le.
+      const perpX = -dirZ, perpZ = dirX;
+      let found = null;
+      for (let s = 1; s <= 6 && !found; s++) {
+        for (const sign of [1, -1]) {
+          const tx = candX + perpX * s * MARCH_STEP, tz = candZ + perpZ * s * MARCH_STEP;
+          if (isAsphaltAt(tx, tz)) { found = { x: tx, z: tz }; break; }
+        }
+      }
+      if (!found) break; // tényleg elakadt — amíg addig jutottunk, azt megtartjuk
+      const rec = recenter(found.x, found.z, dirX, dirZ);
+      const newDirX = rec.x - x, newDirZ = rec.z - z;
+      const len = Math.hypot(newDirX, newDirZ) || 1;
+      dirX = newDirX / len; dirZ = newDirZ / len;
+      arc += Math.hypot(rec.x - x, rec.z - z);
+      x = rec.x; z = rec.z;
+      avgWidth = avgWidth * 0.95 + rec.width * 0.05;
+      path2.push({ x, z, arc });
+    } else {
+      const rec = recenter(candX, candZ, dirX, dirZ);
+      if (rec.width > avgWidth * WIDTH_SPIKE_FACTOR) {
+        // Kereszteződés/híd — menjünk egyenesen, ne korrigáljunk oldalra, és
+        // ne is számítsuk bele az átlagba (nehogy elmossa a normál szélességet).
+        arc += STEP;
+        x = candX; z = candZ;
+        path2.push({ x, z, arc });
+      } else {
+        const rawDirX = rec.x - x, rawDirZ = rec.z - z;
+        const rawLen = Math.hypot(rawDirX, rawDirZ) || 1;
+        // Enyhe simítás, hogy a maszk pixel-zaja ne cikkcakkoztassa az irányt.
+        let newDirX = dirX * 0.7 + (rawDirX / rawLen) * 0.3;
+        let newDirZ = dirZ * 0.7 + (rawDirZ / rawLen) * 0.3;
+        const newLen = Math.hypot(newDirX, newDirZ) || 1;
+        dirX = newDirX / newLen; dirZ = newDirZ / newLen;
+        arc += Math.hypot(rec.x - x, rec.z - z);
+        x = rec.x; z = rec.z;
+        avgWidth = avgWidth * 0.95 + rec.width * 0.05;
+        path2.push({ x, z, arc });
+      }
+    }
+
+    if (arc > MIN_ARC_BEFORE_CLOSE && Math.hypot(x - path2[0].x, z - path2[0].z) < CLOSE_RADIUS) {
+      closed = true;
+      break;
+    }
+  }
+  path = path2;
+  }
+
+  if (path.length < count) {
+    zoneStatusEl.textContent = currentGuidePath.length >= 2
+      ? `A vezetővonal csak ${path.length} mintapontot adott — kevés a ${count} checkpointhoz. Rajzolj hosszabb/részletesebb vonalat, vagy kérj kevesebb checkpontot.`
+      : `A bejárás csak ${path.length} pontig jutott — kevés a ${count} checkpointhoz. Próbáld kevesebbel, vagy javítsd kézzel az aszfalt-maszkot ott, ahol elakadt (~${x.toFixed(0)}, ${z.toFixed(0)}).`;
+    return;
+  }
+
+  const totalArc = path[path.length - 1].arc;
+  const checkpoints = [];
+  for (let i = 1; i <= count; i++) {
+    const targetArc = (totalArc * i) / (count + 1); // az utolsó "kör-lezáró" szakaszt a rajtvonal adja, nem kell külön kapu oda
+    let p = path[path.length - 1];
+    for (let k = 0; k < path.length - 1; k++) {
+      if (path[k].arc <= targetArc && path[k + 1].arc >= targetArc) {
+        const span = path[k + 1].arc - path[k].arc || 1;
+        const t = (targetArc - path[k].arc) / span;
+        p = { x: path[k].x + (path[k + 1].x - path[k].x) * t, z: path[k].z + (path[k + 1].z - path[k].z) * t };
+        var prevP = path[k], nextP = path[k + 1];
+        break;
+      }
+    }
+    const tanX = nextP.x - prevP.x, tanZ = nextP.z - prevP.z;
+    const tanLen = Math.hypot(tanX, tanZ) || 1;
+    const dx = tanX / tanLen, dz = tanZ / tanLen;
+    const rec = recenter(p.x, p.z, dx, dz);
+    const perpX = -dz, perpZ = dx;
+    // Fél szélesség az élig + még egy fél szélesség ráhagyás mindkét oldalra —
+    // így egy kicsit lemenve az aszfaltról sem esik ki azonnal a checkpointból.
+    const halfLen = rec.width; // = width/2 (élig) + width/2 (ráhagyás)
+    checkpoints.push({
+      x1: +(rec.x + perpX * halfLen).toFixed(2), z1: +(rec.z + perpZ * halfLen).toFixed(2),
+      x2: +(rec.x - perpX * halfLen).toFixed(2), z2: +(rec.z - perpZ * halfLen).toFixed(2),
+    });
+  }
+
+  currentGates.checkpoints = checkpoints;
+  updateSpawnToolUI();
+  if (currentGuidePath.length >= 2) {
+    zoneStatusEl.textContent = `${checkpoints.length} checkpoint legenerálva a vezetővonal alapján.`;
+  } else {
+    zoneStatusEl.textContent = closed
+      ? `${checkpoints.length} checkpoint legenerálva (a bejárás visszaért a rajtvonalhoz).`
+      : `${checkpoints.length} checkpoint legenerálva, de a bejárás NEM ért vissza a rajtvonalhoz (elakadt kb. itt: ${x.toFixed(0)}, ${z.toFixed(0)}) — nézd át kézzel.`;
+  }
+}
+
+generateCheckpointsBtn.addEventListener('click', () => {
+  const count = Math.max(4, Math.min(500, Number(autoCheckpointCountEl.value) || 100));
+  generateCheckpoints(count);
+});
 
 openZoneEditorBtn.addEventListener('click', enterZoneEditor);
 closeZoneEditorBtn.addEventListener('click', exitZoneEditor);
@@ -2633,5 +2911,7 @@ window.__debug = {
     screenToWorld: zoneScreenToWorld, worldToMask: zoneWorldToMaskPixel,
     setRuntime: (z) => { zoneRuntime = z; }, sampleAt: sampleZoneAt, touchesWall: carTouchesWall,
     applyWall: applyWallConstraint, lastSafe: lastSafePos,
+    getGuidePath: () => currentGuidePath, setGuidePath: (p) => { currentGuidePath = p; updateSpawnToolUI(); },
+    generateCheckpoints,
   },
 };

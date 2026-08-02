@@ -196,6 +196,8 @@
         <label class="btn btn-outline-success btn-sm" for="brushStart">Rajtvonal</label>
         <input type="radio" class="btn-check" name="zoneBrush" id="brushCheckpoint" value="checkpoint">
         <label class="btn btn-outline-primary btn-sm" for="brushCheckpoint">Checkpoint</label>
+        <input type="radio" class="btn-check" name="zoneBrush" id="brushGuide" value="guide">
+        <label class="btn btn-outline-warning btn-sm" for="brushGuide">Vezetővonal</label>
       </div><br>
       <span id="brushSizeRow">
         Ecset sugara: <span id="brushSizeLabel">3</span> egység<br>
@@ -210,6 +212,18 @@
         Rajtvonal: <span id="startLineState">nincs</span> &nbsp;
         Checkpointok: <span id="checkpointCount">0</span> &nbsp;
         <button id="undoGateBtn" class="btn btn-sm btn-outline-primary py-0">Utolsó törlése</button><br>
+      </span>
+      <span id="guideToolRow" class="d-none">
+        Kattints pontonként a pálya közepe mentén, a rajtvonaltól körbe, vissza a rajtvonalig.<br>
+        Vezetőpontok: <span id="guidePointCount">0</span> &nbsp;
+        <button id="undoGuideBtn" class="btn btn-sm btn-outline-warning py-0">Utolsó törlése</button> &nbsp;
+        <button id="clearGuideBtn" class="btn btn-sm btn-outline-secondary py-0">Törlés</button><br>
+      </span>
+      <span id="autoCheckpointRow" class="d-none">
+        <span class="d-inline-flex align-items-center gap-1 mt-1">
+          <input type="number" id="autoCheckpointCount" class="form-control form-control-sm" style="width:70px;" min="4" max="500" value="100">
+          <button id="generateCheckpointsBtn" class="btn btn-sm btn-outline-primary py-0">Checkpontok automatikus generálása</button>
+        </span>
       </span>
       <button id="openMaterialPickerBtn" class="btn btn-sm btn-outline-info mt-1">Aszfalt automatikus felismerés</button>
       <button id="saveZoneBtn" class="btn btn-sm btn-primary mt-1">Mentés</button>
