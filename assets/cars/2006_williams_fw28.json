@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS becslés - ugyanaz a kerék-kit-család, mint a bevált 2006 McLaren MP4/21-nél, ott +Z volt az eleje. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "Közös 2006-os F1 kerék-kit (ua. mint Ferrari F2006, Midland M16, Red Bull RB2, Renault R26, Super Aguri SA06, Toyota TF106, Honda RA106): brake, calliper, disk, WILRIM, WILSPOKES, side, tread, WILHUB. FIGYELEM: van egy 'WIL06WHEEL' anyag is (kormánykerék), és egy apró 'lowrim' extra mesh - ezeket szándékosan kihagytam.",
+  "wheelPattern": "brake|calliper|disk|WILRIM|WILSPOKES|side|tread|WILHUB"
+}

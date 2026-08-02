@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "A 4 sarok már eleve külön mesh-csoport: 'discs' (féktárcsa), 'force_india_wheel' (felni, 2 méretben - talán felni+burkolat), 'Matte_Tire_Rubber' (gumi). FIGYELEM: van egy 'force_india_steeringwheel' anyag is (kormánykerék, több darabban a kokpitban) - a minta ettől eltérő string, nem fogja meg.",
+  "wheelPattern": "discs|force_india_wheel|Matte_Tire_Rubber"
+}

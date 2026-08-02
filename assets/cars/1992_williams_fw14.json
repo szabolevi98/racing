@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "A 4 sarok már eleve külön mesh-csoport (DISC88, RIMOZW, TREAD92R, TIRE92R, CALIPER88). FIGYELEM: van 3 kormánykerék-anyag is a pilótafülkében (F1_92_WHEEL1, WILLIAMSWHEEL, WILLBACKWHEEL) - a minta szándékosan nem 'WHEEL'-lel keres, hogy ezeket ne fogja meg.",
+  "wheelPattern": "DISC88|RIMOZW|TREAD92R|TIRE92R|CALIPER88"
+}

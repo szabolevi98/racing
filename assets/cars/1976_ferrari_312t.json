@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS becslés. Az első tengely (z=+7.07) nagyobb pozitív Z-n van mint a hátsó (z=-5.99) - +Z előre irányt valószínűsít.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "GYORS becslés. Elöl (Disc1/Tire1/Rim1/Caliper1Mtl) és hátul (Rim3/Tire3Mtl) külön tengelyenként összeolvasztott (bal+jobb együtt) mesh - a splitMergedWheelMesh vágja szét oldalanként. A hátsó tengelynél nincs külön fék-anyag, csak elöl.",
+  "wheelPattern": "Disc1Mtl|Tire1Mtl|Rim1Mtl|Caliper1Mtl|Rim3Mtl|Tire3Mtl"
+}

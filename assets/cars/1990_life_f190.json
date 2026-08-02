@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "GYORS becslés. Közös '90-es évek F1' kerék-kit (ugyanaz mint az 1990 Benetton B190, más .004 sorszámmal): DISC88, RIMOZW, RIM_BLUR, TIRE92R, Brake_Caliper. FIGYELEM: van egy 'LIFEWHEEL' anyag is (kormánykerék) - a minta szándékosan NEM 'WHEEL'-lel keres, hogy ezt ne fogja meg.",
+  "wheelPattern": "DISC88|RIMOZW|RIM_BLUR|TIRE92R|Brake_Caliper"
+}

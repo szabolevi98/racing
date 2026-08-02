@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "Közös kora-2000-es F1 kerék-kit (ugyanaz mint a Sauber C21, más .001/.003 és .006/.008 sorszámmal): Rim/Rim_Decals/Rim_Spokes, Brake_Disk, Tyre, Caliper/Caliper_Logo. FIGYELEM: van 'MINWHL'/'MINWHL_ALC' anyag is (kormánykerék) - a minta szándékosan nem 'WHL'-lel keres.",
+  "wheelPattern": "Rim|Brake_Disk|Tyre|Caliper"
+}
