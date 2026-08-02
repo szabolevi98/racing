@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "Ua. 2008-as kit mint a Force India VJM01/Toro Rosso STR3/Honda RA108/stb, itt sorszám nélküli névvel: calliper, BMW_BRAKES, brake, tread, side. CSAPDA: 'brakefluid' (kokpit) és 'side_left'/'side_right' (orr-panel) NEM kerekek - mivel itt nincs sorszám, ' brake$' és ' side$' (szóköz+szó+sorvég) zárja ki őket.",
+  "wheelPattern": "calliper|BMW_BRAKES| brake$|tread| side$"
+}
