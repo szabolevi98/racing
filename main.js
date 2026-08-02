@@ -722,6 +722,42 @@ function splitMergedWheelMesh(mesh, midX, midZ) {
   return newMeshes;
 }
 
+// Ugyanazzal a névre+anyagra illesztéssel megméri, hol van a LÁTHATÓ
+// kerekek középpontja a carRoot saját (még nem carPivot-hoz csatolt)
+// terében — ebből tudja a hívó, mennyivel kell eltolni a modellt, hogy a
+// kerekek a fizikai kasztni origójára (X=0, Z=0) essenek. Nem ad vissza
+// semmit, ha nincs elég találat (legalább 2 kell egy értelmes középhez).
+function findWheelCentreOffset(carRoot, wheelPattern) {
+  if (!wheelPattern) return null;
+  let regex;
+  try {
+    regex = new RegExp(wheelPattern, 'i');
+  } catch (err) {
+    return null;
+  }
+  const box = new THREE.Box3();
+  const centre = new THREE.Vector3();
+  const xs = [];
+  const zs = [];
+  carRoot.traverse((obj) => {
+    if (!obj.isMesh) return;
+    let name = '';
+    for (let n = obj; n && n !== carRoot.parent; n = n.parent) name += ' ' + (n.name || '');
+    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+    mats.forEach((m) => { if (m && m.name) name += ' ' + m.name; });
+    if (!regex.test(name)) return;
+    box.setFromObject(obj);
+    box.getCenter(centre);
+    xs.push(centre.x);
+    zs.push(centre.z);
+  });
+  if (xs.length < 2) return null;
+  return {
+    x: (Math.min(...xs) + Math.max(...xs)) / 2,
+    z: (Math.min(...zs) + Math.max(...zs)) / 2,
+  };
+}
+
 // A kerék-alkatrészeket pozíció szerint osztjuk 4 sarokba, mert a nevek
 // gyakran NEM árulják el, melyik melyik (a BMW M3-nál például a hátsó
 // kerekek is "FRONT_TIRE" néven szerepelnek, csak sorszámmal).
@@ -895,6 +931,21 @@ async function setCar(carUrl, carId, config) {
   const scale = size2.z > 0 ? targetLength / size2.z : 1;
   carRoot.scale.setScalar(scale);
   carRoot.updateMatrixWorld(true);
+
+  // Néhány letöltött modellnél a fájl saját origója NEM a tengelytáv
+  // közepén van (pl. egy hosszú orrú versenyautónál a modellező nem oda
+  // tette a nullpontot) — emiatt a látható kocsi eltolva ülne a láthatatlan
+  // fizikai kasztnihoz (és a fizikai kerekekhez, amik ±1.5-nél vannak)
+  // képest, és az egyik vége jobban belelógna a falba ütközéskor, mint
+  // kellene. Ha van wheelPattern, megmérjük, hol van a LÁTHATÓ kerekek
+  // középpontja, és eltoljuk a modellt, hogy az pontosan a fizikai
+  // kerekek középpontjára (X=0, Z=0) essen.
+  const wheelCentre = findWheelCentreOffset(carRoot, config && config.wheelPattern);
+  if (wheelCentre) {
+    carRoot.position.x -= wheelCentre.x;
+    carRoot.position.z -= wheelCentre.z;
+    carRoot.updateMatrixWorld(true);
+  }
 
   // Végül a modellt úgy toljuk el, hogy a gumik alja pontosan a talajon legyen
   // (a groundOffset a kasztni közepétől a talajig mért távolság).
