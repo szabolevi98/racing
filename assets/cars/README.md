@@ -117,6 +117,50 @@ zavarja meg egyetlen kilógó pont.
    nézd meg (utána vissza kell állítani a mentett quaternion-t), vagy
    simán mérd az egyes mesh-eket helyi (nem világ-) koordinátában.
 
+## Ha egy kocsi "lehetetlennek" tűnik: az Y-tartomány trükk
+
+Néhány kocsinál a teljes modell mindössze pár (akár 5) mesh-ből áll,
+mindegyik generikus néven (`Material_1`, `material_0` stb.), és mindegyik
+mesh bounding boxa kb. a TELJES kocsit lefedi — első ránézésre úgy tűnik,
+a karosszéria és a kerekek egyetlen anyagba vannak összeolvasztva,
+szétválaszthatatlanul. **Ez megtévesztő**: egy versenyautó 4 kerekének
+együttes fesztávja (szélesség + tengelytáv) már önmagában majdnem akkora,
+mint a teljes kocsi lábnyoma, szóval egy "kocsi méretű" bounding box NEM
+bizonyítja, hogy karosszéria is van benne.
+
+A working teszt: nézd meg **anyagonként a világ-Y tartományt** (min/max
+magasság), ne csak az X/Z méretet. Ha egy anyag Y-maximuma SOHA nem
+emelkedik a talajszint fölé (kb. 0 körül vagy az alatt), az szinte biztos,
+hogy csak a kerekeket (gumi+felni, alacsony profil) tartalmazza,
+karosszéria/kokpit nélkül — azt onnantól a szokásos módon (geometria-
+szétvágással) fel lehet dolgozni `wheelPattern`-ként.
+
+Élő böngészős ellenőrzéshez (a `window.__debug` hook-on keresztül):
+
+```js
+const THREE = window.__debug.THREE;
+const cp = window.__debug.carPivot;
+let root = null;
+cp.children.forEach(c => { let hasMesh=false; if(c.traverse) c.traverse(o=>{if(o.isMesh) hasMesh=true;}); if(hasMesh) root=c; });
+root.traverse(o => {
+  if (o.isMesh) {
+    const b = new THREE.Box3().setFromObject(o);
+    console.log(o.material.name, b.min.y.toFixed(2), b.max.y.toFixed(2));
+  }
+});
+```
+
+Ezzel a módszerrel derült ki, hogy a 2015 Sauber C34 és a 2014 Red Bull
+RB10 EGYÁLTALÁN NEM volt lehetetlen (elsőre annak tűntek) — csak az
+`inspect_glb.py` puszta X/Z méret alapján megtévesztő volt.
+
+**Az `inspect_glb.py` script is hibázhat** — a 2014 Mercedes W05-nél
+minden mesh-re kb. nulla méretet/pozíciót adott vissza (a fájl valamiért
+nem olvasható helyesen a szkript egyszerű buffer-olvasásával), pedig a
+modell teljesen normális. Ha a script kimenete értelmetlennek tűnik
+(minden mesh kb. egy pontban, nulla mérettel), NE hidd el azonnal, hogy a
+modell hibás — nézd meg élőben a fenti JS kóddal, mielőtt feladnád.
+
 ## Kocsinkénti állapot
 
 Ezt NEM itt tartjuk nyilván (túl sok kocsi lesz ahhoz, hogy egy közös
