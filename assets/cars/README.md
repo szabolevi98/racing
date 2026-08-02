@@ -121,6 +121,7 @@ korrekciót ad, nem árt nekik.
 | `2010_pagani_zonda_cinque` | sarkonként (156/156/165/165 darab, nagyon rendetlen export) — a felhasználó megerősítette, hogy megy | `Wheel\|Caliper\|Tyre\|Tire\|Rim\|Disc\|Hub` |
 | `2020_mclaren_mcl35` | sarkonként (2/2/2/2, kivételesen tiszta modell — gumi+felni már eleve külön node-onként a 4 sarokban, szétvágás sem kellett) | `LOD_A_TYRE\|LOD_A_WHEEL_` |
 | `2011_bmw_z4_gt3` | sarkonként (5/5/5/5: gumi+felni+tárcsa+nyereg egy csomóban) — nagyon generikus export, a legtöbb anyagnak nincs neve (`Material_NN.001`), csak az `EXT_Tyre` kapott értelmes nevet; a felni/tárcsa/nyereg névtelen anyagait EXAKT névvel (`Material_59/60/62/63.001`) kellett felvenni a mintába, mert ezek a sorszámok csak ebben az egy fájlban stabilak | `EXT_Tyre\|Material_59.001\|Material_60.001\|Material_62.001\|Material_63.001` |
+| `2006_mclaren_mp421` | sarkonként (~11/10/11/11, gumi+felni+küllő+tárcsa+nyereg+elmosás-textúra egy csomóban) — tiszta, névvel ellátott kerék-anyagok (brake/calliper/disk/blur1/blur2/MCLRIM/MCLSPOKES/side/tread/MCLHUB), geometria-szétvágással | `brake\|calliper\|disk\|blur1\|blur2\|MCLRIM\|MCLSPOKES\|side\|tread\|MCLHUB` |
 
 **Törölt kocsik** (a felhasználó törölte, buggos eredeti modellek — nem a kerék-szétvágással volt gond, magukkal a fájlokkal):
 - `mercedes-benz_clk_gtr`
