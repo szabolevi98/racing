@@ -618,6 +618,110 @@ async function setTrack(trackUrl, mapId, spawnPoints, gates) {
 let wheelPivots = [];
 let wheelSources = [];
 
+// Néhány modellben (pl. Sketchfab-exportok, anyagonként egy mesh) mind a 4
+// kerék EGYETLEN mesh geometriájába van összeolvasztva — nem 4 külön
+// objektum, hanem 4 külön HÁROMSZÖG-CSOPORT ugyanabban a BufferGeometry-ban.
+// Ha egy találat mérete jóval nagyobb egy kerékméretnél (a saját tengelye
+// mentén is), szétvágjuk a háromszögeit pozíció szerint 4 (vagy tengely-módban
+// 2) ÚJ mesh-re, hogy utána ugyanúgy pivotra lehessen fűzni őket, mint egy
+// eleve különálló darabot. Ha a szétválasztás nem ad 4 (ill. 2) nem-üres
+// csoportot, feladjuk (null) — jobb egyáltalán nem forgatni, mint rosszul.
+// midX/midZ a TELJES kerék-készlet (az összes találat) középvonalai, nem
+// ennek az egy mesh-nek a sajátja — enélkül egy csak-egy-tengelynyi (bal+jobb,
+// de nem elöl+hátul) összeolvasztott darabot tévesen 4 felé vágnánk szét
+// a SAJÁT (véletlenszerű, csak erre a tengelyre jellemző) Z-közepén, ami
+// egyetlen kereket vágna ketté "elöl/hátul" helyett.
+function splitMergedWheelMesh(mesh, midX, midZ) {
+  const geom = mesh.geometry;
+  const posAttr = geom.attributes && geom.attributes.position;
+  const idxAttr = geom.index;
+  if (!posAttr || !idxAttr) return null;
+
+  mesh.updateWorldMatrix(true, false);
+  const toCarPivot = new THREE.Matrix4().copy(carPivot.matrixWorld).invert().multiply(mesh.matrixWorld);
+  const v = new THREE.Vector3();
+  const vertCount = posAttr.count;
+  const localX = new Float32Array(vertCount);
+  const localZ = new Float32Array(vertCount);
+  for (let i = 0; i < vertCount; i++) {
+    v.set(posAttr.getX(i), posAttr.getY(i), posAttr.getZ(i)).applyMatrix4(toCarPivot);
+    localX[i] = v.x;
+    localZ[i] = v.z;
+  }
+
+  const idx = idxAttr.array;
+  const triCount = idx.length / 3;
+  const triCX = new Float32Array(triCount);
+  const triCZ = new Float32Array(triCount);
+  let hasLeft = false, hasRight = false, hasFront = false, hasRear = false;
+  for (let t = 0; t < triCount; t++) {
+    const a = idx[t * 3], b = idx[t * 3 + 1], c = idx[t * 3 + 2];
+    const cx = (localX[a] + localX[b] + localX[c]) / 3;
+    const cz = (localZ[a] + localZ[b] + localZ[c]) / 3;
+    triCX[t] = cx; triCZ[t] = cz;
+    if (cx > midX) hasRight = true; else hasLeft = true;
+    if (cz > midZ) hasFront = true; else hasRear = true;
+  }
+  // Ha ez az EGY darab csak az egyik oldalon (bal VAGY jobb) ül, esetleg csak
+  // az egyik tengelyen (elöl VAGY hátul), akkor abban az irányban nincs mit
+  // szétválasztani — csak ott vágjunk, ahol a darab ténylegesen átnyúlik a
+  // globális középvonalon.
+  const splitX = hasLeft && hasRight;
+  const splitZ = hasFront && hasRear;
+  if (!splitX && !splitZ) return null;
+
+  const triGroups = splitX && splitZ ? [[], [], [], []] : [[], []];
+  for (let t = 0; t < triCount; t++) {
+    let g;
+    if (splitX && splitZ) g = (triCZ[t] > midZ ? 0 : 1) * 2 + (triCX[t] > midX ? 1 : 0);
+    else if (splitX) g = triCX[t] > midX ? 1 : 0;
+    else g = triCZ[t] > midZ ? 0 : 1;
+    triGroups[g].push(t);
+  }
+  if (triGroups.some((g) => g.length === 0)) return null;
+
+  const attrNames = Object.keys(geom.attributes);
+  const newMeshes = triGroups.map((tris) => {
+    const remap = new Map();
+    const newIndex = new Uint32Array(tris.length * 3);
+    const newAttrData = {};
+    attrNames.forEach((name) => { newAttrData[name] = []; });
+    let cursor = 0;
+    tris.forEach((t) => {
+      for (let k = 0; k < 3; k++) {
+        const orig = idx[t * 3 + k];
+        let ni = remap.get(orig);
+        if (ni === undefined) {
+          ni = remap.size;
+          remap.set(orig, ni);
+          attrNames.forEach((name) => {
+            const src = geom.attributes[name];
+            for (let c = 0; c < src.itemSize; c++) newAttrData[name].push(src.getComponent(orig, c));
+          });
+        }
+        newIndex[cursor++] = ni;
+      }
+    });
+    const newGeom = new THREE.BufferGeometry();
+    attrNames.forEach((name) => {
+      const src = geom.attributes[name];
+      newGeom.setAttribute(name, new THREE.Float32BufferAttribute(newAttrData[name], src.itemSize));
+    });
+    newGeom.setIndex(new THREE.BufferAttribute(newIndex, 1));
+    const newMesh = new THREE.Mesh(newGeom, mesh.material);
+    newMesh.castShadow = mesh.castShadow;
+    newMesh.receiveShadow = mesh.receiveShadow;
+    mesh.matrix.decompose(newMesh.position, newMesh.quaternion, newMesh.scale);
+    return newMesh;
+  });
+
+  const parent = mesh.parent;
+  newMeshes.forEach((m) => parent.add(m));
+  parent.remove(mesh);
+  geom.dispose();
+  return newMeshes;
+}
+
 // A kerék-alkatrészeket pozíció szerint osztjuk 4 sarokba, mert a nevek
 // gyakran NEM árulják el, melyik melyik (a BMW M3-nál például a hátsó
 // kerekek is "FRONT_TIRE" néven szerepelnek, csak sorszámmal).
@@ -638,20 +742,67 @@ function buildWheelPivots(carRoot, wheelPattern) {
   }
 
   carPivot.updateMatrixWorld(true);
-  const parts = [];
-  const box = new THREE.Box3();
-  const centre = new THREE.Vector3();
-  const size = new THREE.Vector3();
+  // Először csak ÖSSZEGYŰJTJÜK a találatokat — a traverse közben nem
+  // módosíthatjuk a fát (a szétvágás mesh-eket cserélne ki), azt egy
+  // különálló, második körben tesszük meg.
+  const matches = [];
   carRoot.traverse((obj) => {
     if (!obj.isMesh) return;
     // A név a szülőkben is lehet (a glTF gyakran Object_N néven hagyja a mesh-t).
     let name = '';
     for (let n = obj; n && n !== carRoot.parent; n = n.parent) name += ' ' + (n.name || '');
+    // Néhány modellnél (anyagonként egy mesh, pl. "lamborghini_countach_7") a
+    // kerékre utaló infó KIZÁRÓLAG az anyag nevében van, a mesh/objektum neve
+    // csak egy generikus sorszám — ezért az anyagnév(ek)et is hozzáfűzzük.
+    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+    mats.forEach((m) => { if (m && m.name) name += ' ' + m.name; });
     if (!regex.test(name)) return;
+    matches.push(obj);
+  });
+
+  const box = new THREE.Box3();
+  const centre = new THREE.Vector3();
+  const size = new THREE.Vector3();
+
+  // Első kör: csak a KÖZÉPPONTOKAT és méreteket mérjük fel — ez adja a teljes
+  // kerék-készlet globális középvonalait (globalMidX/Z), MIELŐTT bármit
+  // szétvágnánk. Enélkül egy csak-egy-tengelynyi (bal+jobb, de nem elöl is)
+  // összeolvasztott darabot a SAJÁT véletlenszerű közepén vágnánk szét,
+  // ami egyetlen kereket bontana ketté "elöl/hátul" helyett.
+  const prelim = matches.map((obj) => {
     box.setFromObject(obj);
     box.getCenter(centre);
     box.getSize(size);
-    parts.push({ mesh: obj, local: carPivot.worldToLocal(centre.clone()), volume: size.x * size.y * size.z });
+    return { mesh: obj, local: carPivot.worldToLocal(centre.clone()), size: size.clone() };
+  });
+  if (prelim.length < 1) return;
+  const prelimXs = prelim.map((p) => p.local.x);
+  const prelimZs = prelim.map((p) => p.local.z);
+  const globalMidX = (Math.min(...prelimXs) + Math.max(...prelimXs)) / 2;
+  const globalMidZ = (Math.min(...prelimZs) + Math.max(...prelimZs)) / 2;
+
+  const parts = [];
+  prelim.forEach(({ mesh, size }) => {
+    // Ha egy TALÁLAT önmagában is jóval nagyobb egy keréknél (a vízszintes
+    // irányok legalább egyikében), az nagy eséllyel több kereket tartalmaz
+    // egyetlen geometriában összeolvasztva (Sketchfab anyagonkénti export) —
+    // megpróbáljuk a háromszögeit a globális középvonalak mentén szétvágni.
+    if (size.x > 1.0 || size.z > 1.0) {
+      const split = splitMergedWheelMesh(mesh, globalMidX, globalMidZ);
+      if (split) {
+        split.forEach((m) => {
+          box.setFromObject(m);
+          box.getCenter(centre);
+          box.getSize(size);
+          parts.push({ mesh: m, local: carPivot.worldToLocal(centre.clone()), volume: size.x * size.y * size.z });
+        });
+        return;
+      }
+    }
+    box.setFromObject(mesh);
+    box.getCenter(centre);
+    box.getSize(size);
+    parts.push({ mesh, local: carPivot.worldToLocal(centre.clone()), volume: size.x * size.y * size.z });
   });
   if (parts.length < 2) return;
 
