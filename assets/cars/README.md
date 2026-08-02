@@ -1,0 +1,99 @@
+# Kocsik (`assets/cars/`)
+
+Minden kocsi egy `.glb` fájl, amit a `list.php` automatikusan felvesz a
+menübe — nincs kézzel karbantartandó lista. A `.glb` mellé, **ugyanazzal
+a névvel**, tehető egy `<név>.json` config fájl a kocsi-specifikus
+beállításokhoz. A config teljesen opcionális — ha nincs, a játék
+alapértelmezéssel tölti be a kocsit (nincs kerékforgás, nincs extra
+forgatás).
+
+**Semmi nincs beégetve a kódba (`main.js`) egyik kocsihoz sem.** A
+`main.js`-ben csak általános logika van (forgatás, méretezés,
+kerék-felismerés/szétvágás), ami minden kocsira ugyanúgy lefut — a
+kocsi-specifikus adatok (előre-irány, melyik mesh a kerék) mind a JSON-ban
+vannak.
+
+## A JSON mezői
+
+```json
+{
+  "yawDegrees": 0,
+  "wheelPattern": "TIRE|BRAKE_"
+}
+```
+
+- **`yawDegrees`** — extra elforgatás fokban, ha a modell nem előre néz.
+  A hossz-tengelyt (X vagy Z) a játék magától felismeri; ez csak az
+  előre/hátra felcserélést javítja (tipikusan `0` vagy `180`).
+- **`wheelPattern`** — reguláris kifejezés (kis-nagybetű független),
+  ami megmondja, mely mesh-ek tartoznak a kerekekhez. A minta a mesh
+  (és szülei) NEVÉHEZ **és** az anyag(ok) nevéhez is illeszkedik —
+  van modell, ahol a kerékre utaló infó csak az egyikben van meg.
+  Ha nincs `wheelPattern`, a kerekek nem forognak/kormányoznak
+  vizuálisan (a fizika attól még rendben megy).
+
+Mindkét mező elhagyható. `_megjegyzes`-szerű, aláhúzással kezdődő
+mezők csak dokumentáció, a játék nem olvassa őket — ide írjuk, HOGYAN
+találtuk ki az adott értéket, hogy legközelebb ne kelljen újra
+kinyomozni.
+
+## Hogyan dönti el a játék, melyik a kerék, és hogyan forgatja
+
+1. A `wheelPattern` regex-nek megfelelő mesh-eket összegyűjti
+   (`buildWheelPivots` a `main.js`-ben).
+2. Ha egy találat MAGA is túl nagy egy kerékhez (mindkét vízszintes
+   irányban), az azt jelenti, hogy több kerék van egyetlen
+   geometriába összeolvasztva (tipikus Sketchfab-exportoknál,
+   anyagonként egy mesh) — a játék ekkor a saját háromszögeit
+   pozíció szerint szétvágja (`splitMergedWheelMesh`), a TELJES
+   kerék-készlet közepéhez képest, nem a mesh saját közepéhez képest
+   (különben egy csak-egy-tengelynyi darabot tévesen kettévágna).
+3. A (esetleg szétvágott) darabokat pozíció szerint 4 sarokba
+   csoportosítja (elöl-jobb/bal, hátul-jobb/bal). Ha csak bal/jobb
+   van külön (elöl/hátul összeolvadva), "tengely-módra" vált: a
+   kerekek gördülnek, de nem kormányoznak.
+4. Minden sarokhoz egy pivot-ot hoz létre a csoport LEGNAGYOBB
+   TÉRFOGATÚ darabjának (szinte mindig a gumi) középpontján — nem az
+   átlagon, mert egy féknyereg/tárcsa messze eshet a valódi
+   tengelytől, és az átlag "kilendítené" a kereket forgás közben.
+
+## Hogyan tegyünk be egy új kocsit
+
+1. Tedd be a `.glb`-t ide, ez automatikusan megjelenik a menüben.
+2. Nézd meg, néz-e előre alapból (indítsd el, nézd meg a menü-
+   előnézetben) — ha nem, írj egy `yawDegrees`-t a JSON-ba.
+3. A kerekekhez: nyisd meg a `.glb`-t (pl. Python szkripttel a JSON
+   chunk kibontásához), keresd meg a kerékhez tartozó mesh/anyag
+   neveket. Két tipikus eset:
+   - **Névvel ellátott, külön objektumok** (pl. `LOD_A_TYRE_...`,
+     `wheel_fl_1`) — ezek NEVE alapján lehet mintát írni.
+   - **Anyagonként egy mesh, generikus objektum-név** (pl.
+     `lamborghini_countach_7`) — ilyenkor az ANYAG neve (pl. `Tyre`,
+     `EXT_metal_rim`) alapján kell mintát írni; a mesh neve semmit
+     nem árul el.
+4. Az előre-irányt (ha nincs egyértelmű névminta) a fényszóró/hátsó
+   lámpa anyagának Z-pozíciójából, vagy — ha az sincs — a hátsó
+   gumik szélesebb méretéből lehet kitalálni (a hátsó gumi szinte
+   mindig szélesebb).
+5. Ellenőrzés: töltsd be a kocsit, nézd meg a `window.__debug.carPivot`
+   gyerekei közül a 4 (vagy 2) `YXZ`-rendezésű `Group`-ot — a
+   pozícióiknak szimmetrikusnak kell lenniük (pl. `x: ±0.8`), és a
+   csoportok méretének egyformának (pl. 6/6/6/6, nem 7/7/10/18).
+   Ha ez nem áll fönn, a `wheelPattern` túl sokat vagy túl keveset fog.
+
+## Jelenlegi állapot (kocsinként)
+
+| Kocsi | Kerék-mód | `wheelPattern` |
+|---|---|---|
+| `2001_bmw_m3_gtr_e46` | sarkonként (gördül + kormányoz) | `TIRE\|BRAKE_` |
+| `2004_ferrari_f2004` | sarkonként | `wheel` |
+| `2016_bmw_m6_gt3` | sarkonként | `TYRE\|TIRE` |
+| `1962_ferrari_250_gto` | sarkonként — geometria-szétvágással (eredetileg csak tengely-mód volt) | `LOD_A_TYRE\|LOD_A_WHEEL\|LOD_A_BRAKE_CALIPER` |
+| `1988_lamborghini_countach` | sarkonként — geometria-szétvágással | `Tyre\|EXT_metal_rim\|EXT_metal_disk\|EXT_metal_caliper` |
+| `mercedes-benz_clk_gtr` | **nincs kipróbálva az új szétvágással** — a configja még a régi "lehetetlen" bejegyzés, érdemes újranézni |
+| `2018_redbull_rb14` | **fájl hiányzik** (`.glb` törölve/lecserélve), a config árván maradt, ha visszakerül a fájl, a beírt `wheelPattern` (`Tyre_thread\|tyre_side\|redbull_wheel_hub\|discs`) valószínűleg működni fog |
+| `2009_pagani_zonda_cinque` → most `2010_pagani_zonda_cinque_roadster.glb` | **nincs config az új fájlhoz**, a régi (`2009_pagani_zonda_cinque.json`) árván maradt, más néven; az új fájlt még nem néztük meg |
+
+Ha egy kocsinál `wheelPattern` nélkül vagy "nincs" szöveggel áll a
+config, az korábbi, a geometria-szétvágás ELŐTTI állapotot tükrözhet —
+érdemes újrapróbálni, mielőtt "lehetetlennek" könyvelnénk el.
