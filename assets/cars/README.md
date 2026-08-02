@@ -129,4 +129,6 @@ megpróbálni a fenti lépésekkel, mielőtt "lehetetlennek" könyvelnénk el
 szétvágás még nem létezett.
 
 **Törölt kocsik** (a felhasználó törölte, buggos eredeti modellek — nem
-a kerék-szétvágással volt gond, magukkal a fájlokkal): `mercedes-benz_clk_gtr`, `2016_bmw_m6_gt3`.
+a kerék-szétvágással volt gond, magukkal a fájlokkal): `2016_bmw_m6_gt3`.
+(A `mercedes-benz_clk_gtr`-t a felhasználó visszatette, és a
+kerék-szétvágással most már rendben megy — lásd a saját JSON-ját.)
