@@ -4,6 +4,6 @@
   "_yawDegrees": "GYORS becslés. Az első tengely (z=+7.07) nagyobb pozitív Z-n van mint a hátsó (z=-5.99) - +Z előre irányt valószínűsít.",
   "yawDegrees": 0,
 
-  "_wheelPattern": "GYORS becslés. Elöl (Disc1/Tire1/Rim1/Caliper1Mtl) és hátul (Rim3/Tire3Mtl) külön tengelyenként összeolvasztott (bal+jobb együtt) mesh - a splitMergedWheelMesh vágja szét oldalanként. A hátsó tengelynél nincs külön fék-anyag, csak elöl.",
-  "wheelPattern": "Disc1Mtl|Tire1Mtl|Rim1Mtl|Caliper1Mtl|Rim3Mtl|Tire3Mtl"
+  "_wheelPattern": "JAVÍTVA (a felhasználó jelezte: 'első kerekek fele hatalmasat forog'). A 'Caliper1Mtl' bezavarta a sarok-klaszterezést (egy pivot a kocsi közepén landolt, duplikált darabokkal) - kivéve utána tökéletesen szimmetrikus 4/4/4/4 lett. Elöl (Disc1/Tire1/Rim1Mtl) és hátul (Rim1/Tire1/Rim3/Tire3Mtl) tengelyenként összeolvasztott mesh, geometria-szétvágással.",
+  "wheelPattern": "Disc1Mtl|Tire1Mtl|Rim1Mtl|Rim3Mtl|Tire3Mtl"
 }

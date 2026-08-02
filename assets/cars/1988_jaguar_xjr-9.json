@@ -4,6 +4,6 @@
   "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
   "yawDegrees": 0,
 
-  "_wheelPattern": "GYORS becslés. A 4 sarok már eleve külön mesh-csoport (Vehicle_Exterior_mm_rotor + Vehicle_Exterior_mm_wheel + tyre). FIGYELEM: van egy ÖTÖDIK, magányos 'tyre' anyagú mesh is (z=+2.08, x=~0, 1.95 széles) ami NEM egy kerék - valószínűleg egy első terelőlemez/spoiler tévesen 'tyre' anyaggal. Mivel a pontos név alapján nem különböztethető meg a valós gumiktól, ez bekerül a mintába és az egyik első kerékhez fog tapadni - nézd meg élőben, nem forog-e furán egy nagy lapos darab az első kerékkel.",
-  "wheelPattern": "tyre|Vehicle_Exterior_mm_rotor|Vehicle_Exterior_mm_wheel"
+  "_wheelPattern": "JAVÍTVA (a felhasználó jelezte: 'első kerekek furán mozognak hatalmasat, mindkettő máshogy'). Az anyagnév ('tyre') alapján TÉVESEN bekerült egy első lökhárító-jelvény mesh is (szülő-lánc: FRONT_BUMPER -> ... -> tyre anyag - vicces véletlen, hogy pont ezt az anyagot használja). A valódi 4 gumi szülő node-lánca mindig tartalmazza a 'WHEEL_RR/LF/RF/LR' nevet - DE a puszta 'WHEEL_' minta ÚJABB hibát hozott: a kormánykerék ('STEERING_WHEEL_...') és egy belső anyag is tartalmazza a 'WHEEL_' szót, ezért azok is bekerültek. A 4 pontos sarok-node-nevet (WHEEL_RR/WHEEL_LF/WHEEL_RF/WHEEL_LR) kell külön felsorolni.",
+  "wheelPattern": "WHEEL_RR|WHEEL_LF|WHEEL_RF|WHEEL_LR|Vehicle_Exterior_mm_rotor|Vehicle_Exterior_mm_wheel"
 }
