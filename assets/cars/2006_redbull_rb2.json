@@ -4,6 +4,6 @@
   "_yawDegrees": "GYORS becslés - ugyanaz a kerék-kit-család, mint a bevált 2006 McLaren MP4/21-nél, ott +Z volt az eleje. Ellenőrizd élőben.",
   "yawDegrees": 0,
 
-  "_wheelPattern": "Közös 2006-os F1 kerék-kit (ua. mint Ferrari F2006, Midland M16, Renault R26, Super Aguri SA06, Toyota TF106, Williams FW28, Honda RA106): brake, disk, RBRRIM, RBRSPOKES, side, tread, RBRHUB, calliper. FIGYELEM: van egy 'RB06WHEEL' anyag is (kormánykerék) - a minta szándékosan nem 'WHEEL'-lel keres.",
-  "wheelPattern": "brake|disk|RBRRIM|RBRSPOKES|side|tread|RBRHUB|calliper"
+  "_wheelPattern": "JAVÍTVA (a felhasználó jelezte: 'gumi forog, felnik nem'). Kimaradt a 'blur1'/'blur2' réteg, ugyanaz a hiba mint a többi 2006-os kit-testvérnél. Közös 2006-os F1 kerék-kit: brake, disk, RBRRIM, RBRSPOKES, side, tread, RBRHUB, calliper. FIGYELEM: van egy 'RB06WHEEL' anyag is (kormánykerék) - a minta szándékosan nem 'WHEEL'-lel keres.",
+  "wheelPattern": "brake|disk|blur1|blur2|RBRRIM|RBRSPOKES|side|tread|RBRHUB|calliper"
 }
