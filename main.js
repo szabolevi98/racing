@@ -40,7 +40,7 @@ const openZoneEditorBtn = document.getElementById('openZoneEditorBtn');
 const carTesterBtn = document.getElementById('carTesterBtn');
 const carTesterHudEl = document.getElementById('carTesterHud');
 const carTesterBackBtn = document.getElementById('carTesterBackBtn');
-const carTesterCarNameEl = document.getElementById('carTesterCarName');
+const carTesterCarSelectEl = document.getElementById('carTesterCarSelect');
 const openMaterialPickerBtn = document.getElementById('openMaterialPickerBtn');
 const generateCheckpointsBtn = document.getElementById('generateCheckpointsBtn');
 const autoCheckpointCountEl = document.getElementById('autoCheckpointCount');
@@ -1984,6 +1984,16 @@ function carTesterLabel(entry, loading) {
   return `${idx + 1}/${total}: ${entry.label}` + (loading ? ' (betöltés…)' : '');
 }
 
+function populateCarTesterSelect() {
+  if (!manifest || carTesterCarSelectEl.options.length) return;
+  manifest.cars.forEach((entry, idx) => {
+    const opt = document.createElement('option');
+    opt.value = entry.id;
+    opt.textContent = `${idx + 1}/${manifest.cars.length}: ${entry.label}`;
+    carTesterCarSelectEl.appendChild(opt);
+  });
+}
+
 function enterCarTester() {
   if (!manifest) return;
   appState = 'cartest';
@@ -1992,8 +2002,8 @@ function enterCarTester() {
   carTestWheelAngle = 0;
   // A rajtpont-jelölők kitakarnák a közelről nézett kocsit.
   devSpawnMarkers.forEach((m) => { m.visible = false; });
-  const entry = findEntry(manifest.cars, carSelect.value);
-  carTesterCarNameEl.textContent = carTesterLabel(entry, false);
+  populateCarTesterSelect();
+  carTesterCarSelectEl.value = carSelect.value;
 }
 
 function exitCarTester() {
@@ -2003,21 +2013,26 @@ function exitCarTester() {
   devSpawnMarkers.forEach((m) => { m.visible = true; });
 }
 
+async function switchCarTestTo(entry) {
+  if (!manifest || carTestSwitching || !entry) return;
+  carTestSwitching = true;
+  carTesterCarSelectEl.disabled = true;
+  carSelect.value = entry.id;
+  try {
+    await setCar('assets/' + entry.file, entry.id, entry.config);
+  } finally {
+    carTesterCarSelectEl.value = entry.id;
+    carTesterCarSelectEl.disabled = false;
+    carTestSwitching = false;
+  }
+}
+
 async function switchCarTestBy(delta) {
   if (!manifest || carTestSwitching) return;
   const list = manifest.cars;
   const currentIdx = list.findIndex((c) => c.id === carSelect.value);
   const nextIdx = ((currentIdx < 0 ? 0 : currentIdx) + delta + list.length) % list.length;
-  const entry = list[nextIdx];
-  carTestSwitching = true;
-  carTesterCarNameEl.textContent = carTesterLabel(entry, true);
-  carSelect.value = entry.id;
-  try {
-    await setCar('assets/' + entry.file, entry.id, entry.config);
-  } finally {
-    carTesterCarNameEl.textContent = carTesterLabel(entry, false);
-    carTestSwitching = false;
-  }
+  await switchCarTestTo(list[nextIdx]);
 }
 
 function updateCarTest(dt) {
@@ -2035,6 +2050,10 @@ function updateCarTest(dt) {
 
 carTesterBtn.addEventListener('click', enterCarTester);
 carTesterBackBtn.addEventListener('click', exitCarTester);
+carTesterCarSelectEl.addEventListener('change', () => {
+  const entry = findEntry(manifest.cars, carTesterCarSelectEl.value);
+  switchCarTestTo(entry);
+});
 
 window.addEventListener('keydown', (e) => {
   if (appState !== 'cartest' || e.repeat) return;
