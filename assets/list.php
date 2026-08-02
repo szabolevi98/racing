@@ -32,11 +32,27 @@ if (is_dir($carsDir)) {
     foreach (glob($carsDir . '/*.glb') as $path) {
         $filename = basename($path);
         $id = pathinfo($filename, PATHINFO_FILENAME);
-        $cars[] = [
+        $carEntry = [
             'id' => $id,
             'label' => prettify($id),
             'file' => 'cars/' . $filename,
         ];
+
+        // Opcionális kocsi-beállítások: assets/cars/<id>.json — a modell
+        // előre-iránya és a kerék-mesh-ek felismerése. Ha nincs, a játék az
+        // alapértelmezésekkel dolgozik (nincs semmi beégetve a kódba).
+        $configPath = $carsDir . '/' . $id . '.json';
+        if (is_file($configPath)) {
+            $config = json_decode(file_get_contents($configPath), true);
+            if (is_array($config)) {
+                $carEntry['config'] = [
+                    'yawDegrees' => isset($config['yawDegrees']) ? (float) $config['yawDegrees'] : 0,
+                    'wheelPattern' => $config['wheelPattern'] ?? null,
+                ];
+            }
+        }
+
+        $cars[] = $carEntry;
     }
 }
 

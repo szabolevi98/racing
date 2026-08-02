@@ -15,12 +15,9 @@ await RAPIER.init();
 
 // Az autó "hossz-tengelyét" (X vagy Z) automatikusan felismerjük, de hogy a
 // modell eleje pontosan melyik irányba néz az adott tengely mentén, az
-// exportálástól/forrástól függ — ez modellenként eltérő lehet. Ha egy adott
-// kocsi fordítva (hátrafelé) néz vezetés közben, vedd fel ide a kocsi id-ját
-// (az assets/cars/<id>.glb fájlnév kiterjesztés nélkül) Math.PI értékkel.
-const CAR_YAW_OVERRIDES = {
-  '2001_bmw_m3_gtr_e46': Math.PI,
-};
+// exportálástól/forrástól függ. Ezt (és a kerék-mesh-ek felismerését) a
+// kocsi melletti assets/cars/<id>.json fájl írja le — nincs a kódban
+// modellenkénti kivétel.
 
 // ---------- DOM ----------
 const loadingEl = document.getElementById('loading');
@@ -540,7 +537,73 @@ async function setTrack(trackUrl, mapId, spawnPoints, gates) {
   setMenuStatus('');
 }
 
-async function setCar(carUrl, carId) {
+// A látható kerekek forgatásához kerekenként egy pivot kell, a kerék
+// geometriai közepén. Sorrend: 0 = első bal, 1 = első jobb, 2 = hátsó bal,
+// 3 = hátsó jobb — ugyanaz, mint a fizikai kerekeknél.
+let wheelPivots = [];
+
+// A kerék-alkatrészeket pozíció szerint osztjuk 4 sarokba, mert a nevek
+// gyakran NEM árulják el, melyik melyik (a BMW M3-nál például a hátsó
+// kerekek is "FRONT_TIRE" néven szerepelnek, csak sorszámmal).
+// Ráadásul egyes alkatrészeknél a pozíció a vertexekbe van sütve, ezért
+// a csoport közepére tett pivotra fűzzük fel őket: az Object3D.attach
+// megtartja a világ-transzformot, így a kerék nem ugrik el.
+function buildWheelPivots(carRoot, wheelPattern) {
+  wheelPivots = [];
+  if (!wheelPattern) return;
+
+  let regex;
+  try {
+    regex = new RegExp(wheelPattern, 'i');
+  } catch (err) {
+    console.warn('Hibás wheelPattern a kocsi konfigjában', err);
+    return;
+  }
+
+  carPivot.updateMatrixWorld(true);
+  const parts = [];
+  const centre = new THREE.Vector3();
+  carRoot.traverse((obj) => {
+    if (!obj.isMesh) return;
+    // A név a szülőkben is lehet (a glTF gyakran Object_N néven hagyja a mesh-t).
+    let name = '';
+    for (let n = obj; n && n !== carRoot.parent; n = n.parent) name += ' ' + (n.name || '');
+    if (!regex.test(name)) return;
+    new THREE.Box3().setFromObject(obj).getCenter(centre);
+    parts.push({ mesh: obj, local: carPivot.worldToLocal(centre.clone()) });
+  });
+  if (parts.length < 4) return;
+
+  const xs = parts.map((p) => p.local.x);
+  const zs = parts.map((p) => p.local.z);
+  const midX = (Math.min(...xs) + Math.max(...xs)) / 2;
+  const midZ = (Math.min(...zs) + Math.max(...zs)) / 2;
+
+  // index: 0=FL, 1=FR, 2=RL, 3=RR — a +Z az autó eleje
+  const groups = [[], [], [], []];
+  parts.forEach((p) => {
+    const right = p.local.x > midX ? 1 : 0;
+    const rear = p.local.z > midZ ? 0 : 1;
+    groups[rear * 2 + right].push(p);
+  });
+  if (groups.some((g) => g.length === 0)) return;
+
+  wheelPivots = groups.map((group) => {
+    const pivot = new THREE.Group();
+    pivot.rotation.order = 'YXZ'; // előbb a gördülés (X), utána a kormányzás (Y)
+    const avg = new THREE.Vector3();
+    group.forEach((p) => avg.add(p.local));
+    avg.divideScalar(group.length);
+    pivot.position.copy(avg);
+    carPivot.add(pivot);
+    // attach (nem add): megtartja a világ-pozíciót, így a baked geometria
+    // is a helyén marad.
+    group.forEach((p) => pivot.attach(p.mesh));
+    return pivot;
+  });
+}
+
+async function setCar(carUrl, carId, config) {
   setMenuStatus('Kocsi betöltése...');
 
   carLoaded = false;
@@ -551,6 +614,8 @@ async function setCar(carUrl, carId) {
     disposeObject3D(currentCarModel);
     currentCarModel = null;
   }
+  wheelPivots.forEach((p) => carPivot.remove(p));
+  wheelPivots = [];
 
   const gltf = await loadGLTF(carUrl);
   const carRoot = gltf.scene;
@@ -564,10 +629,11 @@ async function setCar(carUrl, carId) {
   // A modell "hossz-tengelyét" automatikusan felismerjük: amelyik vízszintes
   // tengely (X vagy Z) mentén nagyobb a kiterjedés, az a kocsi hossza.
   // Ha ez X, 90 fokkal el kell forgatni, hogy a fizikai Z-tengellyel (előre) essen egybe.
+  // Az előre/hátra felcserélést a kocsi JSON-jában lévő yawDegrees javítja.
   const box = new THREE.Box3().setFromObject(carRoot);
   const size = new THREE.Vector3();
   box.getSize(size);
-  const extraYaw = CAR_YAW_OVERRIDES[carId] || 0;
+  const extraYaw = THREE.MathUtils.degToRad((config && config.yawDegrees) || 0);
   const yaw = (size.x >= size.z ? Math.PI / 2 : 0) + extraYaw;
   carRoot.rotation.y = yaw;
   carRoot.updateMatrixWorld(true);
@@ -587,6 +653,7 @@ async function setCar(carUrl, carId) {
 
   carPivot.add(carRoot);
   currentCarModel = carRoot;
+  buildWheelPivots(carRoot, config && config.wheelPattern);
   carLoaded = true;
   setMenuStatus('');
 }
@@ -868,6 +935,19 @@ function applyWallConstraint() {
       vz -= into * nz;
     }
     chassisBody.setLinvel({ x: vx * 0.85, y: v.y, z: vz * 0.85 }, true);
+  }
+}
+
+// A látható kerekek beállítása a fizikából: gördülés minden keréken,
+// kormányzás csak az elsőkön. A pivot Euler-sorrendje YXZ, ezért a gördülés
+// (X) a kerék saját tengelye körül történik, és utána forgatja el a
+// kormányzás (Y) — fordított sorrendben csálén állna a kerék.
+function updateWheelVisuals() {
+  if (!wheelPivots.length) return;
+  for (let i = 0; i < wheelPivots.length; i++) {
+    const roll = vehicle.wheelRotation(i) ?? 0;
+    const steer = vehicle.wheelSteering(i) ?? 0;
+    wheelPivots[i].rotation.set(roll, steer, 0);
   }
 }
 
@@ -1979,7 +2059,7 @@ async function init() {
   await Promise.all([
     setSkybox('assets/' + initialEnv.file),
     setTrack('assets/' + initialMap.file, initialMap.id, initialMap.spawns, initialMap.gates),
-    setCar('assets/' + initialCar.file, initialCar.id),
+    setCar('assets/' + initialCar.file, initialCar.id, initialCar.config),
   ]);
 
   mapSelect.disabled = false;
@@ -1999,7 +2079,7 @@ async function init() {
   });
   carSelect.addEventListener('change', () => {
     const entry = findEntry(manifest.cars, carSelect.value);
-    setCar('assets/' + entry.file, entry.id);
+    setCar('assets/' + entry.file, entry.id, entry.config);
   });
   envSelect.addEventListener('change', () => {
     const entry = findEntry(manifest.skyboxes, envSelect.value);
@@ -2043,6 +2123,7 @@ function animate() {
       carPivot.position.set(p.x, p.y, p.z);
       carPivot.quaternion.set(q.x, q.y, q.z, q.w);
       updateSunTarget(carPivot.position);
+      updateWheelVisuals();
     }
 
     updateChaseCamera();

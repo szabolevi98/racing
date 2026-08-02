@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "Extra elfordulás fokban, ha a modell nem előre néz. A hossz-tengelyt (X vagy Z) magától felismeri a játék; ez csak az előre/hátra felcserélést javítja, tipikusan 180.",
+  "yawDegrees": 180,
+
+  "_wheelPattern": "Reguláris kifejezés: mely mesh-ek tartoznak a kerekekhez (a saját vagy a szülő objektum nevében keresve). A kerekeket a játék pozíció alapján osztja 4 sarokba, mert a nevek itt nem árulják el, melyik melyik. FIGYELEM: a BRAKE utáni aláhúzás fontos — enélkül a BRAKELIGHT (féklámpa) is beleesne, és a lámpák a hátsó kerekekkel együtt forognának.",
+  "wheelPattern": "TIRE|BRAKE_"
+}
