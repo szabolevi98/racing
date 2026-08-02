@@ -64,6 +64,7 @@ const gateToolRow = document.getElementById('gateToolRow');
 const startLineStateEl = document.getElementById('startLineState');
 const checkpointCountEl = document.getElementById('checkpointCount');
 const undoGateBtn = document.getElementById('undoGateBtn');
+const clearCheckpointsBtn = document.getElementById('clearCheckpointsBtn');
 const guideToolRow = document.getElementById('guideToolRow');
 const guidePointCountEl = document.getElementById('guidePointCount');
 const undoGuideBtn = document.getElementById('undoGuideBtn');
@@ -1941,6 +1942,10 @@ document.querySelectorAll('input[name="zoneBrush"]').forEach((el) => {
 });
 undoSpawnBtn.addEventListener('click', removeLastSpawnPoint);
 undoGateBtn.addEventListener('click', removeLastGate);
+clearCheckpointsBtn.addEventListener('click', () => {
+  currentGates.checkpoints = [];
+  updateSpawnToolUI();
+});
 undoGuideBtn.addEventListener('click', () => { currentGuidePath.pop(); updateSpawnToolUI(); });
 clearGuideBtn.addEventListener('click', () => { currentGuidePath = []; updateSpawnToolUI(); });
 
