@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "Élőben ellenőrizve: a hátsó tengely z=-1.24..-1.84-nél, az első z=+1.02..+1.49-nél - +Z előre.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "RÉSZBEN MŰKÖDIK, DE NEM TÖKÉLETES: a kerekek 4 külön sarokba kerülnek és forognak/kormányoznak, DE a sarkok pozíciója nem szimmetrikus (kb -0.17/+1.17 X, +2.87/0.00 Z, nem ±0.65/±1.4 körüli, ahogy várnánk). Kizártam a 'brakefluid'-ot (' brake$' forma) és a rengeteg karosszéria-anyagot (side_left/right, front_nose, Suspcar, carbon, mirror - ' side$' forma), illetve a 'material'-t is (az egy teljesen máshol, x=-306-nál lévő, a kocsitól független rejtett objektumra mutatott) - ezek kizárása UTÁN is megmaradt az aszimmetria, tehát ennek a fájlnak valami más, mélyebb oka van (talán duplikált/átfedő geometria - több 'Suspcar_0' példány is fura helyeken van). A python inspect_glb.py script erre a fájlra kb. nulla méretet/pozíciót adott (ua. hiba mint Mercedes W05/Toro Rosso STR1-nél), élő böngészős Box3-vizsgálattal derítettem ki a felépítést. Ha valaki élőben furán állónak/eltoltnak látja a kerekeket, ez az oka - további vizsgálat kellene.",
+  "wheelPattern": "calliper| brake$|brake.001|tread|disk|RIM_BLUR"
+}

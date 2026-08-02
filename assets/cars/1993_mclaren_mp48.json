@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "A modellnek csak 5 anyaga van. A 4 sarok már eleve külön mesh-csoport (Material.006 + Material.003 minden saroknál). CSAPDA: a 'Material.006' NAGY karosszéria-panelekre IS használva van (nem a keréknél), ezért csak a 'Material.003'-at használjuk, ami KIZÁRÓLAG a 4 kerék-saroknál fordul elő.",
+  "wheelPattern": "Material.003"
+}
