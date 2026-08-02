@@ -606,15 +606,19 @@ function buildWheelPivots(carRoot, wheelPattern) {
 
   carPivot.updateMatrixWorld(true);
   const parts = [];
+  const box = new THREE.Box3();
   const centre = new THREE.Vector3();
+  const size = new THREE.Vector3();
   carRoot.traverse((obj) => {
     if (!obj.isMesh) return;
     // A név a szülőkben is lehet (a glTF gyakran Object_N néven hagyja a mesh-t).
     let name = '';
     for (let n = obj; n && n !== carRoot.parent; n = n.parent) name += ' ' + (n.name || '');
     if (!regex.test(name)) return;
-    new THREE.Box3().setFromObject(obj).getCenter(centre);
-    parts.push({ mesh: obj, local: carPivot.worldToLocal(centre.clone()) });
+    box.setFromObject(obj);
+    box.getCenter(centre);
+    box.getSize(size);
+    parts.push({ mesh: obj, local: carPivot.worldToLocal(centre.clone()), volume: size.x * size.y * size.z });
   });
   if (parts.length < 2) return;
 
@@ -647,10 +651,14 @@ function buildWheelPivots(carRoot, wheelPattern) {
   wheelPivots = groups.map((group) => {
     const pivot = new THREE.Group();
     pivot.rotation.order = 'YXZ'; // előbb a gördülés (X), utána a kormányzás (Y)
-    const avg = new THREE.Vector3();
-    group.forEach((p) => avg.add(p.local));
-    avg.divideScalar(group.length);
-    pivot.position.copy(avg);
+    // A pivotot NEM a csoport összes darabjának átlagára tesszük: a féknyereg
+    // és a féktárcsa gyakran több cm-rel arrébb van a valódi tengelyhez képest,
+    // mint a gumi, és az átlag emiatt lecsúszna a tengelyről — forgás közben
+    // az egész kerék "kilendülne" a hibás pivot körül. Ehelyett a csoport
+    // legnagyobb térfogatú darabját (szinte mindig a gumi, ami forgásszimmetrikus)
+    // vesszük referenciának.
+    const anchor = group.reduce((a, b) => (b.volume > a.volume ? b : a));
+    pivot.position.copy(anchor.local);
     carPivot.add(pivot);
     // attach (nem add): megtartja a világ-pozíciót, így a baked geometria
     // is a helyén marad.
@@ -1034,6 +1042,7 @@ const race = {
   lapTimes: [],
   prevX: 0,
   prevZ: 0,
+  invalidUntil: 0,  // performance.now() időbélyeg, ameddig a "kör érvénytelen" üzenet látszik
 };
 
 // Két szakasz metszi-e egymást (2D, felülnézetből).
@@ -1071,6 +1080,7 @@ function startRace() {
   race.lapTimes = [];
   race.prevX = pos.x;
   race.prevZ = pos.z;
+  race.invalidUntil = 0;
   resultsEl.classList.add('hidden');
   updateRaceHud();
 }
@@ -1085,7 +1095,10 @@ function updateRaceHud() {
     : race.phase === 'finished' ? race.lapTimes.reduce((a, b) => a + b, 0) : 0;
   const current = race.phase === 'running' ? now - race.lapStartTime : 0;
   const best = race.lapTimes.length ? Math.min(...race.lapTimes) : NaN;
-  raceHudEl.innerHTML =
+  const warning = now < race.invalidUntil
+    ? '<div class="text-warning fw-bold mb-1">Kör érvénytelen — checkpoint kimaradt!</div>'
+    : '';
+  raceHudEl.innerHTML = warning +
     `Kör: <strong>${Math.min(race.lap + 1, race.totalLaps)} / ${race.totalLaps}</strong><br>` +
     `Aktuális: ${formatTime(current)}<br>` +
     `Legjobb: ${formatTime(best)}<br>` +
@@ -1129,15 +1142,34 @@ function updateRace(dt) {
   race.prevX = pos.x;
   race.prevZ = pos.z;
 
+  const now = performance.now();
   const checkpoints = currentGates.checkpoints;
-  if (race.nextCheckpoint < checkpoints.length) {
-    // Még van hátra checkpoint ebben a körben.
-    if (crossedGate(checkpoints[race.nextCheckpoint], fromX, fromZ, pos.x, pos.z)) {
-      race.nextCheckpoint++;
+  const startCrossed = crossedGate(currentGates.start, fromX, fromZ, pos.x, pos.z);
+
+  // Nem csak a soron következő checkpointot nézzük, hanem MINDET — így ha a
+  // játékos egyet kihagyott és egy KÉSŐBBI checkpointon megy át, azt azonnal
+  // észrevesszük, nem csak akkor, amikor (ha egyáltalán) visszaér a rajtvonalhoz.
+  let crossedCheckpoint = -1;
+  for (let i = 0; i < checkpoints.length; i++) {
+    if (crossedGate(checkpoints[i], fromX, fromZ, pos.x, pos.z)) {
+      crossedCheckpoint = i;
+      break;
     }
-  } else if (crossedGate(currentGates.start, fromX, fromZ, pos.x, pos.z)) {
+  }
+
+  if (crossedCheckpoint === race.nextCheckpoint && crossedCheckpoint !== -1) {
+    race.nextCheckpoint++;
+  } else if (crossedCheckpoint !== -1 || (startCrossed && race.nextCheckpoint < checkpoints.length)) {
+    // Vagy egy nem a várt sorrendben lévő checkpointon ment át, vagy elérte a
+    // rajtvonalat checkpontok nélkül — mindkettő azt jelenti, hogy kihagyott
+    // egyet. Ahelyett, hogy csendben figyelmen kívül hagynánk (a régi
+    // viselkedés — a játékos ilyenkor észrevétlenül még egy TELJES kört ment
+    // volna), azonnal jelezzük, és új kör-kísérletet indítunk innentől.
+    race.nextCheckpoint = 0;
+    race.lapStartTime = now;
+    race.invalidUntil = now + 2500;
+  } else if (startCrossed) {
     // Minden checkpoint megvan, a rajtvonal zárja a kört.
-    const now = performance.now();
     race.lapTimes.push(now - race.lapStartTime);
     race.lapStartTime = now;
     race.lap++;
