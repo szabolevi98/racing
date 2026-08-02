@@ -4,6 +4,6 @@
   "_yawDegrees": "GYORS becslés. A hátsó tengely (z=-7.58) mögött egy magas, széles panel ('Mesh1Mtl.019', y=4.40, x=11.76) valószínűleg hátsó szárny - ez +Z előre irányt valószínűsít.",
   "yawDegrees": 0,
 
-  "_wheelPattern": "GYORS becslés. CSAPDA: a Mesh1Mtl alapnév karosszéria-panelre (a hátsó szárnyra, .019 sorszámmal) IS használva van - ezért a Mesh1Mtl-hez pontos sorszámok kellenek (.017/.018/.021/.022), de a Mesh2Mtl és Mesh3Mtl alapnevek nem ütköznek semmivel, azok bare mintaként mehetnek.",
-  "wheelPattern": "Mesh1Mtl.017|Mesh1Mtl.018|Mesh1Mtl.021|Mesh1Mtl.022|Mesh2Mtl|Mesh3Mtl"
+  "_wheelPattern": "JAVÍTVA (a felhasználó jelezte, hogy a kasztni egy darabja együtt forgott a kerékkel): a Mesh1Mtl ÉS a Mesh2Mtl alapnév IS karosszéria-panelre van használva más sorszámmal - Mesh1Mtl.019 a hátsó szárny, Mesh2Mtl.018 pedig a TELJES kasztni (11.8x6x27.5 méretű panel!), ez utóbbit korábban tévesen 'nem ütközik semmivel' minősítettem és bare 'Mesh2Mtl'-ként hagytam, ezért forgott vele a kasztni. Most minden sarok-anyaghoz (Mesh1/2/3Mtl) pontos sorszám van megadva, semmi bare minta.",
+  "wheelPattern": "Mesh1Mtl.017|Mesh1Mtl.018|Mesh1Mtl.021|Mesh1Mtl.022|Mesh2Mtl.016|Mesh2Mtl.017|Mesh2Mtl.020|Mesh2Mtl.021|Mesh3Mtl.016|Mesh3Mtl.017|Mesh3Mtl.020|Mesh3Mtl.021"
 }
