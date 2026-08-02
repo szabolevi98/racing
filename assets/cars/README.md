@@ -98,6 +98,15 @@ korrekciót ad, nem árt nekik.
    csoportok méretének egyformának (pl. 6/6/6/6, nem 7/7/10/18).
    Ha ez nem áll fönn, a `wheelPattern` túl sokat vagy túl keveset fog.
 
+   **FIGYELEM méréskor**: a `carPivot` a menü-előnézetben a rajtpont
+   iránya felé van forgatva (nem 0 fok) — ha ELFORGATVA méred egy
+   `Box3().setFromObject(...)`-tal a kocsi méretét, az AABB torzul, és
+   a kocsi valótlanul szélesebbnek tűnik (ez már kétszer becsapott:
+   RB14, majd a Pagani "gyanús szélessége" is ez volt). Méréshez vagy
+   `carPivot.rotation.set(0,0,0)` + `updateMatrixWorld(true)` után
+   nézd meg (utána vissza kell állítani a mentett quaternion-t), vagy
+   simán mérd az egyes mesh-eket helyi (nem világ-) koordinátában.
+
 ## Jelenlegi állapot (kocsinként)
 
 | Kocsi | Kerék-mód | `wheelPattern` |
@@ -108,6 +117,7 @@ korrekciót ad, nem árt nekik.
 | `1988_lamborghini_countach` | sarkonként — geometria-szétvágással | `Tyre\|EXT_metal_rim\|EXT_metal_disk\|EXT_metal_caliper` |
 | `2018_redbull_rb14` | sarkonként — geometria-szétvágással (4/4/4/4, tyre+rim+hub+disc sarkonként) | `Tyre_thread\|tyre_side\|redbull_wheel_hub\|discs` |
 | `2010_pagani_zonda_cinque` | sarkonként (156/156/165/165 darab, nagyon rendetlen export) — a felhasználó megerősítette, hogy megy | `Wheel\|Caliper\|Tyre\|Tire\|Rim\|Disc\|Hub` |
+| `2020_mclaren_mcl35` | sarkonként (2/2/2/2, kivételesen tiszta modell — gumi+felni már eleve külön node-onként a 4 sarokban, szétvágás sem kellett) | `LOD_A_TYRE\|LOD_A_WHEEL_` |
 
 **Törölt kocsik** (a felhasználó törölte, buggos eredeti modellek — nem a kerék-szétvágással volt gond, magukkal a fájlokkal):
 - `mercedes-benz_clk_gtr`
