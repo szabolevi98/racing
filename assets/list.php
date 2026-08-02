@@ -85,7 +85,14 @@ if (is_dir($mapsDir)) {
                 $spawns = [];
                 foreach (array_slice($spawnData, 0, 8) as $p) {
                     if (is_array($p) && isset($p['x']) && isset($p['z'])) {
-                        $spawns[] = ['x' => $p['x'], 'z' => $p['z']];
+                        // A heading (radiánban) azt mondja meg, merre nézzen az
+                        // autó induláskor. Régi, heading nélküli spawn.json is
+                        // működik: ilyenkor 0, azaz a világ +Z iránya.
+                        $spawns[] = [
+                            'x' => $p['x'],
+                            'z' => $p['z'],
+                            'heading' => isset($p['heading']) ? (float) $p['heading'] : 0,
+                        ];
                     }
                 }
                 if (!empty($spawns)) {
@@ -106,6 +113,19 @@ if (is_dir($mapsDir)) {
                     'bounds' => $zonemapMeta['bounds'],
                     'texW' => $zonemapMeta['texW'] ?? null,
                     'texH' => $zonemapMeta['texH'] ?? null,
+                ];
+            }
+        }
+
+        // Rajtvonal + checkpointok (dev módban rajzolva). Ezekből számoljuk
+        // a köröket; a szerver később ugyanezt a fájlt fogja olvasni.
+        $gatesPath = $mapDir . '/gates.json';
+        if (is_file($gatesPath)) {
+            $gatesData = json_decode(file_get_contents($gatesPath), true);
+            if (is_array($gatesData)) {
+                $mapEntry['gates'] = [
+                    'start' => $gatesData['start'] ?? null,
+                    'checkpoints' => $gatesData['checkpoints'] ?? [],
                 ];
             }
         }

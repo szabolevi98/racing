@@ -32,7 +32,11 @@ if (!is_dir($mapDir)) {
 $spawns = [];
 foreach (array_slice($body['spawns'], 0, 8) as $p) {
     if (is_array($p) && isset($p['x']) && isset($p['z'])) {
-        $spawns[] = ['x' => round((float) $p['x'], 2), 'z' => round((float) $p['z'], 2)];
+        $spawns[] = [
+            'x' => round((float) $p['x'], 2),
+            'z' => round((float) $p['z'], 2),
+            'heading' => round((float) ($p['heading'] ?? 0), 4),
+        ];
     }
 }
 

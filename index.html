@@ -15,7 +15,24 @@
     color: #fff; font-size: 18px; background: #111; z-index: 30;
   }
   
-  #menu.hidden, #hud.hidden, #devHud.hidden { display: none !important; }
+  #menu.hidden, #hud.hidden, #devHud.hidden,
+  #raceHudWrap.hidden, #countdown.hidden, #results.hidden { display: none !important; }
+
+  #raceHudWrap { position: fixed; top: 12px; right: 12px; z-index: 10; min-width: 170px; }
+
+  #countdown {
+    position: fixed; inset: 0; z-index: 25;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22vh; font-weight: 800; color: #fff;
+    text-shadow: 0 0 40px rgba(0,0,0,0.8);
+    pointer-events: none;
+  }
+
+  #results {
+    position: fixed; inset: 0; z-index: 26;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.55);
+  }
 
   #hud, #devHud {
     position: fixed; top: 12px; left: 12px; z-index: 10;
@@ -67,9 +84,20 @@
     <select id="carSelect" class="form-select form-select-lg" disabled></select>
   </div>
 
-  <div class="mb-4">
+  <div class="mb-3">
     <label for="envSelect" class="form-label text-uppercase small text-secondary">Környezet</label>
     <select id="envSelect" class="form-select form-select-lg" disabled></select>
+  </div>
+
+  <div class="mb-4">
+    <label for="lapCountSelect" class="form-label text-uppercase small text-secondary">Körök száma</label>
+    <select id="lapCountSelect" class="form-select form-select-lg">
+      <option value="1">1</option>
+      <option value="2">2</option>
+      <option value="3" selected>3</option>
+      <option value="5">5</option>
+      <option value="10">10</option>
+    </select>
   </div>
 
   <button id="startBtn" class="btn btn-primary btn-lg fw-semibold" disabled>Indítás</button>
@@ -84,6 +112,25 @@
       <a id="backToMenuLink" class="link-info" role="button">Vissza a menübe</a><br>
       <span id="status"></span><br>
       Zóna: <span id="zoneIndicator">aszfalt</span>
+    </div>
+  </div>
+</div>
+
+<div id="raceHudWrap" class="hidden">
+  <div class="card bg-dark bg-opacity-75 border-secondary-subtle text-light">
+    <div class="card-body py-2 px-3 small" id="raceHud"></div>
+  </div>
+</div>
+
+<div id="countdown" class="hidden">3</div>
+
+<div id="results" class="hidden">
+  <div class="card bg-dark border-primary text-light" style="min-width:280px;">
+    <div class="card-body">
+      <h5 class="card-title text-primary mb-3">Verseny vége</h5>
+      <div id="resultsBody"></div>
+      <button id="resultsRestartBtn" class="btn btn-primary btn-sm mt-3">Újra</button>
+      <button id="resultsMenuBtn" class="btn btn-secondary btn-sm mt-3">Menü</button>
     </div>
   </div>
 </div>
@@ -107,8 +154,8 @@
   <canvas id="zoneOverlayCanvas"></canvas>
   <div id="zoneToolbar" class="card bg-dark bg-opacity-75 border-warning text-light">
     <div class="card-body py-2 px-3 small">
-      <strong class="text-warning">Zóna / rajtrács szerkesztő</strong><br>
-      Bal gomb: festés / rajtpont &nbsp; Középső/jobb gomb + húzás: mozgatás &nbsp; Görgő: zoom<br>
+      <strong class="text-warning">Pálya szerkesztő</strong><br>
+      Bal gomb: festés / lerakás &nbsp; Középső/jobb gomb + húzás: mozgatás &nbsp; Görgő: zoom<br>
       <div class="btn-group my-2" role="group">
         <input type="radio" class="btn-check" name="zoneBrush" id="brushAsphalt" value="0" checked>
         <label class="btn btn-outline-light btn-sm" for="brushAsphalt">Aszfalt (törlés)</label>
@@ -116,16 +163,28 @@
         <label class="btn btn-outline-warning btn-sm" for="brushOfftrack">Kifutó</label>
         <input type="radio" class="btn-check" name="zoneBrush" id="brushWall" value="2">
         <label class="btn btn-outline-danger btn-sm" for="brushWall">Fal</label>
+      </div><br>
+      <div class="btn-group mb-2" role="group">
         <input type="radio" class="btn-check" name="zoneBrush" id="brushSpawn" value="spawn">
         <label class="btn btn-outline-info btn-sm" for="brushSpawn">Rajtpont</label>
+        <input type="radio" class="btn-check" name="zoneBrush" id="brushStart" value="start">
+        <label class="btn btn-outline-success btn-sm" for="brushStart">Rajtvonal</label>
+        <input type="radio" class="btn-check" name="zoneBrush" id="brushCheckpoint" value="checkpoint">
+        <label class="btn btn-outline-primary btn-sm" for="brushCheckpoint">Checkpoint</label>
       </div><br>
       <span id="brushSizeRow">
         Ecset sugara: <span id="brushSizeLabel">3</span> egység<br>
         <input type="range" id="brushSizeRange" min="0.25" max="60" step="0.25" value="3" class="form-range" style="width:180px;">
       </span>
       <span id="spawnToolRow" class="d-none">
-        Rajtpontok: <span id="zoneSpawnCount">0</span> / 8 &nbsp;
+        Rajtpontok: <span id="zoneSpawnCount">0</span> / 8 — kattints és <em>húzd</em> a nézési irányba &nbsp;
         <button id="undoSpawnBtn" class="btn btn-sm btn-outline-info py-0">Utolsó törlése</button><br>
+      </span>
+      <span id="gateToolRow" class="d-none">
+        Húzz egy vonalat a pályán keresztbe.<br>
+        Rajtvonal: <span id="startLineState">nincs</span> &nbsp;
+        Checkpointok: <span id="checkpointCount">0</span> &nbsp;
+        <button id="undoGateBtn" class="btn btn-sm btn-outline-primary py-0">Utolsó törlése</button><br>
       </span>
       <button id="saveZoneBtn" class="btn btn-sm btn-primary mt-1">Mentés</button>
       <button id="closeZoneEditorBtn" class="btn btn-sm btn-secondary mt-1">Vissza</button>

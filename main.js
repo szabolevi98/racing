@@ -52,6 +52,18 @@ const brushSizeRow = document.getElementById('brushSizeRow');
 const spawnToolRow = document.getElementById('spawnToolRow');
 const zoneSpawnCountEl = document.getElementById('zoneSpawnCount');
 const undoSpawnBtn = document.getElementById('undoSpawnBtn');
+const gateToolRow = document.getElementById('gateToolRow');
+const startLineStateEl = document.getElementById('startLineState');
+const checkpointCountEl = document.getElementById('checkpointCount');
+const undoGateBtn = document.getElementById('undoGateBtn');
+const lapCountSelect = document.getElementById('lapCountSelect');
+const raceHudEl = document.getElementById('raceHud');
+const raceHudWrapEl = document.getElementById('raceHudWrap');
+const countdownEl = document.getElementById('countdown');
+const resultsEl = document.getElementById('results');
+const resultsBodyEl = document.getElementById('resultsBody');
+const resultsRestartBtn = document.getElementById('resultsRestartBtn');
+const resultsMenuBtn = document.getElementById('resultsMenuBtn');
 
 // Dev mód: ?dev=1 az URL-ben — szabad kamerával be lehet járni a pályát és
 // kijelölni a rajtrács-pontokat (assets/maps/<id>/spawn.json).
@@ -325,9 +337,15 @@ wheelPositions.forEach((pos, i) => {
 
 // A Rapierben a merev test állapota csak settereken át írható (a getterek
 // másolatot adnak vissza), ezért kell külön függvény a visszahelyezéshez.
-function resetCarTo(pos) {
+// A heading az Y tengely körüli elfordulás: 0 = a világ +Z iránya (az autó
+// "előre" tengelye). Pályánként állítjuk a szerkesztőben, mert a rajtvonal
+// nem mindenhol néz ugyanabba az irányba.
+let spawnHeading = 0;
+
+function resetCarTo(pos, heading = spawnHeading) {
+  const half = heading / 2;
   chassisBody.setTranslation({ x: pos.x, y: pos.y, z: pos.z }, true);
-  chassisBody.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
+  chassisBody.setRotation({ x: 0, y: Math.sin(half), z: 0, w: Math.cos(half) }, true);
   chassisBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
   chassisBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
   lastSafePos.copy(pos);
@@ -395,12 +413,16 @@ let currentMapId = null;
 // a jövőbeli multiplayerhez előkészítve — egyelőre mindig az első szabad
 // (üresnek tekintett) pontot használjuk, mert még nincs több játékos.
 let currentSpawnPoints = [];
+// Rajtvonal + checkpointok. Egy kapu egy szakasz felülnézetből: {x1,z1,x2,z2}.
+// A checkpointokat SORRENDBEN kell érinteni, utána a rajtvonal zárja a kört —
+// enélkül a rajtvonal előtt oda-vissza hajtva lehetne köröket gyűjteni.
+let currentGates = { start: null, checkpoints: [] };
 
 function pickSpawnSlot(spawnPoints, occupiedIndices = []) {
   if (!spawnPoints || !spawnPoints.length) return null;
   const freeIndex = spawnPoints.findIndex((_, idx) => !occupiedIndices.includes(idx));
   const chosen = spawnPoints[freeIndex >= 0 ? freeIndex : 0];
-  return { x: chosen.x, z: chosen.z };
+  return { x: chosen.x, z: chosen.z, heading: chosen.heading || 0 };
 }
 
 function loadGLTF(url) {
@@ -456,10 +478,14 @@ function findShowcaseSpot(track, box, preferXZ) {
   return new THREE.Vector3(centerX, (box.min.y + box.max.y) / 2, centerZ);
 }
 
-async function setTrack(trackUrl, mapId, spawnPoints) {
+async function setTrack(trackUrl, mapId, spawnPoints, gates) {
   setMenuStatus('Pálya betöltése...');
   currentMapId = mapId || null;
   currentSpawnPoints = spawnPoints || [];
+  currentGates = {
+    start: (gates && gates.start) || null,
+    checkpoints: (gates && gates.checkpoints) || [],
+  };
 
   removeTrackCollider();
   if (currentTrack) {
@@ -701,11 +727,7 @@ function buildVisualFloorGrid(track, box) {
   const nz = Math.max(2, Math.ceil(sizeZ / elementSize) + 1);
 
   const data = [];
-  const filled = [];
-  for (let i = 0; i < nx; i++) {
-    data.push(new Array(nz).fill(box.min.y - 50));
-    filled.push(new Array(nz).fill(false));
-  }
+  for (let i = 0; i < nx; i++) data.push(new Array(nz).fill(box.min.y - 50));
 
   const raycaster = new THREE.Raycaster();
   // A LEGALSÓ találat kell, nem a legfelső. A legfelső egy épületnél a tető
@@ -715,7 +737,6 @@ function buildVisualFloorGrid(track, box) {
   const dir = new THREE.Vector3(0, -1, 0);
   const rayOriginY = box.max.y + 20;
 
-  const queue = [];
   for (let i = 0; i < nx; i++) {
     const worldX = box.min.x + i * elementSize;
     for (let j = 0; j < nz; j++) {
@@ -723,33 +744,7 @@ function buildVisualFloorGrid(track, box) {
       if (!maskHasCoverage(coverage, worldX, worldZ)) continue;
       raycaster.set(new THREE.Vector3(worldX, rayOriginY, worldZ), dir);
       const hits = raycaster.intersectObject(track, true);
-      if (hits.length) {
-        data[i][j] = hits[hits.length - 1].point.y;
-        filled[i][j] = true;
-        queue.push(i * nz + j);
-      }
-    }
-  }
-
-  // A pálya befoglaló dobozának nagy része üres (Suzukán a cellák ~83%-a),
-  // mert a modell csak a pálya-szalagot és környékét tartalmazza. Ha ezeket
-  // a cellákat a mélyben hagynánk, a padló széle egy 68 egységes szakadék
-  // lenne — és távolról, lapos szögben pont ezen a szakadékon lehet átlátni.
-  // Ezért kifelé terjesztjük a legközelebbi érvényes magasságot, így a padló
-  // folytonosan, lépcső nélkül nyúlik túl a geometrián.
-  for (let head = 0; head < queue.length; head++) {
-    const cell = queue[head];
-    const ci = Math.floor(cell / nz);
-    const cj = cell % nz;
-    const h = data[ci][cj];
-    for (let di = -1; di <= 1; di++) {
-      for (let dj = -1; dj <= 1; dj++) {
-        const ni = ci + di, nj = cj + dj;
-        if (ni < 0 || ni >= nx || nj < 0 || nj >= nz || filled[ni][nj]) continue;
-        data[ni][nj] = h;
-        filled[ni][nj] = true;
-        queue.push(ni * nz + nj);
-      }
+      if (hits.length) data[i][j] = hits[hits.length - 1].point.y;
     }
   }
 
@@ -876,6 +871,139 @@ function applyWallConstraint() {
   }
 }
 
+// ---------- Verseny: körszámlálás, visszaszámlálás, eredmény ----------
+// A köröket kapu-átmetszéssel számoljuk: minden képkockán megnézzük, hogy az
+// autó ELŐZŐ és MOSTANI pozíciója közötti szakasz metszi-e a soron következő
+// kaput. Ez nagy sebességnél sem hibázik (nem lehet "átugrani" a vonalat),
+// szemben egy egyszerű távolság-ellenőrzéssel.
+const COUNTDOWN_SECONDS = 3;
+
+const race = {
+  active: false,
+  phase: 'idle',      // 'countdown' | 'running' | 'finished'
+  countdownLeft: 0,
+  totalLaps: 3,
+  lap: 0,             // hány kört teljesített
+  nextCheckpoint: 0,  // hányadik checkpoint jön (utána a rajtvonal zárja a kört)
+  startTime: 0,
+  lapStartTime: 0,
+  lapTimes: [],
+  prevX: 0,
+  prevZ: 0,
+};
+
+// Két szakasz metszi-e egymást (2D, felülnézetből).
+function segmentsIntersect(ax, az, bx, bz, cx, cz, dx, dz) {
+  const d1 = (dx - cx) * (az - cz) - (dz - cz) * (ax - cx);
+  const d2 = (dx - cx) * (bz - cz) - (dz - cz) * (bx - cx);
+  const d3 = (bx - ax) * (cz - az) - (bz - az) * (cx - ax);
+  const d4 = (bx - ax) * (dz - az) - (bz - az) * (dx - ax);
+  return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+         ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+}
+
+function crossedGate(gate, fromX, fromZ, toX, toZ) {
+  if (!gate) return false;
+  return segmentsIntersect(fromX, fromZ, toX, toZ, gate.x1, gate.z1, gate.x2, gate.z2);
+}
+
+function formatTime(ms) {
+  if (!isFinite(ms) || ms < 0) return '--:--.---';
+  const totalSec = ms / 1000;
+  const m = Math.floor(totalSec / 60);
+  const s = Math.floor(totalSec % 60);
+  const msPart = Math.floor(ms % 1000);
+  return `${m}:${String(s).padStart(2, '0')}.${String(msPart).padStart(3, '0')}`;
+}
+
+function startRace() {
+  const pos = chassisBody.translation();
+  race.active = !!currentGates.start;
+  race.phase = 'countdown';
+  race.countdownLeft = COUNTDOWN_SECONDS;
+  race.totalLaps = Number(lapCountSelect.value) || 3;
+  race.lap = 0;
+  race.nextCheckpoint = 0;
+  race.lapTimes = [];
+  race.prevX = pos.x;
+  race.prevZ = pos.z;
+  resultsEl.classList.add('hidden');
+  updateRaceHud();
+}
+
+function updateRaceHud() {
+  if (!race.active) {
+    raceHudEl.textContent = 'Nincs rajtvonal — szabad vezetés';
+    return;
+  }
+  const now = performance.now();
+  const total = race.phase === 'running' ? now - race.startTime
+    : race.phase === 'finished' ? race.lapTimes.reduce((a, b) => a + b, 0) : 0;
+  const current = race.phase === 'running' ? now - race.lapStartTime : 0;
+  const best = race.lapTimes.length ? Math.min(...race.lapTimes) : NaN;
+  raceHudEl.innerHTML =
+    `Kör: <strong>${Math.min(race.lap + 1, race.totalLaps)} / ${race.totalLaps}</strong><br>` +
+    `Aktuális: ${formatTime(current)}<br>` +
+    `Legjobb: ${formatTime(best)}<br>` +
+    `Összesen: ${formatTime(total)}`;
+}
+
+function finishRace() {
+  race.phase = 'finished';
+  const total = race.lapTimes.reduce((a, b) => a + b, 0);
+  const best = Math.min(...race.lapTimes);
+  resultsBodyEl.innerHTML =
+    `<div class="mb-2">Összidő: <strong>${formatTime(total)}</strong></div>` +
+    `<div class="mb-3">Legjobb kör: <strong>${formatTime(best)}</strong></div>` +
+    race.lapTimes
+      .map((t, i) => `<div class="small">${i + 1}. kör: ${formatTime(t)}${t === best ? ' ⭐' : ''}</div>`)
+      .join('');
+  resultsEl.classList.remove('hidden');
+}
+
+function updateRace(dt) {
+  if (!race.active) return;
+
+  if (race.phase === 'countdown') {
+    race.countdownLeft -= dt;
+    if (race.countdownLeft <= 0) {
+      race.phase = 'running';
+      race.startTime = performance.now();
+      race.lapStartTime = race.startTime;
+      countdownEl.classList.add('hidden');
+    } else {
+      countdownEl.classList.remove('hidden');
+      countdownEl.textContent = String(Math.ceil(race.countdownLeft));
+    }
+    return;
+  }
+
+  if (race.phase !== 'running') return;
+
+  const pos = chassisBody.translation();
+  const fromX = race.prevX, fromZ = race.prevZ;
+  race.prevX = pos.x;
+  race.prevZ = pos.z;
+
+  const checkpoints = currentGates.checkpoints;
+  if (race.nextCheckpoint < checkpoints.length) {
+    // Még van hátra checkpoint ebben a körben.
+    if (crossedGate(checkpoints[race.nextCheckpoint], fromX, fromZ, pos.x, pos.z)) {
+      race.nextCheckpoint++;
+    }
+  } else if (crossedGate(currentGates.start, fromX, fromZ, pos.x, pos.z)) {
+    // Minden checkpoint megvan, a rajtvonal zárja a kört.
+    const now = performance.now();
+    race.lapTimes.push(now - race.lapStartTime);
+    race.lapStartTime = now;
+    race.lap++;
+    race.nextCheckpoint = 0;
+    if (race.lap >= race.totalLaps) finishRace();
+  }
+
+  updateRaceHud();
+}
+
 // ---------- Irányítás (csak vezetés közben aktív) ----------
 const keys = {};
 window.addEventListener('keydown', (e) => { keys[e.code] = true; });
@@ -892,11 +1020,14 @@ const OFFTRACK_FRICTION_SLIP = 1.0;
 const OFFTRACK_DRAG = 0.995;
 
 function updateControls() {
-  const forward = keys['KeyW'] || keys['ArrowUp'];
-  const backward = keys['KeyS'] || keys['ArrowDown'];
-  const left = keys['KeyA'] || keys['ArrowLeft'];
-  const right = keys['KeyD'] || keys['ArrowRight'];
-  const brake = keys['Space'];
+  // Visszaszámlálás alatt és a verseny után nincs gáz/kormány — a kocsi
+  // a helyén marad, hogy ne lehessen elrajtolni a "rajt" előtt.
+  const frozen = race.active && (race.phase === 'countdown' || race.phase === 'finished');
+  const forward = !frozen && (keys['KeyW'] || keys['ArrowUp']);
+  const backward = !frozen && (keys['KeyS'] || keys['ArrowDown']);
+  const left = !frozen && (keys['KeyA'] || keys['ArrowLeft']);
+  const right = !frozen && (keys['KeyD'] || keys['ArrowRight']);
+  const brake = frozen || keys['Space'];
 
   const pos = chassisBody.translation();
   const zone = sampleZoneAt(pos.x, pos.z);
@@ -1003,6 +1134,10 @@ function enterMenu() {
   menuEl.classList.remove('hidden');
   hudEl.classList.add('hidden');
   devHudEl.classList.add('hidden');
+  raceHudWrapEl.classList.add('hidden');
+  countdownEl.classList.add('hidden');
+  resultsEl.classList.add('hidden');
+  race.phase = 'idle';
   scene.fog.density = NORMAL_FOG_DENSITY;
 }
 
@@ -1011,11 +1146,18 @@ function enterDriving() {
   menuEl.classList.add('hidden');
   hudEl.classList.remove('hidden');
   devHudEl.classList.add('hidden');
+  raceHudWrapEl.classList.remove('hidden');
   scene.fog.density = NORMAL_FOG_DENSITY;
   // Ha a gombon/legördülőn maradt a fókusz, a szóköz/nyilak azt vezérelnék
   // vezetés helyett — ezért levesszük róla.
   document.activeElement?.blur();
 }
+
+resultsMenuBtn.addEventListener('click', enterMenu);
+resultsRestartBtn.addEventListener('click', () => {
+  resetCarTo(spawnPoint);
+  startRace();
+});
 
 // ---------- Dev mód: szabad kamera + rajtrács-pontok kijelölése ----------
 const devKeys = {};
@@ -1172,24 +1314,42 @@ function getSelectedBrush() {
 function isSpawnTool() {
   return getSelectedBrush() === 'spawn';
 }
+function isGateTool() {
+  const b = getSelectedBrush();
+  return b === 'start' || b === 'checkpoint';
+}
+function isPaintTool() {
+  return !isSpawnTool() && !isGateTool();
+}
 
 function updateSpawnToolUI() {
-  const spawnMode = isSpawnTool();
-  brushSizeRow.classList.toggle('d-none', spawnMode);
-  spawnToolRow.classList.toggle('d-none', !spawnMode);
+  brushSizeRow.classList.toggle('d-none', !isPaintTool());
+  spawnToolRow.classList.toggle('d-none', !isSpawnTool());
+  gateToolRow.classList.toggle('d-none', !isGateTool());
   zoneSpawnCountEl.textContent = String(currentSpawnPoints.length);
   devSpawnCountEl.textContent = String(currentSpawnPoints.length);
+  startLineStateEl.textContent = currentGates.start ? 'kész' : 'nincs';
+  checkpointCountEl.textContent = String(currentGates.checkpoints.length);
+}
+
+// A rajtpont iránya (heading): az autó "előre" iránya a világ +Z, ezért a
+// heading az ettől való elfordulás. atan2(dx, dz) adja meg, hogy a húzás
+// irányához mennyit kell fordulni.
+function headingFromDelta(dx, dz) {
+  return Math.atan2(dx, dz);
 }
 
 function addSpawnPointAtWorld(x, z) {
   if (currentSpawnPoints.length >= 8) {
     zoneStatusEl.textContent = 'Már megvan mind a 8 rajtpont.';
-    return;
+    return null;
   }
-  currentSpawnPoints.push({ x: +x.toFixed(2), z: +z.toFixed(2) });
+  const point = { x: +x.toFixed(2), z: +z.toFixed(2), heading: 0 };
+  currentSpawnPoints.push(point);
   refreshSpawnMarkers();
   updateSpawnToolUI();
   zoneStatusEl.textContent = '';
+  return point;
 }
 
 function removeLastSpawnPoint() {
@@ -1199,10 +1359,20 @@ function removeLastSpawnPoint() {
   updateSpawnToolUI();
 }
 
+function removeLastGate() {
+  if (getSelectedBrush() === 'start') {
+    currentGates.start = null;
+  } else if (currentGates.checkpoints.length) {
+    currentGates.checkpoints.pop();
+  }
+  updateSpawnToolUI();
+}
+
 document.querySelectorAll('input[name="zoneBrush"]').forEach((el) => {
   el.addEventListener('change', updateSpawnToolUI);
 });
 undoSpawnBtn.addEventListener('click', removeLastSpawnPoint);
+undoGateBtn.addEventListener('click', removeLastGate);
 
 function getBrushWorldRadius() {
   return Number(brushSizeRange.value);
@@ -1301,9 +1471,43 @@ function drawZoneOverlay() {
     y: ((wz - (zoneView.centerZ - halfH)) / (2 * halfH)) * h,
   });
 
+  // Kapuk: a rajtvonal zöld, a checkpointok kékek és sorszámozottak.
+  const drawGate = (g, color, label) => {
+    const a = toScreen(g.x1, g.z1);
+    const b = toScreen(g.x2, g.z2);
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    if (label) {
+      ctx.fillStyle = color;
+      ctx.font = 'bold 13px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, (a.x + b.x) / 2, (a.y + b.y) / 2 - 12);
+    }
+  };
+  if (currentGates.start) drawGate(currentGates.start, '#28d17c', 'RAJT');
+  currentGates.checkpoints.forEach((g, i) => drawGate(g, '#4aa3ff', 'CP' + (i + 1)));
+  if (drawingGate) {
+    drawGate(drawingGate, getSelectedBrush() === 'start' ? '#28d17c' : '#4aa3ff', null);
+  }
+
   // Rajtrács-pontok sorszámozva — a sorrend számít (ez lesz a rajtsorrend).
+  // A tüske mutatja, merre néz majd az autó.
   currentSpawnPoints.forEach((p, idx) => {
     const s = toScreen(p.x, p.z);
+    const heading = p.heading || 0;
+    const tip = toScreen(p.x + Math.sin(heading) * 8, p.z + Math.cos(heading) * 8);
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(tip.x, tip.y);
+    ctx.strokeStyle = '#0dcaf0';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
     ctx.beginPath();
     ctx.arc(s.x, s.y, 9, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(13,202,240,0.85)';
@@ -1340,11 +1544,20 @@ function resizeZoneOverlayCanvas() {
   zoneOverlayCanvas.height = window.innerHeight;
 }
 
+// Húzásos szerkesztés állapota: a rajtpontnál a húzás az irányt adja meg,
+// a kapuknál a vonal két végpontját.
+let aimingSpawn = null;
+let drawingGate = null;
+
 zoneOverlayCanvas.addEventListener('mousedown', (e) => {
   if (e.button === 0) {
     const { x, z } = zoneScreenToWorld(e.clientX, e.clientY);
     if (isSpawnTool()) {
-      addSpawnPointAtWorld(x, z);
+      aimingSpawn = addSpawnPointAtWorld(x, z);
+      return;
+    }
+    if (isGateTool()) {
+      drawingGate = { x1: x, z1: z, x2: x, z2: z };
       return;
     }
     zonePainting = true;
@@ -1365,6 +1578,21 @@ window.addEventListener('mousemove', (e) => {
     paintAtWorld(zoneCursorWorld.x, zoneCursorWorld.z);
     return;
   }
+  if (aimingSpawn) {
+    const dx = zoneCursorWorld.x - aimingSpawn.x;
+    const dz = zoneCursorWorld.z - aimingSpawn.z;
+    // Túl rövid húzásból nem lehet irányt olvasni, olyankor marad a régi.
+    if (Math.hypot(dx, dz) > 0.5) {
+      aimingSpawn.heading = +headingFromDelta(dx, dz).toFixed(4);
+      refreshSpawnMarkers();
+    }
+    return;
+  }
+  if (drawingGate) {
+    drawingGate.x2 = zoneCursorWorld.x;
+    drawingGate.z2 = zoneCursorWorld.z;
+    return;
+  }
   // Középső/jobb gomb nyomva tartva: pásztázás.
   const dragging = (e.buttons & 4) === 4 || (e.buttons & 2) === 2;
   if (dragging && zonePanLast) {
@@ -1382,6 +1610,22 @@ window.addEventListener('mousemove', (e) => {
 window.addEventListener('mouseup', () => {
   zonePainting = false;
   zonePanLast = null;
+  aimingSpawn = null;
+
+  if (drawingGate) {
+    const len = Math.hypot(drawingGate.x2 - drawingGate.x1, drawingGate.z2 - drawingGate.z1);
+    // A nulla hosszú kaput (sima kattintás) eldobjuk — azt nem lehet átmetszeni.
+    if (len > 1) {
+      const gate = {
+        x1: +drawingGate.x1.toFixed(2), z1: +drawingGate.z1.toFixed(2),
+        x2: +drawingGate.x2.toFixed(2), z2: +drawingGate.z2.toFixed(2),
+      };
+      if (getSelectedBrush() === 'start') currentGates.start = gate;
+      else currentGates.checkpoints.push(gate);
+      updateSpawnToolUI();
+    }
+    drawingGate = null;
+  }
 });
 
 // Görgő = zoom, a kurzor alatti világpont a helyén marad.
@@ -1478,11 +1722,28 @@ function saveSpawnPoints() {
   }).then((res) => res.json());
 }
 
+function saveGates() {
+  if (!currentMapId) return Promise.resolve(null);
+  if (!currentGates.start && !currentGates.checkpoints.length) return Promise.resolve(null);
+  return fetch('assets/save_gates.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      mapId: currentMapId,
+      start: currentGates.start,
+      checkpoints: currentGates.checkpoints,
+    }),
+  }).then((res) => res.json());
+}
+
 function saveZoneMap() {
   if (!currentMapId || !zoneMaskCanvas) return;
   zoneStatusEl.textContent = 'Mentés...';
   saveSpawnPoints().catch((err) => {
     zoneStatusEl.textContent = 'Rajtpont mentési hiba: ' + err.message;
+  });
+  saveGates().catch((err) => {
+    zoneStatusEl.textContent = 'Kapu mentési hiba: ' + err.message;
   });
   zoneMaskCanvas.toBlob((blob) => {
     const reader = new FileReader();
@@ -1501,7 +1762,7 @@ function saveZoneMap() {
         .then((res) => res.json())
         .then((data) => {
           zoneStatusEl.textContent = data.ok
-            ? `Elmentve (zóna + ${currentSpawnPoints.length} rajtpont).`
+            ? `Elmentve (zóna + ${currentSpawnPoints.length} rajtpont + ${currentGates.checkpoints.length} CP${currentGates.start ? ' + rajtvonal' : ''}).`
             : 'Hiba: ' + (data.error || 'ismeretlen');
           if (data.ok) {
             // A manifestet is frissítjük, hogy a mentett zóna azonnal életbe
@@ -1559,14 +1820,17 @@ startBtn.addEventListener('click', async () => {
     if (slot) {
       const y = findGroundAt(currentTrack, currentTrackBox, slot.x, slot.z);
       spawnPoint.set(slot.x, (y ?? currentTrackBox.max.y) + SPAWN_HEIGHT, slot.z);
+      spawnHeading = slot.heading || 0;
     } else {
       const spot = findShowcaseSpot(currentTrack, currentTrackBox, null);
       spawnPoint.copy(spot).add(new THREE.Vector3(0, SPAWN_HEIGHT, 0));
+      spawnHeading = 0;
     }
     resetCarTo(spawnPoint);
 
     setStatus(`Ütközés: ${mesh.indices.length / 3} háromszög (${mesh.source})`);
     setMenuStatus('');
+    startRace();
     enterDriving();
   } catch (err) {
     console.error('Fizika előkészítése sikertelen', err);
@@ -1714,7 +1978,7 @@ async function init() {
 
   await Promise.all([
     setSkybox('assets/' + initialEnv.file),
-    setTrack('assets/' + initialMap.file, initialMap.id, initialMap.spawns),
+    setTrack('assets/' + initialMap.file, initialMap.id, initialMap.spawns, initialMap.gates),
     setCar('assets/' + initialCar.file, initialCar.id),
   ]);
 
@@ -1731,7 +1995,7 @@ async function init() {
 
   mapSelect.addEventListener('change', () => {
     const entry = findEntry(manifest.maps, mapSelect.value);
-    setTrack('assets/' + entry.file, entry.id, entry.spawns);
+    setTrack('assets/' + entry.file, entry.id, entry.spawns, entry.gates);
   });
   carSelect.addEventListener('change', () => {
     const entry = findEntry(manifest.cars, carSelect.value);
@@ -1746,7 +2010,7 @@ async function init() {
     const entry = findEntry(manifest.maps, devMapSelectEl.value);
     mapSelect.value = entry.id;
     devSpawnStatusEl.textContent = 'Pálya betöltése...';
-    await setTrack('assets/' + entry.file, entry.id, entry.spawns);
+    await setTrack('assets/' + entry.file, entry.id, entry.spawns, entry.gates);
     enterDevMode();
     devSpawnStatusEl.textContent = '';
   });
@@ -1771,6 +2035,7 @@ function animate() {
     vehicle.updateVehicle(world.timestep);
     world.step();
     applyWallConstraint();
+    updateRace(dt);
 
     if (carLoaded) {
       const p = chassisBody.translation();
@@ -1802,7 +2067,13 @@ animate();
 
 window.__debug = {
   RAPIER, THREE,
-  chassisBody, chassisCollider, vehicle, world, carPivot, camera, currentSpawnPoints, currentTrackBox,
+  chassisBody, chassisCollider, vehicle, world, carPivot, camera,
+  // Ezeket a setTrack újra értékül adja, ezért getterként kell kitenni —
+  // egy egyszerű másolat elavulna pályaváltáskor.
+  get currentSpawnPoints() { return currentSpawnPoints; },
+  get currentGates() { return currentGates; },
+  get currentTrackBox() { return currentTrackBox; },
+  race, updateRace, crossedGate,
   getTrackCollider: () => trackCollider,
   zone: {
     getMask: () => zoneMaskCanvas, getBounds: () => zoneBounds, getView: () => zoneView,
