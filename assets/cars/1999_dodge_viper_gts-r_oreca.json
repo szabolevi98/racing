@@ -4,6 +4,6 @@
   "_yawDegrees": "GYORS becslés - ugyanabból a modell-családból való, mint a már bevált CLK GTR/Diablo/Porsche 911 GT1 (azonos anyagnév-stílus: black/body/frame/head_light/tail_light_lod0 stb.), azoknál +Z volt az eleje - itt is ezt feltételezem, de nem ellenőriztem élőben.",
   "yawDegrees": 0,
 
-  "_wheelPattern": "GYORS becslés. Tiszta, névvel ellátott kerék-anyagok (rim/outer_rim/inner_rim/blur_rim, wheel_black, tyre_fx, EXT_DISK_BRAKE, caliper), mind egy helyen (kb 0,0.32,0.05), geometria-szétvágással.",
-  "wheelPattern": "rim|wheel_black|tyre_fx|EXT_DISK_BRAKE|caliper"
+  "_wheelPattern": "JAVÍTVA (felhasználó jelezte: 'hátsó kerekek nagyot fogtak meg ami forog' + 'az oldalsó ablakkeret is forog a kerekekkel'). A puszta 'rim' minta elkapta a 'rubber_trim.007' anyagot is (ablak/ajtó gumiszigetelés ÉS az oldalsó ablakkeret) - a 'trim' szó VÉGE is tartalmazza a 'rim' betűsort. Elöl ez egy kisebb, vékony szigetelés-darab (0.88x0.06x0.83) volt, hátul viszont egy jóval nagyobb darab (1.34x0.39x1.38, ez volt a látható 'nagy dolog ami forog' - az oldalsó ablakkeret). A '(?<!t)rim' negatív lookbehind (ua. technika mint a Porsche 911 GT1-nél) kizárja a 'trim'-ben lévő 'rim'-et, de a valódi 'rim'/'outer_rim'/'inner_rim'/'blur_rim' anyagokat nem érinti. Tiszta, névvel ellátott kerék-anyagok (rim/outer_rim/inner_rim/blur_rim, wheel_black, tyre_fx, EXT_DISK_BRAKE, caliper), mind egy helyen (kb 0,0.32,0.05), geometria-szétvágással.",
+  "wheelPattern": "(?<!t)rim|wheel_black|tyre_fx|EXT_DISK_BRAKE|caliper"
 }
