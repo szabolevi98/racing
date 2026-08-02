@@ -51,7 +51,8 @@ const zoneStatusEl = document.getElementById('zoneStatus');
 const brushSizeRange = document.getElementById('brushSizeRange');
 const brushSizeLabel = document.getElementById('brushSizeLabel');
 const zoneIndicatorEl = document.getElementById('zoneIndicator');
-const rolloverWarningEl = document.getElementById('rolloverWarning');
+const rolloverAlertEl = document.getElementById('rolloverAlert');
+const rolloverAlertTextEl = document.getElementById('rolloverAlertText');
 const lapInvalidAlertEl = document.getElementById('lapInvalidAlert');
 const brushSizeRow = document.getElementById('brushSizeRow');
 const spawnToolRow = document.getElementById('spawnToolRow');
@@ -1578,11 +1579,11 @@ function updateControls() {
   const upY = 1 - 2 * (q.x * q.x + q.z * q.z);
   const flipped = upY < 0.2;
   if (flipped) {
-    rolloverWarningEl.textContent = race.active
+    rolloverAlertTextEl.textContent = race.active
       ? 'Felborultál! Nyomj R-et — vissza az utolsó checkpontra.'
       : 'Felborultál! Nyomj R-et az újraindításhoz.';
   }
-  rolloverWarningEl.classList.toggle('hidden', !flipped);
+  rolloverAlertEl.classList.toggle('hidden', !flipped);
 
   if (keys['KeyR']) {
     if (race.active && lastCheckpointSpawn) {

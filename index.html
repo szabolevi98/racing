@@ -20,11 +20,13 @@
 
   #raceHudWrap { position: fixed; top: 12px; right: 12px; z-index: 10; min-width: 170px; }
 
-  #lapInvalidAlert {
-    position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 15;
+  .top-center-alert {
+    position: fixed; left: 50%; transform: translateX(-50%); z-index: 15;
     pointer-events: none;
   }
-  #lapInvalidAlert.hidden { display: none !important; }
+  #lapInvalidAlert { top: 12px; }
+  #rolloverAlert { top: 70px; }
+  .top-center-alert.hidden { display: none !important; }
 
   #countdown {
     position: fixed; inset: 0; z-index: 25;
@@ -127,7 +129,6 @@
       <a id="backToMenuLink" class="link-info" role="button">Vissza a menübe</a><br>
       <span id="status"></span><br>
       Zóna: <span id="zoneIndicator">aszfalt</span>
-      <div id="rolloverWarning" class="text-warning fw-bold mt-1 hidden"></div>
     </div>
   </div>
 </div>
@@ -138,8 +139,12 @@
   </div>
 </div>
 
-<div id="lapInvalidAlert" class="hidden">
+<div id="lapInvalidAlert" class="top-center-alert hidden">
   <div class="alert alert-warning fw-bold text-center mb-0 shadow">Kör érvénytelen — checkpoint kimaradt!</div>
+</div>
+
+<div id="rolloverAlert" class="top-center-alert hidden">
+  <div class="alert alert-danger fw-bold text-center mb-0 shadow" id="rolloverAlertText"></div>
 </div>
 
 <div id="countdown" class="hidden">3</div>
