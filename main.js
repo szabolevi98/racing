@@ -45,6 +45,8 @@ const zoneStatusEl = document.getElementById('zoneStatus');
 const brushSizeRange = document.getElementById('brushSizeRange');
 const brushSizeLabel = document.getElementById('brushSizeLabel');
 const zoneIndicatorEl = document.getElementById('zoneIndicator');
+const rolloverWarningEl = document.getElementById('rolloverWarning');
+const lapInvalidAlertEl = document.getElementById('lapInvalidAlert');
 const brushSizeRow = document.getElementById('brushSizeRow');
 const spawnToolRow = document.getElementById('spawnToolRow');
 const zoneSpawnCountEl = document.getElementById('zoneSpawnCount');
@@ -373,6 +375,12 @@ function resetCarTo(pos, heading = spawnHeading) {
   chassisBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
   chassisBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
   lastSafePos.copy(pos);
+  // A kör-logika a kocsi ELŐZŐ és MOSTANI pozíciója közötti szakaszt metszi a
+  // kapukkal. Teleportálás után (pl. R) ez a szakasz a régi, akár messzi
+  // pozíciótól az új helyig érne — útközben átvágva más kapukon is —, ezért
+  // itt "megszakítjuk" azzal, hogy az előző pozíciót is az újra állítjuk.
+  race.prevX = pos.x;
+  race.prevZ = pos.z;
 }
 
 function removeTrackCollider() {
@@ -1039,11 +1047,18 @@ const race = {
   nextCheckpoint: 0,  // hányadik checkpoint jön (utána a rajtvonal zárja a kört)
   startTime: 0,
   lapStartTime: 0,
-  lapTimes: [],
+  lapTimes: [],       // { time, invalid } — az érvénytelen kör is SZÁMÍT, csak meg van jelölve
+  lapTainted: false,  // ebben a körben már volt rossz sorrendű checkpoint-átlépés
   prevX: 0,
   prevZ: 0,
   invalidUntil: 0,  // performance.now() időbélyeg, ameddig a "kör érvénytelen" üzenet látszik
 };
+
+// Hova helyezze vissza a kocsit az R billentyű: az utolsó érintett
+// checkpont (vagy a rajtvonal, ha még egyet sem ért el ebben a körben).
+// Csak sikeres áthaladáskor frissül — kihagyott/érvénytelen kereszteződéskor
+// szándékosan nem, így R mindig a legutóbbi jó pontra visz vissza.
+let lastCheckpointSpawn = null;
 
 // Két szakasz metszi-e egymást (2D, felülnézetből).
 function segmentsIntersect(ax, az, bx, bz, cx, cz, dx, dz) {
@@ -1058,6 +1073,16 @@ function segmentsIntersect(ax, az, bx, bz, cx, cz, dx, dz) {
 function crossedGate(gate, fromX, fromZ, toX, toZ) {
   if (!gate) return false;
   return segmentsIntersect(fromX, fromZ, toX, toZ, gate.x1, gate.z1, gate.x2, gate.z2);
+}
+
+// A kapun áthaladáskor nincs eltárolt "helyes irány" (a checkpointoknak nincs
+// heading-jük, csak egy szakasz) — ezért abból számoljuk, amerre a kocsi
+// éppen haladt, amikor átment rajta. Ha épp egy helyben áll (dx=dz=0), inkább
+// megtartjuk az előző mentett irányt, mint hogy nullát adjunk vissza.
+function headingFromMovement(fromX, fromZ, toX, toZ, fallback) {
+  const dx = toX - fromX, dz = toZ - fromZ;
+  if (Math.abs(dx) < 1e-4 && Math.abs(dz) < 1e-4) return fallback;
+  return Math.atan2(dx, dz);
 }
 
 function formatTime(ms) {
@@ -1078,42 +1103,50 @@ function startRace() {
   race.lap = 0;
   race.nextCheckpoint = 0;
   race.lapTimes = [];
+  race.lapTainted = false;
   race.prevX = pos.x;
   race.prevZ = pos.z;
   race.invalidUntil = 0;
+  lastCheckpointSpawn = { x: spawnPoint.x, z: spawnPoint.z, heading: spawnHeading };
   resultsEl.classList.add('hidden');
+  lapInvalidAlertEl.classList.add('hidden');
   updateRaceHud();
 }
 
 function updateRaceHud() {
   if (!race.active) {
     raceHudEl.textContent = 'Nincs rajtvonal — szabad vezetés';
+    lapInvalidAlertEl.classList.add('hidden');
     return;
   }
   const now = performance.now();
   const total = race.phase === 'running' ? now - race.startTime
-    : race.phase === 'finished' ? race.lapTimes.reduce((a, b) => a + b, 0) : 0;
+    : race.phase === 'finished' ? race.lapTimes.reduce((a, l) => a + l.time, 0) : 0;
   const current = race.phase === 'running' ? now - race.lapStartTime : 0;
-  const best = race.lapTimes.length ? Math.min(...race.lapTimes) : NaN;
-  const warning = now < race.invalidUntil
-    ? '<div class="text-warning fw-bold mb-1">Kör érvénytelen — checkpoint kimaradt!</div>'
-    : '';
-  raceHudEl.innerHTML = warning +
+  const validTimes = race.lapTimes.filter((l) => !l.invalid).map((l) => l.time);
+  const best = validTimes.length ? Math.min(...validTimes) : NaN;
+  raceHudEl.innerHTML =
     `Kör: <strong>${Math.min(race.lap + 1, race.totalLaps)} / ${race.totalLaps}</strong><br>` +
     `Aktuális: ${formatTime(current)}<br>` +
     `Legjobb: ${formatTime(best)}<br>` +
     `Összesen: ${formatTime(total)}`;
+  lapInvalidAlertEl.classList.toggle('hidden', now >= race.invalidUntil);
 }
 
 function finishRace() {
   race.phase = 'finished';
-  const total = race.lapTimes.reduce((a, b) => a + b, 0);
-  const best = Math.min(...race.lapTimes);
+  // Az összidő MINDEN kört beleszámol, az érvénytelent is — a versenyóra
+  // tényleg eltelt időt mér. A "legjobb kör" viszont csak az érvényesek közül
+  // számít, egy levágott sarok ne legyen "gyorsabb" mint egy tiszta kör.
+  const total = race.lapTimes.reduce((a, l) => a + l.time, 0);
+  const validTimes = race.lapTimes.filter((l) => !l.invalid).map((l) => l.time);
+  const best = validTimes.length ? Math.min(...validTimes) : NaN;
   resultsBodyEl.innerHTML =
     `<div class="mb-2">Összidő: <strong>${formatTime(total)}</strong></div>` +
     `<div class="mb-3">Legjobb kör: <strong>${formatTime(best)}</strong></div>` +
     race.lapTimes
-      .map((t, i) => `<div class="small">${i + 1}. kör: ${formatTime(t)}${t === best ? ' ⭐' : ''}</div>`)
+      .map((l, i) => `<div class="small">${i + 1}. kör: ${formatTime(l.time)}` +
+        `${l.invalid ? ' ⚠️ érvénytelen' : (l.time === best ? ' ⭐' : '')}</div>`)
       .join('');
   resultsEl.classList.remove('hidden');
 }
@@ -1157,23 +1190,42 @@ function updateRace(dt) {
     }
   }
 
-  if (crossedCheckpoint === race.nextCheckpoint && crossedCheckpoint !== -1) {
-    race.nextCheckpoint++;
-  } else if (crossedCheckpoint !== -1 || (startCrossed && race.nextCheckpoint < checkpoints.length)) {
-    // Vagy egy nem a várt sorrendben lévő checkpointon ment át, vagy elérte a
-    // rajtvonalat checkpontok nélkül — mindkettő azt jelenti, hogy kihagyott
-    // egyet. Ahelyett, hogy csendben figyelmen kívül hagynánk (a régi
-    // viselkedés — a játékos ilyenkor észrevétlenül még egy TELJES kört ment
-    // volna), azonnal jelezzük, és új kör-kísérletet indítunk innentől.
-    race.nextCheckpoint = 0;
-    race.lapStartTime = now;
-    race.invalidUntil = now + 2500;
-  } else if (startCrossed) {
-    // Minden checkpoint megvan, a rajtvonal zárja a kört.
-    race.lapTimes.push(now - race.lapStartTime);
+  // A checkpont-ellenőrzés csak azt dönti el, ÉRVÉNYES lesz-e a folyamatban
+  // lévő kör — a kört magát mindig a rajtvonal zárja le, akkor is, ha
+  // kihagyott valamit. Multiplayerben ez azért fontos, mert így senkinek nem
+  // kell egy hibázás miatt a végtelenségig újrázni, míg a többiek várnak rá:
+  // a kör egyszerűen "érvénytelen" jelzést kap (a legjobb körbe nem számít
+  // bele), de a versenyben tovább halad.
+  if (crossedCheckpoint !== -1) {
+    lastCheckpointSpawn = {
+      x: pos.x,
+      z: pos.z,
+      heading: headingFromMovement(fromX, fromZ, pos.x, pos.z, lastCheckpointSpawn?.heading ?? spawnHeading),
+    };
+    if (crossedCheckpoint === race.nextCheckpoint) {
+      race.nextCheckpoint++;
+    } else {
+      // Rossz sorrendű checkpont: valahol kihagyott egyet. Azonnal jelezzük,
+      // de hagyjuk tovább menni — a rajtvonalnál dől el, hogy a kör
+      // érvénytelen volt.
+      race.lapTainted = true;
+      race.invalidUntil = now + 2500;
+    }
+  }
+
+  if (startCrossed) {
+    const invalid = race.lapTainted || race.nextCheckpoint < checkpoints.length;
+    race.lapTimes.push({ time: now - race.lapStartTime, invalid });
     race.lapStartTime = now;
     race.lap++;
     race.nextCheckpoint = 0;
+    race.lapTainted = false;
+    if (invalid) race.invalidUntil = now + 2500;
+    lastCheckpointSpawn = {
+      x: pos.x,
+      z: pos.z,
+      heading: headingFromMovement(fromX, fromZ, pos.x, pos.z, lastCheckpointSpawn?.heading ?? spawnHeading),
+    };
     if (race.lap >= race.totalLaps) finishRace();
   }
 
@@ -1230,7 +1282,29 @@ function updateControls() {
   const b = brake ? brakeForce : 0;
   for (let i = 0; i < 4; i++) vehicle.setWheelBrake(i, b);
 
-  if (keys['KeyR']) resetCarTo(spawnPoint);
+  // Az "up" vektor Y-komponense a kasztni forgatásából: 1 = szabályosan áll,
+  // 0 = oldalára dőlt, -1 = a tetején van. 0.2 alatt már egyértelműen borulás.
+  const q = chassisBody.rotation();
+  const upY = 1 - 2 * (q.x * q.x + q.z * q.z);
+  const flipped = upY < 0.2;
+  if (flipped) {
+    rolloverWarningEl.textContent = race.active
+      ? 'Felborultál! Nyomj R-et — vissza az utolsó checkpontra.'
+      : 'Felborultál! Nyomj R-et az újraindításhoz.';
+  }
+  rolloverWarningEl.classList.toggle('hidden', !flipped);
+
+  if (keys['KeyR']) {
+    if (race.active && lastCheckpointSpawn) {
+      const groundY = findGroundAt(currentTrack, currentTrackBox, lastCheckpointSpawn.x, lastCheckpointSpawn.z);
+      resetCarTo(
+        { x: lastCheckpointSpawn.x, y: (groundY ?? pos.y) + 1, z: lastCheckpointSpawn.z },
+        lastCheckpointSpawn.heading
+      );
+    } else {
+      resetCarTo(spawnPoint);
+    }
+  }
 }
 
 // ---------- Kamera: vezetős (harmadik személyű követés) ----------
