@@ -558,6 +558,105 @@ function findShowcaseSpot(track, box, preferXZ) {
 // Emellett kizárjuk azt is, aminek a képe túlnyomórészt köztes alfájú (pl.
 // nagyon finom, élsimított drótháló) — ott a mélység-írás túl sok mindent
 // levágna a háttérből.
+// Kitölti az átlátszó képpontok RGB-jét a szomszédos LÁTHATÓ képpontok
+// színével ("alpha bleeding" / dilatáció). Erre azért van szükség, mert a
+// glTF-textúrákban a teljesen átlátszó terület RGB-je jellemzően FEKETE
+// (mérve: [0,0,0] minden fa-textúránál, míg a látható rész zöld). A forrás-
+// textúra alfája szinte tökéletesen bináris, a köztes átlátszóság futásidőben,
+// a GPU mipmap-átlagolásából keletkezik — és ott a levél zöldje a fekete
+// háttérrel keveredik. Kivágásnál az így kapott sötét képpont teljes erővel
+// jelenik meg: ettől lett foltos a lombozat a korábbi próbálkozásban.
+// A kitöltés után a mipmap már csak leveleket átlagol.
+//
+// A terjesztés hullámfrontosan (BFS), tipizált tömbökkel megy, és a TELJES
+// átlátszó területre kifut: a mipmap felső szintjein már nagy környezet
+// átlagolódik egyetlen képpontba, így a nagy átlátszó foltok belseje is
+// beleszámít. Minden képpontot pontosan egyszer érintünk, így egy 2048x1024-es
+// textúra is ezredmásodpercek alatt kész.
+function dilateTextureRGB(tex) {
+  const img = tex.image;
+  const w = img.width;
+  const h = img.height;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(img, 0, 0);
+  const imgData = ctx.getImageData(0, 0, w, h);
+  const d = imgData.data;
+
+  const total = w * h;
+  const solid = new Uint8Array(total);
+  const queue = new Int32Array(total);
+  let tail = 0;
+  for (let i = 0; i < total; i++) {
+    if (d[i * 4 + 3] > 127) {
+      solid[i] = 1;
+      queue[tail++] = i;
+    }
+  }
+  if (tail === 0) return tex; // nincs látható képpont, nincs mit terjeszteni
+
+  for (let head = 0; head < tail; head++) {
+    const i = queue[head];
+    const si = i * 4;
+    const x = i % w;
+    const y = (i / w) | 0;
+    for (let dy = -1; dy <= 1; dy++) {
+      const yy = y + dy;
+      if (yy < 0 || yy >= h) continue;
+      for (let dx = -1; dx <= 1; dx++) {
+        const xx = x + dx;
+        if (xx < 0 || xx >= w) continue;
+        const j = yy * w + xx;
+        if (solid[j]) continue;
+        const sj = j * 4;
+        // Csak a SZÍNT vesszük át, az alfa marad 0 — a képpont továbbra is
+        // láthatatlan, csak már nem fekete, amikor a mipmap átlagol.
+        d[sj] = d[si];
+        d[sj + 1] = d[si + 1];
+        d[sj + 2] = d[si + 2];
+        solid[j] = 1;
+        queue[tail++] = j;
+      }
+    }
+  }
+
+  // FONTOS: az eredményt NEM adhatjuk vissza canvas-textúraként. A canvas 2D
+  // belül ELŐRE SZOROZZA a színt az alfával, így a teljesen átlátszó képpontok
+  // RGB-je a visszaolvasáskor nullázódna (szín * 0) — pontosan az az adat
+  // veszne el, amit az imént töltöttünk ki. A nyers képpont-tömböt ezért
+  // közvetlenül, DataTexture-ként adjuk a GPU-nak.
+  const out = new THREE.DataTexture(new Uint8Array(d.buffer), w, h, THREE.RGBAFormat);
+  out.wrapS = tex.wrapS;
+  out.wrapT = tex.wrapT;
+  out.repeat.copy(tex.repeat);
+  out.offset.copy(tex.offset);
+  out.flipY = tex.flipY;
+  out.colorSpace = tex.colorSpace;
+  out.anisotropy = tex.anisotropy;
+  out.generateMipmaps = true;
+  out.minFilter = THREE.LinearMipmapLinearFilter;
+  out.magFilter = THREE.LinearFilter;
+  out.needsUpdate = true;
+  out.userData.originalTexture = tex; // hibakereséshez: az érintetlen eredeti
+  return out;
+}
+
+const dilatedTextureCache = new Map();
+function getDilatedTexture(tex) {
+  if (dilatedTextureCache.has(tex.uuid)) return dilatedTextureCache.get(tex.uuid);
+  let out = tex;
+  try {
+    out = dilateTextureRGB(tex);
+  } catch (err) {
+    out = tex; // pl. cross-origin kép: maradjon az eredeti
+  }
+  dilatedTextureCache.set(tex.uuid, out);
+  return out;
+}
+
 const maskTextureCache = new Map();
 function isMaskLikeTexture(tex) {
   if (!tex || !tex.image) return false;
@@ -639,21 +738,36 @@ async function setTrack(trackUrl, mapId, spawnPoints, gates) {
           // fa egyszerűen rárajzolódik a közelire — ez a "fák átlátszanak
           // egymáson" hiba.
           //
-          // A megoldás NEM a kivágásra (alphaTest 0.5 + transparent=false)
-          // váltás: az a levélszélek élsimított sávját teljes erővel megjelenő
-          // sötét képpontokká tenné (a textúrák átlátszó területén az RGB
-          // fekete, és a mipmap ezt belekeveri a szélekbe), amitől foltos lesz
-          // a lomb. Ehelyett MEGTARTJUK a keverést — így a szélek lágyak
-          // maradnak, pontosan úgy néz ki, mint eddig —, és csak a mélység-
-          // írást kapcsoljuk be. Ettől a mélységi puffer helyesen takar,
-          // FÜGGETLENÜL attól, milyen sorrendben rajzolódnak a darabok.
+          // Három dolog kell egyszerre, és mindhárom egy-egy korábbi
+          // próbálkozás buktatóját kerüli ki:
           //
-          // Az apró alphaTest amellett kell, hogy a szinte teljesen átlátszó
-          // képpontok (a levelek közti "üres" terület) ne írjanak mélységet —
-          // különben egy közeli fa üres része kivágná a mögötte lévő fát.
+          // 1) depthWrite = true — ez maga a javítás. Enélkül a lombozat nem ír
+          //    a mélységi pufferbe, a Three.js pedig a keverendő darabokat
+          //    objektum-KÖZÉPPONT szerint rendezi, ami itt értelmetlen (egy mesh
+          //    több ezer egységnyi területen szórt fákat tartalmaz) — így a
+          //    távoli fasor rendszeresen a közeliek UTÁN, tehát rájuk rajzolódott.
+          //
+          // 2) A keverés MEGMARAD (transparent = true). Teljes kivágásra váltva
+          //    a lomb érezhetően elsötétül: a fa-textúrák látható része eleve
+          //    sötét zöld (átlag [52,66,33]), és keverve a levélszélek átengedik
+          //    a világos hátteret — kivágásnál viszont teljes erővel jelennek
+          //    meg. Keverve marad a megszokott, világos lombkép.
+          //
+          // 3) alphaTest = 0.5, nem 0.1. Alacsony küszöbbel a félig átlátszó
+          //    levélszél is mélységet ír, és mivel a mögötte lévő fát az már
+          //    kivágta, a HÁTTÉRREL keveredik: ettől kap minden fa világos,
+          //    égbolt-színű körvonalat, a drótháló kerítés mögül pedig eltűnnek
+          //    a fák. Magas küszöbbel ezek a képpontok eldobódnak — nem írnak
+          //    mélységet, nincs mit kivágniuk.
+          //
+          // A textúrát emellett kitöltjük (dilateTextureRGB): a forrás alfája
+          // szinte tökéletesen bináris, a köztes átlátszóság a GPU mipmap-
+          // átlagolásából keletkezik, és ott a levél zöldje a textúra átlátszó
+          // területének FEKETE RGB-jével keveredne.
           if (m.transparent && m.map && isMaskLikeTexture(m.map)) {
+            m.map = getDilatedTexture(m.map);
+            m.alphaTest = 0.5;
             m.depthWrite = true;
-            m.alphaTest = 0.1;
             m.needsUpdate = true;
           }
         }
