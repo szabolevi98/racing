@@ -665,19 +665,19 @@ function isMaskLikeTexture(tex) {
   let result = false;
   try {
     const img = tex.image;
-    // A mintavétel NEAREST (imageSmoothingEnabled = false): sima kicsinyítésnél
-    // a bilineáris interpoláció maga gyártana köztes alfa-értékeket a 0/255
-    // határon, és minden textúra félig-átlátszónak tűnne.
-    const scale = Math.min(1, 256 / Math.max(img.width, img.height));
-    const w = Math.max(1, Math.round(img.width * scale));
-    const h = Math.max(1, Math.round(img.height * scale));
+    const w = img.width;
+    const h = img.height;
     const c = document.createElement('canvas');
     c.width = w;
     c.height = h;
+    // NEAREST mintavétel (imageSmoothingEnabled = false): a bilineáris
+    // interpoláció maga gyártana köztes alfa-értékeket a 0/255 határon, és
+    // minden textúra félig-átlátszónak tűnne.
     const ctx = c.getContext('2d', { willReadFrequently: true });
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(img, 0, 0, w, h);
+    ctx.drawImage(img, 0, 0);
     const d = ctx.getImageData(0, 0, w, h).data;
+
     let opaque = 0;
     let mid = 0;
     for (let i = 3; i < d.length; i += 4) {
@@ -686,7 +686,35 @@ function isMaskLikeTexture(tex) {
       else if (a >= 16) mid++;
     }
     const total = w * h;
-    result = opaque / total > 0.01 && mid / total < 0.4;
+    const maskLike = opaque / total > 0.01 && mid / total < 0.4;
+
+    // Túlél-e a kicsinyítés? A GPU a mipmap-szinteket a szomszédos képpontok
+    // átlagolásával készíti, és a 0.5-ös vágási küszöb alá eső átlagú
+    // képpontok egyszerűen eltűnnek. VÉKONY, rácsos mintáknál (drótháló
+    // kerítés) ez drasztikus: mérve a tartalmas 4x4-es blokkok 57-77%-a
+    // veszne el már az ELSŐ szinten, vagyis a kerítés távolról kifakulna —
+    // a lombozatnál ugyanez csak 5-17%. Az ilyen finom mintákat ezért békén
+    // hagyjuk (marad a régi, kevert megjelenítés): a kerítés úgyis alig takar,
+    // ott a takarási hiba nem feltűnő, a szétfoszló rács viszont az lenne.
+    let blocks = 0;
+    let lost = 0;
+    const B = 4;
+    for (let by = 0; by + B <= h; by += B) {
+      for (let bx = 0; bx + B <= w; bx += B) {
+        let sum = 0;
+        for (let y = 0; y < B; y++) {
+          for (let x = 0; x < B; x++) sum += d[((by + y) * w + (bx + x)) * 4 + 3];
+        }
+        const avg = sum / (B * B);
+        if (avg > 8) {
+          blocks++;
+          if (avg < 127.5) lost++;
+        }
+      }
+    }
+    const survivesMipmapping = blocks === 0 || lost / blocks < 0.4;
+
+    result = maskLike && survivesMipmapping;
   } catch (err) {
     result = false; // pl. cross-origin textúra: nem olvasható, hagyjuk békén
   }
