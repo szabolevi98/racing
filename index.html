@@ -75,6 +75,8 @@
   .ss-option { padding: 6px 12px; cursor: pointer; color: #e9ecef; font-size: 0.95rem; }
   .ss-option:hover, .ss-option.active { background: #375a7f; color: #fff; }
   .ss-option.ss-empty { color: #888; cursor: default; }
+  .ss-option.ss-selected { font-weight: 600; }
+  .ss-option.ss-selected::after { content: ' ✓'; opacity: 0.7; }
 
   /* Mindig foglalja a helyét (egy sornyi magasság), csak üresen látszik
      átlátszónak — így a "Kocsi/Pálya betöltése..." felirat megjelenése nem

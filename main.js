@@ -3203,7 +3203,12 @@ function makeSearchableSelect(selectEl) {
       selectEl.value = value;
       selectEl.dispatchEvent(new Event('change'));
     }
-    closeMenu();
+    // A lista nyitva marad kiválasztás után — csak kikattintásra (blur/
+    // dokumentum-kattintás) zárjuk be, hogy egymás után gyorsan több
+    // opciót is ki lehessen próbálni anélkül, hogy újra rá kéne kattintani
+    // a mezőre. A keresőszöveget töröljük, hogy a teljes lista látszódjon.
+    input.value = currentLabel();
+    renderMenu('');
   }
 
   function renderMenu(filterText) {
@@ -3219,7 +3224,7 @@ function makeSearchableSelect(selectEl) {
     } else {
       matches.forEach((o) => {
         const item = document.createElement('div');
-        item.className = 'ss-option';
+        item.className = 'ss-option' + (o.value === selectEl.value ? ' ss-selected' : '');
         item.textContent = o.textContent;
         item.dataset.value = o.value;
         item.addEventListener('mousedown', (e) => {
@@ -3259,9 +3264,13 @@ function makeSearchableSelect(selectEl) {
     // Kis késleltetés, hogy az option mousedown-ja lefusson a blur előtt.
     setTimeout(closeMenu, 120);
   });
+  // Capture fázisban figyeljük (a kattintás lefelé tartó szakaszában, MIELŐTT
+  // egy option saját mousedown-kezelője lefutna) — így akkor is helyesen
+  // látja, hogy a kattintás a wrap-en belül történt, ha a kiválasztás közben
+  // a renderMenu('') újraépíti (és eltávolítja) az éppen kattintott elemet.
   document.addEventListener('mousedown', (e) => {
     if (!wrap.contains(e.target)) closeMenu();
-  });
+  }, true);
 
   const nativeValueDesc = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
   Object.defineProperty(selectEl, 'value', {
