@@ -689,10 +689,21 @@ function splitMergedWheelMesh(mesh, midX, midZ) {
     else g = triCZ[t] > midZ ? 0 : 1;
     triGroups[g].push(t);
   }
-  if (triGroups.some((g) => g.length === 0)) return null;
+  // Négyfelé vágásnál előfordulhat, hogy a darab valójában csak egy ÁTLÓS
+  // párt tartalmaz (pl. első-bal + hátsó-jobb, mert az exportáló a mesh-t
+  // technikai okból — pl. 16 bites indexpuffer-korlát — véletlenszerűen
+  // darabolta fel, nem sarok szerint), és a "hiányzó" másik két sarok negyede
+  // üres marad. Ilyenkor NEM esünk vissza egytengelyes (2 felé) vágásra —
+  // az ÖSSZEMOSNÁ két VALÓDI sarkot egyetlen darabba (pl. ha csak a hátsó-bal
+  // hiányzik, egy X-menti vágás a hátsó-jobbat a hátsó-ballal egy csoportba
+  // tenné). Ehelyett egyszerűen ELHAGYJUK az üres negyedet — a megmaradó
+  // darabok már eleve a saját, valódi sarkukba esnek, a külső (buildWheelPivots)
+  // csoportosítás pedig pozíció alapján úgyis helyesen sorolja be őket.
+  const nonEmpty = triGroups.filter((g) => g.length > 0);
+  if (nonEmpty.length < 2) return null;
 
   const attrNames = Object.keys(geom.attributes);
-  const newMeshes = triGroups.map((tris) => {
+  const newMeshes = nonEmpty.map((tris) => {
     const remap = new Map();
     const newIndex = new Uint32Array(tris.length * 3);
     const newAttrData = {};
