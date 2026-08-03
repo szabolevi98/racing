@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "Az eleje +Z: a szélesebb (hátsó) gumik a -Z oldalon ülnek.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "Kerekenként egy-egy gumi-mesh (TYRE). A felni és a féktárcsa a karosszériához van olvasztva, azok nem forognak — csak a gumi.",
-  "wheelPattern": "TYRE|TIRE"
-}

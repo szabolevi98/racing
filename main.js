@@ -1962,12 +1962,23 @@ function applyWallConstraint() {
 // kormányzás csak az elsőkön. A pivot Euler-sorrendje YXZ, ezért a gördülés
 // (X) a kerék saját tengelye körül történik, és utána forgatja el a
 // kormányzás (Y) — fordított sorrendben csálén állna a kerék.
-function updateWheelVisuals() {
+let visualSteerAngle = 0;
+function updateWheelVisuals(dt) {
   if (!wheelPivots.length) return;
+  // Az első kerekek (wheelSources[i].steer) ugyanazt a fizikai kormányzási
+  // értéket kapják (lásd updateControls: setWheelSteering(0,...)/(1,...) azonos
+  // értékkel) — elég egyszer lekérdezni, melyiket, és afelé simán közelíteni.
+  let steerWheelIdx = -1;
+  for (let i = 0; i < wheelSources.length; i++) {
+    if (wheelSources[i].steer) { steerWheelIdx = wheelSources[i].wheel; break; }
+  }
+  const targetSteer = steerWheelIdx >= 0 ? (vehicle.wheelSteering(steerWheelIdx) ?? 0) : 0;
+  visualSteerAngle = moveTowardsAngle(visualSteerAngle, targetSteer, STEER_VISUAL_SPEED * dt);
+
   for (let i = 0; i < wheelPivots.length; i++) {
     const src = wheelSources[i];
     const roll = vehicle.wheelRotation(src.wheel) ?? 0;
-    const steer = src.steer ? (vehicle.wheelSteering(src.wheel) ?? 0) : 0;
+    const steer = src.steer ? visualSteerAngle : 0;
     wheelPivots[i].rotation.set(roll, steer, 0);
   }
 }
@@ -1993,6 +2004,8 @@ const race = {
   prevX: 0,
   prevZ: 0,
   invalidUntil: 0,  // performance.now() időbélyeg, ameddig a "kör érvénytelen" üzenet látszik
+  hasCrossedStart: false,  // a rajtpont a rajtvonal ELŐTT van, ezért az induláskori
+                           // első átlépés csak a kört KEZDI, nem zárja le
 };
 
 // Hova helyezze vissza a kocsit az R billentyű: az utolsó érintett
@@ -2048,6 +2061,7 @@ function startRace() {
   race.prevX = pos.x;
   race.prevZ = pos.z;
   race.invalidUntil = 0;
+  race.hasCrossedStart = false;
   lastCheckpointSpawn = { x: spawnPoint.x, z: spawnPoint.z, heading: spawnHeading };
   resultsEl.classList.add('hidden');
   lapInvalidAlertEl.classList.add('hidden');
@@ -2096,6 +2110,15 @@ function updateRace(dt) {
   if (!race.active) return;
 
   if (race.phase === 'countdown') {
+    // A visszaszámlálás alatt a felfüggesztés beállása / gravitáció miatt is
+    // mozoghat kicsit a kocsi — ha prevX/prevZ a rajt pillanatában rögzített
+    // (régi) pozíción maradna, az első futó képkockán ez a "szegmens" hamisan
+    // metszhetné a rajtvonalat, és azonnal (0 checkpontos, tehát érvénytelen)
+    // kört zárna, mielőtt a játékos egyáltalán elindult volna. Ezért itt is
+    // folyamatosan frissítjük.
+    const p = chassisBody.translation();
+    race.prevX = p.x;
+    race.prevZ = p.z;
     race.countdownLeft -= dt;
     if (race.countdownLeft <= 0) {
       race.phase = 'running';
@@ -2154,7 +2177,18 @@ function updateRace(dt) {
     }
   }
 
-  if (startCrossed) {
+  if (startCrossed && !race.hasCrossedStart) {
+    // A rajtpont a rajtvonal előtt van: ez az első átlépés csak azt jelenti,
+    // hogy a játékos elindult a rajtvonalon túlra — ez KEZDI az 1. kört, nem
+    // zárja le, ezért nem számít bele a körökbe/időkbe.
+    race.hasCrossedStart = true;
+    race.lapStartTime = now;
+    lastCheckpointSpawn = {
+      x: pos.x,
+      z: pos.z,
+      heading: headingFromMovement(fromX, fromZ, pos.x, pos.z, lastCheckpointSpawn?.heading ?? spawnHeading),
+    };
+  } else if (startCrossed) {
     const invalid = race.lapTainted || race.nextCheckpoint < checkpoints.length;
     race.lapTimes.push({ time: now - race.lapStartTime, invalid });
     race.lapStartTime = now;
@@ -2179,6 +2213,17 @@ window.addEventListener('keydown', (e) => { keys[e.code] = true; });
 window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
 const maxSteerVal = 0.5;
+// A LÁTHATÓ kerék-kormányzás simán közelít a célértékhez, nem ugrik rá
+// azonnal — valóságosabb, mint a korábbi azonnali végállás-váltás, de elég
+// gyors ahhoz, hogy gyors ide-oda kormányzásnál se maradjon el az input
+// mögött. Csak a MEGJELENÍTÉST érinti (a fizikai kormányzás — setWheelSteering
+// — továbbra is azonnali, hogy a kocsi kezelése ne változzon).
+const STEER_VISUAL_SPEED = 3.5; // rad/mp
+function moveTowardsAngle(current, target, maxDelta) {
+  const diff = target - current;
+  if (Math.abs(diff) <= maxDelta) return target;
+  return current + Math.sign(diff) * maxDelta;
+}
 const maxForce = 900;
 const brakeForce = 60;
 const ASPHALT_FRICTION_SLIP = 1.4;
@@ -2400,6 +2445,7 @@ function enterDevMode() {
 // kerekeit anélkül, hogy tényleg vezetni kéne. A W/S (vagy fel/le nyíl) a
 // következő/előző kocsira vált a legördülő megnyitása nélkül.
 let carTestWheelAngle = 0;
+let carTestSteerAngle = 0;
 let carTestSwitching = false;
 const CARTEST_ROLL_SPEED = 6; // rad/mp — kb. 1 fordulat/mp, jól látható tempó
 
@@ -2465,10 +2511,11 @@ function updateCarTest(dt) {
   carTestWheelAngle += dt * CARTEST_ROLL_SPEED;
   const steerLeft = keys['KeyA'] || keys['ArrowLeft'];
   const steerRight = keys['KeyD'] || keys['ArrowRight'];
-  const steer = steerLeft ? maxSteerVal : steerRight ? -maxSteerVal : 0;
+  const targetSteer = steerLeft ? maxSteerVal : steerRight ? -maxSteerVal : 0;
+  carTestSteerAngle = moveTowardsAngle(carTestSteerAngle, targetSteer, STEER_VISUAL_SPEED * dt);
   for (let i = 0; i < wheelPivots.length; i++) {
     const src = wheelSources[i];
-    wheelPivots[i].rotation.set(carTestWheelAngle, src.steer ? steer : 0, 0);
+    wheelPivots[i].rotation.set(carTestWheelAngle, src.steer ? carTestSteerAngle : 0, 0);
   }
   updateSunTarget(carPivot.position);
   updateShowcaseCamera(dt);
@@ -3764,7 +3811,7 @@ function animate() {
       carPivot.position.set(p.x, p.y, p.z);
       carPivot.quaternion.set(q.x, q.y, q.z, q.w);
       updateSunTarget(carPivot.position);
-      updateWheelVisuals();
+      updateWheelVisuals(dt);
     }
 
     updateChaseCamera();
