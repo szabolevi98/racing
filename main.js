@@ -866,13 +866,30 @@ function buildWheelPivots(carRoot, wheelPattern) {
   // mesh-ben: tengelyenként csoportosítunk, és nem kormányzunk.
   const axleMode = spanX < spanZ * 0.25;
 
+  // A medián önmagában NEM használható vágóvonalnak: a modellt épp az imént
+  // igazítottuk a kerekek mediánjára (findWheelCentreOffset), így darabok
+  // PONTOSAN rá is eshetnek a mediánra. Ilyenkor egy szigorú "> medián"
+  // teszten a lebegőpontos hajszál dönti el, melyik tengelyhez kerül a darab
+  // — a rossz oldalra sorolt apró alkatrész (pl. egy féknyereg) aztán a másik
+  // kerék pivotja körül, méteres sugárban kering. Ezért nem a mediánhoz mért
+  // "nagyobb/kisebb" dönt, hanem a két TÉNYLEGES oldal-közép: a darab ahhoz a
+  // tengelyhez/oldalhoz kerül, amelyikhez közelebb van.
+  const sideRef = (values, mid) => {
+    const hi = values.filter((v) => v > mid);
+    const lo = values.filter((v) => v < mid);
+    return { hi: hi.length ? median(hi) : mid, lo: lo.length ? median(lo) : mid };
+  };
+  const zRef = sideRef(zs, midZ);
+  const xRef = sideRef(xs, midX);
+  const nearerHi = (value, ref) => Math.abs(value - ref.hi) <= Math.abs(value - ref.lo);
+
   // index: 0=FL, 1=FR, 2=RL, 3=RR — a +Z az autó eleje
   // (tengely-módban: 0 = első tengely, 1 = hátsó tengely)
   const groups = axleMode ? [[], []] : [[], [], [], []];
   parts.forEach((p) => {
-    const rear = p.local.z > midZ ? 0 : 1;
+    const rear = nearerHi(p.local.z, zRef) ? 0 : 1;
     if (axleMode) groups[rear].push(p);
-    else groups[rear * 2 + (p.local.x > midX ? 1 : 0)].push(p);
+    else groups[rear * 2 + (nearerHi(p.local.x, xRef) ? 1 : 0)].push(p);
   });
   if (groups.some((g) => g.length === 0)) return;
 
