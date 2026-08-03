@@ -2095,14 +2095,17 @@ carTesterCarSelectEl.addEventListener('change', () => {
 });
 
 window.addEventListener('keydown', (e) => {
-  if (appState !== 'cartest' || e.repeat) return;
+  if ((appState !== 'cartest' && appState !== 'menu') || e.repeat) return;
+  // Ha épp egy szöveges mezőben gépel (pl. a kereshető kocsi-select-ben),
+  // a W/S/fel/le a kereséshez kell, nem kocsiváltáshoz.
+  if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
   if (e.code === 'ArrowUp' || e.code === 'KeyW') {
     e.preventDefault();
     switchCarTestBy(-1);
   } else if (e.code === 'ArrowDown' || e.code === 'KeyS') {
     e.preventDefault();
     switchCarTestBy(1);
-  } else if (e.code === 'Escape') {
+  } else if (e.code === 'Escape' && appState === 'cartest') {
     exitCarTester();
   }
 });
