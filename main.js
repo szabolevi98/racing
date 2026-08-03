@@ -547,6 +547,55 @@ function findShowcaseSpot(track, box, preferXZ) {
   return new THREE.Vector3(centerX, (box.min.y + box.max.y) / 2, centerZ);
 }
 
+// Megmondja egy textúráról, hogy MASZK jellegű-e: a lombozat/kerítés-textúrák
+// alfája jellemzően bináris (egy képpont vagy teljesen átlátszó, vagy teljesen
+// fedő), csak a levélszélek élsimított sávja köztes. Ezzel különítjük el őket a
+// VALÓDI félig-átlátszó anyagoktól (üveg, aszfalt-gumicsík, füst), amiken
+// szándékosan át kell látni.
+//
+// A döntő jel a teljesen FEDŐ képpontok aránya: mind a három pályán mérve a
+// valódi félig-átlátszó anyagoknál ez PONTOSAN nulla, a lombozatnál 7-100%.
+// Emellett kizárjuk azt is, aminek a képe túlnyomórészt köztes alfájú (pl.
+// nagyon finom, élsimított drótháló) — ott a mélység-írás túl sok mindent
+// levágna a háttérből.
+const maskTextureCache = new Map();
+function isMaskLikeTexture(tex) {
+  if (!tex || !tex.image) return false;
+  if (maskTextureCache.has(tex.uuid)) return maskTextureCache.get(tex.uuid);
+
+  let result = false;
+  try {
+    const img = tex.image;
+    // A mintavétel NEAREST (imageSmoothingEnabled = false): sima kicsinyítésnél
+    // a bilineáris interpoláció maga gyártana köztes alfa-értékeket a 0/255
+    // határon, és minden textúra félig-átlátszónak tűnne.
+    const scale = Math.min(1, 256 / Math.max(img.width, img.height));
+    const w = Math.max(1, Math.round(img.width * scale));
+    const h = Math.max(1, Math.round(img.height * scale));
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, 0, 0, w, h);
+    const d = ctx.getImageData(0, 0, w, h).data;
+    let opaque = 0;
+    let mid = 0;
+    for (let i = 3; i < d.length; i += 4) {
+      const a = d[i];
+      if (a > 239) opaque++;
+      else if (a >= 16) mid++;
+    }
+    const total = w * h;
+    result = opaque / total > 0.01 && mid / total < 0.4;
+  } catch (err) {
+    result = false; // pl. cross-origin textúra: nem olvasható, hagyjuk békén
+  }
+
+  maskTextureCache.set(tex.uuid, result);
+  return result;
+}
+
 async function setTrack(trackUrl, mapId, spawnPoints, gates) {
   setMenuStatus('Pálya betöltése...');
   currentMapId = mapId || null;
@@ -581,6 +630,32 @@ async function setTrack(trackUrl, mapId, spawnPoints, gates) {
         if (m && !dsSeen.has(m.uuid)) {
           dsSeen.add(m.uuid);
           m.side = THREE.DoubleSide;
+
+          // A lombozat/kerítés alfa-keverve érkezik, aminek az alapértelmezése
+          // depthWrite = false — vagyis NEM ír a mélységi pufferbe. A Three.js
+          // a keverendő darabokat objektum-KÖZÉPPONT szerint rendezi hátulról
+          // előre; a sok fát tartalmazó, nagy kiterjedésű mesh-eknél ez eleve
+          // rossz sorrendet ad, és mélység-írás híján a később rajzolt TÁVOLI
+          // fa egyszerűen rárajzolódik a közelire — ez a "fák átlátszanak
+          // egymáson" hiba.
+          //
+          // A megoldás NEM a kivágásra (alphaTest 0.5 + transparent=false)
+          // váltás: az a levélszélek élsimított sávját teljes erővel megjelenő
+          // sötét képpontokká tenné (a textúrák átlátszó területén az RGB
+          // fekete, és a mipmap ezt belekeveri a szélekbe), amitől foltos lesz
+          // a lomb. Ehelyett MEGTARTJUK a keverést — így a szélek lágyak
+          // maradnak, pontosan úgy néz ki, mint eddig —, és csak a mélység-
+          // írást kapcsoljuk be. Ettől a mélységi puffer helyesen takar,
+          // FÜGGETLENÜL attól, milyen sorrendben rajzolódnak a darabok.
+          //
+          // Az apró alphaTest amellett kell, hogy a szinte teljesen átlátszó
+          // képpontok (a levelek közti "üres" terület) ne írjanak mélységet —
+          // különben egy közeli fa üres része kivágná a mögötte lévő fát.
+          if (m.transparent && m.map && isMaskLikeTexture(m.map)) {
+            m.depthWrite = true;
+            m.alphaTest = 0.1;
+            m.needsUpdate = true;
+          }
         }
       });
     }
