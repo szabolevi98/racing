@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
+  "yawDegrees": 0,
+  "_wheelPattern": "KÉZI. Az anyagnevek sarkonként lf/rf utótagot kapnak (Tyrerf1Mtl, Rimrfsub01Mtl, Diskrf1Mtl, majd .002/.003 másolatok a másik tengelyre). CSAPDA: az automatikus keresés először az Underbodybeige1Mtl-re (ALVÁZLEMEZ!) futott, mert az is a kerekek magasságában, a kerekek területén ül — ezért kézzel, a gumi/felni/tárcsa nevek alapján. Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 5/5/5/5 alkatrész, nyomtáv 1.47, tengelytáv 2.47, max kilengés 180 fokos forgatásnál 0.2.",
+  "wheelPattern": "Disklf|Diskrf|Rimlf|Rimrf|Tyrelf|Tyrerf"
+}

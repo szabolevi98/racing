@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
+  "yawDegrees": 0,
+  "_wheelPattern": "SEMMITMONDÓ nevek: minden anyag 'Material_169.001_N' alakú, tokenekre bontva használhatatlan ('material' az egész kocsit behúzná). Ezért teljes anyagnevekkel, geometria alapján válogatva: mind a 7 felsorolt anyag ugyanabban a pontban (-0.04, 0.18, 0.22) középpontos, kerékátmérőnyi magas, a 4 kereket kifeszítő méretű mesh — vagyis összeolvasztott kerék-alkatrészek (gumi, felni, tárcsa, nyereg). A véghorgony ((?![^\\s])) azért kell, hogy a _1 ne illeszkedjen a _12-re. Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 7/7/7/7 alkatrész, nyomtáv 1.5, tengelytáv 2.65, max kilengés 180 fokos forgatásnál 0.25.",
+  "wheelPattern": "Material_169\\.001_12(?![^\\s])|Material_169\\.001_7(?![^\\s])|Material_169\\.001_8(?![^\\s])|Material_169\\.001_9(?![^\\s])|Material_169\\.001_13(?![^\\s])|Material_169\\.001_14(?![^\\s])|Material_169\\.001_24(?![^\\s])"
+}

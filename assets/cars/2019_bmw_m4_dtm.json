@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
+  "yawDegrees": 0,
+  "_wheelPattern": "Beszédes nevek: EXT_Rims + EXT_Rim_Blur + EXT_Rim_Hub, gumi, EXT_Disc, EXT_Brakes. Ugyanaz a DTM-alapmodell, mint a Mercedes C-Coupe és az Audi RS5 esetén. Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 8/8/8/8 alkatrész, nyomtáv 1.43, tengelytáv 2.46, max kilengés 180 fokos forgatásnál 0.3.",
+  "wheelPattern": "rim|tire|brakes|disc"
+}

@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
+  "yawDegrees": 0,
+  "_wheelPattern": "Beszédes nevek: GENERIC_TREAD_TYRES / GENERIC_TYRE_TYRES (gumi), AUDI_R15_TDI___WHEEL_WHEELS és annak áttetsző változata (felni), audi_a4_dtm_disc (féktárcsa). Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 5/5/5/5 alkatrész, nyomtáv 1.36, tengelytáv 2.47, max kilengés 180 fokos forgatásnál 0.19.",
+  "wheelPattern": "tyres|r15|disc"
+}

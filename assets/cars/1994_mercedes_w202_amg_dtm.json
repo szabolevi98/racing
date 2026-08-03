@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
+  "yawDegrees": 0,
+  "_wheelPattern": "Semmitmondó anyagnevek (Object0011Mtl, Object0031Mtl, ...), ezért teljes anyagnevekkel: a gumi (Tire1Mtl), a kerékanyák (Lugnuts1Mtl), a féknyereg (Dtmc180caliperlf1Mtl) és a féktárcsák (Dtmc180disclf1Mtl / Dtmc180discrf1Mtl), plusz a két felni-anyag. A .001/.002/.003 másolatok a további sarkokat adják. Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 5/6/5/6 alkatrész, nyomtáv 1.47, tengelytáv 2.55, max kilengés 180 fokos forgatásnál 0.3.",
+  "wheelPattern": "object0011mtl|object0031mtl|tire1mtl|lugnuts1mtl|dtmc180caliperlf1mtl|dtmc180disclf1mtl|dtmc180discrf1mtl"
+}

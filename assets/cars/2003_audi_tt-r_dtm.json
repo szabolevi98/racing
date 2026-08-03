@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
+  "yawDegrees": 0,
+  "_wheelPattern": "Részletes modell, sarkonként 10 alkatrésszel: gumi, külső és belső felni (outer_rim, inner_rim), kerékagy (hub), féktárcsa (rotor), féknyereg (caliper), embléma (badge) és a forgás-elmosódás (blur). Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 10/10/10/10 alkatrész, nyomtáv 1.61, tengelytáv 2.45, max kilengés 180 fokos forgatásnál 0.36.",
+  "wheelPattern": "blur|tyre|rotor|hub|outer|wheel|caliper\\.003(?![^\\s])|badge\\.001(?![^\\s])|inner_rim\\.005(?![^\\s])"
+}

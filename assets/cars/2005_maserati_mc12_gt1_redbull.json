@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
+  "yawDegrees": 0,
+  "_wheelPattern": "Összeolvasztott alkatrészek: generic_tread / generic_tyre (gumi), maserati_mc12_rim (felni), WHEEL_BLUR_RIM (forgás-elmosódás), generic_disc04 (féktárcsa), badge_caliper (féknyereg). Sarkonként 7 alkatrész. Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 7/7/7/7 alkatrész, nyomtáv 1.43, tengelytáv 2.37, max kilengés 180 fokos forgatásnál 0.3.",
+  "wheelPattern": "generic|top|caliper|wheel|maserati_mc12_rim\\.007(?![^\\s])"
+}

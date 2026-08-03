@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
+  "yawDegrees": 0,
+  "_wheelPattern": "Beszédes anyagnevek: Rims (felni) + tire (gumi), sarkonként külön. Ennél a modellnél nincs külön féktárcsa/nyereg, ezért csak 2 alkatrész jut egy kerékre — ez nem hiányosság, a modell tényleg ennyiből áll. Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 2/2/2/2 alkatrész, nyomtáv 1.18, tengelytáv 2.25, max kilengés 180 fokos forgatásnál 0.03.",
+  "wheelPattern": "rims|tire"
+}

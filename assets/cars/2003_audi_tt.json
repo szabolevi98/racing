@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
+  "yawDegrees": 0,
+  "_wheelPattern": "A modell mindössze pár nagy mesh-ből áll, a nevek a gyűjtemény szerzőjét is tartalmazzák. A kerékre a 'tire', 'rim' és 'brakedisc' utal, sarkonként 3 alkatrész. Nagyon pontos illeszkedés (kilengés 0.03). Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 3/3/3/3 alkatrész, nyomtáv 1.64, tengelytáv 2.64, max kilengés 180 fokos forgatásnál 0.03.",
+  "wheelPattern": "tire|brakedisc|rim"
+}

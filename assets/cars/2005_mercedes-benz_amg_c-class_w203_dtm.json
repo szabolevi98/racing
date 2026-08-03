@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
+  "yawDegrees": 0,
+  "_wheelPattern": "Beszédes nevek: tyre, rim, RIM_BLUR, caliper, valamint az ASTON_DBR1_DISC nevű féktárcsa (a modellező egy másik autó tárcsáját használta újra — a név megtévesztő, de a darab tényleg a kerékagyon ül). Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 5/5/5/5 alkatrész, nyomtáv 1.38, tengelytáv 2.53, max kilengés 180 fokos forgatásnál 0.33.",
+  "wheelPattern": "tyre|rim|aston|caliper"
+}

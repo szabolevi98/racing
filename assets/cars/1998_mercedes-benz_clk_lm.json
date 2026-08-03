@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
+  "yawDegrees": 0,
+  "_wheelPattern": "Beszédes nevek: tyre (gumi), caliper (féknyereg), rotor (féktárcsa), plusz egy Material.007 nevű, kerékhez tartozó darab (a felni, aminek nincs beszédes neve). Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 5/5/5/5 alkatrész, nyomtáv 1.48, tengelytáv 2.43, max kilengés 180 fokos forgatásnál 0.32.",
+  "wheelPattern": "tyre|caliper|rotor|Material\\.007(?![^\\s])"
+}

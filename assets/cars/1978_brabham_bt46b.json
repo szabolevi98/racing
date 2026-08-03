@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
+  "yawDegrees": 0,
+  "_wheelPattern": "KÉZI. A kerék-alkatrészek mind ÖSSZEOLVASZTVA, egy-egy mesh tartalmazza mind a 4 kereket: gumi (tires_front_tread), felni (RIM.009), kerékanyák (BOLTS), felni-részek (metal, BLACK) — mind a kerékközépre (0, 0.26, 0) koncentrikus. CSAPDA: a BDISK (féktárcsa) SZÁNDÉKOSAN kimarad, mert a BT46B-n a fék BELÜL, a váltó mellett ül (inboard brakes), nem a kerékagyon — bevéve a kerékkel együtt keringene: mérve 1.27 kilengés, e nélkül 0.17. Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 5/5/5/5 alkatrész, nyomtáv 1.65, tengelytáv 2.71, max kilengés 180 fokos forgatásnál 0.17.",
+  "wheelPattern": "tires_front_tread|RIM\\.009|metal\\.007|BOLTS|BLACK\\.003"
+}

@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
+  "yawDegrees": 0,
+  "_wheelPattern": "A kerék-alkatrészek mind a 'DETROIT_EGT_' előtagot viselik (a felni gyártója): DETROIT_EGT_RIM, _RIM_IN, _RIM_BLUR, _RIM_BLURA, _2018_CAL (féknyereg), mellettük a GTE_M_TREAD / _TWALL gumi és a DISC. Egyetlen token elég, mert ebben a modellben minden 'detroit' nevű darab a kerékhez tartozik. Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 9/9/9/9 alkatrész, nyomtáv 1.4, tengelytáv 2.4, max kilengés 180 fokos forgatásnál 0.28.",
+  "wheelPattern": "detroit"
+}

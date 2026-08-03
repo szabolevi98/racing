@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
+  "yawDegrees": 0,
+  "_wheelPattern": "Összeolvasztott kerék-alkatrészek: rim (felni), tire (gumi), disc (féktárcsa), caliper (féknyereg) — mind a 4 kereket egy-egy mesh tartalmazza, a splitMergedWheelMesh vágja szét. A 'vehicle' token szintén csak kerék-darabot fog meg ebben a modellben. Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 5/5/5/5 alkatrész, nyomtáv 1.47, tengelytáv 2.54, max kilengés 180 fokos forgatásnál 0.25.",
+  "wheelPattern": "disc|rim|tire|vehicle|caliper\\.003(?![^\\s])"
+}

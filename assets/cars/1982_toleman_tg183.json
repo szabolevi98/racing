@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
+  "yawDegrees": 0,
+  "_wheelPattern": "Beszédes nevek: az 1982-es felnik (1982_WHEEL_RIM_FRONT_SILVER / _SILVER_REAR, RIM_BLUR), a Michelin gumik és a kerékanya (JH21C_TIRE_NUT). Az első és hátsó gumi eltérő szélességű (0.28 ill. 0.42) — ez a korszak F1-jénél helyes, nem hiba. Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 6/6/5/5 alkatrész, nyomtáv 1.71, tengelytáv 2.76, max kilengés 180 fokos forgatásnál 0.16.",
+  "wheelPattern": "rim|tire|michelin"
+}

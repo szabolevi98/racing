@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
+  "yawDegrees": 0,
+  "_wheelPattern": "Az anyagnevek semmitmondóak (Mesh1Mtl.003, Mesh2Mtl.002, ...), a NODE-nevekben viszont ott a sarok jelölése: fl/fr/rr/rl (bal-első, jobb-első, jobb-hátsó, bal-hátsó). Sarkonként pontosan 3 alkatrész (gumi, felni, fék), tökéletesen szimmetrikusan. Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 3/3/3/3 alkatrész, nyomtáv 1.46, tengelytáv 2.57, max kilengés 180 fokos forgatásnál 0.09.",
+  "wheelPattern": "fl|fr|rr|rl"
+}

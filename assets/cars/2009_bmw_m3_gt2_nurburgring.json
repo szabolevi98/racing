@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
+  "yawDegrees": 0,
+  "_wheelPattern": "Beszédes nevek: rim + rim_blur (felni), tyre, brake_disk. A 'clutch' token szintén kerék-alkatrészt fog meg ebben a modellben (a kerékagy-menesztő). Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 5/5/5/5 alkatrész, nyomtáv 1.55, tengelytáv 2.58, max kilengés 180 fokos forgatásnál 0.2.",
+  "wheelPattern": "rim|tyre|clutch|disk"
+}

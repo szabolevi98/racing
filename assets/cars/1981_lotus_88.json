@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
+  "yawDegrees": 0,
+  "_wheelPattern": "KÉZI. A 4 sarok külön anyagnév-előtaggal van jelölve: rf/lf = jobb/bal első, rr/lr = jobb/bal hátsó (L88rf11Mtl, L88rf10011Mtl, L88rf10031Mtl, ...), plusz az L88brakerf11Mtl féktárcsa. Tokenekre bontva a nevek használhatatlanok (csupa kód), az előtag viszont pontosan a kerekeket fogja meg. A 2.14-es nyomtáv a szárnyas Lotus 88-nál helyes. Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 5/5/5/5 alkatrész, nyomtáv 2.14, tengelytáv 2.8, max kilengés 180 fokos forgatásnál 0.15.",
+  "wheelPattern": "L88rf|L88rr|L88lr|L88lf|L88brake"
+}
