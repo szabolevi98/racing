@@ -957,6 +957,17 @@ async function setCar(carUrl, carId, config) {
   setMenuStatus('Kocsi betöltése...');
 
   carLoaded = false;
+  // A groundOffset kocsinkénti kalibrálása (calibrateGroundOffset) csak EGYSZER
+  // futott le a teljes oldal-betöltés alatt (a groundOffsetCalibrated zászló
+  // sosem állt vissza), ezért az ELSŐ vezetett kocsi felfüggesztés-hosszából
+  // számolt érték minden KÉSŐBB kiválasztott kocsinál is megmaradt — akkor is,
+  // ha annak egészen más a kerék-mérete. Emiatt tűnhetett úgy, hogy egy adott
+  // kocsinál a felfüggesztés/kerék-agy magasabban ül, mint a kerék közepe: a
+  // vizuális modell a SAJÁT (helyes) méretéhez igazodik, de vezetés közben a
+  // kasztni egy IDEGEN kocsi kalibrált magasságában állt meg fizikailag.
+  // Kocsiváltáskor ezért újra kalibrálni kell.
+  groundOffset = WHEEL_CONNECTION_DROP + SUSPENSION_REST_LENGTH + WHEEL_RADIUS;
+  groundOffsetCalibrated = false;
   // Csak a korábbi karosszéria-modellt dobjuk el — a fényszórók (és a
   // célpontjaik) szintén a carPivot gyerekei, azokat meg kell tartani.
   if (currentCarModel) {
