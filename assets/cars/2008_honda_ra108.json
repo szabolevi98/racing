@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "Ua. 2008-as kit mint a Force India VJM01/Toro Rosso STR3: brake.020, calliper.015, disk.015, RIM_BLUR.010, rim.015, tread.015, side.015. CSAPDA: 'brakefluid.015' (kokpit) és 'side_left.015'/'side_right.015'/'sideleft'/'sideright' NEM kerekek - a pontos sorszám és a ' side(.|sorvég)' forma zárja ki őket.",
-  "wheelPattern": "brake.020|calliper.015|disk.015|RIM_BLUR.010|rim.015|tread.015| side(\\.|$)"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.33, tengelytáv 3.02, 33 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: Ua. 2008-as kit mint a Force India VJM01/Toro Rosso STR3: brake.020, calliper.015, disk.015, RIM_BLUR.010, rim.015, tread.015, side.015. CSAPDA: 'brakefluid.015' (kokpit) és 'side_left.015'/'side_right.015'/'sideleft'/'sideright' NEM kerekek - a pontos sorszám és a ' side(.|sorvég)' forma zárja ki őket.",
+  "wheelPattern": "tread|rim|side\\.015(?![^\\s])|calliper|cover|disk|brake\\.020(?![^\\s])"
 }

@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "GYORS becslés. A 4 sarok már eleve külön mesh-csoport (Rotor0021/0011Mtl, Tire1Mtl, Rim1Mtl, Brembo1Mtl, .001/.002/.003 sorszámmal a másik 3 saroknál) - nincs ütközés más résszel.",
-  "wheelPattern": "Rotor0021Mtl|Rotor0011Mtl|Tire1Mtl|Rim1Mtl|Brembo1Mtl"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.64, tengelytáv 2.48, 20 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: GYORS becslés. A 4 sarok már eleve külön mesh-csoport (Rotor0021/0011Mtl, Tire1Mtl, Rim1Mtl, Brembo1Mtl, .001/.002/.003 sorszámmal a másik 3 saroknál) - nincs ütközés más résszel.",
+  "wheelPattern": "tire1mtl|rotor0021mtl|rotor0011mtl|rim1mtl|brembo1mtl"
 }

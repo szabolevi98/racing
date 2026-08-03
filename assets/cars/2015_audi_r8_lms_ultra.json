@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "GYORS becslés. A 4 sarok már eleve külön mesh-csoport, hosszú, összetett anyagnevekkel (generictyre101/lmswheel101/lmsdisc101/treadslick101 - mind az 'Audir8lmsaudir8lms...' prefix után), sorszámmal a 4 saroknál. Nincs ütközés a 'misc101Mtl' (nem-kerék) résszel, mert az nem tartalmazza ezeket a szavakat.",
-  "wheelPattern": "generictyre|lmswheel101|lmsdisc101|treadslick101"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.59, tengelytáv 2.6, 16 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: GYORS becslés. A 4 sarok már eleve külön mesh-csoport, hosszú, összetett anyagnevekkel (generictyre101/lmswheel101/lmsdisc101/treadslick101 - mind az 'Audir8lmsaudir8lms...' prefix után), sorszámmal a 4 saroknál. Nincs ütközés a 'misc101Mtl' (nem-kerék) résszel, mert az nem tartalmazza ezeket a szavakat.",
+  "wheelPattern": "audir8lmsaudir8lmsir8lmsgenerictyre101mtl|audir8lmsaudir8lmslmsaudir8lmswheel101mtl|audir8lmsaudir8lmslmsaudir8lmsdisc101mtl|audir8lmsaudir8lmssgenerictreadslick101mtl"
 }

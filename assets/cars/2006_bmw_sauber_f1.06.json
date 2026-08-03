@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "TESZT: névből egyértelmű (Tyrelf='Tyre left front', Rimlr='Rim left rear') kerék-anyagok, bár csak 1-1 példány van belőlük (feltehetően mind a 4 kereket lefedő összeolvasztott mesh, elnevezés csak az egyik sarokra utal). Plusz 3 generikus 'Circle...' anyag pontosan ugyanazon a pozíción - valószínűleg további kerék-rétegek (tárcsa/agy).",
-  "wheelPattern": "Tyrelf0021Mtl|Rimlr0010011Mtl|Circle002sub11Mtl|Circle002sub01Mtl|Circle0100011Mtl"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.34, tengelytáv 2.8, 20 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: TESZT: névből egyértelmű (Tyrelf='Tyre left front', Rimlr='Rim left rear') kerék-anyagok, bár csak 1-1 példány van belőlük (feltehetően mind a 4 kereket lefedő összeolvasztott mesh, elnevezés csak az egyik sarokra utal). Plusz 3 generikus 'Circle...' anyag pontosan ugyanazon a pozíción - valószínűleg további kerék-rétegek (tárcsa/agy).",
+  "wheelPattern": "tyrelf0021mtl|rimlr0010011mtl|circle002sub11mtl|circle002sub01mtl|circle0100011mtl"
 }

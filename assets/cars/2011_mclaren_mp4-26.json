@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "Közös 2011-es F1 kerék-kit (ua. mint Ferrari 150° Italia, HRT F111, Mercedes MGP W02, Renault R31, Sauber C30, Toro Rosso STR6): wheel, tyre_side, Tyre_thread. CSAPDA: van egy 'steering_wheel' anyag is (kormánykerék) - a minta a ' wheel(.|sorvég)'-gel zárja ki (lásd Ferrari 150° Italia JSON-ja a részletes magyarázatért).",
+  "_wheelPattern": "MEGTARTOTT KÉZI MINTA (2026-08-03 felülvizsgálat). A repó összes kocsiját újraértékeltük a tools/propose.mjs automatikával, és élő A/B teszttel összemértük a régi és az új mintát. ENNÉL A KOCSINÁL A RÉGI a jobb: a régi 12 alkatrészt forgat, az automatikus 8-at. Ezért az automatikus javaslatot elvetettük. (Az automatika ezt adta volna: tyre)\n\nEredeti megjegyzés: Közös 2011-es F1 kerék-kit (ua. mint Ferrari 150° Italia, HRT F111, Mercedes MGP W02, Renault R31, Sauber C30, Toro Rosso STR6): wheel, tyre_side, Tyre_thread. CSAPDA: van egy 'steering_wheel' anyag is (kormánykerék) - a minta a ' wheel(.|sorvég)'-gel zárja ki (lásd Ferrari 150° Italia JSON-ja a részletes magyarázatért).",
   "wheelPattern": " wheel(\\.|$)|tyre_side|Tyre_thread"
 }

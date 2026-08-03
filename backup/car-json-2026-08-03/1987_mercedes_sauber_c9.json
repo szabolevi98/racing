@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "GYORS becslés. CSAPDA: a Mesh1Mtl/Mesh2Mtl alapnevek karosszéria-panelekre IS használva vannak más sorszámmal (Mesh1Mtl.005/Mesh2Mtl.005 hatalmas panel) - ezért pontos sorszámok kellenek a 4 sarok wheel-anyagaihoz (.006/.007/.008/.009).",
+  "wheelPattern": "Mesh1Mtl.006|Mesh1Mtl.007|Mesh1Mtl.008|Mesh1Mtl.009|Mesh2Mtl.006|Mesh2Mtl.007|Mesh2Mtl.008|Mesh2Mtl.009"
+}

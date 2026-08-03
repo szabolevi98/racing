@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "Az anyagnevek explicit 'FRONT'/'REAR'-t tartalmaznak: RIMS_FRONT.011 z=+1.43-nál, RIMS_REAR.011 z=-1.52-nél - egyértelműen +Z előre.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "Tiszta, névvel ellátott kerék-anyagok (TIRES, TREAD, RIMS_FRONT/REAR, FRONT/REAR_BLUR, DISK, BREMBO), tengelyenként összeolvasztva, geometria-szétvágással.",
-  "wheelPattern": "TIRES.011|TREAD.011|RIMS_REAR.011|REAR_BLUR.011|RIMS_FRONT.011|FRONT_BLUR.011|DISK.009|BREMBO.007"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.61, tengelytáv 2.72, 24 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: Tiszta, névvel ellátott kerék-anyagok (TIRES, TREAD, RIMS_FRONT/REAR, FRONT/REAR_BLUR, DISK, BREMBO), tengelyenként összeolvasztva, geometria-szétvágással.",
+  "wheelPattern": "disk|rims|blur|brembo|tires|tread"
 }

@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "Az eleje +Z: a 'rear_light' anyagú mesh a hátsó (-Z) oldalon van. A modell saját, beégetett 90 fokos X-forgatása (Z-up -> Y-up) már a fájlban benne van, ez nem ide tartozik.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "Anyagonként egy primitívben van mind a 4 kerék összeolvasztva (Tyre_thread, tyre_side, redbull_wheel_hub, discs) — a játék ezt felismeri, és a háromszögeket pozíció szerint 4 sarokra szétvágja.",
-  "wheelPattern": "Tyre_thread|tyre_side|redbull_wheel_hub|discs"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.29, tengelytáv 2.9, 16 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: Anyagonként egy primitívben van mind a 4 kerék összeolvasztva (Tyre_thread, tyre_side, redbull_wheel_hub, discs) — a játék ezt felismeri, és a háromszögeket pozíció szerint 4 sarokra szétvágja.",
+  "wheelPattern": "tyre|discs|hub"
 }

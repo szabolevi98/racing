@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "Az eleje +Z: a 'LOD_A_FRONTBUMPER' z=+2.47-nél van, a 'LOD_A_REARBUMPER'/'LOD_A_EXHAUST' pedig -2.4/-2.8 körül. A modell node-onkénti, beégetett 90 fokos X-forgatása (Z-up -> Y-up) már a fájlban benne van.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "Nagyon tiszta modell: mind a 4 kerék (gumi+felni) KÜLÖN node/mesh, pontosan a 4 sarokban (±0.8 X, +1.64/-2.08 Z). A 'LOD_A_WHEEL_' (aláhúzással a végén) nem fogja meg a 'LOD_A_WHEELGUARD_...'-ot (kerékjárati burkolat, csak elöl van, aszimmetrikus lenne). A 'LOD_A_BRAKES_LEFT/RIGHT' és a kormány (STEERING_WHEEL) szándékosan kimaradt.",
-  "wheelPattern": "LOD_A_TYRE|LOD_A_WHEEL_"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.22, tengelytáv 2.88, 8 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: Nagyon tiszta modell: mind a 4 kerék (gumi+felni) KÜLÖN node/mesh, pontosan a 4 sarokban (±0.8 X, +1.64/-2.08 Z). A 'LOD_A_WHEEL_' (aláhúzással a végén) nem fogja meg a 'LOD_A_WHEELGUARD_...'-ot (kerékjárati burkolat, csak elöl van, aszimmetrikus lenne). A 'LOD_A_BRAKES_LEFT/RIGHT' és a kormány (STEERING_WHEEL) szándékosan kimaradt.",
+  "wheelPattern": "tyre|2020_f1_mclaren_mcl35_wheel\\.etc\\.png(?![^\\s])"
 }

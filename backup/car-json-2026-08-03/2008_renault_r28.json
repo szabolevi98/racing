@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "JAVÍTVA (felhasználó jelezte: 'véletlenül elkapott valami nagyot ami forog'). A 'brake.017' csak az EGYIK saroknál (hátsó bal) létezik, a másik 3 saroknál nincs párja - kizártam a mintából, mert aszimmetrikus extra darabot ad hozzá, ami furán forgónak tűnhet. Ua. 2008-as kit-család marad: calliper.013, disk.013, rim.013, tread.013, side.013, brake.018 (fő fékanyag). CSAPDA: 'brakefluid.013' (kokpit) és 'side_left.013'/'side_right.013' NEM kerekek.",
+  "wheelPattern": "brake.018|calliper.013|disk.013|rim.013|tread.013| side(\\.|$)"
+}

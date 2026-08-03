@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "Az eleje +Z: a modellben a kerekek 'fl'/'fr' (első) néven a +Z oldalon vannak, a szélesebb hátsó gumik a -Z oldalon.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "A modell node-jai f2004_wheel_fl_1 / _fr_2 / _rl_3 / _rr_4 néven vannak, kerekenként 6 mesh-sel — a 'wheel' minta mind a 24-et megfogja, a játék pedig pozíció szerint osztja 4 sarokba. Ez a fájl saját origója NEM a tengelytáv közepén volt (a kocsi ~1.3 egységgel előrébb ült, mint kellett volna) — a játék a wheelPattern alapján automatikusan középre igazítja, nem kellett kézzel javítani.",
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.34, tengelytáv 3, 24 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: A modell node-jai f2004_wheel_fl_1 / _fr_2 / _rl_3 / _rr_4 néven vannak, kerekenként 6 mesh-sel — a 'wheel' minta mind a 24-et megfogja, a játék pedig pozíció szerint osztja 4 sarokba. Ez a fájl saját origója NEM a tengelytáv közepén volt (a kocsi ~1.3 egységgel előrébb ült, mint kellett volna) — a játék a wheelPattern alapján automatikusan középre igazítja, nem kellett kézzel javítani.",
   "wheelPattern": "wheel"
 }

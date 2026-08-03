@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "Extra elfordulás fokban, ha a modell nem előre néz. A hossz-tengelyt (X vagy Z) magától felismeri a játék; ez csak az előre/hátra felcserélést javítja, tipikusan 180.",
   "yawDegrees": 180,
-
-  "_wheelPattern": "Reguláris kifejezés: mely mesh-ek tartoznak a kerekekhez (a saját vagy a szülő objektum nevében keresve). A kerekeket a játék pozíció alapján osztja 4 sarokba, mert a nevek itt nem árulják el, melyik melyik. FIGYELEM: a BRAKE utáni aláhúzás fontos — enélkül a BRAKELIGHT (féklámpa) is beleesne, és a lámpák a hátsó kerekekkel együtt forognának.",
-  "wheelPattern": "TIRE|BRAKE_"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.53, tengelytáv 2.58, 24 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: Reguláris kifejezés: mely mesh-ek tartoznak a kerekekhez (a saját vagy a szülő objektum nevében keresve). A kerekeket a játék pozíció alapján osztja 4 sarokba, mert a nevek itt nem árulják el, melyik melyik. FIGYELEM: a BRAKE utáni aláhúzás fontos — enélkül a BRAKELIGHT (féklámpa) is beleesne, és a lámpák a hátsó kerekekkel együtt forognának.",
+  "wheelPattern": "tire|caliper|brakedisc"
 }

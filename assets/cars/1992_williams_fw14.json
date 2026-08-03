@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "JAVÍTVA (a felhasználó jelezte: 'egy kis particle nagyot forog jobb oldalt, de a kerekek jók, csak valamit megfogtál velük'). A 'CALIPER88' és 'DISC88' anyagoknak volt egy-egy extra/duplikált, rossz helyű példánya, ami elrontotta a sarok-klaszterezést (aszimmetrikus pozíciók lettek) - mindkettőt kivéve szimmetrikus 3/3/3/3 lett (RIMOZW+TREAD92R+TIRE92R marad, fék-tárcsa/nyereg részlet nélkül). FIGYELEM: van 3 kormánykerék-anyag is a pilótafülkében (F1_92_WHEEL1, WILLIAMSWHEEL, WILLBACKWHEEL) - a minta szándékosan nem 'WHEEL'-lel keres, hogy ezeket ne fogja meg.",
-  "wheelPattern": "RIMOZW|TREAD92R|TIRE92R"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.73, tengelytáv 2.84, 27 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: JAVÍTVA (a felhasználó jelezte: 'egy kis particle nagyot forog jobb oldalt, de a kerekek jók, csak valamit megfogtál velük'). A 'CALIPER88' és 'DISC88' anyagoknak volt egy-egy extra/duplikált, rossz helyű példánya, ami elrontotta a sarok-klaszterezést (aszimmetrikus pozíciók lettek) - mindkettőt kivéve szimmetrikus 3/3/3/3 lett (RIMOZW+TREAD92R+TIRE92R marad, fék-tárcsa/nyereg részlet nélkül). FIGYELEM: van 3 kormánykerék-anyag is a pilótafülkében (F1_92_WHEEL1, WILLIAMSWHEEL, WILLBACKWHEEL) - a minta szándékosan nem 'WHEEL'-lel keres, hogy ezeket ne fogja meg.",
+  "wheelPattern": "tyre|caliper|disc88|rim"
 }

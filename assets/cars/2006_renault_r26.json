@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "GYORS becslés - ugyanaz a kerék-kit-család, mint a bevált 2006 McLaren MP4/21-nél, ott +Z volt az eleje. Ellenőrizd élőben.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "PROAKTÍV JAVÍTÁS (nem volt a hibalistán, de ugyanaz a közös kit mint a többi 2006-os testvérnél, amiknél hiányzott a 'blur1'/'blur2' réteg - itt is pótoltam elővigyázatosságból). Közös 2006-os F1 kerék-kit: brake, calliper, disk, RENRIM, RENSPOKES, side, tread, RENHUB. FIGYELEM: van egy 'REN06WHEEL' anyag is (kormánykerék) - a minta szándékosan nem 'WHEEL'-lel keres.",
-  "wheelPattern": "brake|calliper|disk|blur1|blur2|RENRIM|RENSPOKES|side|tread|RENHUB"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.38, tengelytáv 2.98, 43 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: PROAKTÍV JAVÍTÁS (nem volt a hibalistán, de ugyanaz a közös kit mint a többi 2006-os testvérnél, amiknél hiányzott a 'blur1'/'blur2' réteg - itt is pótoltam elővigyázatosságból). Közös 2006-os F1 kerék-kit: brake, calliper, disk, RENRIM, RENSPOKES, side, tread, RENHUB. FIGYELEM: van egy 'REN06WHEEL' anyag is (kormánykerék) - a minta szándékosan nem 'WHEEL'-lel keres.",
+  "wheelPattern": "tread|side|brake|calliper|disk|blur1|blur2|renrim|renspokes|renhub"
 }

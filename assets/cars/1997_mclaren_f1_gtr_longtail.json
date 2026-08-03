@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "GYORS becslés. Két 'chassislight' anyagú mesh van a kasztni két végén, túl a kerekeken: z=+9.63 (első tengely z=7.25 előtt) és z=-9.49 (hátsó tengely z=-5.20 mögött) - valószínűleg fényszóró/hátsólámpa, +Z előre irányt valószínűsítve.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "GYORS becslés. A 4 sarok már eleve külön mesh-csoport (Object251/2621/2421/231Mtl, sorszámmal .004-.007 a 4 saroknál) - nincs ütközés más résszel (a karosszéria Interior/Secondary/Exhaust/Mirror/Window/Paint neveket használ).",
-  "wheelPattern": "Object251Mtl|Object2621Mtl|Object2421Mtl|Object231Mtl"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.45, tengelytáv 2.42, 16 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: GYORS becslés. A 4 sarok már eleve külön mesh-csoport (Object251/2621/2421/231Mtl, sorszámmal .004-.007 a 4 saroknál) - nincs ütközés más résszel (a karosszéria Interior/Secondary/Exhaust/Mirror/Window/Paint neveket használ).",
+  "wheelPattern": "object2421mtl|object251mtl|object2621mtl|object231mtl"
 }

@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "JAVÍTVA (felhasználó jelezte: 'jobb első kerék nagyot forog'). A gyökér-ok: a buildWheelPivots sarok-klaszterezése egy SZIGORÚ '>' összehasonlítással osztja szét a kerekeket elöl/hátulra a medián-Z alapján. Mivel a hátsó tengelynél VOLT egy extra egyedi anyag ('carbon', csak hátul létezik) és pár véletlenszerű duplikált mesh-példány (extra 'side'/'tread.002'), a hátsó tengelyhez tartozó találatok száma meghaladta az elsőét - ez pontosan a hátsó sarok Z-koordinátájára tolta a globális mediánt. Emiatt a szigorú '>' teszt tévesen az ELSŐ tengely egyik oldalát is a HÁTSÓ csoportba sorolta (mert egy pontosan a mediánon ülő érték nem 'nagyobb' a mediánnál) - ez okozta, hogy két, egymástól teljesen eltérő pozíciójú kerék-készlet (elöl-bal ÉS hátul-bal) UGYANARRA a pivot-pontra került, egymást átfedve, és az egyik forgáskor 'kilendült' a másikhoz képest. A 'carbon' kizárásával a találat-számok kiegyenlítődtek, a medián a két tengely KÖZÖTTI résbe esik, és mind a 4 sarok külön, helyes pozícióra kerül. Ára: a 'carbon' (apró hátsó fékrészlet) nem látszik többé, de ez elfogadható csere a hibás kilengésért. Ua. 2008-as kit-család, de itt más névvel: cover, material, calliper, side, tread.002. CSAPDA: 'carbon2' (nagy karosszéria-panel) NEM kerék. A 'side_left'/'side_right' és 'steeringwheel'/'steer_carbon' szintén nem kerekek.",
+  "wheelPattern": "cover|material|calliper| side(\\.|$)|tread.002"
+}

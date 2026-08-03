@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "GYORS becslés. A hátsó tengely (z=-7.58) mögött egy magas, széles panel ('Mesh1Mtl.019', y=4.40, x=11.76) valószínűleg hátsó szárny - ez +Z előre irányt valószínűsít.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "JAVÍTVA (a felhasználó jelezte, hogy a kasztni egy darabja együtt forgott a kerékkel): a Mesh1Mtl ÉS a Mesh2Mtl alapnév IS karosszéria-panelre van használva más sorszámmal - Mesh1Mtl.019 a hátsó szárny, Mesh2Mtl.018 pedig a TELJES kasztni (11.8x6x27.5 méretű panel!), ez utóbbit korábban tévesen 'nem ütközik semmivel' minősítettem és bare 'Mesh2Mtl'-ként hagytam, ezért forgott vele a kasztni. Most minden sarok-anyaghoz (Mesh1/2/3Mtl) pontos sorszám van megadva, semmi bare minta.",
-  "wheelPattern": "Mesh1Mtl.017|Mesh1Mtl.018|Mesh1Mtl.021|Mesh1Mtl.022|Mesh2Mtl.016|Mesh2Mtl.017|Mesh2Mtl.020|Mesh2Mtl.021|Mesh3Mtl.016|Mesh3Mtl.017|Mesh3Mtl.020|Mesh3Mtl.021"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.56, tengelytáv 2.53, 12 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: JAVÍTVA (a felhasználó jelezte, hogy a kasztni egy darabja együtt forgott a kerékkel): a Mesh1Mtl ÉS a Mesh2Mtl alapnév IS karosszéria-panelre van használva más sorszámmal - Mesh1Mtl.019 a hátsó szárny, Mesh2Mtl.018 pedig a TELJES kasztni (11.8x6x27.5 méretű panel!), ez utóbbit korábban tévesen 'nem ütközik semmivel' minősítettem és bare 'Mesh2Mtl'-ként hagytam, ezért forgott vele a kasztni. Most minden sarok-anyaghoz (Mesh1/2/3Mtl) pontos sorszám van megadva, semmi bare minta.",
+  "wheelPattern": "wheel"
 }

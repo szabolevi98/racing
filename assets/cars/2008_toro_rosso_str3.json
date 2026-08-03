@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "Ua. mint a Force India VJM01 (közös 2008-as kit): brake.022, calliper.017, disk.017, rim.017, RIM_BLUR.012, tread.017, side.017. CSAPDA: 'brakefluid.017' (fékfolyadék-tartály, kokpit) és 'side_left.017'/'side_right.017' (orr-elem oldalpanel) NEM kerék-alkatrészek - a pontos '.022'/'.017' sorszámok és a ' side(.|sorvég)' forma zárja ki ezeket.",
-  "wheelPattern": "brake.022|calliper.017|disk.017|rim.017|RIM_BLUR.012|tread.017| side(\\.|$)"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.36, tengelytáv 2.88, 31 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: Ua. mint a Force India VJM01 (közös 2008-as kit): brake.022, calliper.017, disk.017, rim.017, RIM_BLUR.012, tread.017, side.017. CSAPDA: 'brakefluid.017' (fékfolyadék-tartály, kokpit) és 'side_left.017'/'side_right.017' (orr-elem oldalpanel) NEM kerék-alkatrészek - a pontos '.022'/'.017' sorszámok és a ' side(.|sorvég)' forma zárja ki ezeket.",
+  "wheelPattern": "tread|rim|side\\.017(?![^\\s])|calliper|disk|brake\\.022(?![^\\s])"
 }

@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "A 'MICHTYRE' (Michelin) z=+1.41-nél, a 'BRIDGETYRE' (Bridgestone) z=-1.66-nál - ugyanaz a minta mint a Williams FW19-nél, ott +Z volt az eleje.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "TOVÁBB JAVÍTVA (felhasználó jelezte: 'első gumik futófelülete nem fordul jobbra balra'). Kimaradt a 'THREAD_FRONT'/'THREAD_SOFT' (futófelület-mintázat) - ugyanaz a hiba, mint amit a Benetton B190/Williams FW19/McLaren MP4-12 testvéreknél már javítottunk, csak itt még nem lett pótolva. Mindkettő egy összeolvasztott (elöl+hátul), kb 1.9x0.6x1.55-ös darab, geometria-szétvágással szét kell válnia. Korábban JAVÍTVA (a felhasználó jelezte: 'gumi forog, felnik nem'). Kimaradt több felni-réteg (METALBACK, ARRWBBS, ARRWSHADES1, METALBLACK, egy generikus 'material') - ugyanott, ugyanakkora méretben mint a már benne lévő RIM3BLACK/RIM1BLACK. Közös '97-es F1 kerék-kit (ua. mint Williams FW19, Benetton B197, McLaren MP4/12): MICHTYRE, RIM_BLUR/RIM3BLACK/RIM1BLACK/RIM_BLURRED, BRAKEID, BRIDGETYRE, BRAKECALIP, THREAD_FRONT, THREAD_SOFT. FIGYELEM: van 'FERRARIWHEEL'/'FERIMP' anyag is (kormánykerék) - a minta ezt nem fogja meg.",
+  "wheelPattern": "MICHTYRE|RIM_BLUR|RIM3BLACK|RIM1BLACK|RIM_BLURRED|METALBACK|ARRWBBS|ARRWSHADES1|METALBLACK| material$|BRAKEID|BRIDGETYRE|BRAKECALIP|THREAD_FRONT|THREAD_SOFT"
+}

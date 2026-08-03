@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "GYORS becslés. A 'Meshpart15Mtl' (feltehetően orr/első szárny) van a legpozitívabb Z-n (z=+3.57) - +Z előre irányt valószínűsít.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "Élőben megerősítve MŰKÖDIK. Csak 13 mesh az egész kocsihoz (nagyon alacsony részletességű, régi export), de a 'wtmtyre' (=\"tyre\") nevet tartalmazó 2 anyag ('Mesheswtmtyremeshlfsub11Mtl'/'Mesheswtmtyremeshlfsub011Mtl') egyértelműen a gumikat jelöli. Élőben ellenőrizve: 4 szimmetrikus sarok (2/2/2/2, ±0.86 X, ±1.40 Z).",
-  "wheelPattern": "wtmtyre"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.72, tengelytáv 2.79, 16 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: Élőben megerősítve MŰKÖDIK. Csak 13 mesh az egész kocsihoz (nagyon alacsony részletességű, régi export), de a 'wtmtyre' (=\"tyre\") nevet tartalmazó 2 anyag ('Mesheswtmtyremeshlfsub11Mtl'/'Mesheswtmtyremeshlfsub011Mtl') egyértelműen a gumikat jelöli. Élőben ellenőrizve: 4 szimmetrikus sarok (2/2/2/2, ±0.86 X, ±1.40 Z).",
+  "wheelPattern": "meshesmp4bdmeshlfsub01mtl|mesheswtmtyremeshlfsub11mtl|meshesmp4bdmeshlfsub21mtl|mesheswtmtyremeshlfsub011mtl"
 }

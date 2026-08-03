@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó ('Highbeam' anyagok vannak, de a pozíciójukat nem néztem meg), alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "JAVÍTVA (felhasználó jelezte: 'a fékbetét forog a keréken belül, de maga a felni nem fordul; kormányzáskor csak a gumi mozdul, a felni nem'). Hiányzott maga a FELNI mesh - hash-szerű névvel: 'lod0w<szám>vertices<szám>faces' (pl. Ope5astrav803lod0w3965vertices4279faces1Mtl / ...w5vertices4279faces0021Mtl), mind a 4 saroknál kb 0.5x0.46x0.55 méretű darab, pontosan a kerék-pozícióban. A 4 sarok külön mesh-csoport, hosszú/hash-szerű anyagnevekkel (Mtiremaxkumhoecstav710medium = gumi, rotorlub291/rotorrotor160 = féktárcsa, calipelfcaliper/caliperfcaliper = féknyereg), .001 sorszámmal a másik 2 saroknál. Ezek a nagyon egyedi nevek nem ütköznek a hosszú, hash-es kokpit-anyagnevekkel.",
+  "wheelPattern": "Mtiremaxkumhoecstav710medium|rotorlub291|rotorrotor160|calipelfcaliper|caliperfcaliper|lod0w\\d+vertices\\d+faces"
+}

@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "JAVÍTVA (a felhasználó jelezte: 'első kerekek amikor fordulnak nem az egész kerék fordul, a futófelület egy helyben marad'). Kimaradt a 'TREAD92R' anyag (a valódi gumi-futófelület) - csak a 'TIRE92R'-t (oldalfal?) fogtam be, ezért a futófelület nem forgott/kormányzott a többivel. Közös '90-es évek F1' kerék-kit (ugyanaz mint az 1990 Life F190, más .003/.004 sorszámmal). FIGYELEM: van egy 'B190BWHEEL' anyag is a pilótafülkében (kormánykerék) - a minta szándékosan NEM 'WHEEL'-lel keres, hogy ezt ne fogja meg.",
-  "wheelPattern": "DISC88|RIMOZW|RIM_BLUR|TIRE92R|TREAD92R|Brake_Caliper"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.81, tengelytáv 2.88, 28 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: JAVÍTVA (a felhasználó jelezte: 'első kerekek amikor fordulnak nem az egész kerék fordul, a futófelület egy helyben marad'). Kimaradt a 'TREAD92R' anyag (a valódi gumi-futófelület) - csak a 'TIRE92R'-t (oldalfal?) fogtam be, ezért a futófelület nem forgott/kormányzott a többivel. Közös '90-es évek F1' kerék-kit (ugyanaz mint az 1990 Life F190, más .003/.004 sorszámmal). FIGYELEM: van egy 'B190BWHEEL' anyag is a pilótafülkében (kormánykerék) - a minta szándékosan NEM 'WHEEL'-lel keres, hogy ezt ne fogja meg.",
+  "wheelPattern": "rim|disc88|tread92r|tire92r|brake"
 }

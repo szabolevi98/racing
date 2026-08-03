@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "Közös 2011-es F1 kerék-kit (ua. mint Ferrari 150° Italia, McLaren MP4-26, Mercedes MGP W02, Renault R31, Sauber C30, Toro Rosso STR6): wheel.006, tyre_side.006, Tyre_thread.006. CSAPDA: van egy 'steering_wheel.006' anyag is (kormánykerék) - a minta a ' wheel(.|sorvég)'-gel zárja ki (lásd Ferrari 150° Italia JSON-ja a részletes magyarázatért).",
-  "wheelPattern": " wheel(\\.|$)|tyre_side|Tyre_thread"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). JAVÍTVA: a régi mintával a kerekek 180 fokos forgatásnál 0.135-öt ugrottak (a teljes mezőny legrosszabb értéke) — láthatóan bicegő kerék. Az új mintával ez pontosan 0. Mérés: 4 szimmetrikus sarok, nyomtáv 1.26, tengelytáv 2.89, 8 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: Közös 2011-es F1 kerék-kit (ua. mint Ferrari 150° Italia, McLaren MP4-26, Mercedes MGP W02, Renault R31, Sauber C30, Toro Rosso STR6): wheel.006, tyre_side.006, Tyre_thread.006. CSAPDA: van egy 'steering_wheel.006' anyag is (kormánykerék) - a minta a ' wheel(.|sorvég)'-gel zárja ki (lásd Ferrari 150° Italia JSON-ja a részletes magyarázatért).",
+  "wheelPattern": "tyre"
 }

@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "A 'RIM_BLUR_REAR' explicit 'REAR'-t tartalmaz, z=-1.63-nál van, a fő kerék-csomó (fék+gumi) pedig z=-0.12/+1.41 közt - +Z előre irányt valószínűsít.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "Közös 'korai-80-as F1' kerék-kit (ugyanaz a McLaren MP4/1 és Williams FW08C is használja, más .001/.003 sorszámmal): 1982_WHEEL_* névcsalád + Tire_Tread + Brake_Caliper + JH21C_TIRE_NUT + RIM_BLUR, geometria-szétvágással.",
+  "wheelPattern": "1982_BRAKES|JH21C_TIRE_NUT|RIM_BLUR|1982_WHEEL_RIM|Tire_Tread|Brake_Caliper|1982_WHEEL_MICHELIN"
+}

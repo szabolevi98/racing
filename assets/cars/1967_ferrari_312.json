@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "Az eleje +Z: az 'FBADGEF.001' (front badge, orr-embléma) anyagú mesh z=+1.91-nél van.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "Tiszta, névvel ellátott kerék-anyagok: rimblur, FERLIP/FERLIP1 (felni-perem), FERRIM, 67FS/67TREAD (gumi oldalfal/futófelület), HUBNUT/FERHUB/FERSPOKE (agy+küllő), F312B_BDISC (féktárcsa) - mind egy mesh-be összeolvasztva mind a 4 kerék, geometria-szétvágással. Szándékosan KIHAGYVA: 67CALIPER/BLINES/brasus/SCREW/CAL_CAP/SPIN_CHROME - ezek csak az ELSŐ tengelynél jelennek meg külön mesh-ként (kb z=+1.0..+1.17-nél, nem a teljes kerék-készlet közepén), valószínűleg mert a régi F1 kocsinak kívülről látható első fékje van, a hátsó rejtett - felvételük aszimmetrikus sarok-darabszámot adna.",
-  "wheelPattern": "rimblur|FERLIP|FERRIM|67FS|67TREAD|HUBNUT|FERHUB|FERSPOKE|F312B_BDISC"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). JAVÍTVA: a régi minta hátsó kerék-dobozai 0.81 szélesek voltak 0.72 átmérő mellett (arány 1.11) — vagyis a kerék szélesebb volt, mint amilyen magas, ami csak úgy lehet, hogy egy oda nem való darab lógott benne. Az új mintával az arány 0.51, a kerék tényleg kerék alakú. Mérés: 4 szimmetrikus sarok, nyomtáv 1.64, tengelytáv 2.7, 38 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: Tiszta, névvel ellátott kerék-anyagok: rimblur, FERLIP/FERLIP1 (felni-perem), FERRIM, 67FS/67TREAD (gumi oldalfal/futófelület), HUBNUT/FERHUB/FERSPOKE (agy+küllő), F312B_BDISC (féktárcsa) - mind egy mesh-be összeolvasztva mind a 4 kerék, geometria-szétvágással. Szándékosan KIHAGYVA: 67CALIPER/BLINES/brasus/SCREW/CAL_CAP/SPIN_CHROME - ezek csak az ELSŐ tengelynél jelennek meg külön mesh-ként (kb z=+1.0..+1.17-nél, nem a teljes kerék-készlet közepén), valószínűleg mert a régi F1 kocsinak kívülről látható első fékje van, a hátsó rejtett - felvételük aszimmetrikus sarok-darabszámot adna.",
+  "wheelPattern": "ferlip|rimblur|ferrim|67fs|67tread|hubnut|ferhub|ferspoke|67caliper"
 }

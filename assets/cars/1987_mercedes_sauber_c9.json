@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "GYORS becslés. CSAPDA: a Mesh1Mtl/Mesh2Mtl alapnevek karosszéria-panelekre IS használva vannak más sorszámmal (Mesh1Mtl.005/Mesh2Mtl.005 hatalmas panel) - ezért pontos sorszámok kellenek a 4 sarok wheel-anyagaihoz (.006/.007/.008/.009).",
-  "wheelPattern": "Mesh1Mtl.006|Mesh1Mtl.007|Mesh1Mtl.008|Mesh1Mtl.009|Mesh2Mtl.006|Mesh2Mtl.007|Mesh2Mtl.008|Mesh2Mtl.009"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.47, tengelytáv 2.44, 8 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: GYORS becslés. CSAPDA: a Mesh1Mtl/Mesh2Mtl alapnevek karosszéria-panelekre IS használva vannak más sorszámmal (Mesh1Mtl.005/Mesh2Mtl.005 hatalmas panel) - ezért pontos sorszámok kellenek a 4 sarok wheel-anyagaihoz (.006/.007/.008/.009).",
+  "wheelPattern": "wheel"
 }

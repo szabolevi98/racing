@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "GYORS becslés. Tiszta, névvel ellátott kerék-anyagok (caliper.004, brakedisc, tire.008, rims, EXT_RIM_HUB), mind egy helyen (kb 0,0.30,0.16), geometria-szétvágással.",
+  "wheelPattern": "caliper.004|brakedisc|tire.008|rims|EXT_RIM_HUB"
+}

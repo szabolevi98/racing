@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "Az eleje +Z: az 'FBADGEF.001' (front badge, orr-embléma) anyagú mesh z=+1.91-nél van.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "Tiszta, névvel ellátott kerék-anyagok: rimblur, FERLIP/FERLIP1 (felni-perem), FERRIM, 67FS/67TREAD (gumi oldalfal/futófelület), HUBNUT/FERHUB/FERSPOKE (agy+küllő), F312B_BDISC (féktárcsa) - mind egy mesh-be összeolvasztva mind a 4 kerék, geometria-szétvágással. Szándékosan KIHAGYVA: 67CALIPER/BLINES/brasus/SCREW/CAL_CAP/SPIN_CHROME - ezek csak az ELSŐ tengelynél jelennek meg külön mesh-ként (kb z=+1.0..+1.17-nél, nem a teljes kerék-készlet közepén), valószínűleg mert a régi F1 kocsinak kívülről látható első fékje van, a hátsó rejtett - felvételük aszimmetrikus sarok-darabszámot adna.",
+  "wheelPattern": "rimblur|FERLIP|FERRIM|67FS|67TREAD|HUBNUT|FERHUB|FERSPOKE|F312B_BDISC"
+}

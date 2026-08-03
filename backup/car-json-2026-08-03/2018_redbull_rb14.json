@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "Az eleje +Z: a 'rear_light' anyagú mesh a hátsó (-Z) oldalon van. A modell saját, beégetett 90 fokos X-forgatása (Z-up -> Y-up) már a fájlban benne van, ez nem ide tartozik.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "Anyagonként egy primitívben van mind a 4 kerék összeolvasztva (Tyre_thread, tyre_side, redbull_wheel_hub, discs) — a játék ezt felismeri, és a háromszögeket pozíció szerint 4 sarokra szétvágja.",
+  "wheelPattern": "Tyre_thread|tyre_side|redbull_wheel_hub|discs"
+}

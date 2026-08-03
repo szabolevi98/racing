@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "JAVÍTVA (a felhasználó jelezte: 'egy kis particle nagyot forog jobb oldalt, de a kerekek jók'). Az 'EXT_PinzaFreni' (féknyereg) csak 2 (nem mind a 4) saroknál volt jelen, aszimmetrikusan - kivéve utána kiegyensúlyozott 4/4/4/4 lett. Olasz elnevezésű kerék-anyagok: EXT_DiscoFreni (féktárcsa), EXT_Cerchioni/EXT_Cerchioni_Blur (felni), EXT_Gomme (gumi).",
+  "wheelPattern": "EXT_DiscoFreni|EXT_Cerchioni|EXT_Gomme"
+}

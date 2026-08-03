@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "Tiszta kerék-anyagok: Brake_Disk, Tyre, Rim/Rim_Blurred/Rim_Blurred_Spokes, mind egy helyen (kb 0,0.33,-0.30). FIGYELEM: a 'redbull_wheel_hub' anyag NEM ide tartozik - z=+1.75, y=0.50-nél van, a kokpit magasságában, valószínűleg a kormánykerék közepe - szándékosan kihagyva.",
-  "wheelPattern": "Brake_Disk|Tyre|Rim"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.26, tengelytáv 3.05, 24 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: Tiszta kerék-anyagok: Brake_Disk, Tyre, Rim/Rim_Blurred/Rim_Blurred_Spokes, mind egy helyen (kb 0,0.33,-0.30). FIGYELEM: a 'redbull_wheel_hub' anyag NEM ide tartozik - z=+1.75, y=0.50-nél van, a kokpit magasságában, valószínűleg a kormánykerék közepe - szándékosan kihagyva.",
+  "wheelPattern": "rim|metal|brake|tyre"
 }

@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "Egyedi elnevezésű kerék-anyagok: Tyre, Brake_Disk, brake__brake_png, goldhat__brake_png (arany fékbura?), rim__rim_png, RIM_BLUR/RIM_BLURRED, Caliper/Caliper_Logo. FIGYELEM: van 'c_mclaren_08_steeringwheel' anyag is (kormánykerék) - a minta ezt nem fogja meg.",
-  "wheelPattern": "Tyre|Brake_Disk|brake__brake_png|goldhat__brake_png|rim__rim_png|RIM_BLUR|RIM_BLURRED|Caliper"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.44, tengelytáv 2.99, 46 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: Egyedi elnevezésű kerék-anyagok: Tyre, Brake_Disk, brake__brake_png, goldhat__brake_png (arany fékbura?), rim__rim_png, RIM_BLUR/RIM_BLURRED, Caliper/Caliper_Logo. FIGYELEM: van 'c_mclaren_08_steeringwheel' anyag is (kormánykerék) - a minta ezt nem fogja meg.",
+  "wheelPattern": "png|brake|rim|caliper|tyre|carbfbdnospec|mechanicals"
 }

@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "Az eleje +Z: a fényszórók z=+1.8, a hátsó lámpák z=-2.1 körül vannak.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "Ebben a modellben a bal és a jobb kerék EGY mesh-be van olvasztva tengelyenként (a középvonalon) — a játék ezt felismeri, és a háromszögeket pozíció szerint szétvágja bal/jobb részre, így mind a 4 kerék külön forog ÉS kormányoz. A minta a LOD_A_STEERING_WHEEL-t (kormány) és a LOD_A_BRAKES_* féklámpákat szándékosan kihagyja.",
-  "wheelPattern": "LOD_A_TYRE|LOD_A_WHEEL|LOD_A_BRAKE_CALIPER"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.36, tengelytáv 2.35, 12 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: Ebben a modellben a bal és a jobb kerék EGY mesh-be van olvasztva tengelyenként (a középvonalon) — a játék ezt felismeri, és a háromszögeket pozíció szerint szétvágja bal/jobb részre, így mind a 4 kerék külön forog ÉS kormányoz. A minta a LOD_A_STEERING_WHEEL-t (kormány) és a LOD_A_BRAKES_* féklámpákat szándékosan kihagyja.",
+  "wheelPattern": "rotor|tyre|Material\\.007(?![^\\s])"
 }

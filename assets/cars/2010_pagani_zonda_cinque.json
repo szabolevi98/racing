@@ -1,8 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
+  "_yawDegrees": "Változatlanul hagyva a korábbi, élőben ellenőrzött értéken.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "Nagyon rendetlen export (666 mesh, sok azonos nevű apró darab) — ez a tág minta viszont tisztán 4 szimmetrikus sarokra állt össze (156/156/165/165 darab), szóval a kerekek forognak/kormányoznak. (Korábban egy 'gyanúsan széles kocsi' figyelmeztetés is itt volt, de az a menü-előnézeti kocsi elforgatásából adódó mérési hiba volt — valós szélesség tisztán mérve 2.06 m, teljesen rendben.)",
-  "wheelPattern": "Wheel|Caliper|Tyre|Tire|Rim|Disc|Hub"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.55, tengelytáv 2.67, 642 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: Nagyon rendetlen export (666 mesh, sok azonos nevű apró darab) — ez a tág minta viszont tisztán 4 szimmetrikus sarokra állt össze (156/156/165/165 darab), szóval a kerekek forognak/kormányoznak. (Korábban egy 'gyanúsan széles kocsi' figyelmeztetés is itt volt, de az a menü-előnézeti kocsi elforgatásából adódó mérési hiba volt — valós szélesség tisztán mérve 2.06 m, teljesen rendben.)",
+  "wheelPattern": "wheel1a"
 }

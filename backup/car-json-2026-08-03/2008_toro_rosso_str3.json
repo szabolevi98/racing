@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "Ua. mint a Force India VJM01 (közös 2008-as kit): brake.022, calliper.017, disk.017, rim.017, RIM_BLUR.012, tread.017, side.017. CSAPDA: 'brakefluid.017' (fékfolyadék-tartály, kokpit) és 'side_left.017'/'side_right.017' (orr-elem oldalpanel) NEM kerék-alkatrészek - a pontos '.022'/'.017' sorszámok és a ' side(.|sorvég)' forma zárja ki ezeket.",
+  "wheelPattern": "brake.022|calliper.017|disk.017|rim.017|RIM_BLUR.012|tread.017| side(\\.|$)"
+}

@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "A 'RIM_BLUR_REAR' explicit 'REAR'-t tartalmaz, z=-1.92-nél van - +Z előre irányt valószínűsít.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "Közös 'korai-80-as F1' kerék-kit (ugyanaz mint a Brabham BT52 és McLaren MP4/1, más .001/.011 sorszámmal), geometria-szétvágással.",
-  "wheelPattern": "1982_BRAKES|JH21C_TIRE_NUT|RIM_BLUR|1982_WHEEL_RIM|Tire_Tread|Brake_Caliper|1982_WHEEL_MICHELIN"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.84, tengelytáv 2.87, 32 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: Közös 'korai-80-as F1' kerék-kit (ugyanaz mint a Brabham BT52 és McLaren MP4/1, más .001/.011 sorszámmal), geometria-szétvágással.",
+  "wheelPattern": "tire|front|brake|183t|michelin|RIM_BLUR_REAR\\.001(?![^\\s])|1982_WHEEL_RIM_SILVER\\.001(?![^\\s])|RIM_BLUR\\.011(?![^\\s])"
 }

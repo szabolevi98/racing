@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs név-alapú irány-infó (csak 8 generikus 'Material.00N' anyag van az egész kocsihoz), alapértelmezés 0. Ellenőrizd élőben.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "GYORS, DE ALAPOSAN ELLENŐRZÖTT becslés (pozíció alapján, mert a nevek teljesen generikusak). A modellnek csak 8 anyaga van összesen, de a 4 kerék-sarok MÁR eleve külön mesh-csoport, és kizárólag a 'Material.004' (2x, vékony fékalkatrész + gumi) és 'Material.006' (felni) anyagokat használja - ezt a 2 anyagot MÁSHOL SEHOL nem használja a modell (a karosszéria/üveg/lámpák a Material.001/.002/.003/.005/.007-et és a 'detach_trunk...' anyagot használják), így biztonságos a minta.",
+  "_wheelPattern": "MEGTARTOTT KÉZI MINTA (2026-08-03 felülvizsgálat). A repó összes kocsiját újraértékeltük a tools/propose.mjs automatikával, és élő A/B teszttel összemértük a régi és az új mintát. ENNÉL A KOCSINÁL A RÉGI a jobb: a régi 12 alkatrészt forgat, az automatikus 8-at. Ezért az automatikus javaslatot elvetettük. (Az automatika ezt adta volna: rotation)\n\nEredeti megjegyzés: GYORS, DE ALAPOSAN ELLENŐRZÖTT becslés (pozíció alapján, mert a nevek teljesen generikusak). A modellnek csak 8 anyaga van összesen, de a 4 kerék-sarok MÁR eleve külön mesh-csoport, és kizárólag a 'Material.004' (2x, vékony fékalkatrész + gumi) és 'Material.006' (felni) anyagokat használja - ezt a 2 anyagot MÁSHOL SEHOL nem használja a modell (a karosszéria/üveg/lámpák a Material.001/.002/.003/.005/.007-et és a 'detach_trunk...' anyagot használják), így biztonságos a minta.",
   "wheelPattern": "Material.004|Material.006"
 }

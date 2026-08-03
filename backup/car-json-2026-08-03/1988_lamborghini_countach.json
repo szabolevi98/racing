@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "Az eleje +Z: az 'EXT_glass_headlight' anyagú mesh van elöl, az 'EXT_glass_REARLIGHTS' hátul. A modell saját, beégetett 90 fokos X-forgatása (Z-up -> Y-up) már a fájlban benne van.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "Ebben a GLB-ben (mint az újabb Sketchfab-exportoknál) mind a 4 kerék egyetlen mesh-be van összeolvasztva anyagonként (Tyre, EXT_metal_rim, stb.) — ezt a játék automatikusan felismeri (ha egy találat mérete túl nagy egy kerékhez), és a háromszögeit pozíció szerint szétvágja 4 külön darabra, mielőtt a szokásos sarok-csoportosítás lefutna rajta.",
+  "wheelPattern": "Tyre|EXT_metal_rim|EXT_metal_disk|EXT_metal_caliper"
+}

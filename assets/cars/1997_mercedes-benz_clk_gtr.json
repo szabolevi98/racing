@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "Az eleje +Z: a 'glass' (szélvédő) z=+1.45-nél, a 'grille1_alpha' (első hűtőrács) z=+1.36-nál van; a 'tail_light_lod0'/'tail_light2' pedig z=-2.27/-2.40-nél (hátul).",
   "yawDegrees": 0,
-
-  "_wheelPattern": "Tiszta, névvel ellátott kerék-anyagok: caliper, EXT_Bolts, EXT_Rim/EXT_Rim_Spokes/EXT_Rim_Blurred (az 'EXT_Rim' minta mindet fogja), WHEEL, EXT_DISK_BRAKE - mind egy mesh-be összeolvasztva mind a 4 kerék, geometria-szétvágással. (Ez a modell korábban egyszer törölve lett mint 'buggos', de a kerék-szétvágás azóta megjavult - most már rendben forog/kormányoz.)",
-  "wheelPattern": "caliper|EXT_Bolts|EXT_Rim|WHEEL|EXT_DISK_BRAKE"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.45, tengelytáv 2.4, 28 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: Tiszta, névvel ellátott kerék-anyagok: caliper, EXT_Bolts, EXT_Rim/EXT_Rim_Spokes/EXT_Rim_Blurred (az 'EXT_Rim' minta mindet fogja), WHEEL, EXT_DISK_BRAKE - mind egy mesh-be összeolvasztva mind a 4 kerék, geometria-szétvágással. (Ez a modell korábban egyszer törölve lett mint 'buggos', de a kerék-szétvágás azóta megjavult - most már rendben forog/kormányoz.)",
+  "wheelPattern": "spokes|bolts|blurred|wheel|disk|caliper(?![^\\s])|EXT_Rim(?![^\\s])"
 }

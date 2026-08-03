@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "MEGOLDVA (felhasználó jelezte: 'gumi nem forog, felni igen'). A modell mindössze 5 mesh-ből áll (Material_1..5), mind az egész kocsit lefedő méretű blokk, semmitmondó anyagnevekkel - itt az Y-TARTOMÁNY a döntő jel. A 'Material_5' yMin-je 21.072, ami ALACSONYABBAN kezdődik, mint a felniké (Material_4: 21.201), pontosan ahogy a gumi külső átmérője nagyobb a felniénél; a magassága 0.57 = kerékátmérő, a fesztávja (3.27x3.83) pedig pont a 4 kerék kifeszítette terület. Ez tehát a GUMI, mind a 4 egyetlen összeolvasztott mesh-ben - a splitMergedWheelMesh vágja szét sarkonként. (A Material_1/2/3 szintén nagy blokkok és szintén elég alacsonyra nyúlnak - padlólemez/diffúzor -, de MAGASABBAK: 0.82-0.89, ezek karosszéria.) A 'Material_4' a 4 felni, eleve külön darabokban. Ugyanaz a felállás, mint a Mazda 787B-nél. Élőben ellenőrizve: 4 szimmetrikus sarok (nyomtáv ~1.30, tengelytáv ~2.95), saronként gumi+felni, semmi nem leng ki (max elmozdulás 180 fokos forgatásnál: 0.00).",
+  "wheelPattern": "Material_4|Material_5"
+}

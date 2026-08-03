@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "GYORS becslés - ugyanaz a kerék-kit-család, mint a bevált 2006 McLaren MP4/21-nél (brake/disk/RIM/SPOKES/side/tread), ott +Z volt az eleje. Ellenőrizd élőben.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "Közös 2006-os F1 kerék-kit (ua. mint Midland M16, Red Bull RB2, Renault R26, Super Aguri SA06, Toyota TF106, Williams FW28, Honda RA106 - csak más előtag/sorszám): brake, disk, F248_RIM, FE2HUB, FERSPOKES, side, tread. FIGYELEM: van egy 'FER06WHEEL' anyag is (kormánykerék) - a minta szándékosan nem 'WHEEL'-lel keres.",
-  "wheelPattern": "brake|disk|F248_RIM|FE2HUB|FERSPOKES|side|tread"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.37, tengelytáv 2.89, 43 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: Közös 2006-os F1 kerék-kit (ua. mint Midland M16, Red Bull RB2, Renault R26, Super Aguri SA06, Toyota TF106, Williams FW28, Honda RA106 - csak más előtag/sorszám): brake, disk, F248_RIM, FE2HUB, FERSPOKES, side, tread. FIGYELEM: van egy 'FER06WHEEL' anyag is (kormánykerék) - a minta szándékosan nem 'WHEEL'-lel keres.",
+  "wheelPattern": "f248|blur|side|tread|brake|disk|fe2hub|FERSHIELD\\.003(?![^\\s])|FERSHIELD_2\\.003(?![^\\s])"
 }

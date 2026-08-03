@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "GYORS becslés. Kerék-anyagok: A8_BRAKEDISC, Tire_Tread, A8_TIRE_NUT, RIM_BLUR, A8_RIMS (mind egy helyen, kb 0,0.31,-0.13), plusz '015_CAL' (feltehetően féknyereg, pozícióját nem ellenőriztem). FIGYELEM: van egy külön kormánykerék-anyagcsoport is (015_CPIT_WHEEL, 015_SWHEEL_*, 015_WHEEL_BUTTON) a pilótafülkében - ezeket a minta szándékosan NEM fogja meg.",
+  "wheelPattern": "A8_BRAKEDISC|Tire_Tread|A8_TIRE_NUT|RIM_BLUR|A8_RIMS|015_CAL"
+}

@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "GYORS becslés (statikus elemzés). Az orr-elem ('Meshpart5Mtl', alacsonyan, z=+4.85) az első tengely (z=+5.51) mellett van, a magasan ülő hátsó szárny ('Meshpart6Mtl', z=-8.16) a hátsó tengely (z=-4.99) mögött - ez +Z előre irányt valószínűsít.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "JAVÍTVA (a felhasználó jelezte, hogy csak a bal első kerék volt jó, a többin egy darab karosszéria is együtt forgott). A 4 sarok Meshpart1/2/3Mtl (+.001/.002/.003), DE van egy ÖTÖDIK, '.004' sorszámú Meshpart1/2/3Mtl készlet is, ami NEM egy 5. kerék, hanem 3 nagy karosszéria-panel (orr-elem + kasztni, x≈0 közepén) - ezt korábban tévesen 'nincs ütközés' minősítettem, mert csak a Meshpart4-8Mtl (más számú alapnév) neveket néztem, a '.004' SORSZÁMOZOTT Meshpart1/2/3Mtl-t nem. A '$' végjellel zárjuk ki a sorszám nélküli mintákat a '.004'-es változattól.",
-  "wheelPattern": "Meshpart1Mtl$|Meshpart2Mtl$|Meshpart3Mtl$|Meshpart1Mtl\\.001|Meshpart2Mtl\\.001|Meshpart3Mtl\\.001|Meshpart1Mtl\\.002|Meshpart2Mtl\\.002|Meshpart3Mtl\\.002|Meshpart1Mtl\\.003|Meshpart2Mtl\\.003|Meshpart3Mtl\\.003"
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.47, tengelytáv 2.4, 12 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: JAVÍTVA (a felhasználó jelezte, hogy csak a bal első kerék volt jó, a többin egy darab karosszéria is együtt forgott). A 4 sarok Meshpart1/2/3Mtl (+.001/.002/.003), DE van egy ÖTÖDIK, '.004' sorszámú Meshpart1/2/3Mtl készlet is, ami NEM egy 5. kerék, hanem 3 nagy karosszéria-panel (orr-elem + kasztni, x≈0 közepén) - ezt korábban tévesen 'nincs ütközés' minősítettem, mert csak a Meshpart4-8Mtl (más számú alapnév) neveket néztem, a '.004' SORSZÁMOZOTT Meshpart1/2/3Mtl-t nem. A '$' végjellel zárjuk ki a sorszám nélküli mintákat a '.004'-es változattól.",
+  "wheelPattern": "wheel"
 }

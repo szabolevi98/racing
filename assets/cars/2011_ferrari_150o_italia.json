@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "Közös 2011-es F1 kerék-kit (ua. mint HRT F111, McLaren MP4-26, Mercedes MGP W02, Renault R31, Sauber C30, Toro Rosso STR6): wheel, tyre_side, Tyre_thread. CSAPDA: a modellben van egy 'steering_wheel' anyag is (kormánykerék) - a puszta 'wheel' minta ezt is elkapná ('steering_wheel' tartalmazza a 'wheel'-t), ezért a minta a ' wheel' (szóköz+wheel, a kód mindig szóközt fűz az anyagnév elé) végén '.' vagy sorvég kell hogy legyen - ez kizárja a 'steering_wheel'-t, mert ott a 'wheel' elé '_' kerül, nem szóköz.",
+  "_wheelPattern": "MEGTARTOTT KÉZI MINTA (2026-08-03 felülvizsgálat). A repó összes kocsiját újraértékeltük a tools/propose.mjs automatikával, és élő A/B teszttel összemértük a régi és az új mintát. ENNÉL A KOCSINÁL A RÉGI a jobb: a régi 12 alkatrészt forgat, az automatikus 8-at. Ezért az automatikus javaslatot elvetettük. (Az automatika ezt adta volna: tyre)\n\nEredeti megjegyzés: Közös 2011-es F1 kerék-kit (ua. mint HRT F111, McLaren MP4-26, Mercedes MGP W02, Renault R31, Sauber C30, Toro Rosso STR6): wheel, tyre_side, Tyre_thread. CSAPDA: a modellben van egy 'steering_wheel' anyag is (kormánykerék) - a puszta 'wheel' minta ezt is elkapná ('steering_wheel' tartalmazza a 'wheel'-t), ezért a minta a ' wheel' (szóköz+wheel, a kód mindig szóközt fűz az anyagnév elé) végén '.' vagy sorvég kell hogy legyen - ez kizárja a 'steering_wheel'-t, mert ott a 'wheel' elé '_' kerül, nem szóköz.",
   "wheelPattern": " wheel(\\.|$)|tyre_side|Tyre_thread"
 }

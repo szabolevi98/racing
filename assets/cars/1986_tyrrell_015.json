@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "GYORS becslés. Kerék-anyagok: A8_BRAKEDISC, Tire_Tread, A8_TIRE_NUT, RIM_BLUR, A8_RIMS (mind egy helyen, kb 0,0.31,-0.13), plusz '015_CAL' (feltehetően féknyereg, pozícióját nem ellenőriztem). FIGYELEM: van egy külön kormánykerék-anyagcsoport is (015_CPIT_WHEEL, 015_SWHEEL_*, 015_WHEEL_BUTTON) a pilótafülkében - ezeket a minta szándékosan NEM fogja meg.",
+  "_wheelPattern": "MEGTARTOTT KÉZI MINTA (2026-08-03 felülvizsgálat). A repó összes kocsiját újraértékeltük a tools/propose.mjs automatikával, és élő A/B teszttel összemértük a régi és az új mintát. ENNÉL A KOCSINÁL A RÉGI a jobb: a régi 24 alkatrészt forgat, az automatikus csak 16-ot. Ezért az automatikus javaslatot elvetettük. (Az automatika ezt adta volna: brakedisc|rims|015_CAL(?![^\\s])|Tire_Tread(?![^\\s]))\n\nEredeti megjegyzés: GYORS becslés. Kerék-anyagok: A8_BRAKEDISC, Tire_Tread, A8_TIRE_NUT, RIM_BLUR, A8_RIMS (mind egy helyen, kb 0,0.31,-0.13), plusz '015_CAL' (feltehetően féknyereg, pozícióját nem ellenőriztem). FIGYELEM: van egy külön kormánykerék-anyagcsoport is (015_CPIT_WHEEL, 015_SWHEEL_*, 015_WHEEL_BUTTON) a pilótafülkében - ezeket a minta szándékosan NEM fogja meg.",
   "wheelPattern": "A8_BRAKEDISC|Tire_Tread|A8_TIRE_NUT|RIM_BLUR|A8_RIMS|015_CAL"
 }

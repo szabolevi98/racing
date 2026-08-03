@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "A 4 sarok már eleve külön mesh-csoport (mp45_tyres + 191_wheel_color + j191_brakes/brakehood, mind a 4 saroknál külön instance-ok). FIGYELEM: van egy 'j191_stwheel'/'j191_stwheel_center' anyag is (kormánykerék) - a minta ezt szándékosan nem fogja meg.",
+  "wheelPattern": "mp45_tyres|191_wheel_color|j191_brakes|j191_brakehood"
+}

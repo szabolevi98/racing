@@ -1,9 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
   "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
   "yawDegrees": 0,
-
-  "_wheelPattern": "GYORS becslés. A 4 sarok már eleve külön mesh-csoport (Meshestire1221/201Mtl + Meshesrim2151/3141Mtl, .001 sorszámmal a másik 2 saroknál). A 'Meshestire'/'Meshesrim' minta nem ütközik más résszel.",
+  "_wheelPattern": "MEGTARTOTT KÉZI MINTA (2026-08-03 felülvizsgálat). A repó összes kocsiját újraértékeltük a tools/propose.mjs automatikával, és élő A/B teszttel összemértük a régi és az új mintát. ENNÉL A KOCSINÁL A RÉGI a jobb: az automatikus minta aránya 3.19 — háromszor olyan széles, mint amilyen magas, tehát nem kereket fog meg; a régié 0.63. Ezért az automatikus javaslatot elvetettük. (Az automatika ezt adta volna: mesheslight1151mtl)\n\nEredeti megjegyzés: GYORS becslés. A 4 sarok már eleve külön mesh-csoport (Meshestire1221/201Mtl + Meshesrim2151/3141Mtl, .001 sorszámmal a másik 2 saroknál). A 'Meshestire'/'Meshesrim' minta nem ütközik más résszel.",
   "wheelPattern": "Meshestire|Meshesrim"
 }

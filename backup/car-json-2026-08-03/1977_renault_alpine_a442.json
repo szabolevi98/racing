@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "GYORS becslés. CSAPDA: a 4 sarok anyagai (Mesh1Mtl/Mesh2Mtl/Mesh3Mtl/Mesh4Mtl alapnevek) UGYANAZOKKAL az alapnevekkel, MÁS sorszámmal a karosszéria hatalmas paneljeire is használva vannak (pl. Mesh1Mtl.037 egy 28 egység hosszú test-panel, Mesh1Mtl.038 pedig egy kerék) - ezért PONTOS, teljes anyagneveket kellett felsorolni sorszámmal együtt, bare minta veszélyes lenne. Sarkonként 3 darab (gumi=Mesh1, felni=Mesh3, fék=Mesh4 elöl / Mesh2 hátul - a kocsinak eltérő első/hátsó fékje van).",
+  "wheelPattern": "Mesh1Mtl.038|Mesh1Mtl.039|Mesh1Mtl.040|Mesh1Mtl.041|Mesh3Mtl.025|Mesh3Mtl.026|Mesh3Mtl.027|Mesh3Mtl.028|Mesh4Mtl.003|Mesh4Mtl.004|Mesh2Mtl.037|Mesh2Mtl.038"
+}

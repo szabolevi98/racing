@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "Tiszta kerék-anyagok: generic_tyre_sof, generic_tread_slick, RIM_BLUR, lr2_wheel(_BLUR), BRAKE. FIGYELEM: van két kormánykerék-anyag is (rb2_steering_wheel, rb2_steering_wheel2) - a minta szándékosan nem 'steering'-gel vagy puszta 'wheel'-lel keres, hanem az 'lr2_wheel' pontos szót.",
+  "wheelPattern": "generic_tyre_sof|generic_tread_slick|RIM_BLUR|lr2_wheel|BRAKE"
+}

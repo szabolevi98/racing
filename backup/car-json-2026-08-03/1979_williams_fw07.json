@@ -1,0 +1,9 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+
+  "_yawDegrees": "Az anyagnevek explicit 'FRONT'/'REAR'-t tartalmaznak: RIMS_FRONT.011 z=+1.43-nál, RIMS_REAR.011 z=-1.52-nél - egyértelműen +Z előre.",
+  "yawDegrees": 0,
+
+  "_wheelPattern": "Tiszta, névvel ellátott kerék-anyagok (TIRES, TREAD, RIMS_FRONT/REAR, FRONT/REAR_BLUR, DISK, BREMBO), tengelyenként összeolvasztva, geometria-szétvágással.",
+  "wheelPattern": "TIRES.011|TREAD.011|RIMS_REAR.011|REAR_BLUR.011|RIMS_FRONT.011|FRONT_BLUR.011|DISK.009|BREMBO.007"
+}
