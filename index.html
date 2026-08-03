@@ -76,6 +76,11 @@
   .ss-option:hover, .ss-option.active { background: #375a7f; color: #fff; }
   .ss-option.ss-empty { color: #888; cursor: default; }
 
+  /* Mindig foglalja a helyét (egy sornyi magasság), csak üresen látszik
+     átlátszónak — így a "Kocsi/Pálya betöltése..." felirat megjelenése nem
+     tolja el a fölötte/alatta lévő elemeket. */
+  #menuStatus { min-height: 1.5em; }
+
   #zoneEditor.hidden { display: none !important; }
   /* A 3D pálya élőben, a fő renderer canvas-án látszik alatta — ezért a
      szerkesztő rétege átlátszó, csak az egérkezelést és a maszk-overlay-t adja. */
