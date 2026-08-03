@@ -63,6 +63,19 @@
     color: transparent;
   }
 
+  .ss-wrap { position: relative; }
+  .ss-menu {
+    position: absolute; top: 100%; left: 0; right: 0; z-index: 50;
+    max-height: 280px; overflow-y: auto;
+    background: #1c1f26; border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 6px; margin-top: 4px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  }
+  .ss-menu.hidden { display: none; }
+  .ss-option { padding: 6px 12px; cursor: pointer; color: #e9ecef; font-size: 0.95rem; }
+  .ss-option:hover, .ss-option.active { background: #375a7f; color: #fff; }
+  .ss-option.ss-empty { color: #888; cursor: default; }
+
   #zoneEditor.hidden { display: none !important; }
   /* A 3D pálya élőben, a fő renderer canvas-án látszik alatta — ezért a
      szerkesztő rétege átlátszó, csak az egérkezelést és a maszk-overlay-t adja. */

@@ -41,6 +41,10 @@ const carTesterBtn = document.getElementById('carTesterBtn');
 const carTesterHudEl = document.getElementById('carTesterHud');
 const carTesterBackBtn = document.getElementById('carTesterBackBtn');
 const carTesterCarSelectEl = document.getElementById('carTesterCarSelect');
+makeSearchableSelect(mapSelect);
+makeSearchableSelect(carSelect);
+makeSearchableSelect(envSelect);
+makeSearchableSelect(carTesterCarSelectEl);
 const openMaterialPickerBtn = document.getElementById('openMaterialPickerBtn');
 const generateCheckpointsBtn = document.getElementById('generateCheckpointsBtn');
 const autoCheckpointCountEl = document.getElementById('autoCheckpointCount');
@@ -3137,6 +3141,137 @@ function fillSelect(selectEl, items) {
 
 function findEntry(list, id) {
   return list.find((item) => item.id === id) || list[0];
+}
+
+// Kereshető select: a natív <select> köré egy szöveges mezőt és egy szűrhető
+// legördülő listát épít, de a <select> marad az egyetlen igazságforrás
+// (érték, disabled, 'change' esemény) — a meglévő kód (fillSelect,
+// mapSelect.value = ..., addEventListener('change', ...) stb.) emiatt
+// SEMMIT nem változik. A 'value'/'disabled' property-ket felülírjuk, hogy a
+// látható mező mindig szinkronban maradjon akkor is, ha valaki kódból
+// állítja őket. Üres keresőszöveg esetén a TELJES lista látszik, nincs
+// találat-korlátozás (néhány száz autónál ez még nem jelent gondot).
+function makeSearchableSelect(selectEl) {
+  const wrap = document.createElement('div');
+  wrap.className = 'ss-wrap';
+  selectEl.parentNode.insertBefore(wrap, selectEl);
+  wrap.appendChild(selectEl);
+  selectEl.style.display = 'none';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.autocomplete = 'off';
+  input.className = selectEl.className
+    .split(' ')
+    .map((c) => (c.startsWith('form-select') ? c.replace('form-select', 'form-control') : c))
+    .join(' ');
+  input.disabled = selectEl.disabled;
+  wrap.appendChild(input);
+
+  const menu = document.createElement('div');
+  menu.className = 'ss-menu hidden';
+  wrap.appendChild(menu);
+
+  let activeIdx = -1;
+
+  function currentLabel() {
+    const opt = selectEl.options[selectEl.selectedIndex];
+    return opt ? opt.textContent : '';
+  }
+
+  function closeMenu() {
+    menu.classList.add('hidden');
+    activeIdx = -1;
+    input.value = currentLabel();
+  }
+
+  function visibleItems() {
+    return [...menu.querySelectorAll('.ss-option:not(.ss-empty)')];
+  }
+
+  function highlight(idx) {
+    const items = visibleItems();
+    items.forEach((it, i) => it.classList.toggle('active', i === idx));
+    if (items[idx]) items[idx].scrollIntoView({ block: 'nearest' });
+  }
+
+  function selectValue(value) {
+    if (selectEl.value !== value) {
+      selectEl.value = value;
+      selectEl.dispatchEvent(new Event('change'));
+    }
+    closeMenu();
+  }
+
+  function renderMenu(filterText) {
+    const q = filterText.trim().toLowerCase();
+    const opts = [...selectEl.options];
+    const matches = q ? opts.filter((o) => o.textContent.toLowerCase().includes(q)) : opts;
+    menu.innerHTML = '';
+    if (!matches.length) {
+      const empty = document.createElement('div');
+      empty.className = 'ss-option ss-empty';
+      empty.textContent = 'Nincs találat';
+      menu.appendChild(empty);
+    } else {
+      matches.forEach((o) => {
+        const item = document.createElement('div');
+        item.className = 'ss-option';
+        item.textContent = o.textContent;
+        item.dataset.value = o.value;
+        item.addEventListener('mousedown', (e) => {
+          e.preventDefault(); // ne vegye el a fókuszt a menü zárása előtt
+          selectValue(o.value);
+        });
+        menu.appendChild(item);
+      });
+    }
+    activeIdx = -1;
+    menu.classList.remove('hidden');
+  }
+
+  input.addEventListener('focus', () => renderMenu(''));
+  input.addEventListener('input', () => renderMenu(input.value));
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (menu.classList.contains('hidden')) { renderMenu(input.value); return; }
+      activeIdx = Math.min(activeIdx + 1, visibleItems().length - 1);
+      highlight(activeIdx);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeIdx = Math.max(activeIdx - 1, 0);
+      highlight(activeIdx);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const items = visibleItems();
+      if (activeIdx >= 0 && items[activeIdx]) selectValue(items[activeIdx].dataset.value);
+      else if (items.length === 1) selectValue(items[0].dataset.value);
+    } else if (e.key === 'Escape') {
+      closeMenu();
+      input.blur();
+    }
+  });
+  input.addEventListener('blur', () => {
+    // Kis késleltetés, hogy az option mousedown-ja lefusson a blur előtt.
+    setTimeout(closeMenu, 120);
+  });
+  document.addEventListener('mousedown', (e) => {
+    if (!wrap.contains(e.target)) closeMenu();
+  });
+
+  const nativeValueDesc = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+  Object.defineProperty(selectEl, 'value', {
+    get() { return nativeValueDesc.get.call(selectEl); },
+    set(v) { nativeValueDesc.set.call(selectEl, v); input.value = currentLabel(); },
+  });
+  const nativeDisabledDesc = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'disabled');
+  Object.defineProperty(selectEl, 'disabled', {
+    get() { return nativeDisabledDesc.get.call(selectEl); },
+    set(v) { nativeDisabledDesc.set.call(selectEl, v); input.disabled = v; },
+  });
+
+  input.value = currentLabel();
 }
 
 async function init() {
