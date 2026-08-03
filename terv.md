@@ -14,6 +14,7 @@ Egy böngészőben futó autóverseny-játék, multiplayer támogatással — va
 
 1. **Ghost-alapú multiplayer (egyszerűbb)**: mindenki külön futja a pályát, az időket és a "szellem" (ghost) replay-eket osztják meg egymással utólag vagy élőben megjelenítve. Ehhez elég egy sima REST API, nem kell Swoole/WebSocket. Gyorsan összerakható hobbi projektként.
 2. **Élő, valós idejű verseny (nehezebb)**: mindenki egyszerre versenyzik, látják egymást mozogni valós időben, esetleg ütköznek is. Ehhez kell a Swoole WebSocket réteg, lag compensation, client-side prediction — hetek-hónapok munkája.
+   (Utóbbi kell!)
 
 ## Swoole és a meglévő VPS (Apache + PHP + MySQL) együttélése
 
@@ -35,3 +36,7 @@ Egy böngészőben futó autóverseny-játék, multiplayer támogatással — va
 - Konkrét Swoole telepítési parancssor + minimál `server.php` példa kidolgozása a célszerveren
 - Pályaszerkesztő adatformátum és tárolás (MySQL séma)
 - Autentikáció / fiókkezelés módja (meglévő rendszerhez illesztve, ha van ilyen a VPS-en)
+
+## Válaszok:
+- élő verseny (komolyabb netcode)
+- autentikáció elég egy játékos nevet megadni kezdésnek, szobákat lehet majd létrehozni amihez kóddal lehet csatlakozni, és a szoba tulajdonos tudja indítani a versenyt ha mindenki belépett
