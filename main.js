@@ -3203,12 +3203,7 @@ function makeSearchableSelect(selectEl) {
       selectEl.value = value;
       selectEl.dispatchEvent(new Event('change'));
     }
-    // A lista nyitva marad kiválasztás után — csak kikattintásra (blur/
-    // dokumentum-kattintás) zárjuk be, hogy egymás után gyorsan több
-    // opciót is ki lehessen próbálni anélkül, hogy újra rá kéne kattintani
-    // a mezőre. A keresőszöveget töröljük, hogy a teljes lista látszódjon.
-    input.value = currentLabel();
-    renderMenu('');
+    closeMenu();
   }
 
   function renderMenu(filterText) {
@@ -3239,6 +3234,11 @@ function makeSearchableSelect(selectEl) {
   }
 
   input.addEventListener('focus', () => renderMenu(''));
+  // A 'focus' esemény csak akkor sül el, ha a mező korábban NEM volt
+  // fókuszban — ha kiválasztás után (ami bezárja a listát, de a mezőt
+  // fókuszban hagyja) újra rákattintasz, az simán nem focus-váltás, tehát
+  // a lista nyitva-tartásához külön 'click'-re is figyelnünk kell.
+  input.addEventListener('click', () => renderMenu(''));
   input.addEventListener('input', () => renderMenu(input.value));
   input.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowDown') {
