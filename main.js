@@ -740,6 +740,24 @@ function median(values) {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
+// A puszta medián csak akkor esik a két tengely (illetve a bal/jobb oldal)
+// KÖZÉ, ha a minta nagyjából ugyanannyi darabot fogott meg elöl és hátul.
+// Ez gyakran nem igaz — a Red Bull RB20-nál például a féknyereg csak az
+// első tengelyen létezik —, és akkor a medián átcsúszik az egyik tengelyre:
+// onnantól a modellt fél tengelytávval eltolva ültetnénk a fizikai
+// kasztnira, vagyis a kocsi láthatóan hátrébb (vagy előrébb) állna a
+// többinél. Ezért a mediánt csak ELVÁLASZTÓNAK használjuk, és a két oldal
+// saját mediánjának a felezőpontját vesszük valódi középnek — ez független
+// attól, melyik oldalon hány darab van, és egy-egy kilógó darabra ugyanúgy
+// érzéketlen marad, mint a puszta medián.
+function axisCentre(values) {
+  const mid = median(values);
+  const hi = values.filter((v) => v > mid);
+  const lo = values.filter((v) => v < mid);
+  if (!hi.length || !lo.length) return mid;
+  return (median(hi) + median(lo)) / 2;
+}
+
 function findWheelCentreOffset(carRoot, wheelPattern) {
   if (!wheelPattern) return null;
   let regex;
@@ -766,8 +784,8 @@ function findWheelCentreOffset(carRoot, wheelPattern) {
   });
   if (xs.length < 2) return null;
   return {
-    x: median(xs),
-    z: median(zs),
+    x: axisCentre(xs),
+    z: axisCentre(zs),
   };
 }
 
