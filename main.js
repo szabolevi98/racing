@@ -1478,6 +1478,8 @@ let zoneRuntime = null;
 
 async function loadZoneRuntime(entry) {
   zoneRuntime = null;
+  miniMapTrackCanvas = null;
+  miniMapBounds = null;
   if (!entry || !entry.zonemap) return;
 
   const img = new Image();
@@ -1517,44 +1519,75 @@ async function loadZoneRuntime(entry) {
 // képkockánként a látható canvas-ra a játékos-pötty mellé.
 const MINIMAP_TARGET = 220; // a hosszabbik oldal célmérete képpontban
 let miniMapTrackCanvas = null;
+// A kijelzett (kivágott) térkép-darab VILÁGKOORDINÁTÁS határai — nem
+// egyezik a teljes zonemap.bounds-szal, mert a modell (díszlet, üres
+// terület a pálya körül) sokkal nagyobb, mint maga a pálya-szalag.
+let miniMapBounds = null;
 function buildMiniMapTrack(runtime) {
   const { w, h, codes } = runtime;
 
-  // A zonemap felbontása (pl. 3309x6045) sokszorosa a kijelzett méretnek —
-  // egyetlen nagy zsugorítás a böngésző lineáris szűrésével simán eltünteti
-  // az 1-2 pixel széles pálya-szalagot. Ezért előbb (szeparálható, két 1D
-  // menetes) dilatációval megvastagítjuk, hogy a later kicsinyítés után is
-  // látszódjon.
-  const radius = Math.max(2, Math.round(Math.max(w, h) / 400));
-  const rowPass = new Uint8Array(w * h);
-  for (let y = 0; y < h; y++) {
-    const row = y * w;
-    let count = 0;
-    for (let x = -radius; x < w; x++) {
-      const add = x + radius;
-      if (add < w && codes[row + add] === ZONE_ASPHALT) count++;
-      const rem = x - radius - 1;
-      if (rem >= 0 && codes[row + rem] === ZONE_ASPHALT) count--;
-      if (x >= 0) rowPass[row + x] = count > 0 ? 1 : 0;
+  // A zonemap-en a kifutó/fal fedi a kép TÚLNYOMÓ többségét (minden, ami
+  // nem pálya) — a tényleges festetlen (aszfalt) sáv ehhez képest alig
+  // 1 százaléknyi terület. Emiatt a teljes bounds (a modell teljes
+  // határdoboza) hatalmas ürességet ad a vékony pálya-szalag köré. Ezért
+  // az ASZFALT pixelek határdobozára vágunk — ez tömören a pálya köré
+  // simul, bármi más (díszlet, üres terület) kimarad.
+  let minU = w, maxU = -1, minV = h, maxV = -1;
+  for (let v = 0; v < h; v++) {
+    const row = v * w;
+    for (let u = 0; u < w; u++) {
+      if (codes[row + u] !== ZONE_ASPHALT) continue;
+      if (u < minU) minU = u;
+      if (u > maxU) maxU = u;
+      if (v < minV) minV = v;
+      if (v > maxV) maxV = v;
     }
   }
-  const dilated = new Uint8Array(w * h);
-  for (let x = 0; x < w; x++) {
+  if (maxU < minU) { // nincs aszfalt pixel — nincs mit szűkíteni
+    minU = 0; maxU = w - 1; minV = 0; maxV = h - 1;
+  }
+  const padU = Math.round((maxU - minU) * 0.06) + 4;
+  const padV = Math.round((maxV - minV) * 0.06) + 4;
+  minU = Math.max(0, minU - padU);
+  maxU = Math.min(w - 1, maxU + padU);
+  minV = Math.max(0, minV - padV);
+  maxV = Math.min(h - 1, maxV + padV);
+  const cropW = maxU - minU + 1;
+  const cropH = maxV - minV + 1;
+
+  // A dilatáció (lásd lejjebb) a szomszédokat is nézi, ezért a TELJES
+  // képen kell számolni, nem a már kivágotton — utána vágunk csak a kis
+  // rárajzoláshoz.
+  const radius = Math.max(2, Math.round(Math.max(cropW, cropH) / 400));
+  const rowPass = new Uint8Array(w * h);
+  for (let y = minV; y <= maxV; y++) {
+    const row = y * w;
     let count = 0;
-    for (let y = -radius; y < h; y++) {
+    for (let x = minU - radius; x <= maxU; x++) {
+      const add = x + radius;
+      if (add <= maxU && add >= 0 && codes[row + add] === ZONE_ASPHALT) count++;
+      const rem = x - radius - 1;
+      if (rem >= minU && codes[row + rem] === ZONE_ASPHALT) count--;
+      if (x >= minU) rowPass[row + x] = count > 0 ? 1 : 0;
+    }
+  }
+  const dilated = new Uint8Array(cropW * cropH);
+  for (let x = minU; x <= maxU; x++) {
+    let count = 0;
+    for (let y = minV - radius; y <= maxV; y++) {
       const add = y + radius;
-      if (add < h && rowPass[add * w + x]) count++;
+      if (add <= maxV && add >= 0 && rowPass[add * w + x]) count++;
       const rem = y - radius - 1;
-      if (rem >= 0 && rowPass[rem * w + x]) count--;
-      if (y >= 0) dilated[y * w + x] = count > 0 ? 1 : 0;
+      if (rem >= minV && rowPass[rem * w + x]) count--;
+      if (y >= minV) dilated[(y - minV) * cropW + (x - minU)] = count > 0 ? 1 : 0;
     }
   }
 
   const full = document.createElement('canvas');
-  full.width = w;
-  full.height = h;
+  full.width = cropW;
+  full.height = cropH;
   const fullCtx = full.getContext('2d');
-  const imgData = fullCtx.createImageData(w, h);
+  const imgData = fullCtx.createImageData(cropW, cropH);
   for (let i = 0; i < dilated.length; i++) {
     if (!dilated[i]) continue;
     const o = i * 4;
@@ -1562,7 +1595,7 @@ function buildMiniMapTrack(runtime) {
   }
   fullCtx.putImageData(imgData, 0, 0);
 
-  // Fokozatos (mindig felező) kicsinyítés — egy 15-20x-es ugrás elmosná a
+  // Fokozatos (mindig felező) kicsinyítés — egy nagy ugrás elmosná a
   // vonalat, több lépésben félig-félig zsugorítva sokkal jobban megmarad
   // (a klasszikus mipmap-trükk).
   let cur = full;
@@ -1575,9 +1608,21 @@ function buildMiniMapTrack(runtime) {
   }
   miniMapTrackCanvas = cur;
 
-  // A kijelzett canvas méretét a pálya-bounds arányához igazítjuk, hogy a
-  // térkép ne torzuljon (nyújtás/összenyomás) egy kényszerített négyzetbe.
-  const aspect = (runtime.bounds.maxX - runtime.bounds.minX) / (runtime.bounds.maxZ - runtime.bounds.minZ);
+  // A kivágott pixel-tartományt visszaváltjuk világkoordinátákra — ez lesz
+  // a kocsi-pötty pozicionálásának vonatkoztatási kerete (NEM a teljes
+  // zonemap.bounds).
+  const b = runtime.bounds;
+  miniMapBounds = {
+    minX: b.minX + (minU / w) * (b.maxX - b.minX),
+    maxX: b.minX + ((maxU + 1) / w) * (b.maxX - b.minX),
+    minZ: b.minZ + (minV / h) * (b.maxZ - b.minZ),
+    maxZ: b.minZ + ((maxV + 1) / h) * (b.maxZ - b.minZ),
+  };
+
+  // A kijelzett canvas méretét a kivágott terület arányához igazítjuk,
+  // hogy a térkép ne torzuljon (nyújtás/összenyomás) egy kényszerített
+  // négyzetbe.
+  const aspect = (miniMapBounds.maxX - miniMapBounds.minX) / (miniMapBounds.maxZ - miniMapBounds.minZ);
   if (aspect >= 1) {
     miniMapCanvas.width = MINIMAP_TARGET;
     miniMapCanvas.height = Math.round(MINIMAP_TARGET / aspect);
@@ -1591,10 +1636,10 @@ function updateMiniMap(carX, carZ) {
   const w = miniMapCanvas.width;
   const h = miniMapCanvas.height;
   miniMapCtx.clearRect(0, 0, w, h);
-  if (!zoneRuntime || !miniMapTrackCanvas) return;
+  if (!miniMapBounds || !miniMapTrackCanvas) return;
   miniMapCtx.drawImage(miniMapTrackCanvas, 0, 0, w, h);
 
-  const b = zoneRuntime.bounds;
+  const b = miniMapBounds;
   const px = ((carX - b.minX) / (b.maxX - b.minX)) * w;
   const py = ((carZ - b.minZ) / (b.maxZ - b.minZ)) * h;
   miniMapCtx.beginPath();
