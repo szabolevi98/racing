@@ -61,6 +61,9 @@ const zoneStatusEl = document.getElementById('zoneStatus');
 const brushSizeRange = document.getElementById('brushSizeRange');
 const brushSizeLabel = document.getElementById('brushSizeLabel');
 const zoneIndicatorEl = document.getElementById('zoneIndicator');
+const miniMapCanvas = document.getElementById('miniMapCanvas');
+const miniMapCtx = miniMapCanvas.getContext('2d');
+const speedValueEl = document.getElementById('speedValue');
 const rolloverAlertEl = document.getElementById('rolloverAlert');
 const rolloverAlertTextEl = document.getElementById('rolloverAlertText');
 const lapInvalidAlertEl = document.getElementById('lapInvalidAlert');
@@ -1504,6 +1507,103 @@ async function loadZoneRuntime(entry) {
   }
 
   zoneRuntime = { codes, w: img.width, h: img.height, bounds: entry.zonemap.bounds };
+  buildMiniMapTrack(zoneRuntime);
+}
+
+// A mini-térkép pálya-sziluettje ugyanabból a zonemap-ből épül, amit a zóna-
+// szerkesztő fest: festetlen = aszfalt (0), ebből rajzolunk ki egy világos
+// foltot, a kifutó/fal festék pedig átlátszó marad. Ez csak PÁLYAVÁLTÁSKOR
+// fut le egyszer (nem képkockánként), a kis felbontású eredmény kerül
+// képkockánként a látható canvas-ra a játékos-pötty mellé.
+const MINIMAP_TARGET = 220; // a hosszabbik oldal célmérete képpontban
+let miniMapTrackCanvas = null;
+function buildMiniMapTrack(runtime) {
+  const { w, h, codes } = runtime;
+
+  // A zonemap felbontása (pl. 3309x6045) sokszorosa a kijelzett méretnek —
+  // egyetlen nagy zsugorítás a böngésző lineáris szűrésével simán eltünteti
+  // az 1-2 pixel széles pálya-szalagot. Ezért előbb (szeparálható, két 1D
+  // menetes) dilatációval megvastagítjuk, hogy a later kicsinyítés után is
+  // látszódjon.
+  const radius = Math.max(2, Math.round(Math.max(w, h) / 400));
+  const rowPass = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    let count = 0;
+    for (let x = -radius; x < w; x++) {
+      const add = x + radius;
+      if (add < w && codes[row + add] === ZONE_ASPHALT) count++;
+      const rem = x - radius - 1;
+      if (rem >= 0 && codes[row + rem] === ZONE_ASPHALT) count--;
+      if (x >= 0) rowPass[row + x] = count > 0 ? 1 : 0;
+    }
+  }
+  const dilated = new Uint8Array(w * h);
+  for (let x = 0; x < w; x++) {
+    let count = 0;
+    for (let y = -radius; y < h; y++) {
+      const add = y + radius;
+      if (add < h && rowPass[add * w + x]) count++;
+      const rem = y - radius - 1;
+      if (rem >= 0 && rowPass[rem * w + x]) count--;
+      if (y >= 0) dilated[y * w + x] = count > 0 ? 1 : 0;
+    }
+  }
+
+  const full = document.createElement('canvas');
+  full.width = w;
+  full.height = h;
+  const fullCtx = full.getContext('2d');
+  const imgData = fullCtx.createImageData(w, h);
+  for (let i = 0; i < dilated.length; i++) {
+    if (!dilated[i]) continue;
+    const o = i * 4;
+    imgData.data[o] = 210; imgData.data[o + 1] = 214; imgData.data[o + 2] = 222; imgData.data[o + 3] = 235;
+  }
+  fullCtx.putImageData(imgData, 0, 0);
+
+  // Fokozatos (mindig felező) kicsinyítés — egy 15-20x-es ugrás elmosná a
+  // vonalat, több lépésben félig-félig zsugorítva sokkal jobban megmarad
+  // (a klasszikus mipmap-trükk).
+  let cur = full;
+  while (cur.width > MINIMAP_TARGET * 2 || cur.height > MINIMAP_TARGET * 2) {
+    const next = document.createElement('canvas');
+    next.width = Math.max(1, Math.round(cur.width / 2));
+    next.height = Math.max(1, Math.round(cur.height / 2));
+    next.getContext('2d').drawImage(cur, 0, 0, next.width, next.height);
+    cur = next;
+  }
+  miniMapTrackCanvas = cur;
+
+  // A kijelzett canvas méretét a pálya-bounds arányához igazítjuk, hogy a
+  // térkép ne torzuljon (nyújtás/összenyomás) egy kényszerített négyzetbe.
+  const aspect = (runtime.bounds.maxX - runtime.bounds.minX) / (runtime.bounds.maxZ - runtime.bounds.minZ);
+  if (aspect >= 1) {
+    miniMapCanvas.width = MINIMAP_TARGET;
+    miniMapCanvas.height = Math.round(MINIMAP_TARGET / aspect);
+  } else {
+    miniMapCanvas.height = MINIMAP_TARGET;
+    miniMapCanvas.width = Math.round(MINIMAP_TARGET * aspect);
+  }
+}
+
+function updateMiniMap(carX, carZ) {
+  const w = miniMapCanvas.width;
+  const h = miniMapCanvas.height;
+  miniMapCtx.clearRect(0, 0, w, h);
+  if (!zoneRuntime || !miniMapTrackCanvas) return;
+  miniMapCtx.drawImage(miniMapTrackCanvas, 0, 0, w, h);
+
+  const b = zoneRuntime.bounds;
+  const px = ((carX - b.minX) / (b.maxX - b.minX)) * w;
+  const py = ((carZ - b.minZ) / (b.maxZ - b.minZ)) * h;
+  miniMapCtx.beginPath();
+  miniMapCtx.arc(px, py, 5, 0, Math.PI * 2);
+  miniMapCtx.fillStyle = '#ff3b3b';
+  miniMapCtx.strokeStyle = 'rgba(0,0,0,0.6)';
+  miniMapCtx.lineWidth = 1.5;
+  miniMapCtx.fill();
+  miniMapCtx.stroke();
 }
 
 function sampleZoneAt(x, z) {
@@ -1817,6 +1917,9 @@ function updateControls() {
   const pos = chassisBody.translation();
   const zone = sampleZoneAt(pos.x, pos.z);
   const offtrack = zone === ZONE_OFFTRACK;
+  updateMiniMap(pos.x, pos.z);
+  const linvel = chassisBody.linvel();
+  speedValueEl.textContent = Math.round(Math.hypot(linvel.x, linvel.z) * 3.6);
   zoneIndicatorEl.textContent =
     carTouchesWall() ? 'FAL' : offtrack ? 'kifutó (lassít)' : 'aszfalt';
   const forceFactor = offtrack ? OFFTRACK_FORCE_FACTOR : 1;
