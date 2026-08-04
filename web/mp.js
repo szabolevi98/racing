@@ -34,6 +34,7 @@ window.__mp = {
   // és mennyire tért el ettől a küldési ütem a névleges tick-időtől.
   get queueDepth() { return queueDepth; },
   get sendPeriod() { return +sendPeriod.toFixed(2); },
+  get physSteps() { return physSteps; },
 };
 const THREE = G.THREE;
 
@@ -495,10 +496,13 @@ let physPrev = null;
 let physCurr = null;
 let physAt = 0;
 
+let physSteps = 0;   // diagnosztikához: hány fizikai lépés történt eddig
+
 function recordPhysState() {
   physPrev = physCurr;
   physCurr = G.getCarState();
   physAt = performance.now();
+  physSteps++;
 }
 
 function interpolatedPhys() {

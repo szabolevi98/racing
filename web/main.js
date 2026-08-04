@@ -2567,9 +2567,84 @@ function animate() {
     updateShowcaseCamera(dt);
   }
 
+  recordDiagFrame();
   renderer.render(scene, camera);
 }
 
+// ---------- Rángatás-diagnosztika ----------
+// A rángatás ezredmásodperces időzítési kérdés: videón nem látszik, mitől van,
+// és háttérfülön (ahol az időzítők fékezettek) nem is reprodukálható. Ezért
+// itt mérünk, a VALÓDI gépen: képkockánként rögzítjük, mennyi idő telt el és
+// mennyit mozdult a látható kocsi. Az arányuk a pillanatnyi sebesség — ha ez
+// képkockáról képkockára ugrál, azt látja a szem rángatásnak.
+//
+// Használat a konzolban:  __diag.start(6)   majd 6 mp múlva:  __diag.report()
+let diag = null;
+
+function recordDiagFrame() {
+  if (!diag) return;
+  const now = performance.now();
+  if (now > diag.until) return;
+  const p = carPivot.position;
+  diag.rows.push({
+    t: now,
+    x: p.x, z: p.z,
+    snaps: window.__mp?.snaps ?? 0,
+    steps: window.__mp?.physSteps ?? 0,
+  });
+}
+
+const pct = (sorted, q) => sorted.length ? +sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))].toFixed(2) : 0;
+
+window.__diag = {
+  start(seconds = 6) {
+    diag = { until: performance.now() + seconds * 1000, rows: [] };
+    return `Mérés ${seconds} másodpercig — VEZESS közben (tartsd a gázt)! Utána: __diag.report()`;
+  },
+  report() {
+    if (!diag || diag.rows.length < 10) return 'Előbb __diag.start(6), és vezess a mérés alatt.';
+    const r = diag.rows;
+    const dts = [], speeds = [], stepsPerFrame = [];
+    let snapFrames = 0;
+    for (let i = 1; i < r.length; i++) {
+      const dt = r[i].t - r[i - 1].t;
+      if (dt <= 0) continue;
+      dts.push(dt);
+      speeds.push(Math.hypot(r[i].x - r[i - 1].x, r[i].z - r[i - 1].z) / (dt / 1000));
+      stepsPerFrame.push(r[i].steps - r[i - 1].steps);
+      if (r[i].snaps > r[i - 1].snaps) snapFrames++;
+    }
+    const sortedDt = [...dts].sort((a, b) => a - b);
+    const sortedSp = [...speeds].sort((a, b) => a - b);
+    const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+    const spMean = mean(speeds);
+    const spStd = Math.sqrt(mean(speeds.map((s) => (s - spMean) ** 2)));
+    const hist = {};
+    for (const s of stepsPerFrame) hist[s] = (hist[s] || 0) + 1;
+
+    return {
+      mod: appState,
+      kepkockak: r.length,
+      fps: +(1000 / mean(dts)).toFixed(1),
+      // Ha a képkocka-idő maga ingadozik, a baj a renderelésnél van (GPU),
+      // nem a hálózatnál — akkor egyjátékosban is rángatna.
+      kepkockaIdo_ms: { p50: pct(sortedDt, 0.5), p90: pct(sortedDt, 0.9), p99: pct(sortedDt, 0.99), max: +Math.max(...dts).toFixed(2) },
+      // A látható sebesség szórása a rángatás mértéke. Ha az átlaghoz képest
+      // nagy, a kocsi egyenetlenül halad a képen.
+      latszoSebesseg_ms: { atlag: +spMean.toFixed(2), szoras: +spStd.toFixed(2), p50: pct(sortedSp, 0.5), p99: pct(sortedSp, 0.99) },
+      ingadozas_szazalek: +((spStd / (spMean || 1)) * 100).toFixed(1),
+      // Hány fizikai lépés jutott egy-egy képkockára. Ha ez 0 és 2 közt
+      // váltakozik, a fizika és a képfrissítés nincs szinkronban.
+      fizikaiLepesKepkockankent: hist,
+      snapshotosKepkockak_szazalek: +((100 * snapFrames) / (r.length - 1)).toFixed(1),
+    };
+  },
+};
+
+// Csak a diagnosztika deklarálása UTÁN indulhat a képkocka-hurok: az animate()
+// már az első hívásnál olvassa a `diag`-ot, és egy még nem inicializált `let`
+// olvasása megszakítaná az egész modul kiértékelését (a window.__game sem
+// jönne létre).
 animate();
 
 // A multiplayer modul minden képkockán meghívandó függvénye (mp.js állítja be).
