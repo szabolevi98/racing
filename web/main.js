@@ -2431,9 +2431,12 @@ window.addEventListener('mouseup', (e) => {
 });
 
 function updateChaseCamera() {
-  const chassisPos = chassisBody.translation();
-  const chassisQuat = chassisBody.rotation();
-  const q = new THREE.Quaternion(chassisQuat.x, chassisQuat.y, chassisQuat.z, chassisQuat.w);
+  // A LÁTHATÓ kocsit követjük, nem a fizikai testet. Egyjátékosban a kettő
+  // ugyanott van (a carPivot minden képkockán a chassisBody-ról frissül), de
+  // multiplayerben a helyi fizika nem fut — a kocsit a szerver állapota
+  // mozgatja —, így a chassisBody a rajtnál maradna, és vele a kamera is.
+  const chassisPos = carPivot.position;
+  const q = carPivot.quaternion;
 
   // Csak a kocsi YAW-ját (merre néz felülnézetből) vesszük át — a dőlést és a
   // bukást (pl. borulás közben) szándékosan figyelmen kívül hagyjuk. Enélkül
@@ -3921,13 +3924,7 @@ function animate() {
 
     updateChaseCamera();
   } else if (appState === 'mp') {
-    // Multiplayerben a SZERVER a hiteles forrás: a helyi fizikát nem
-    // léptetjük, a kocsikat a beérkező állapot mozgatja. A modul minden
-    // képkockán megkapja a szót, hogy interpolálhasson két állapot között.
-    mpFrameHook?.(dt);
-    updateSunTarget(carPivot.position);
-    updateWheelVisuals(dt);
-    updateChaseCamera();
+    stepMultiplayerFrame(dt);
   } else if (appState === 'dev') {
     updateDevCamera(dt);
   } else if (appState === 'cartest') {
@@ -3952,6 +3949,18 @@ animate();
 // A multiplayer modul minden képkockán meghívandó függvénye (mp.js állítja be).
 let mpFrameHook = null;
 
+// Egy multiplayer képkocka. Külön függvény, hogy teszteléskor kézzel is
+// léptethető legyen: a requestAnimationFrame megáll, ha a lap háttérbe kerül.
+// Multiplayerben a SZERVER a hiteles forrás — a helyi fizikát nem léptetjük,
+// a kocsikat a beérkező állapot mozgatja. A hálózati modul minden képkockán
+// megkapja a szót, hogy interpolálhasson két állapot között.
+function stepMultiplayerFrame(dt) {
+  mpFrameHook?.(dt);
+  updateSunTarget(carPivot.position);
+  updateWheelVisuals(dt);
+  updateChaseCamera();
+}
+
 // A multiplayer modul felülete a játék felé. Szándékosan szűk: csak annyit
 // ad ki, amennyi a hálózati réteghez kell — a fizikát és a versenylogikát
 // multiplayerben a szerver végzi.
@@ -3959,6 +3968,7 @@ window.__game = {
   THREE, scene, camera, carPivot, renderer,
   get appState() { return appState; },
   get hasFrameHook() { return !!mpFrameHook; },
+  stepMpFrame: stepMultiplayerFrame,
   get manifest() { return manifest; },
   get currentMapId() { return currentMapId; },
   get currentTrack() { return currentTrack; },
