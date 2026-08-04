@@ -2657,6 +2657,16 @@ function stepMultiplayerFrame(dt) {
   updateSunTarget(carPivot.position);
   updateWheelVisuals(dt);
   updateChaseCamera();
+  // A vezetős HUD-ot egyjátékosban az updateControls frissíti, ami
+  // multiplayerben nem fut — emiatt hiányzott eddig a mini-térkép és a
+  // zóna-kijelző. Mindkettő tisztán a kocsi helyéből számolható, tehát itt
+  // is elvégezhető; a versenylogikához (kör, checkpoint) nem nyúlunk, az
+  // marad a szerveré.
+  const p = carPivot.position;
+  updateMiniMap(p.x, p.z);
+  // Ugyanaz a kifejezés, mint az egyjátékos HUD-on (updateControls).
+  zoneIndicatorEl.textContent =
+    carTouchesWall() ? 'FAL' : sampleZoneAt(p.x, p.z) === ZONE_OFFTRACK ? 'kifutó (lassít)' : 'aszfalt';
 }
 
 // A multiplayer modul felülete a játék felé. Szándékosan szűk: csak annyit
@@ -2729,6 +2739,17 @@ window.__game = {
   },
   setHud(html) { raceHudEl.innerHTML = html; },
   setSpeed(kmh) { speedValueEl.textContent = Math.round(kmh); },
+  // A nagy 3-2-1 kiírás. Multiplayerben a visszaszámlálás a SZERVER órája
+  // szerint jár (a kliens csak megjeleníti), ezért nem a helyi race.phase
+  // vezérli, mint egyjátékosban — null/0 rejti el.
+  setCountdown(secondsLeft) {
+    if (!secondsLeft || secondsLeft <= 0) {
+      countdownEl.classList.add('hidden');
+      return;
+    }
+    countdownEl.classList.remove('hidden');
+    countdownEl.textContent = String(secondsLeft);
+  },
 };
 
 window.__debug = {

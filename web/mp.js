@@ -562,6 +562,10 @@ function frame(dt = 1 / 60) {
     group.quaternion.set(s.q[0], s.q[1], s.q[2], s.q[3]);
   }
 
+  // A nagy 3-2-1. A szerver órája a mérvadó (starting.startsAt), nem a helyi
+  // versenyállapot — az multiplayerben nem is fut.
+  G.setCountdown(starting?.startsAt ? Math.ceil((starting.startsAt - Date.now()) / 1000) : 0);
+
   const evt = lastEvents[0];
   G.setHud(
     `Kör: <strong>${myLap + 1} / ${room?.laps ?? '?'}</strong><br>` +
