@@ -70,6 +70,13 @@ async function collectCars() {
   for (const file of (await listFiles(carsDir, '.glb')).sort()) {
     const id = file.replace(/\.glb$/i, '');
     const entry = { id, label: prettify(id), file: `cars/${file}` };
+    // A kliens betöltő-sávja ebből súlyozza, mennyire számít az adott fájl a
+    // teljes %-ba — enélkül egy 5 MB-os és egy 150 MB-os asset egyformán
+    // 1/3-ot érne, és a sáv az apró fájlok után gyorsan felfutna, majd a
+    // nagy pályánál "beragadna".
+    try {
+      entry.bytes = (await fs.stat(path.join(carsDir, file))).size;
+    } catch { /* nem kritikus, a kliens ilyenkor egyenlő súlyra esik vissza */ }
     // Opcionális kocsi-beállítások: <id>.json — a modell előre-iránya és a
     // kerék-mesh-ek felismerése. Ha nincs, a játék az alapértelmezésekkel megy.
     const config = await readJson(path.join(carsDir, `${id}.json`));
@@ -104,6 +111,10 @@ async function collectMaps() {
       label: (await readLicenseTitle(mapDir)) || prettify(id),
       file: `maps/${id}/${sceneFile}`,
     };
+    // Lásd a kocsiknál lévő megjegyzést: ez a betöltő-sáv súlyozásához kell.
+    try {
+      entry.bytes = (await fs.stat(path.join(mapDir, sceneFile))).size;
+    } catch { /* nem kritikus */ }
 
     // Kézi rajtrács (spawn.json). Egyetlen {x,z} objektum is elfogadott a
     // korábbi formátum miatt. A heading radiánban adja meg, merre nézzen az
@@ -156,11 +167,17 @@ async function collectSkyboxes() {
     let files = await listFiles(envDir, '.hdr');
     if (!files.length) files = await listFiles(envDir, '.exr');
     if (!files.length) continue;
-    out.push({
+    const skyFile = files.sort()[0];
+    const entry = {
       id,
       label: (await readLicenseTitle(envDir)) || prettify(id),
-      file: `skybox/${id}/${files.sort()[0]}`,
-    });
+      file: `skybox/${id}/${skyFile}`,
+    };
+    // Lásd a kocsiknál lévő megjegyzést: ez a betöltő-sáv súlyozásához kell.
+    try {
+      entry.bytes = (await fs.stat(path.join(envDir, skyFile))).size;
+    } catch { /* nem kritikus */ }
+    out.push(entry);
   }
   return out;
 }

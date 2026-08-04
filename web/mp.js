@@ -58,6 +58,10 @@ let queueDepth = 0;
 // A szerver szerint elromlott-e már az aktuális kör (snapshot `ti` mezője).
 let lapTainted = false;
 let inputTimer = null;
+// A RACE_END után true: a frame() innentől nem írja felül a HUD-ot a
+// kör/játékos szöveggel, különben a showResults() eredménylistája egyetlen
+// képkockányi ideig látszana csak, mielőtt a következő frame() lenullázná.
+let raceEnded = false;
 let lastEvents = [];
 
 // ---------- Lobby felület ----------
@@ -287,26 +291,38 @@ const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) =>
 async function beginRace(info) {
   closeLobby();
   window.__mp.stage = 'start';
+  raceEnded = false;
   G.setMenuStatus('Verseny betöltése...');
 
-  // A saját kocsi és a pálya betöltése (ha még nem az van betöltve).
+  // A saját kocsi, a pálya és a többi játékos kocsija — mind egyszerre, EGY
+  // fájlméret szerint súlyozott betöltés-sávon, hogy szar neten is látszódjon
+  // a haladás ahelyett, hogy percekig néma maradna a képernyő.
   const myPlayer = info.players.find((p) => p.id === me.id);
   const map = G.manifest.maps.find((m) => m.id === info.mapId);
-  if (G.currentMapId !== info.mapId) {
-    await G.setTrack('assets/' + map.file, map.id, map.spawns, map.gates);
-  }
-  window.__mp.stage = 'track-kesz';
   const car = G.manifest.cars.find((c) => c.id === myPlayer?.carId);
-  if (car) await G.setCar('assets/' + car.file, car.id, car.config);
+  const otherPlayers = info.players.filter((p) => p.id !== me.id);
+
+  const tasks = [];
+  if (G.currentMapId !== info.mapId) {
+    tasks.push({ bytes: map.bytes, run: (onP) => G.setTrack('assets/' + map.file, map.id, map.spawns, map.gates, onP) });
+  }
+  if (car) {
+    tasks.push({ bytes: car.bytes, run: (onP) => G.setCar('assets/' + car.file, car.id, car.config, onP) });
+  }
+  otherPlayers.forEach((p) => {
+    const otherCar = G.manifest.cars.find((c) => c.id === p.carId) || G.manifest.cars[0];
+    tasks.push({ bytes: otherCar?.bytes, run: (onP) => addOtherCar(p, onP) });
+  });
+
+  G.showLoadingOverlay(true);
+  try {
+    await G.runLoadTasks(tasks);
+  } finally {
+    G.hideLoadingOverlay();
+  }
   window.__mp.stage = 'kocsi-kesz';
   await G.prepareTrackPhysics();
   window.__mp.stage = 'fizika-kesz';
-
-  // A többi játékos kocsija — külön modellek, a saját konfigjukkal.
-  for (const p of info.players) {
-    if (p.id === me.id) continue;
-    await addOtherCar(p);
-  }
 
   window.__mp.stage = 'tobbiek-kesz';
   G.setMenuStatus('');
@@ -321,11 +337,11 @@ async function beginRace(info) {
   awaitingFirstSnapshot = true;
 }
 
-async function addOtherCar(p) {
+async function addOtherCar(p, onProgress) {
   const car = G.manifest.cars.find((c) => c.id === p.carId) || G.manifest.cars[0];
   const group = new THREE.Group();
   try {
-    const gltf = await G.loadGLTF('assets/' + car.file);
+    const gltf = await G.loadGLTF('assets/' + car.file, onProgress);
     const model = gltf.scene;
     // Ugyanaz a normalizálás, mint a saját kocsinál: a hossz-tengely Z-re
     // forgatva, és a fizikai kasztni hosszára skálázva — enélkül a többiek
@@ -676,6 +692,8 @@ function frame(dt = 1 / 60) {
   G.setCountdown(starting?.startsAt ? Math.ceil((starting.startsAt - Date.now()) / 1000) : 0);
   G.setLapInvalid(lapTainted);
 
+  if (raceEnded) return;
+
   const evt = lastEvents[0];
   G.setHud(
     `Kör: <strong>${myLap + 1} / ${room?.laps ?? '?'}</strong><br>` +
@@ -797,6 +815,7 @@ function stopInputLoop() {
 
 function showResults(results) {
   stopInputLoop();
+  raceEnded = true;
   const rows = results.map((r) => {
     const name = room?.players.find((p) => p.id === r.playerId)?.name || '?';
     const best = r.bestLapMs ? (r.bestLapMs / 1000).toFixed(2) + 's' : '—';
@@ -815,7 +834,7 @@ function showResults(results) {
 // A menübe egy gomb, ami megnyitja a lobbyt.
 const btn = document.createElement('button');
 btn.id = 'mpOpenBtn';
-btn.className = 'btn btn-warning w-100 mt-2';
+btn.className = 'btn btn-danger btn-lg w-100 mt-2';
 btn.textContent = 'Többjátékos';
 btn.addEventListener('click', openLobby);
 document.getElementById('startBtn')?.insertAdjacentElement('afterend', btn);

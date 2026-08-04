@@ -13,7 +13,11 @@
   #loading {
     position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
     color: #fff; font-size: 18px; background: #111; z-index: 30;
+    transition: background-color .15s ease;
   }
+  /* Kocsi/pálya/ég váltásnál a játék/menü mögötte marad látható (bár állóképként,
+     a renderelés eddig is állt ilyenkor) — így legalább nem tűnik el minden. */
+  #loading.overlay-translucent { background: rgba(17, 17, 17, .6); }
   
   #menu.hidden, #hud.hidden,
   #raceHudWrap.hidden, #countdown.hidden, #results.hidden { display: none !important; }
@@ -68,7 +72,7 @@
   #speedReadout span { font-size: 1.4rem; }
 
   #menu {
-    position: fixed; top: 0; right: 0; height: 100%; width: min(380px, 92vw);
+    position: fixed; top: 0; right: 0; height: 100%; width: min(420px, 92vw);
     background: rgba(10, 12, 17, 0.88);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
@@ -114,9 +118,13 @@
 </head>
 <body>
 <div id="loading">
-  <div class="text-center">
+  <div class="text-center" style="width: min(320px, 80vw);">
     <div class="spinner-border text-primary mb-3" role="status"></div>
-    <div>Betöltés...</div>
+    <div id="loadingText">Betöltés...</div>
+    <div class="progress mt-3" style="height: 8px;">
+      <div id="loadingBar" class="progress-bar" role="progressbar" style="width: 0%;"></div>
+    </div>
+    <div id="loadingPct" class="small text-secondary mt-1">0%</div>
   </div>
 </div>
 
@@ -149,7 +157,7 @@
     </select>
   </div>
 
-  <button id="startBtn" class="btn btn-primary btn-lg fw-semibold" disabled>Indítás</button>
+  <button id="startBtn" class="btn btn-primary btn-lg fw-semibold" disabled>Egyjátékos</button>
   <div id="menuStatus" class="text-center small text-secondary mt-3"></div>
 </div>
 

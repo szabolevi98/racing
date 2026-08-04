@@ -443,6 +443,14 @@ export class RaceSim {
     results.forEach((r, i) => { r.position = i + 1; });
     await this.room.recordResults(results).catch(() => {});
     this.broadcast(S2C.RACE_END, { results });
+
+    // Vissza LOBBY-ra: enélkül a state örökre FINISHED maradt, és a
+    // canStart() minden további próbálkozásnál "A verseny már elindult"
+    // hibát adott ugyanabban a szobában — új versenyt csak új szoba
+    // létrehozásával lehetett indítani.
+    this.room.state = ROOM_STATE.LOBBY;
+    this.room.sim = null;
+    this.broadcast(S2C.ROOM_STATE, { room: this.room.toJSON() });
   }
 
   stop() {

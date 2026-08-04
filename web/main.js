@@ -33,7 +33,47 @@ await RAPIER.init();
 
 // ---------- DOM ----------
 const loadingEl = document.getElementById('loading');
+const loadingBarEl = document.getElementById('loadingBar');
+const loadingPctEl = document.getElementById('loadingPct');
 const menuEl = document.getElementById('menu');
+
+// ---------- Betöltés-overlay (induláskor ÉS kocsi/pálya/ég váltásnál) ----------
+// Az induló betöltésen kívül máshol (menüben kocsi/ég váltás, multiplayer
+// verseny-indítás) eddig semmilyen visszajelzés nem volt letöltés közben —
+// szar neten ez percekig tartó, néma várakozásnak tűnt. Ugyanezt a sávot és
+// %-ot használjuk mindenhol, csak "translucent" módban, hogy a mögötte lévő
+// menü/játék állóképe átlásszon.
+function showLoadingOverlay(translucent) {
+  loadingEl.classList.toggle('overlay-translucent', !!translucent);
+  loadingBarEl.style.width = '0%';
+  loadingPctEl.textContent = '0%';
+  loadingEl.style.display = 'flex';
+}
+
+function hideLoadingOverlay() {
+  loadingEl.style.display = 'none';
+  loadingEl.classList.remove('overlay-translucent');
+}
+
+// tasks: [{ bytes, run(onProgress) => Promise }]. A %-ot fájlméret szerint
+// súlyozva számolja (lásd server/assets.js entry.bytes) — enélkül egy pár
+// MB-os kocsi és egy 100+ MB-os pálya egyformán érne a sávban.
+async function runLoadTasks(tasks) {
+  const weights = tasks.map((t) => t.bytes || 1);
+  const totalWeight = weights.reduce((a, b) => a + b, 0);
+  const fractions = tasks.map(() => 0);
+  const update = () => {
+    const overall = fractions.reduce((sum, f, i) => sum + f * weights[i], 0) / totalWeight;
+    const pct = Math.round(Math.min(1, overall) * 100);
+    loadingBarEl.style.width = pct + '%';
+    loadingPctEl.textContent = pct + '%';
+  };
+  update();
+  await Promise.all(tasks.map((t, i) => t.run((evt) => {
+    if (evt.lengthComputable) fractions[i] = evt.loaded / evt.total;
+    update();
+  }).then(() => { fractions[i] = 1; update(); })));
+}
 const hudEl = document.getElementById('hud');
 const statusEl = document.getElementById('status');
 const menuStatusEl = document.getElementById('menuStatus');
@@ -159,7 +199,7 @@ function applyEnvLighting(analysis) {
   scene.environmentIntensity = isNight ? 0.3 : 0.5;
 }
 
-function setSkybox(skyUrl) {
+function setSkybox(skyUrl, onProgress) {
   return new Promise((resolve, reject) => {
     new RGBELoader().load(
       skyUrl,
@@ -174,7 +214,7 @@ function setSkybox(skyUrl) {
         applyEnvLighting(analysis);
         resolve();
       },
-      undefined,
+      onProgress,
       reject
     );
   });
@@ -475,8 +515,8 @@ function pickSpawnSlot(spawnPoints, occupiedIndices = []) {
   return { x: chosen.x, z: chosen.z, heading: chosen.heading || 0 };
 }
 
-function loadGLTF(url) {
-  return new Promise((resolve, reject) => gltfLoader.load(url, resolve, undefined, reject));
+function loadGLTF(url, onProgress) {
+  return new Promise((resolve, reject) => gltfLoader.load(url, resolve, onProgress, reject));
 }
 
 // Néhány gyors sugárvetés a pálya bbox-a fölött, hogy legyen egy használható
@@ -704,7 +744,7 @@ function isMaskLikeTexture(tex) {
   return result;
 }
 
-async function setTrack(trackUrl, mapId, spawnPoints, gates) {
+async function setTrack(trackUrl, mapId, spawnPoints, gates, onProgress) {
   setMenuStatus('Pálya betöltése...');
   currentMapId = mapId || null;
   currentSpawnPoints = spawnPoints || [];
@@ -720,7 +760,7 @@ async function setTrack(trackUrl, mapId, spawnPoints, gates) {
     currentTrack = null;
   }
 
-  const gltf = await loadGLTF(trackUrl);
+  const gltf = await loadGLTF(trackUrl, onProgress);
   const track = gltf.scene;
   const dsSeen = new Set();
   track.traverse((obj) => {
@@ -1151,7 +1191,7 @@ function buildWheelPivots(carRoot, wheelPattern) {
   });
 }
 
-async function setCar(carUrl, carId, config) {
+async function setCar(carUrl, carId, config, onProgress) {
   setMenuStatus('Kocsi betöltése...');
 
   carLoaded = false;
@@ -1177,7 +1217,7 @@ async function setCar(carUrl, carId, config) {
   wheelPivots = [];
   wheelSources = [];
 
-  const gltf = await loadGLTF(carUrl);
+  const gltf = await loadGLTF(carUrl, onProgress);
   const carRoot = gltf.scene;
   carRoot.traverse((obj) => {
     if (obj.isMesh) {
@@ -2195,9 +2235,12 @@ async function switchCarTo(entry) {
   carSwitching = true;
   carSwitchHook?.begin(entry);
   carSelect.value = entry.id;
+  saveLastChoice('car', entry.id);
+  showLoadingOverlay(true);
   try {
-    await setCar('assets/' + entry.file, entry.id, entry.config);
+    await runLoadTasks([{ bytes: entry.bytes, run: (onP) => setCar('assets/' + entry.file, entry.id, entry.config, onP) }]);
   } finally {
+    hideLoadingOverlay();
     carSwitching = false;
     carSwitchHook?.end(entry);
   }
@@ -2381,6 +2424,30 @@ function findEntry(list, id) {
   return list.find((item) => item.id === id) || list[0];
 }
 
+// ---------- Alapértelmezett / legutóbb választott kocsi, pálya, környezet ----------
+// Vadonatúj látogatónak ez az alap; ha valaki már választott korábban, azt
+// jegyezzük meg localStorage-ban (gépenként/böngészőnként), és legközelebb
+// azt töltjük be. Ha a mentett asset időközben eltűnt (törölt pálya/kocsi),
+// a findEntry úgyis az első elérhetőre esik vissza.
+const DEFAULT_CAR_ID = '2004_ferrari_f2004';
+const DEFAULT_MAP_ID = 'bugatti_circuit_2017_layout';
+const DEFAULT_ENV_ID = 'day_1';
+const LS_KEYS = { map: 'racing.lastMapId', car: 'racing.lastCarId', env: 'racing.lastEnvId' };
+
+function loadLastChoice(kind, fallback) {
+  try {
+    return localStorage.getItem(LS_KEYS[kind]) || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveLastChoice(kind, id) {
+  try {
+    localStorage.setItem(LS_KEYS[kind], id);
+  } catch { /* pl. letiltott localStorage — nem kritikus, csak nem emlékszik legközelebb */ }
+}
+
 // Kereshető select: a natív <select> köré egy szöveges mezőt és egy szűrhető
 // legördülő listát épít, de a <select> marad az egyetlen igazságforrás
 // (érték, disabled, 'change' esemény) — a meglévő kód (fillSelect,
@@ -2535,41 +2602,59 @@ async function init() {
   fillSelect(carSelect, manifest.cars);
   fillSelect(envSelect, manifest.skyboxes);
 
-  const initialMap = findEntry(manifest.maps, null);
-  const initialCar = findEntry(manifest.cars, null);
-  const initialEnv = findEntry(manifest.skyboxes, null);
+  const initialMap = findEntry(manifest.maps, loadLastChoice('map', DEFAULT_MAP_ID));
+  const initialCar = findEntry(manifest.cars, loadLastChoice('car', DEFAULT_CAR_ID));
+  const initialEnv = findEntry(manifest.skyboxes, loadLastChoice('env', DEFAULT_ENV_ID));
   mapSelect.value = initialMap.id;
   carSelect.value = initialCar.id;
   envSelect.value = initialEnv.id;
 
-  await Promise.all([
-    setSkybox('assets/' + initialEnv.file),
-    setTrack('assets/' + initialMap.file, initialMap.id, initialMap.spawns, initialMap.gates),
-    setCar('assets/' + initialCar.file, initialCar.id, initialCar.config),
+  await runLoadTasks([
+    { bytes: initialEnv.bytes, run: (onP) => setSkybox('assets/' + initialEnv.file, onP) },
+    { bytes: initialMap.bytes, run: (onP) => setTrack('assets/' + initialMap.file, initialMap.id, initialMap.spawns, initialMap.gates, onP) },
+    { bytes: initialCar.bytes, run: (onP) => setCar('assets/' + initialCar.file, initialCar.id, initialCar.config, onP) },
   ]);
 
   mapSelect.disabled = false;
   carSelect.disabled = false;
   envSelect.disabled = false;
   startBtn.disabled = false;
-  loadingEl.style.display = 'none';
+  hideLoadingOverlay();
   if (DEV_MODE) {
     await enterDevMode();
   } else {
     enterMenu();
   }
 
-  mapSelect.addEventListener('change', () => {
+  mapSelect.addEventListener('change', async () => {
     const entry = findEntry(manifest.maps, mapSelect.value);
-    setTrack('assets/' + entry.file, entry.id, entry.spawns, entry.gates);
+    saveLastChoice('map', entry.id);
+    showLoadingOverlay(true);
+    try {
+      await runLoadTasks([{ bytes: entry.bytes, run: (onP) => setTrack('assets/' + entry.file, entry.id, entry.spawns, entry.gates, onP) }]);
+    } finally {
+      hideLoadingOverlay();
+    }
   });
-  carSelect.addEventListener('change', () => {
+  carSelect.addEventListener('change', async () => {
     const entry = findEntry(manifest.cars, carSelect.value);
-    setCar('assets/' + entry.file, entry.id, entry.config);
+    saveLastChoice('car', entry.id);
+    showLoadingOverlay(true);
+    try {
+      await runLoadTasks([{ bytes: entry.bytes, run: (onP) => setCar('assets/' + entry.file, entry.id, entry.config, onP) }]);
+    } finally {
+      hideLoadingOverlay();
+    }
   });
-  envSelect.addEventListener('change', () => {
+  envSelect.addEventListener('change', async () => {
     const entry = findEntry(manifest.skyboxes, envSelect.value);
-    setSkybox('assets/' + entry.file);
+    saveLastChoice('env', entry.id);
+    showLoadingOverlay(true);
+    try {
+      await runLoadTasks([{ bytes: entry.bytes, run: (onP) => setSkybox('assets/' + entry.file, onP) }]);
+    } finally {
+      hideLoadingOverlay();
+    }
   });
 }
 
@@ -2856,6 +2941,7 @@ window.__game = {
   setMenuStatus, setStatus,
   findGroundAt,
   get currentTrackBox() { return currentTrackBox; },
+  showLoadingOverlay, hideLoadingOverlay, runLoadTasks,
   // ---- Client-side prediction felülete ----
   // A helyi kocsi ÁLLAPOTÁNAK kiolvasása és beállítása, plusz egyetlen
   // szimulációs lépés. A hálózati modul ezekből építi fel a jóslást: a

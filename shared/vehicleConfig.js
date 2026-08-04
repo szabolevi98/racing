@@ -43,9 +43,9 @@ export const SUSPENSION = {
   maxForce: 100000,
 };
 
-export const MAX_ENGINE_FORCE = 900;
+export const MAX_ENGINE_FORCE = 1100;
 export const REVERSE_FACTOR = 0.6;
-export const MAX_STEER = 0.5;
+export const MAX_STEER = 0.58;
 
 // A fék NEM lehet akármilyen erős: a Rapier a fékezést közvetlen impulzusként
 // viszi fel, megkerülve a gumi tapadási határát. Egyforma 60-as érték 6.2 g-s
@@ -59,7 +59,15 @@ export const HANDBRAKE_REAR_SLIP = 1.1;
 // Rajt előtt / verseny után a kocsit helyben kell tartani, akár lejtőn is.
 export const HOLD_BRAKE = 60;
 
-export const ASPHALT_FRICTION_SLIP = 1.4;
+// Gyorsításkor a hátsó tengelyre tolódik a teher, az első kerekek alól
+// "elfogy" a nyomóerő — emiatt egyenlő tapadásnál nagy sebességen gázzal
+// alig fordul a kocsi (a kormányzás hatna, csak nincs alatta elég grip).
+// Az első tengelynek ezért külön, magasabb tartalék tapadás jár, hogy a
+// fordulóképesség gázadás közben is megmaradjon; a hátsó marad a régi
+// értéken, hogy a gyorsítás/fékezés karaktere ne változzon.
+export const FRONT_FRICTION_SLIP = 1.75;
+export const REAR_FRICTION_SLIP = 1.65;
+export const ASPHALT_FRICTION_SLIP = REAR_FRICTION_SLIP;
 // Kifutón (fű/kavics) kevesebb erő jut a talajra és csúszósabb is.
 export const OFFTRACK_FRICTION_SLIP = 1.0;
 export const OFFTRACK_FORCE_FACTOR = 0.75;
@@ -109,7 +117,7 @@ export function buildVehicle(RAPIER, world, position = { x: 0, y: 5, z: 0 }) {
     vehicle.setWheelSuspensionRelaxation(i, SUSPENSION.relaxation);
     vehicle.setWheelMaxSuspensionTravel(i, SUSPENSION.maxTravel);
     vehicle.setWheelMaxSuspensionForce(i, SUSPENSION.maxForce);
-    vehicle.setWheelFrictionSlip(i, ASPHALT_FRICTION_SLIP);
+    vehicle.setWheelFrictionSlip(i, i < 2 ? FRONT_FRICTION_SLIP : REAR_FRICTION_SLIP);
   });
 
   return { body, collider, vehicle };
@@ -118,8 +126,15 @@ export function buildVehicle(RAPIER, world, position = { x: 0, y: 5, z: 0 }) {
 // Egy képkockányi vezérlés alkalmazása. A bemenet normalizált:
 //   throttle: -1..1 (negatív = hátramenet), steer: -1..1, brake/hold: bool
 export function applyControls(vehicle, body, input, { offtrack = false, frozen = false } = {}) {
-  const slip = offtrack ? OFFTRACK_FRICTION_SLIP : ASPHALT_FRICTION_SLIP;
-  for (let i = 0; i < 4; i++) vehicle.setWheelFrictionSlip(i, slip);
+  // Kifutón az első/hátsó arány is ugyanúgy megmarad, csak lejjebb tolva.
+  const frontRatio = FRONT_FRICTION_SLIP / REAR_FRICTION_SLIP;
+  const rearSlip = offtrack ? OFFTRACK_FRICTION_SLIP : REAR_FRICTION_SLIP;
+  const frontSlip = rearSlip * frontRatio;
+  const slip = rearSlip;
+  vehicle.setWheelFrictionSlip(0, frontSlip);
+  vehicle.setWheelFrictionSlip(1, frontSlip);
+  vehicle.setWheelFrictionSlip(2, rearSlip);
+  vehicle.setWheelFrictionSlip(3, rearSlip);
 
   if (offtrack) {
     const v = body.linvel();
