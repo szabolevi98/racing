@@ -50,6 +50,17 @@ function crossedGate(gate, fromX, fromZ, toX, toZ) {
 const SPAWN_HEIGHT = 1.0;
 // Innen lövünk lefelé a talajért. Bőven a legmagasabb pályamodell fölött.
 const RAY_FROM_Y = 5000;
+// Mennyi bemenet állhat sorban egy játékosnál. A sor CSAK a jitter elnyelésére
+// való, tartaléknak nem: minden benne álló elem egy tick (~17 ms) plusz
+// késleltetés, mielőtt a játékos bemenete hatna. Ezért rövid.
+//
+// Ha tartósan tele van, az nem jitter, hanem óra-sodródás (a kliens gyorsabban
+// küld, mint ahogy mi tickelünk). Olyankor a legrégebbit dobjuk el — az
+// AKTUÁLIS szándék a fontos —, de ez a kliens újrajátszását elrontja, mert
+// olyan bemenetet játszana vissza, amit sosem használtunk fel. A végleges
+// megoldás egy visszacsatolás lesz (a szerver megmondja a sorhosszt, a kliens
+// ehhez igazítja az ütemét); addig ez a korlát csak biztonsági háló.
+const MAX_INPUT_QUEUE = 3;
 
 export class RaceSim {
   constructor(room, { map, broadcast }) {
@@ -108,8 +119,13 @@ export class RaceSim {
       this.cars.set(player.id, {
         ...car,
         playerId: player.id,
+        // A beérkező bemenetek SORA. A szimuláció tickenként pontosan egyet
+        // fogyaszt el belőle — enélkül a kliens nem tudná újrajátszani, amit
+        // a szerver csinált, és a client-side prediction sosem konvergálna.
+        queue: [],
         input: { steer: 0, throttle: 0, brake: false, seq: 0 },
-        lastSeq: 0,
+        lastSeq: 0,        // a legutóbb BEÉRKEZETT sorszám
+        appliedSeq: 0,     // a legutóbb FELHASZNÁLT sorszám — ezt kapja a kliens
         race: {
           lap: 0,
           nextCheckpoint: 0,
@@ -143,14 +159,19 @@ export class RaceSim {
     if (!car) return;
     // Régi (késve érkező) csomagot eldobunk: a sorszám csak nőhet.
     const seq = Number(msg.seq) || 0;
-    if (seq < car.lastSeq) return;
+    if (seq <= car.lastSeq) return;
     car.lastSeq = seq;
-    car.input = {
+    car.queue.push({
       seq,
       steer: Math.max(-1, Math.min(1, Number(msg.steer) || 0)),
       throttle: Math.max(-1, Math.min(1, Number(msg.throttle) || 0)),
       brake: !!msg.brake,
-    };
+    });
+    // A sor nem nőhet korlátlanul: ha a kliens gyorsabban küld, mint ahogy mi
+    // fogyasztunk (órák elcsúszása), a bemenet egyre késve érvényesülne — a
+    // játékos ezt késleltetésként érezné. A legrégebbieket dobjuk el, mert az
+    // AKTUÁLIS szándék a fontos.
+    while (car.queue.length > MAX_INPUT_QUEUE) car.queue.shift();
   }
 
   step() {
@@ -165,6 +186,15 @@ export class RaceSim {
     }
 
     for (const car of this.cars.values()) {
+      // Tickenként PONTOSAN egy bemenetet fogyasztunk. Ha épp nem érkezett
+      // (csomagvesztés vagy jitter), az előzőt ismételjük — a kliens ezt nem
+      // tudja előre, de nem is kell: az újrajátszást mindig a nyugtázott
+      // állapotból kezdi, amiben az ismétlés hatása már benne van.
+      const next = car.queue.shift();
+      if (next) {
+        car.input = next;
+        car.appliedSeq = next.seq;
+      }
       applyControls(car.vehicle, car.body, car.input, { frozen });
       car.vehicle.updateVehicle(this.world.timestep);
     }
@@ -241,7 +271,11 @@ export class RaceSim {
         v: [+v.x.toFixed(2), +v.y.toFixed(2), +v.z.toFixed(2)],
         st: +(car.vehicle.wheelSteering(0) ?? 0).toFixed(3),
         wr: +(car.vehicle.wheelRotation(2) ?? 0).toFixed(2),
-        seq: car.lastSeq,   // a kliens ebből tudja, meddig dolgoztuk fel a bemenetét
+        // A FELHASZNÁLT sorszám, nem a beérkezett: a kliens ebből tudja, melyik
+        // bemenetéig van benne a hatás ebben az állapotban — innen kell
+        // újrajátszania a többit. (A beérkezett sorszám félrevezetne: egy már
+        // megkapott, de még sorban álló bemenet hatása még NINCS benne.)
+        seq: car.appliedSeq,
         lap: car.race.lap,
         cp: car.race.nextCheckpoint,
       });

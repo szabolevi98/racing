@@ -3,7 +3,7 @@
 // Multiplayerben a SZERVER a hiteles forrás — a helyi fizika nem fut. Ez a
 // modul a bemenetet küldi, és a beérkező állapotot jeleníti meg; a köztes
 // időt interpolálja, hogy a 20/mp állapot is folyamatos mozgásnak látsszon.
-import { C2S, S2C, ROOM_STATE, sanitizeName } from '/shared/protocol.js';
+import { C2S, S2C, ROOM_STATE, TICK_RATE, TICK_MS, sanitizeName } from '/shared/protocol.js';
 
 const G = window.__game;
 // Diagnosztika. A step() azért kell, mert a requestAnimationFrame megáll, ha
@@ -19,6 +19,12 @@ window.__mp = {
   // Ugyanez URL-ből: ?lag=150&jitter=30
   setPing: (rtt, jitter) => setPing(rtt, jitter),
   get net() { return { ...netsim }; },
+  // Prediction-diagnosztika: hány saját bemenet vár még nyugtázásra, és
+  // meddig jutott a szerver. A kettő különbsége a tényleges bemenet-késés
+  // tickben mérve.
+  get inputSeq() { return inputSeq; },
+  get ackedSeq() { return ackedSeq; },
+  get pending() { return inputHistory.length; },
 };
 const THREE = G.THREE;
 
@@ -31,6 +37,7 @@ const others = new Map();
 // A saját kocsi állapot-puffere is kell: a szerver mozgat minket is.
 let selfBuf = [];
 let inputSeq = 0;
+let awaitingFirstSnapshot = false;
 let inputTimer = null;
 let lastEvents = [];
 
@@ -279,7 +286,13 @@ async function beginRace(info) {
   G.setMenuStatus('');
   G.enterMultiplayer(frame);
   window.__mp.stage = 'fut';
-  startInputLoop();
+  // A bemenet-küldést NEM itt indítjuk, hanem az első snapshotnál. A
+  // raceStarting jóval előbb megérkezik, mint ahogy a szerver szimulációja
+  // tényleg futni kezd (előtte betölti a pálya ütközési hálóját) — az addig
+  // elküldött bemenetek csak felhalmozódnának a szerver sorában, és onnantól
+  // minden bemenet ennyivel késve érvényesülne. Az első snapshot a bizonyíték
+  // arra, hogy a szimuláció ÉL és fogyaszt.
+  awaitingFirstSnapshot = true;
 }
 
 async function addOtherCar(p) {
@@ -343,17 +356,30 @@ function makeNameSprite(name) {
 // van két állapot, ami közt interpolálhatunk.
 const INTERP_DELAY_MS = 100;
 
+// A szerver által legutóbb FELHASZNÁLT saját bemenet sorszáma. Minden, ami
+// ennél nem régebbi, még nincs benne a kapott állapotban — azokat kell majd a
+// prediction újrajátszania.
+let ackedSeq = 0;
+
 function onSnapshot(m) {
   window.__mp.snaps++;
+  if (awaitingFirstSnapshot) {
+    awaitingFirstSnapshot = false;
+    startInputLoop();
+  }
   for (const c of m.cars) {
     const entry = c.id === me.id ? null : others.get(c.id);
     const buf = entry ? entry.buf : selfBuf;
-    buf.push({ t: m.t, p: c.p, q: c.q, v: c.v, lap: c.lap });
+    buf.push({ t: m.t, p: c.p, q: c.q, v: c.v, seq: c.seq, lap: c.lap });
     // Csak a közelmúlt kell; a régit eldobjuk.
     while (buf.length > 30) buf.shift();
     if (c.id === me.id) {
       G.setSpeed(Math.hypot(c.v[0], c.v[2]) * 3.6);
       myLap = c.lap;
+      ackedSeq = c.seq || 0;
+      // A nyugtázott bemenetek hatása már benne van a kapott állapotban,
+      // őket nem szabad újrajátszani.
+      while (inputHistory.length && inputHistory[0].seq <= ackedSeq) inputHistory.shift();
     }
   }
 }
@@ -437,16 +463,41 @@ function eventText(e) {
   return '';
 }
 
-// A bemenetet fix ütemben küldjük, nem képkockánként: így a hálózati
-// terhelés független attól, milyen erős a gép.
+// A bemenetet fix ütemben küldjük, nem képkockánként: így a hálózati terhelés
+// független attól, milyen erős a gép.
+//
+// Az ütem PONTOSAN a szerver tickje (TICK_MS), mert a szerver tickenként
+// egyetlen bemenetet fogyaszt el a sorából. Egy input = egy tick: csak így
+// tudja a kliens újrajátszani azt, amit a szerver számolt — enélkül nem
+// tudhatná, hány tickre érvényesült egy-egy bemenete, és a prediction
+// korrekciója sosem konvergálna.
+//
+// A megőrzött előzmény (inputHistory) a nyugtázatlan bemeneteket tartalmazza:
+// a szerver a snapshotban visszaküldi, meddig HASZNÁLTA FEL őket, az addigiakat
+// eldobjuk, a többit pedig újra le kell játszani a kapott állapotra.
+const inputHistory = [];
+
 function startInputLoop() {
   stopInputLoop();
+  // Új verseny: a sorszámozás és az előzmény is nulláról indul, különben a
+  // szerver (ami szintén 0-ról kezd) a régi, magas sorszámokat látná.
+  inputSeq = 0;
+  ackedSeq = 0;
+  inputHistory.length = 0;
   inputTimer = setInterval(() => {
     const k = G.keys;
-    const throttle = (k['KeyW'] || k['ArrowUp']) ? 1 : (k['KeyS'] || k['ArrowDown']) ? -1 : 0;
-    const steer = (k['KeyA'] || k['ArrowLeft']) ? 1 : (k['KeyD'] || k['ArrowRight']) ? -1 : 0;
-    send(C2S.INPUT, { seq: ++inputSeq, steer, throttle, brake: !!k['Space'] });
-  }, 33);
+    const input = {
+      seq: ++inputSeq,
+      steer: (k['KeyA'] || k['ArrowLeft']) ? 1 : (k['KeyD'] || k['ArrowRight']) ? -1 : 0,
+      throttle: (k['KeyW'] || k['ArrowUp']) ? 1 : (k['KeyS'] || k['ArrowDown']) ? -1 : 0,
+      brake: !!k['Space'],
+    };
+    inputHistory.push(input);
+    // Fél másodpercnyi tartalék bőven elég: ennél régebbi bemenetet már
+    // rég nyugtázott a szerver (különben a kapcsolat amúgy is használhatatlan).
+    while (inputHistory.length > TICK_RATE / 2) inputHistory.shift();
+    send(C2S.INPUT, input);
+  }, TICK_MS);
 }
 function stopInputLoop() {
   if (inputTimer) clearInterval(inputTimer);
