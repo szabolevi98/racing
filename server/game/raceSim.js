@@ -113,18 +113,22 @@ export class RaceSim {
     this.world = new RAPIER.World(GRAVITY);
     this.world.timestep = 1 / TICK_RATE;
 
-    // Pálya-ütköző. Ha nincs bekészítve, a verseny akkor is elindul (a kocsik
-    // egy sík talajon mennek) — jobb, mint egyáltalán nem indulni, és a hiba
-    // egyértelműen kiderül.
-    try {
-      const { vertices, indices } = await loadCollision(this.map.id);
-      const trackBody = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
-      this.world.createCollider(RAPIER.ColliderDesc.trimesh(vertices, indices), trackBody);
-    } catch (err) {
-      console.warn(`[${this.room.code}] Nincs ütközési háló (${this.map.id}): ${err.message}`);
-      const ground = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -0.05, 0));
-      this.world.createCollider(RAPIER.ColliderDesc.cuboid(2000, 0.05, 2000), ground);
-    }
+    // Pálya-ütköző. Ez NEM opcionális: korábban hiba esetén egy sík talajra
+    // esett vissza, ami multiplayerben rosszabb, mint el sem indulni. A
+    // kliensek a valódi hálón számolnak, a szerver egy y≈0 síkon — így egy
+    // magasan fekvő pályánál a kocsik a pálya alatt születtek (beékelődés),
+    // egy lejjebb fekvőnél a levegőben lebegtek. Inkább ne induljon a verseny,
+    // és derüljön ki a hiba.
+    const { vertices, indices } = await loadCollision(this.map.id).catch((err) => {
+      throw new Error(`A pálya ütközési hálója nem olvasható (${this.map.id}): ${err.message}`);
+    });
+    const trackBody = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+    this.world.createCollider(RAPIER.ColliderDesc.trimesh(vertices, indices), trackBody);
+    // A háló legfelső pontja: ha egy rajtponton a talajkeresés nem talál
+    // semmit (lyuk a hálóban), innen ejtjük le a kocsit — a pálya FÖLÜL.
+    let topY = -Infinity;
+    for (let i = 1; i < vertices.length; i += 3) if (vertices[i] > topY) topY = vertices[i];
+    this.trackTopY = Number.isFinite(topY) ? topY : 0;
 
     // Zóna-térkép: enélkül a pályán kívül ugyanolyan gyors lenne a kocsi,
     // mint az aszfalton. Nem végzetes, ha hiányzik — a verseny elindul,
@@ -153,7 +157,7 @@ export class RaceSim {
       // kell megkeresni. A pályamodellek világ-magassága nagyon eltérő (az
       // egyik alatta, a másik 100 méterrel a nulla fölött van), így egy fix
       // érték az egyik pályán a föld alatt születne, és a kocsi zuhanna.
-      const pos = { x, y: this.groundAt(x, z) + SPAWN_HEIGHT, z };
+      const pos = { x, y: this.spawnYAt(x, z), z };
       const car = buildVehicle(RAPIER, this.world, pos);
       const half = (s.heading || 0) / 2;
       car.body.setRotation({ x: 0, y: Math.sin(half), z: 0, w: Math.cos(half) }, true);
@@ -193,19 +197,46 @@ export class RaceSim {
       i++;
     }
 
-    this.startAt = this.room.countdownEndsAt;
+    // A rajt ideje még NEM ismert: előbb megvárjuk, hogy a kliensek betöltsenek
+    // (ld. ROOM_STATE.LOADING). Addig a szimuláció fut — a kocsik leülnek a
+    // rugóikra, és a kliensek megkapják a helyüket —, de befagyasztva:
+    // Infinity-nél minden "most" korábbi, tehát a frozen ág érvényes.
+    this.startAt = Infinity;
     this.lastPump = Date.now();
     this.accumulator = 0;
     this.timer = setInterval(() => this.pump(), TICK_MS);
   }
 
+  // Mindenki betöltött (vagy lejárt a türelmi idő): innentől számol a 3-2-1,
+  // és a megadott pillanatban oldódik a fagyasztás.
+  releaseAt(startAt) {
+    this.startAt = startAt;
+  }
+
   // Megkeresi a pálya felszínét egy x/z pont fölött, felülről lefelé lőtt
-  // sugárral. Ha nem talál semmit (a rajtpont a pályán kívülre esik), 0-t ad —
-  // az még mindig jobb, mint a végtelenbe zuhanó autó.
+  // sugárral. null, ha nem talált semmit — a hívó dönt, mit tesz vele.
   groundAt(x, z) {
     const ray = new RAPIER.Ray({ x, y: RAY_FROM_Y, z }, { x: 0, y: -1, z: 0 });
     const hit = this.world.castRay(ray, RAY_FROM_Y * 2, true);
-    return hit ? RAY_FROM_Y - hit.timeOfImpact : 0;
+    return hit ? RAY_FROM_Y - hit.timeOfImpact : null;
+  }
+
+  // Hova születjen a kocsi egy x/z pont fölött.
+  //
+  // A talajkeresés korábban 0-t adott, ha nem talált semmit — ez csendes és
+  // súlyos hiba volt: egy y=40-en fekvő pályánál a kocsi 39 méterrel a pálya
+  // ALATT született, vagyis beékelődött a geometriába. Ha most nincs találat,
+  // az a pálya adathibája (lyuk a hálóban vagy elcsúszott rajzpont), ezért
+  // naplózzuk, és a háló teteje fölé tesszük — onnan legalább LERÁEsik a
+  // pályára, nem beléje.
+  spawnYAt(x, z) {
+    const ground = this.groundAt(x, z);
+    if (ground !== null) return ground + SPAWN_HEIGHT;
+    console.warn(
+      `[${this.room.code}] A rajtpont (${x.toFixed(1)}, ${z.toFixed(1)}) alatt nincs pálya ` +
+      `(${this.map.id}) — a háló teteje fölé ejtjük a kocsit.`
+    );
+    return this.trackTopY + SPAWN_HEIGHT;
   }
 
   // Az "R" multiplayerben: a kliens nem teleportálhatja magát (a szerver a
@@ -215,7 +246,7 @@ export class RaceSim {
     const car = this.cars.get(playerId);
     if (!car || car.race.finished) return;
     const { x, z, heading } = car.respawn;
-    const y = this.groundAt(x, z) + SPAWN_HEIGHT;
+    const y = this.spawnYAt(x, z);
     car.body.setTranslation({ x, y, z }, true);
     const half = heading / 2;
     car.body.setRotation({ x: 0, y: Math.sin(half), z: 0, w: Math.cos(half) }, true);

@@ -4,7 +4,9 @@
 // hálózati protokollt kezeli, és a szobákat tartja nyilván.
 import { WebSocketServer } from 'ws';
 import { randomUUID } from 'node:crypto';
-import { C2S, S2C, ROOM_STATE, ROOM_CODE_LENGTH, sanitizeName, COUNTDOWN_MS } from '../../shared/protocol.js';
+import {
+  C2S, S2C, ROOM_STATE, ROOM_CODE_LENGTH, sanitizeName, COUNTDOWN_MS, RACE_LOAD_TIMEOUT_MS,
+} from '../../shared/protocol.js';
 import { Room } from '../game/room.js';
 import { upsertPlayer } from '../db/index.js';
 import { getManifest } from '../assets.js';
@@ -49,10 +51,14 @@ function leaveRoom(player, reason) {
   const remaining = room.remove(player.id);
   if (remaining === 0) {
     room.sim?.stop();
+    clearTimeout(room.loadTimer);
     rooms.delete(room.code);
   } else {
     pushRoomState(room);
     if (reason) broadcastRoom(room, S2C.RACE_EVENT, { kind: 'left', playerId: player.id, name: player.name });
+    // Ha épp a verseny betöltésére vártunk, és ő volt a hiányzó, most már
+    // indulhatunk — különben a kilépőre várnánk a teljes időkorlátig.
+    maybeBeginCountdown(room);
   }
 }
 
@@ -117,6 +123,8 @@ async function handleMessage(player, msg) {
       if (!room) return;
       player.ready = !!msg.ready;
       pushRoomState(room);
+      // Verseny előtti betöltés: ez volt az utolsó, akire vártunk?
+      maybeBeginCountdown(room);
       return;
     }
 
@@ -155,16 +163,16 @@ async function handleMessage(player, msg) {
 }
 
 async function startRace(room) {
-  await room.beginCountdown();
+  await room.beginLoading();
   const manifest = await getManifest();
   const map = manifest.maps.find((m) => m.id === room.mapId);
 
   // A rajtrács-pontok a pálya spawn.json-jából jönnek; ha kevesebb van, mint
   // ahány játékos, körbeforgunk rajtuk (a szimuláció szétdobja őket).
+  // A startsAt itt szándékosan NINCS: ez a "töltsd be" jel, nem a rajt. A
+  // pontos rajtidőt a RACE_COUNTDOWN adja meg, ha mindenki megvan.
   const spawns = map?.spawns || [];
   broadcastRoom(room, S2C.RACE_STARTING, {
-    countdownMs: COUNTDOWN_MS,
-    startsAt: room.countdownEndsAt,
     mapId: room.mapId,
     laps: room.laps,
     spawns,
@@ -173,10 +181,47 @@ async function startRace(room) {
   pushRoomState(room);
 
   // A szimulációt a raceSim modul indítja — külön fájlban, hogy ez a réteg
-  // tisztán a hálózatról szóljon.
+  // tisztán a hálózatról szóljon. Befagyasztva indul, és a releaseAt oldja.
   const { RaceSim } = await import('../game/raceSim.js');
-  room.sim = new RaceSim(room, { map, broadcast: (type, data) => broadcastRoom(room, type, data) });
-  await room.sim.start();
+  const sim = new RaceSim(room, { map, broadcast: (type, data) => broadcastRoom(room, type, data) });
+  try {
+    await sim.start();
+  } catch (err) {
+    // A szoba nem maradhat LOADING-ban: onnan sem indítani, sem csatlakozni nem
+    // lehetne, vagyis az egész szoba használhatatlanná válna egy hibás pályától.
+    console.error(`[${room.code}] A verseny nem indítható:`, err);
+    sim.stop();
+    room.state = ROOM_STATE.LOBBY;
+    room.sim = null;
+    broadcastRoom(room, S2C.ERROR, { message: 'A verseny nem indítható: ' + err.message });
+    pushRoomState(room);
+    return;
+  }
+  room.sim = sim;
+
+  // Az időkorlát: ha valaki nem jelentkezik be készen, nélküle indulunk.
+  room.loadTimer = setTimeout(() => maybeBeginCountdown(room, true), RACE_LOAD_TIMEOUT_MS);
+  // Egyjátékos szoba (vagy már mindenki kész) esetén ne várjunk feleslegesen.
+  maybeBeginCountdown(room);
+}
+
+// Elindítja a 3-2-1-et, ha mindenki betöltött — vagy ha lejárt a türelmi idő.
+// Ez az EGYETLEN hely, ahol a LOADING állapot COUNTDOWN-ra vált, hogy ne
+// lehessen két visszaszámlálást indítani ugyanarra a versenyre.
+function maybeBeginCountdown(room, timedOut = false) {
+  if (room.state !== ROOM_STATE.LOADING) return;
+  if (!timedOut && !room.allReady()) return;
+  if (timedOut) {
+    const missing = [...room.players.values()].filter((p) => !p.ready).map((p) => p.name);
+    if (missing.length) console.warn(`[${room.code}] Betöltési időkorlát, nélkülük indulunk: ${missing.join(', ')}`);
+  }
+  clearTimeout(room.loadTimer);
+  room.loadTimer = null;
+
+  const startsAt = room.beginCountdown();
+  room.sim?.releaseAt(startsAt);
+  broadcastRoom(room, S2C.RACE_COUNTDOWN, { startsAt, countdownMs: COUNTDOWN_MS });
+  pushRoomState(room);
 }
 
 export function attachWebSocket(httpServer) {

@@ -20,7 +20,8 @@ export const S2C = {
   WELCOME: 'welcome',          // { playerId, token, name }
   ROOM_STATE: 'roomState',     // { code, hostId, mapId, laps, state, players[] }
   ROOM_CLOSED: 'roomClosed',   // { reason }
-  RACE_STARTING: 'raceStarting', // { countdownMs, spawns, tickRate }
+  RACE_STARTING: 'raceStarting', // { spawns, mapId, laps, players } — TÖLTS BE
+  RACE_COUNTDOWN: 'raceCountdown', // { startsAt, countdownMs } — mindenki kész, indul a 3-2-1
   SNAPSHOT: 'snapshot',        // { tick, cars[] }  — a szerver hiteles állapota
   RACE_EVENT: 'raceEvent',     // { kind, playerId, ... } — kör, érvénytelenítés, célba érés
   RACE_END: 'raceEnd',         // { results[] }
@@ -40,8 +41,14 @@ export const TAINT = {
 };
 
 // A szoba életciklusa.
+//
+// A LOADING külön állapot, és nem kényelmi kérdés: a pálya 100+ MB, egy hideg
+// cache-ű kliens ennyi idő alatt a teljes visszaszámlálást elégeti letöltéssel,
+// és a rajt után csöppen be. Ezért a 3-2-1 csak akkor indul, ha mindenki
+// jelentette, hogy betöltött (vagy lejárt a RACE_LOAD_TIMEOUT_MS).
 export const ROOM_STATE = {
   LOBBY: 'lobby',
+  LOADING: 'loading',
   COUNTDOWN: 'countdown',
   RACING: 'racing',
   FINISHED: 'finished',
@@ -76,6 +83,10 @@ export const PLAYER_COLORS = [
 export const MAX_PLAYERS_PER_ROOM = 8;
 export const ROOM_CODE_LENGTH = 6;
 export const COUNTDOWN_MS = 5000;
+// Meddig várunk a betöltésre, mielőtt a hiányzók nélkül is elindulnánk. Kell a
+// felső korlát: egy beragadt vagy elhalt kliens különben a végtelenségig
+// túszként tartaná az egész szobát.
+export const RACE_LOAD_TIMEOUT_MS = 30000;
 
 export const MAX_NAME_LENGTH = 20;
 

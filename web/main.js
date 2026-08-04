@@ -2363,8 +2363,8 @@ const devApi = {
 // mert az egyjátékos indítás ÉS a multiplayer is ugyanezt kell csinálja —
 // különösen a bekészített ütközési fájlt, hogy minden kliens (és a szerver)
 // bitre azonos geometrián számoljon.
-async function prepareTrackPhysics() {
-  const mesh = await loadOrExtractCollision();
+async function prepareTrackPhysics({ strict = false } = {}) {
+  const mesh = await loadOrExtractCollision(strict);
   applyTrackCollider(mesh.positions, mesh.indices);
   const { data, elementSize } = buildVisualFloorGrid(currentTrack, currentTrackBox);
   buildContourFloorMesh(data, elementSize, currentTrackBox, 3);
@@ -2411,23 +2411,65 @@ startBtn.addEventListener('click', async () => {
 });
 
 // Bekészített ütközési fájl betöltése, ha van; különben kinyerés a modellből.
-async function loadOrExtractCollision() {
-  const entry = manifest && findEntry(manifest.maps, currentMapId);
-  if (entry && entry.collision) {
+// Ennyiszer próbáljuk letölteni az ütközési fájlt, mielőtt feladjuk. Nem
+// luxus: ez a kérés a pálya (100+ MB) letöltése MELLETT fut, és gyenge
+// hálózaton simán elhasal — egy második próbálkozás a legtöbb esetet megoldja.
+const COLLISION_FETCH_ATTEMPTS = 3;
+
+async function fetchPreparedCollision(entry) {
+  // Cache-kulcs a manifestből (méret + mtime), nem Date.now(): így a böngésző
+  // MEGTARTHATJA a fájlt két verseny között, de dev módbeli újragenerálás után
+  // magától újat kér.
+  const url = 'assets/' + entry.collision.file + (entry.collision.v ? '?v=' + entry.collision.v : '');
+  let lastErr = null;
+  for (let attempt = 1; attempt <= COLLISION_FETCH_ATTEMPTS; attempt++) {
     try {
-      const res = await fetch('assets/' + entry.collision.file + '?t=' + Date.now());
-      if (res.ok) {
-        const buf = await res.arrayBuffer();
-        const view = new DataView(buf);
-        const vertexCount = view.getUint32(0, true);
-        const indexCount = view.getUint32(4, true);
-        const positions = new Float32Array(buf, 8, vertexCount * 3);
-        const indices = new Uint32Array(buf, 8 + vertexCount * 12, indexCount);
-        return { positions, indices, source: 'fájlból' };
-      }
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const buf = await res.arrayBuffer();
+      const view = new DataView(buf);
+      const vertexCount = view.getUint32(0, true);
+      const indexCount = view.getUint32(4, true);
+      const positions = new Float32Array(buf, 8, vertexCount * 3);
+      const indices = new Uint32Array(buf, 8 + vertexCount * 12, indexCount);
+      return { positions, indices, source: 'fájlból' };
     } catch (err) {
+      lastErr = err;
+      console.warn(`Ütközési fájl letöltése sikertelen (${attempt}/${COLLISION_FETCH_ATTEMPTS})`, err);
+    }
+  }
+  throw lastErr || new Error('ismeretlen hiba');
+}
+
+// A `strict` a multiplayer: ott TILOS a modellből kinyert hálóra visszaesni.
+//
+// Korábban némán visszaesett, és ez volt a "lebegek a pálya fölött" hiba
+// gyökere: a kinyert háló NEM azonos a szerver collision.bin-jével, tehát a
+// kliens jóslata más magasságon nyugtatta meg a kocsit, mint amit a szerver
+// mond. A kirajzolt hely a jóslatból jön (a szerver-korrekció maximalizált és
+// lecsengő), így a kocsi tartósan a rossz magasságon látszott. Inkább ne
+// induljon a verseny, mint hogy rossz geometrián versenyezzünk.
+async function loadOrExtractCollision(strict = false) {
+  const entry = manifest && findEntry(manifest.maps, currentMapId);
+  if (entry?.collision) {
+    try {
+      return await fetchPreparedCollision(entry);
+    } catch (err) {
+      if (strict) {
+        throw new Error(
+          'A pálya ütközési fájlja nem tölthető le, multiplayerben pedig nem lehet ' +
+          'helyette a modellből számolni (a szerverrel bitre egyeznie kell). ' +
+          'Ellenőrizd a hálózatot, és próbáld újra. (' + err.message + ')'
+        );
+      }
       console.warn('Bekészített ütközési fájl nem tölthető, visszaesés kinyerésre', err);
     }
+  } else if (strict) {
+    throw new Error(
+      'Ehhez a pályához nincs bekészítve ütközési fájl (collision.bin), ' +
+      'így multiplayerben nem használható — a szerver és a kliensek geometriája ' +
+      'nem lenne azonos.'
+    );
   }
   const mesh = extractDrivableTriangles(currentTrack);
   return { ...mesh, source: 'modellből' };

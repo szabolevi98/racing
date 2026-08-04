@@ -243,8 +243,19 @@ function onMessage(m) {
       break;
 
     case S2C.RACE_STARTING:
+      // Ez a "töltsd be" jel: rajtidő még NINCS benne, azt a RACE_COUNTDOWN adja.
       starting = m;
-      beginRace(m).catch((err) => setErr('Nem sikerült betölteni a versenyt: ' + err.message));
+      beginRace(m).catch((err) => {
+        // A lobbyt újra kinyitjuk, különben a játékos egy üres képernyőn
+        // maradna, és nem is látná, mi a hiba.
+        openLobby();
+        setErr('Nem sikerült betölteni a versenyt: ' + err.message);
+      });
+      break;
+
+    case S2C.RACE_COUNTDOWN:
+      // Mindenki betöltött (vagy lejárt a türelmi idő): innen számol a 3-2-1.
+      if (starting) starting.startsAt = m.startsAt;
       break;
 
     case S2C.SNAPSHOT:
@@ -332,13 +343,21 @@ async function beginRace(info) {
     G.hideLoadingOverlay();
   }
   window.__mp.stage = 'kocsi-kesz';
-  await G.prepareTrackPhysics();
+  // strict: multiplayerben a pálya ütközési hálója KÖTELEZŐEN a bekészített
+  // fájlból jön, mert a szerver is abból számol. Ha nem tölthető le, itt
+  // hibával elhasal — jobb, mint némán rossz geometrián versenyezni (ettől
+  // lebegett a kocsi a pálya fölött).
+  await G.prepareTrackPhysics({ strict: true });
   window.__mp.stage = 'fizika-kesz';
 
   window.__mp.stage = 'tobbiek-kesz';
   G.setMenuStatus('');
   G.enterMultiplayer(frame);
   window.__mp.stage = 'fut';
+  // Megvagyunk: innentől a szerveren rajtunk nem áll a rajt. A visszaszámlálás
+  // csak akkor indul, ha MINDENKI jelentkezett (vagy lejár a türelmi idő) —
+  // enélkül egy lassan töltő játékos a 3-2-1-ből csak az 1-et látta.
+  send(C2S.SET_READY, { ready: true });
   // A bemenet-küldést NEM itt indítjuk, hanem az első snapshotnál. A
   // raceStarting jóval előbb megérkezik, mint ahogy a szerver szimulációja
   // tényleg futni kezd (előtte betölti a pálya ütközési hálóját) — az addig
@@ -595,8 +614,11 @@ function invQuat(q) {
 
 // A visszaszámlálás alatt a szerver befagyasztja a kocsikat — a jóslatnak
 // ugyanezt kell tennie, különben elindulnánk a rajt előtt.
+// Áll-e még a kocsi (befékezve). Ha a rajtidőt még nem tudjuk, akkor IGEN: a
+// szerver a betöltésre várva szintén fagyasztva tartja a kocsikat, és ha a
+// kliens közben szabadon jósolna, a két szimuláció azonnal elcsúszna.
 function isFrozen() {
-  return !!starting?.startsAt && Date.now() < starting.startsAt;
+  return !starting?.startsAt || Date.now() < starting.startsAt;
 }
 
 function onSnapshot(m) {
@@ -733,6 +755,17 @@ function frame(dt = 1 / 60) {
   G.setLapInvalid(lapTainted);
 
   if (raceEnded) return;
+
+  // Amíg nincs rajtidő, a többiek betöltésére várunk. Ezt ki KELL írni:
+  // különben a játékos egy néma, mozdulatlan képet lát, és azt hiszi, beragadt.
+  if (!starting?.startsAt) {
+    const waiting = room?.players.filter((p) => !p.ready).map((p) => p.name) || [];
+    G.setHud(
+      '<strong>Várakozás a többiekre…</strong>' +
+      (waiting.length ? `<div class="text-secondary mt-1">Még tölt: ${escapeHtml(waiting.join(', '))}</div>` : '')
+    );
+    return;
+  }
 
   const evt = lastEvents[0];
   G.setHud(

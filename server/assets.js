@@ -151,7 +151,17 @@ async function collectMaps() {
     // geometriát kapja, ami a multiplayerhez elengedhetetlen.
     try {
       const st = await fs.stat(path.join(mapDir, 'collision.bin'));
-      entry.collision = { file: `maps/${id}/collision.bin`, bytes: st.size };
+      // A `v` a fájl tartalmának lenyomata (méret + módosítási idő). A kliens
+      // ezt teszi a kérés végére cache-kulcsként. Korábban ott egy
+      // Date.now() állt, ami minden versenyindításnál újratöltette a fájlt —
+      // pont a leggyengébb hálózaton, a pálya letöltése MELLETT, ezért hasalt
+      // el olyan sokszor. Így cache-elhető, de dev módbeli újragenerálás után
+      // magától új kulcsot kap.
+      entry.collision = {
+        file: `maps/${id}/collision.bin`,
+        bytes: st.size,
+        v: `${st.size.toString(36)}-${Math.round(st.mtimeMs).toString(36)}`,
+      };
     } catch { /* nincs bekészítve, a kliens a modellből nyeri ki */ }
 
     out.push(entry);
