@@ -4,8 +4,28 @@ Hogyan kerül a játék a VPS-re, hogy a te géped nélkül, magától fusson, s
 aldomainen, HTTPS-sel — **anélkül, hogy a már ott futó `levente.net`-hez
 hozzányúlnánk**.
 
-> **Ez terv, nem kipróbált recept.** Egyik lépés sincs élesben végigjátszva —
-> amikor sorra kerül, várható, hogy apróságokon igazítani kell.
+> **Ez már végig van játszva élesben** (2026-08-04), a lépések sorrendje és a
+> parancsok működnek. Az alábbi „Ellenőrzés" szakasz eredményei mértek.
+
+## Ami már fut
+
+A játék él a `https://racing.levente.net`-en. A gépen:
+
+| | |
+|---|---|
+| OS | Ubuntu 24.04.4 LTS |
+| Node | v22.23.2 (`/usr/bin/node`) |
+| SSH | **62222-es port**, nem a 22-es |
+| Kód | `/opt/racing`, root birtokában, a `racing` user olvassa |
+| Service | `racing.service`, `systemctl status racing` |
+| DB | `racing` adatbázis + `racing` user; a jelszó a `/root/.racing-db-pass`-ban és a `.env`-ben van, máshol nem |
+| Tanúsítvány | Let's Encrypt, 2026-11-02-ig, automatikus megújítással |
+| Deploy key | `/root/.ssh/racing_deploy`, a GitHubon read-only deploy key-ként |
+
+A gépen **hat másik oldal is fut** (levente.net, auth, cloudexus, politics,
+szabolevente.eu/.net). A racing külön vhost-fájlba került, a meglévőket nem
+nyitottuk meg — és a telepítés előtt/után is ellenőrizve lett, hogy mind a hat
+ugyanazt a válaszkódot adja.
 
 ## Mi van már készen
 
@@ -42,7 +62,8 @@ a Node folyamat. Cserébe elindul bootoláskor, újraindul összeomlás után, a
 
 ## Előfeltételek
 
-- ~4 GB szabad lemez (a kód elenyésző, az assetek 2,9 GB)
+- ~6 GB szabad lemez: a kód elenyésző, az **assetek 5,0 GB** (kocsik 2,2 GB,
+  pályák 571 MB, égboltok 131 MB)
 - **Node 20+** — ez még nincs a gépen, az 1. lépés telepíti
 
 ## 1. Node telepítése
@@ -68,11 +89,21 @@ begépelni, tehát a `git pull` később automatizálható.
 
 ```bash
 # 1) kulcs a VPS-en (a -N "" jelenti, hogy nincs rajta jelszó)
-sudo ssh-keygen -t ed25519 -C "racing-vps-deploy" -f /root/.ssh/id_ed25519 -N ""
-sudo cat /root/.ssh/id_ed25519.pub        # ezt a sort másold ki
+ssh-keygen -t ed25519 -C "racing-vps-deploy" -f /root/.ssh/racing_deploy -N ""
+cat /root/.ssh/racing_deploy.pub          # ezt a sort másold ki
 
 # 2) a github.com kulcsának elfogadása előre, hogy a klónozás ne kérdezzen
-sudo ssh-keyscan github.com | sudo tee -a /root/.ssh/known_hosts
+ssh-keyscan -t rsa,ed25519 github.com >> /root/.ssh/known_hosts
+
+# 3) a git ehhez a kulcshoz nyúljon a github.com-nál
+cat > /root/.ssh/config <<'CFG'
+Host github.com
+    HostName github.com
+    User git
+    IdentityFile /root/.ssh/racing_deploy
+    IdentitiesOnly yes
+CFG
+chmod 600 /root/.ssh/config
 ```
 
 A kimásolt `ssh-ed25519 AAAA...` sort a GitHubon:
@@ -80,22 +111,43 @@ A kimásolt `ssh-ed25519 AAAA...` sort a GitHubon:
 access* pipát **hagyd üresen** (a VPS-nek nem kell írnia).
 
 ```bash
-# 3) klónozás SSH-val
-sudo git clone git@github.com:szabolevi98/racing.git /opt/racing
-cd /opt/racing && sudo npm ci --omit=dev
+# 4) klónozás SSH-val
+git clone git@github.com:szabolevi98/racing.git /opt/racing
+cd /opt/racing && npm ci --omit=dev
 ```
 
-> Ha a repo mégis publikus marad, mindez kihagyható:
-> `sudo git clone https://github.com/szabolevi98/racing.git /opt/racing`
+A klónozás a **pálya-metaadatokat magával hozza** (`zonemap.png`, `spawn.json`,
+`gates.json`, kocsi-JSON-ok) — csak a nagy binárisok hiányoznak utána.
 
-Az assetek a **te gépedről** mennek fel (~2,9 GB, egyszeri). Git Bashból:
+Az assetek a **te gépedről** mennek fel (5,0 GB, egyszeri). Git Bashból, a
+62222-es porton:
 
 ```bash
-rsync -avP /d/xampp/htdocs/racing/web/assets/ root@169.58.43.205:/opt/racing/web/assets/
+rsync -avP -e "ssh -p 62222" /d/xampp/htdocs/racing/web/assets/ \
+  root@169.58.43.205:/opt/racing/web/assets/
 ```
 
-Ha nincs `rsync` a Git Bashban, `scp -r` is működik — csak nem folytatható, ha
-megszakad, ami 2,9 GB-nál nem mindegy. Alternatíva Windowsra: WinSCP.
+A Git Bashban **nincs `rsync`**, ezért ott `scp` kell (`-P 62222`, nagy P-vel).
+Az `scp` viszont nem folytatható, ha megszakad, ami 5 GB-nál nem mindegy —
+Windowsra a WinSCP a jobb választás.
+
+> **Érdemes a minimál készlettel kezdeni**, nem az 5 GB-tal: egy pálya + egy
+> égbolt + egy kocsi (~125 MB) elég ahhoz, hogy a teljes lánc ellenőrizhető
+> legyen, a maradék pedig utána mehet fel, miközben a játék már él.
+
+Két csapda, amibe élesben bele is futottunk:
+
+- Az **égbolt-mappák nincsenek a gitben** (nincs bennük metaadat), ezért az
+  `scp` „dest open ... Failure"-rel elhasal. Előbb `mkdir -p
+  /opt/racing/web/assets/skybox/<id>`.
+- Az asset-manifestet a szerver **cache-eli** (`server/assets.js`). Új asset
+  feltöltése után `systemctl restart racing`, különben nem jelenik meg.
+
+Feltöltés után a jogosultságokat is rendezni kell, hogy a `racing` user olvassa:
+
+```bash
+chmod -R a+rX /opt/racing
+```
 
 ## 3. Adatbázis
 
@@ -227,15 +279,17 @@ sudo systemctl reload apache2     # reload, nem restart
 ## 7. Tanúsítvány
 
 ```bash
-sudo certbot --apache -d racing.levente.net
+certbot --apache -d racing.levente.net --redirect \
+  --non-interactive --agree-tos --no-eff-email
 ```
 
 Ez **csak ezt az egy hostot** érinti: legyártja a tanúsítványt, létrehoz egy
-`*:443`-as VirtualHostot, és beállítja az automatikus megújítást. Amikor
-megkérdezi, kérd a http → https átirányítást.
+`*:443`-as VirtualHostot (`racing.levente.net-le-ssl.conf`), beállítja a
+http → https átirányítást és az automatikus megújítást.
 
-Utána a 443-as blokkba még be kell írni a WebSocket-szabályt, mert a certbot
-csak a sima `/` proxyt másolja át. A `racing.levente.net-le-ssl.conf`-ban:
+Utána a 443-as blokkba **kézzel kell** beírni a proxy-szabályokat: a certbot a
+`:80`-as vhostot másolja át, amiben csak a DocumentRoot volt. A
+`racing.levente.net-le-ssl.conf`-ban a `SSLCertificateFile` sorok ELÉ:
 
 ```apache
     # FIGYELEM: a /ws-nek a "/" ELŐTT kell állnia
@@ -262,13 +316,27 @@ karbantartani ugyanazt.
 
 ## Ellenőrzés
 
-1. `curl -I https://racing.levente.net/` → 200, HTTPS-en
-2. **`curl -I https://levente.net/` → a régi oldal is megy** (ezt ne hagyd ki)
-3. A menü betölt, a pálya/kocsi legördülő tele van
-4. **Többjátékos → Csatlakozás a szerverhez** → ha ez működik, a `wss://` átmegy
-   a proxyn (ez az a lépés, ami `proxy_wstunnel` nélkül elhal)
-5. Szoba létrehozása, verseny indítása két böngészőből
-6. `sudo systemctl restart racing` → a játék pár másodperc múlva újra elérhető
+Ezek élesben lefutottak, a jobb oldali érték a mért eredmény.
+
+| Mit | Parancs | Eredmény |
+|---|---|---|
+| Főoldal | `curl -I https://racing.levente.net/` | 200, 8320 byte |
+| Átirányítás | `curl -I http://racing.levente.net/` | 301 → https |
+| Tanúsítvány | `openssl s_client -connect racing.levente.net:443` | Let's Encrypt, 2026-11-02 |
+| **WebSocket** | Upgrade-fejlécekkel a `/ws`-re | **101 Switching Protocols** |
+| Manifest | `curl https://racing.levente.net/api/assets` | 200, mindhárom asset-típus |
+| Nagy `.glb` | `curl -r 0-99 .../bugatti....glb` | 206, `model/gltf-binary` |
+| `collision.bin` | `curl .../collision.bin` | 200, 5 150 708 byte |
+| Cache | `curl -I .../2004_ferrari_f2004.glb` | `immutable`, 1 év, `Content-Length` megvan |
+| **A 6 másik oldal** | mindegyikre `curl -I` | változatlan (200/302/200/200/301/301) |
+
+A **101 Switching Protocols** a legfontosabb sor: ez bizonyítja, hogy a
+`proxy_wstunnel` és a `/ws` szabály sorrendje jó, tehát a többjátékos működik.
+A `Content-Length` jelenléte szintén nem mellékes: ebből számol a betöltő sáv
+százalékot (ha a fájl gzip-elve, chunked módon menne, a % nem működne).
+
+Böngészőből még érdemes: a menü betölt, a legördülők tele vannak, **Többjátékos
+→ Csatlakozás a szerverhez**, szoba, verseny két böngészőből.
 
 ## Ha valami nem megy
 
