@@ -2622,6 +2622,17 @@ window.__diag = {
     const hist = {};
     for (const s of stepsPerFrame) hist[s] = (hist[s] || 0) + 1;
 
+    // A RÁNGÁS mértéke. A puszta szórás erre alkalmatlan: a gyorsulást is
+    // beleszámolja, ezért egyjátékosban is 76%-ot adott, ahol pedig nincs
+    // rángás. A rángás nagyfrekvenciás CIKCAKK — a gyorsulás viszont helyben
+    // egyenletes —, ezért minden képkockát a két szomszédja átlagához
+    // hasonlítunk: a sima gyorsulás ebből kiesik, a cikcakk megmarad.
+    const zig = [];
+    for (let i = 1; i < speeds.length - 1; i++) {
+      zig.push(Math.abs(speeds[i] - (speeds[i - 1] + speeds[i + 1]) / 2));
+    }
+    const rangas = zig.length ? (mean(zig) / (spMean || 1)) * 100 : 0;
+
     return {
       mod: appState,
       kepkockak: r.length,
@@ -2632,6 +2643,8 @@ window.__diag = {
       // A látható sebesség szórása a rángatás mértéke. Ha az átlaghoz képest
       // nagy, a kocsi egyenetlenül halad a képen.
       latszoSebesseg_ms: { atlag: +spMean.toFixed(2), szoras: +spStd.toFixed(2), p50: pct(sortedSp, 0.5), p99: pct(sortedSp, 0.99) },
+      // EZ a rángás mérőszáma (kisebb = simább). A gyorsulás nem számít bele.
+      rangas_szazalek: +rangas.toFixed(1),
       ingadozas_szazalek: +((spStd / (spMean || 1)) * 100).toFixed(1),
       // Hány fizikai lépés jutott egy-egy képkockára. Ha ez 0 és 2 közt
       // váltakozik, a fizika és a képfrissítés nincs szinkronban.

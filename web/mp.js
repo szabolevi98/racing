@@ -457,12 +457,21 @@ function reconcile(state) {
     before.p[0] - after.p[0], before.p[1] - after.p[1], before.p[2] - after.p[2]
   ).toFixed(3);
 
-  // Az újrajátszás ugrásszerűen átírta a fizikai testet: a képkocka-
-  // interpoláció nem simíthat át a régi és az új állapot között, mert az egy
-  // nem létező úton vinné végig a kocsit.
-  physPrev = null;
-  physCurr = after;
-  physAt = performance.now();
+  // Az újrajátszás a kocsit MÁS pontra tette, mint ahol a jóslat tartott. A
+  // puffer a jóslat pályáját tárolja, ezért az EGÉSZ pályát eltoljuk a
+  // korrekcióval — így a benne lévő múlt is a javított rendszerben lesz, és a
+  // következő lépések folytonosan illeszkednek hozzá. (Korábban itt egyszerűen
+  // eldobtam az interpolációt, és mivel korrekció 20-szor jön másodpercenként,
+  // a képkocka-simítás gyakorlatilag sosem működött — ez volt a rángás.)
+  const cdx = after.p[0] - before.p[0];
+  const cdy = after.p[1] - before.p[1];
+  const cdz = after.p[2] - before.p[2];
+  const cq = mulQuat(after.q, invQuat(before.q));
+  for (const e of predBuf) {
+    e.p[0] += cdx; e.p[1] += cdy; e.p[2] += cdz;
+    e.q = mulQuat(cq, e.q);
+  }
+  pushPredState(after);
 
   const dx = visualX - after.p[0];
   const dy = visualY - after.p[1];
@@ -483,40 +492,53 @@ function reconcile(state) {
   smooth.active = true;
 }
 
-// ---------- Képkocka-interpoláció ----------
+// ---------- A saját kocsi megjelenítése: időbélyeges puffer ----------
 // A fizika fix 60 Hz-en lép (a bemenet-hurokban), a képernyő viszont a saját
-// frissítésével rajzol, és a kettő nincs szinkronban. Ha egyszerűen a fizikai
-// test PILLANATNYI állapotát rajzolnánk ki, egyes képkockákra két lépés jutna,
-// másokra egy sem — ez látszik rángatásként. Ezért az utolsó két fizikai
-// állapot között interpolálunk, a képkocka idejének megfelelően.
+// frissítésével rajzol — 75 Hz-en mérve a képkockák 27%-ára NULLA lépés jutott,
+// 7%-ára kettő. Ha a fizikai test pillanatnyi állapotát rajzolnánk ki, a kocsi
+// pont ilyen egyenetlenül haladna: ez a rángás.
 //
-// Ára ~egy tick (17 ms) megjelenítési késleltetés. Ez bőven megéri: a
-// rángatást a szem azonnal észreveszi, ennyi késleltetést nem.
-let physPrev = null;
-let physCurr = null;
-let physAt = 0;
-
+// Ezért ugyanúgy csináljuk, ahogy a TÁVOLI kocsiknál már bevált: minden
+// fizikai lépést időbélyeggel eltárolunk, és a képet egy kicsivel a jelen
+// MÖGÖTT, a puffer két eleme közé interpolálva rajzoljuk ki. Így a kirajzolt
+// pozíció a VALÓS idő szerint halad, függetlenül attól, mikor esik egy-egy
+// fizikai lépés vagy szerver-korrekció.
+//
+// Ára ennyi megjelenítési késleltetés. Két tick, hogy a setTimeout
+// pontatlansága (a lépések nem pontosan 16.67 ms-onként esnek) se tudja
+// kiéheztetni az interpolációt.
+const PRED_DELAY_MS = TICK_MS * 2;
+const predBuf = [];
 let physSteps = 0;   // diagnosztikához: hány fizikai lépés történt eddig
 
+function pushPredState(state) {
+  predBuf.push({ t: performance.now(), p: [...state.p], q: [...state.q] });
+  // Negyed másodpercnyi múlt bőven elég a késleltetett mintavételhez.
+  while (predBuf.length > 20) predBuf.shift();
+}
+
 function recordPhysState() {
-  physPrev = physCurr;
-  physCurr = G.getCarState();
-  physAt = performance.now();
+  pushPredState(G.getCarState());
   physSteps++;
 }
 
 function interpolatedPhys() {
-  if (!physCurr) return G.getCarState();
-  if (!physPrev) return physCurr;
-  const a = Math.max(0, Math.min(1, (performance.now() - physAt) / TICK_MS));
-  return {
-    p: [
-      physPrev.p[0] + (physCurr.p[0] - physPrev.p[0]) * a,
-      physPrev.p[1] + (physCurr.p[1] - physPrev.p[1]) * a,
-      physPrev.p[2] + (physCurr.p[2] - physPrev.p[2]) * a,
-    ],
-    q: slerp(physPrev.q, physCurr.q, a),
-  };
+  if (!predBuf.length) return G.getCarState();
+  const at = performance.now() - PRED_DELAY_MS;
+  for (let i = predBuf.length - 1; i > 0; i--) {
+    const a = predBuf[i - 1], b = predBuf[i];
+    if (a.t <= at && at <= b.t) {
+      const span = b.t - a.t;
+      const f = span > 0 ? (at - a.t) / span : 0;
+      return {
+        p: [a.p[0] + (b.p[0] - a.p[0]) * f, a.p[1] + (b.p[1] - a.p[1]) * f, a.p[2] + (b.p[2] - a.p[2]) * f],
+        q: slerp(a.q, b.q, f),
+      };
+    }
+  }
+  // A kért idő a puffer előtt/után van (indulás, vagy megakadt a fizika) —
+  // ilyenkor a legközelebbi ismert állapot a legjobb tipp.
+  return at < predBuf[0].t ? predBuf[0] : predBuf[predBuf.length - 1];
 }
 
 function invQuat(q) {
@@ -701,8 +723,7 @@ function startInputLoop() {
   ackedSeq = 0;
   inputHistory.length = 0;
   lapTainted = false;
-  physPrev = null;
-  physCurr = null;
+  predBuf.length = 0;
   smooth.p = [0, 0, 0];
   smooth.q = [0, 0, 0, 1];
   smooth.active = false;
