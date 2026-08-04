@@ -2047,7 +2047,7 @@ window.addEventListener('mouseup', (e) => {
   }
 });
 
-function updateChaseCamera() {
+function updateChaseCamera(dt = 1 / 60) {
   // A LÁTHATÓ kocsit követjük, nem a fizikai testet. Egyjátékosban a kettő
   // ugyanott van (a carPivot minden képkockán a chassisBody-ról frissül), de
   // multiplayerben a helyi fizika nem fut — a kocsit a szerver állapota
@@ -2072,7 +2072,22 @@ function updateChaseCamera() {
   // ha valaki lefelé néz körbenézés közben.
   desiredPos.y = Math.max(desiredPos.y, chassisPos.y + 0.5);
 
-  camera.position.lerp(desiredPos, manualOrbitActive ? 0.3 : 0.1);
+  // A követés simítása KÉPKOCKA-IDŐVEL arányos, nem képkockánként fix arány.
+  //
+  // Fix aránnyal a kamera minden képkockán ugyanazt a 10%-ot zárja a kocsira,
+  // akkor is, ha az adott képkocka másfélszer hosszabb volt. Egyjátékosban ez
+  // nem látszott: ott a kocsi képkockánként pontosan egy fizikai lépést halad,
+  // tehát az elmozdulása is állandó. Multiplayerben viszont a kocsi a VALÓS idő
+  // szerint halad (időbélyeges pufferből interpolálva), így egy hosszabb
+  // képkockán többet megy — a kamera-kocsi távolság ingadozni kezd, és az
+  // ingadozás a sebességgel arányos. Pontosan ezt lehetett érezni: lassan
+  // semmi, gyorsan rángás.
+  //
+  // A képlet 60 fps-nél pont a régi értéket adja, csak most bármilyen
+  // képkocka-hossznál ugyanazt a valódi idő szerinti közelítést jelenti.
+  const perFrameAt60 = manualOrbitActive ? 0.3 : 0.1;
+  const a = 1 - Math.pow(1 - perFrameAt60, Math.max(dt, 0) * 60);
+  camera.position.lerp(desiredPos, a);
   chaseTarget.set(chassisPos.x, chassisPos.y + 1, chassisPos.z);
   camera.lookAt(chaseTarget);
 }
@@ -2548,7 +2563,7 @@ function animate() {
       updateWheelVisuals(dt);
     }
 
-    updateChaseCamera();
+    updateChaseCamera(dt);
   } else if (appState === 'mp') {
     stepMultiplayerFrame(dt);
   } else if (appState === 'dev') {
@@ -2598,6 +2613,9 @@ function recordDiagFrame() {
     rawX: raw?.[0], rawZ: raw?.[1],
     ipX: interp?.[0], ipZ: interp?.[1],
     sm: mp?.smoothLen ?? 0,
+    // A KAMERA helye. A képernyő rángását ez adja, nem a kocsié — a kocsi
+    // lehet tökéletesen sima, ha közben a kamera egyenetlenül követi.
+    camX: camera.position.x, camZ: camera.position.z,
     snaps: mp?.snaps ?? 0,
     steps: mp?.physSteps ?? 0,
   });
@@ -2678,6 +2696,8 @@ window.__diag = {
       // interpoláció dolgozik, és a maradék a simításból jön.
       rangas_nyersFizika: +jitterOf('rawX', 'rawZ').toFixed(1),
       rangas_interpolalt: +jitterOf('ipX', 'ipZ').toFixed(1),
+      // A ténylegesen látott kép ettől függ: a kamera mozgásának egyenletessége.
+      rangas_kamera: +jitterOf('camX', 'camZ').toFixed(1),
       simitasEltolas_m: { atlag: +mean(r.map((q) => q.sm || 0)).toFixed(3), max: +Math.max(...r.map((q) => q.sm || 0)).toFixed(3) },
       ingadozas_szazalek: +((spStd / (spMean || 1)) * 100).toFixed(1),
       // Hány fizikai lépés jutott egy-egy képkockára. Ha ez 0 és 2 közt
@@ -2706,7 +2726,7 @@ function stepMultiplayerFrame(dt) {
   mpFrameHook?.(dt);
   updateSunTarget(carPivot.position);
   updateWheelVisuals(dt);
-  updateChaseCamera();
+  updateChaseCamera(dt);
   // A vezetős HUD-ot egyjátékosban az updateControls frissíti, ami
   // multiplayerben nem fut — emiatt hiányzott eddig a mini-térkép és a
   // zóna-kijelző. Mindkettő tisztán a kocsi helyéből számolható, tehát itt
