@@ -366,6 +366,17 @@ const WHEEL_CONNECTION_DROP = -WHEEL_POSITIONS[0].y;
 let groundOffset = WHEEL_CONNECTION_DROP + SUSPENSION_REST_LENGTH + WHEEL_RADIUS;
 let groundOffsetCalibrated = false;
 
+// A kalibrált értékre nem ugrunk át, hanem odacsúszunk.
+//
+// A mért érték ~7 cm-rel tér el a kinduló becsléstől, a kerekek helyzetét
+// viszont semmi nem követi vele (updateWheelVisuals csak FORGATJA őket) — így
+// egy egy-képkockás váltás azt mutatja, mintha a felfüggesztés hirtelen
+// kinyúlna. Ez épp a rajt előtt, a visszaszámlálás alatt esne, ahol a kocsi
+// egyébként áll, tehát jól látszik. Néhány tized másodperc alatt átcsúszva
+// nem tűnik fel.
+let groundOffsetTarget = groundOffset;
+const GROUND_OFFSET_EASE_SPEED = 0.25;   // m/mp
+
 // A "megnyugodott-e" próba MAGÁN a felfüggesztés-hosszon fut, nem a kasztni
 // függőleges sebességén.
 //
@@ -395,11 +406,20 @@ let suspensionStableFrames = 0;
 
 function resetGroundOffsetCalibration() {
   groundOffsetCalibrated = false;
+  groundOffsetTarget = groundOffset;
   suspensionRefAvg = null;
   suspensionStableFrames = 0;
 }
 
-function calibrateGroundOffset() {
+// Minden képkockán fut (egyjátékosban és multiplayerben is): amíg van hova,
+// csúsztatja a modellt a mért magasság felé, aztán megkeresi ezt a magasságot.
+function calibrateGroundOffset(dt = 1 / 60) {
+  if (groundOffset !== groundOffsetTarget) {
+    const step = GROUND_OFFSET_EASE_SPEED * dt;
+    const remaining = groundOffsetTarget - groundOffset;
+    groundOffset = Math.abs(remaining) <= step ? groundOffsetTarget : groundOffset + Math.sign(remaining) * step;
+    applyCarModelHeight();
+  }
   if (groundOffsetCalibrated) return;
   let sum = 0;
   for (let i = 0; i < 4; i++) {
@@ -423,9 +443,10 @@ function calibrateGroundOffset() {
   }
   if (suspensionStableFrames < SUSPENSION_SETTLED_FRAMES) return;
 
-  groundOffset = WHEEL_CONNECTION_DROP + avg + WHEEL_RADIUS;
+  // Csak a CÉLT állítjuk be — a modell néhány tized másodperc alatt csúszik oda
+  // (ld. GROUND_OFFSET_EASE_SPEED), hogy ne egy képkockás ugrás legyen.
+  groundOffsetTarget = WHEEL_CONNECTION_DROP + avg + WHEEL_RADIUS;
   groundOffsetCalibrated = true;
-  applyCarModelHeight();
 }
 
 // A Rapierben a merev test állapota csak settereken át írható (a getterek
@@ -2830,7 +2851,7 @@ function animate() {
       physicsAccum -= world.timestep;
       physSteps++;
     }
-    calibrateGroundOffset();
+    calibrateGroundOffset(dt);
     updateRace(dt);
 
     if (carLoaded) {
@@ -3038,9 +3059,9 @@ function stepMultiplayerFrame(dt) {
   // közben futott, multiplayerben nem — ezért a kocsi a teljesen kinyúlt
   // rugóval számolt 0.85-tel ült a kasztni alatt, miközben a valódi nyugalmi
   // távolság ~0.78, vagyis a modellt pár centivel az aszfalt alá rajzoltuk.
-  // A függvény maga őrzi a feltételeit (négy kerék a talajon, függőlegesen
-  // megnyugodott), és csak egyszer fut le kocsinként.
-  calibrateGroundOffset();
+  // A függvény maga őrzi a feltételeit (négy kerék a talajon, a rugók
+  // megnyugodtak), és csak egyszer mér kocsinként.
+  calibrateGroundOffset(dt);
   updateSunTarget(carPivot.position);
   updateWheelVisuals(dt);
   updateChaseCamera(dt);
