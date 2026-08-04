@@ -35,6 +35,12 @@ window.__mp = {
   get queueDepth() { return queueDepth; },
   get sendPeriod() { return +sendPeriod.toFixed(2); },
   get physSteps() { return physSteps; },
+  // Rángás-diagnosztikához: a kirajzolt pozíció három összetevője külön.
+  // Így kiderül, MELYIK ugrik — a nyers fizika, az interpoláció, vagy a
+  // korrekció-simítás —, ahelyett hogy tippelnénk.
+  get rawPos() { const s = G.getCarState(); return [s.p[0], s.p[2]]; },
+  get interpPos() { const s = interpolatedPhys(); return [s.p[0], s.p[2]]; },
+  get smoothLen() { return Math.hypot(smooth.p[0], smooth.p[1], smooth.p[2]); },
 };
 const THREE = G.THREE;
 
@@ -471,7 +477,10 @@ function reconcile(state) {
     e.p[0] += cdx; e.p[1] += cdy; e.p[2] += cdz;
     e.q = mulQuat(cq, e.q);
   }
-  pushPredState(after);
+  // Új bejegyzést NEM szúrunk be: az eltolás után a puffer utolsó eleme már
+  // pontosan a javított állapot (definíció szerint before + delta = after).
+  // Egy külön push nulla hosszú szakaszt csinálna, és a rajta való
+  // "interpoláció" épp az az ugrás lenne, amit el akarunk kerülni.
 
   const dx = visualX - after.p[0];
   const dy = visualY - after.p[1];
@@ -511,14 +520,17 @@ const PRED_DELAY_MS = TICK_MS * 2;
 const predBuf = [];
 let physSteps = 0;   // diagnosztikához: hány fizikai lépés történt eddig
 
-function pushPredState(state) {
-  predBuf.push({ t: performance.now(), p: [...state.p], q: [...state.q] });
+// A `t` a lépés ÜTEMEZETT ideje (egyenletesen TICK_MS-enként), nem az, amikor
+// a böngésző ténylegesen odaért. A kettő rendszeresen eltér, és a kirajzolás
+// az idő szerint interpolál — tehát az egyenletes időbélyeg a lényeg.
+function pushPredState(state, t) {
+  predBuf.push({ t, p: [...state.p], q: [...state.q] });
   // Negyed másodpercnyi múlt bőven elég a késleltetett mintavételhez.
   while (predBuf.length > 20) predBuf.shift();
 }
 
-function recordPhysState() {
-  pushPredState(G.getCarState());
+function recordPhysState(scheduledAt) {
+  pushPredState(G.getCarState(), scheduledAt ?? performance.now());
   physSteps++;
 }
 
@@ -739,14 +751,24 @@ function startInputLoop() {
     // és visszatéréskor több száz bemenetet akarna egyszerre kilőni — az csak
     // elárasztaná a szerver sorát, ami onnan eldobásba fordulna.
     let steps = 0;
-    while (next <= now && steps < 3) { sendOneInput(); next += sendPeriod; steps++; }
+    while (next <= now && steps < 3) {
+      // Az ÜTEMEZETT időt adjuk át, nem a tényleges órát. Ez a kulcs a sima
+      // képhez: a setTimeout rendszeresen késve sül el (a Windows időzítő-
+      // granularitása ~15.6 ms), ilyenkor két lépés fut le EGYMÁS UTÁN,
+      // ugyanabban a hívásban. A tényleges órával mindkettő szinte azonos
+      // időbélyeget kapna — pedig két ticknyi mozgást jelentenek —, és a
+      // képkocka-interpoláció ezen a "függőleges" szakaszon ugrana egyet.
+      sendOneInput(next);
+      next += sendPeriod;
+      steps++;
+    }
     if (next < now) next = now;
     inputTimer = setTimeout(tick, Math.max(0, next - performance.now()));
   };
   tick();
 }
 
-function sendOneInput() {
+function sendOneInput(scheduledAt) {
   const k = G.keys;
   const input = {
     seq: ++inputSeq,
@@ -764,7 +786,7 @@ function sendOneInput() {
   // késleltetés nélkül a billentyűkre.
   if (predict) {
     G.stepLocalPhysics(input, isFrozen());
-    recordPhysState();
+    recordPhysState(scheduledAt);
   }
 }
 

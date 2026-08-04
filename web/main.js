@@ -2586,11 +2586,20 @@ function recordDiagFrame() {
   const now = performance.now();
   if (now > diag.until) return;
   const p = carPivot.position;
+  const mp = window.__mp;
+  const raw = mp?.rawPos, interp = mp?.interpPos;
   diag.rows.push({
     t: now,
     x: p.x, z: p.z,
-    snaps: window.__mp?.snaps ?? 0,
-    steps: window.__mp?.physSteps ?? 0,
+    // A kirajzolt pozíció összetevői külön, hogy lássuk, melyik ugrik:
+    // rawX/rawZ  = a fizikai test PILLANATNYI állapota (interpoláció nélkül)
+    // ipX/ipZ    = az időbélyeges pufferből interpolált érték
+    // sm         = a korrekció-simítás eltolásának hossza
+    rawX: raw?.[0], rawZ: raw?.[1],
+    ipX: interp?.[0], ipZ: interp?.[1],
+    sm: mp?.smoothLen ?? 0,
+    snaps: mp?.snaps ?? 0,
+    steps: mp?.physSteps ?? 0,
   });
 }
 
@@ -2633,6 +2642,22 @@ window.__diag = {
     }
     const rangas = zig.length ? (mean(zig) / (spMean || 1)) * 100 : 0;
 
+    // Ugyanez tetszőleges koordináta-párra, hogy a kirajzolt pozíció
+    // összetevőit külön-külön is meg tudjuk mérni.
+    function jitterOf(kx, kz) {
+      const sp = [];
+      for (let i = 1; i < r.length; i++) {
+        const dt2 = r[i].t - r[i - 1].t;
+        if (dt2 <= 0 || r[i][kx] === undefined || r[i - 1][kx] === undefined) continue;
+        sp.push(Math.hypot(r[i][kx] - r[i - 1][kx], r[i][kz] - r[i - 1][kz]) / (dt2 / 1000));
+      }
+      if (sp.length < 3) return 0;
+      const m = mean(sp);
+      const z = [];
+      for (let i = 1; i < sp.length - 1; i++) z.push(Math.abs(sp[i] - (sp[i - 1] + sp[i + 1]) / 2));
+      return (mean(z) / (m || 1)) * 100;
+    }
+
     return {
       mod: appState,
       kepkockak: r.length,
@@ -2645,6 +2670,15 @@ window.__diag = {
       latszoSebesseg_ms: { atlag: +spMean.toFixed(2), szoras: +spStd.toFixed(2), p50: pct(sortedSp, 0.5), p99: pct(sortedSp, 0.99) },
       // EZ a rángás mérőszáma (kisebb = simább). A gyorsulás nem számít bele.
       rangas_szazalek: +rangas.toFixed(1),
+      // Ugyanez a mérőszám a kirajzolt pozíció ÖSSZETEVŐIRE. Amelyik magas,
+      // az okozza a rángást:
+      //   nyersFizika = interpoláció nélkül, a test pillanatnyi állapota
+      //   interpolalt = az időbélyeges pufferből számolt érték
+      // Ha a "nyersFizika" magas, de az "interpolalt" alacsony, az
+      // interpoláció dolgozik, és a maradék a simításból jön.
+      rangas_nyersFizika: +jitterOf('rawX', 'rawZ').toFixed(1),
+      rangas_interpolalt: +jitterOf('ipX', 'ipZ').toFixed(1),
+      simitasEltolas_m: { atlag: +mean(r.map((q) => q.sm || 0)).toFixed(3), max: +Math.max(...r.map((q) => q.sm || 0)).toFixed(3) },
       ingadozas_szazalek: +((spStd / (spMean || 1)) * 100).toFixed(1),
       // Hány fizikai lépés jutott egy-egy képkockára. Ha ez 0 és 2 közt
       // váltakozik, a fizika és a képfrissítés nincs szinkronban.
