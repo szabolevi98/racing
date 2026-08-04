@@ -3521,6 +3521,18 @@ window.addEventListener('resize', () => {
   if (appState === 'zone-edit') resizeZoneOverlayCanvas();
 });
 
+// A pálya fizikájának és a látható padlónak az előkészítése. Külön függvény,
+// mert az egyjátékos indítás ÉS a multiplayer is ugyanezt kell csinálja —
+// különösen a bekészített ütközési fájlt, hogy minden kliens (és a szerver)
+// bitre azonos geometrián számoljon.
+async function prepareTrackPhysics() {
+  const mesh = await loadOrExtractCollision();
+  applyTrackCollider(mesh.positions, mesh.indices);
+  const { data, elementSize } = buildVisualFloorGrid(currentTrack, currentTrackBox);
+  buildContourFloorMesh(data, elementSize, currentTrackBox, 3);
+  return mesh;
+}
+
 startBtn.addEventListener('click', async () => {
   if (!currentTrack || !currentTrackBox) return;
   startBtn.disabled = true;
@@ -3530,11 +3542,7 @@ startBtn.addEventListener('click', async () => {
     // Ha van előre bekészített ütközési fájl, azt használjuk — ez a mérvadó
     // a multiplayerhez, mert így minden kliens BITRE ugyanazt a geometriát
     // kapja. Ha nincs, futásidőben nyerjük ki a modellből (ez is gyors).
-    const mesh = await loadOrExtractCollision();
-    applyTrackCollider(mesh.positions, mesh.indices);
-
-    const { data, elementSize } = buildVisualFloorGrid(currentTrack, currentTrackBox);
-    buildContourFloorMesh(data, elementSize, currentTrackBox, 3);
+    const mesh = await prepareTrackPhysics();
 
     // Épp csak a nyugalmi magasság fölé tesszük a kocsit (kerék sugara +
     // felfüggesztés + fél kasztni ~0.9), hogy egy nagy zuhanás ne verje bele
@@ -3912,6 +3920,14 @@ function animate() {
     }
 
     updateChaseCamera();
+  } else if (appState === 'mp') {
+    // Multiplayerben a SZERVER a hiteles forrás: a helyi fizikát nem
+    // léptetjük, a kocsikat a beérkező állapot mozgatja. A modul minden
+    // képkockán megkapja a szót, hogy interpolálhasson két állapot között.
+    mpFrameHook?.(dt);
+    updateSunTarget(carPivot.position);
+    updateWheelVisuals(dt);
+    updateChaseCamera();
   } else if (appState === 'dev') {
     updateDevCamera(dt);
   } else if (appState === 'cartest') {
@@ -3933,6 +3949,51 @@ function animate() {
 
 animate();
 
+// A multiplayer modul minden képkockán meghívandó függvénye (mp.js állítja be).
+let mpFrameHook = null;
+
+// A multiplayer modul felülete a játék felé. Szándékosan szűk: csak annyit
+// ad ki, amennyi a hálózati réteghez kell — a fizikát és a versenylogikát
+// multiplayerben a szerver végzi.
+window.__game = {
+  THREE, scene, camera, carPivot, renderer,
+  get appState() { return appState; },
+  get hasFrameHook() { return !!mpFrameHook; },
+  get manifest() { return manifest; },
+  get currentMapId() { return currentMapId; },
+  get currentTrack() { return currentTrack; },
+  get carLoaded() { return carLoaded; },
+  keys,
+  setCar, setTrack, prepareTrackPhysics, loadGLTF,
+  enterMenu,
+  setMenuStatus, setStatus,
+  findGroundAt,
+  get currentTrackBox() { return currentTrackBox; },
+  // Multiplayer módba váltás: a helyi fizika kimarad, a szerver vezérel.
+  enterMultiplayer(frameHook) {
+    mpFrameHook = frameHook;
+    appState = 'mp';
+    menuEl.classList.add('hidden');
+    hudEl.classList.remove('hidden');
+    raceHudWrapEl.classList.remove('hidden');
+    devHudEl.classList.add('hidden');
+    carTesterHudEl.classList.add('hidden');
+    scene.fog.density = NORMAL_FOG_DENSITY;
+    document.activeElement?.blur();
+  },
+  leaveMultiplayer() {
+    mpFrameHook = null;
+    enterMenu();
+  },
+  // A látható kocsit a szerver állapotára állítja (a helyi fizika helyett).
+  applyServerTransform(p, q) {
+    carPivot.position.set(p[0], p[1], p[2]);
+    carPivot.quaternion.set(q[0], q[1], q[2], q[3]);
+  },
+  setHud(html) { raceHudEl.innerHTML = html; },
+  setSpeed(kmh) { speedValueEl.textContent = Math.round(kmh); },
+};
+
 window.__debug = {
   RAPIER, THREE,
   chassisBody, chassisCollider, vehicle, world, carPivot, camera,
@@ -3952,3 +4013,8 @@ window.__debug = {
     generateCheckpoints,
   },
 };
+
+// A multiplayer modult SZÁNDÉKOSAN innen töltjük be, nem külön <script>-ből:
+// a window.__game csak eddigre áll össze, egy párhuzamosan induló modul pedig
+// még üresen találná.
+import('./mp.js').catch((err) => console.error('A többjátékos modul nem töltődött be:', err));

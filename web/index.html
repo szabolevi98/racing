@@ -116,6 +116,14 @@
     border: 3px solid transparent; box-sizing: border-box;
   }
   .material-thumb.selected { border-color: #0dcaf0; }
+
+/* Többjátékos lobby */
+#mpOverlay { position: fixed; inset: 0; background: rgba(0,0,0,.72); z-index: 40;
+  display: flex; align-items: center; justify-content: center; }
+#mpOverlay.hidden { display: none; }
+#mpOverlay .mp-panel { background: #1b1f24; color: #eee; padding: 20px 22px;
+  border-radius: 10px; width: min(420px, 92vw); box-shadow: 0 10px 40px rgba(0,0,0,.6); }
+#mpOverlay .hidden { display: none; }
 </style>
 </head>
 <body>

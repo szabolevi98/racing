@@ -45,6 +45,12 @@ function crossedGate(gate, fromX, fromZ, toX, toZ) {
   return t >= 0 && t <= 1 && u >= 0 && u <= 1;
 }
 
+// Épp csak a nyugalmi magasság fölé tesszük a kocsit (kerék + felfüggesztés +
+// fél kasztni ~0.9), hogy egy nagy zuhanás ne verje bele a vékony hálóba.
+const SPAWN_HEIGHT = 1.0;
+// Innen lövünk lefelé a talajért. Bőven a legmagasabb pályamodell fölött.
+const RAY_FROM_Y = 5000;
+
 export class RaceSim {
   constructor(room, { map, broadcast }) {
     this.room = room;
@@ -76,6 +82,10 @@ export class RaceSim {
       this.world.createCollider(RAPIER.ColliderDesc.cuboid(2000, 0.05, 2000), ground);
     }
 
+    // A lekérdező pipeline-t a world.step() frissíti — enélkül a talajkeresés
+    // semmit nem találna, mert még nincs feltöltve a térbeli index.
+    this.world.step();
+
     const spawns = this.map?.spawns?.length ? this.map.spawns : [{ x: 0, z: 0, heading: 0 }];
     let i = 0;
     for (const player of this.room.players.values()) {
@@ -84,11 +94,13 @@ export class RaceSim {
       // egymásba spawnoljanak.
       const row = Math.floor((player.slot ?? i) / spawns.length);
       const back = row * (CHASSIS_SIZE.z * 2.5);
-      const pos = {
-        x: s.x - Math.sin(s.heading) * back,
-        y: 2,
-        z: s.z - Math.cos(s.heading) * back,
-      };
+      const x = s.x - Math.sin(s.heading) * back;
+      const z = s.z - Math.cos(s.heading) * back;
+      // A rajtpont csak x/z-t ad meg — a magasságot a pálya geometriájából
+      // kell megkeresni. A pályamodellek világ-magassága nagyon eltérő (az
+      // egyik alatta, a másik 100 méterrel a nulla fölött van), így egy fix
+      // érték az egyik pályán a föld alatt születne, és a kocsi zuhanna.
+      const pos = { x, y: this.groundAt(x, z) + SPAWN_HEIGHT, z };
       const car = buildVehicle(RAPIER, this.world, pos);
       const half = (s.heading || 0) / 2;
       car.body.setRotation({ x: 0, y: Math.sin(half), z: 0, w: Math.cos(half) }, true);
@@ -115,6 +127,15 @@ export class RaceSim {
 
     this.startAt = this.room.countdownEndsAt;
     this.timer = setInterval(() => this.step(), TICK_MS);
+  }
+
+  // Megkeresi a pálya felszínét egy x/z pont fölött, felülről lefelé lőtt
+  // sugárral. Ha nem talál semmit (a rajtpont a pályán kívülre esik), 0-t ad —
+  // az még mindig jobb, mint a végtelenbe zuhanó autó.
+  groundAt(x, z) {
+    const ray = new RAPIER.Ray({ x, y: RAY_FROM_Y, z }, { x: 0, y: -1, z: 0 });
+    const hit = this.world.castRay(ray, RAY_FROM_Y * 2, true);
+    return hit ? RAY_FROM_Y - hit.timeOfImpact : 0;
   }
 
   queueInput(playerId, msg) {
