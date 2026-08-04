@@ -67,6 +67,7 @@ const speedValueEl = document.getElementById('speedValue');
 const rolloverAlertEl = document.getElementById('rolloverAlert');
 const rolloverAlertTextEl = document.getElementById('rolloverAlertText');
 const lapInvalidAlertEl = document.getElementById('lapInvalidAlert');
+const lapInvalidAlertTextEl = document.getElementById('lapInvalidAlertText');
 const brushSizeRow = document.getElementById('brushSizeRow');
 const spawnToolRow = document.getElementById('spawnToolRow');
 const zoneSpawnCountEl = document.getElementById('zoneSpawnCount');
@@ -335,6 +336,24 @@ const chassisCollider = world.createCollider(
   RAPIER.ColliderDesc.cuboid(chassisSize.x, chassisSize.y, chassisSize.z).setMass(250),
   chassisBody
 );
+// A tömegközéppont alapból a kasztni-doboz KÖZEPÉN ül, ami a talaj fölött 0.85 —
+// egy 4.4 hosszú kocsihoz képest irreálisan magas. Fékezéskor ez billentette
+// előre az autót (a hátulja emelkedett meg). Egy versenyautó súlypontja
+// nagyjából a keréktengely magasságában van, ezért visszük lejjebb.
+// A tehetetlenségi főnyomatékok a doboz méretéből: I = m/12 * (a² + b²).
+const COM_DROP = 0.15;
+{
+  const m = 250, w = chassisSize.x * 2, h = chassisSize.y * 2, d = chassisSize.z * 2;
+  chassisCollider.setMassProperties(
+    m,
+    { x: 0, y: -COM_DROP, z: 0 },
+    { x: (m / 12) * (h * h + d * d), y: (m / 12) * (w * w + d * d), z: (m / 12) * (w * w + h * h) },
+    { x: 0, y: 0, z: 0, w: 1 }
+  );
+  // A collider tömegadatainak átírása magától NEM frissíti a merev testét —
+  // enélkül a súlypont csendben a doboz közepén maradna.
+  chassisBody.recomputeMassPropertiesFromColliders();
+}
 
 const vehicle = world.createVehicleController(chassisBody);
 vehicle.indexUpAxis = 1;          // Y = fel
@@ -1916,6 +1935,26 @@ const wallProbeLocal = [
 const _probeVec = new THREE.Vector3();
 const _probeQuat = new THREE.Quaternion();
 
+// Letért-e a kocsi TELJESEN az aszfaltról? A valódi F1-szabály szerint a kör
+// csak akkor érvénytelen, ha mind a négy kerék a pályán kívülre került — ha
+// akár egy is az aszfalton maradt, az még belefér. Ezért nem a kasztni
+// középpontját nézzük (az akkor is "kint" lenne, amikor a kocsi fele még bent
+// van), hanem a négy kerék tényleges talajpontját, a kocsi aktuális állásába
+// forgatva.
+const wheelProbeLocal = wheelPositions.map((w) => new THREE.Vector3(w.x, 0, w.z));
+
+function allWheelsOffTrack() {
+  if (!zoneRuntime) return false;
+  const q = chassisBody.rotation();
+  const pos = chassisBody.translation();
+  _probeQuat.set(q.x, q.y, q.z, q.w);
+  for (const local of wheelProbeLocal) {
+    _probeVec.copy(local).applyQuaternion(_probeQuat);
+    if (sampleZoneAt(pos.x + _probeVec.x, pos.z + _probeVec.z) === ZONE_ASPHALT) return false;
+  }
+  return true;
+}
+
 function carTouchesWall() {
   const q = chassisBody.rotation();
   const pos = chassisBody.translation();
@@ -2001,6 +2040,7 @@ const race = {
   lapStartTime: 0,
   lapTimes: [],       // { time, invalid } — az érvénytelen kör is SZÁMÍT, csak meg van jelölve
   lapTainted: false,  // ebben a körben már volt rossz sorrendű checkpoint-átlépés
+  taintReason: null,  // 'checkpoint' | 'offtrack' — mi rontotta el a kört
   prevX: 0,
   prevZ: 0,
   invalidUntil: 0,  // performance.now() időbélyeg, ameddig a "kör érvénytelen" üzenet látszik
@@ -2058,6 +2098,7 @@ function startRace() {
   race.nextCheckpoint = 0;
   race.lapTimes = [];
   race.lapTainted = false;
+  race.taintReason = null;
   race.prevX = pos.x;
   race.prevZ = pos.z;
   race.invalidUntil = 0;
@@ -2081,11 +2122,19 @@ function updateRaceHud() {
   const validTimes = race.lapTimes.filter((l) => !l.invalid).map((l) => l.time);
   const best = validTimes.length ? Math.min(...validTimes) : NaN;
   raceHudEl.innerHTML =
-    `Kör: <strong>${Math.min(race.lap + 1, race.totalLaps)} / ${race.totalLaps}</strong><br>` +
+    `Kör: <strong>${Math.min(race.lap + 1, race.totalLaps)} / ${race.totalLaps}</strong>${race.lapTainted ? ' ⚠️' : ''}<br>` +
     `Aktuális: ${formatTime(current)}<br>` +
     `Legjobb: ${formatTime(best)}<br>` +
     `Összesen: ${formatTime(total)}`;
-  lapInvalidAlertEl.classList.toggle('hidden', now >= race.invalidUntil);
+  // A figyelmeztetés nem néhány másodperc után tűnik el, hanem addig marad,
+  // amíg a folyamatban lévő kör tart — a játékos végig lássa, hogy ez a kör
+  // már nem számít. A rajtvonalnál a lapTainted nullázódik, ezzel együtt ez is.
+  if (race.taintReason) {
+    lapInvalidAlertTextEl.textContent = race.taintReason === 'offtrack'
+      ? 'Kör érvénytelen — mind a négy kerékkel lehagytad az aszfaltot!'
+      : 'Kör érvénytelen — checkpoint kimaradt!';
+  }
+  lapInvalidAlertEl.classList.toggle('hidden', !race.lapTainted && now >= race.invalidUntil);
 }
 
 function finishRace() {
@@ -2173,8 +2222,18 @@ function updateRace(dt) {
       // de hagyjuk tovább menni — a rajtvonalnál dől el, hogy a kör
       // érvénytelen volt.
       race.lapTainted = true;
+      race.taintReason = 'checkpoint';
       race.invalidUntil = now + 2500;
     }
+  }
+
+  // Teljes letérés az aszfaltról: a valódi F1-ben a kör akkor vész el, ha
+  // MIND A NÉGY kerék a pályán kívülre kerül — egy kerékkel még bent lehet
+  // maradni. Ugyanaz a kezelés, mint a kihagyott checkpointnál: a kör
+  // érvénytelen lesz, de a versenyben tovább lehet menni.
+  if (!race.lapTainted && allWheelsOffTrack()) {
+    race.lapTainted = true;
+    race.taintReason = 'offtrack';
   }
 
   if (startCrossed && !race.hasCrossedStart) {
@@ -2193,6 +2252,12 @@ function updateRace(dt) {
     race.lapTimes.push({ time: now - race.lapStartTime, invalid });
     race.lapStartTime = now;
     race.lap++;
+    // A most LEZÁRT kör érvénytelenségét még pár másodpercig kiírjuk. A
+    // taintReason-t ezért NEM nullázzuk itt: az adja az üzenet szövegét, és a
+    // következő hiba úgyis felülírja. Ha a kör csak azért érvénytelen, mert a
+    // végén maradt ki checkpoint (közben nem volt rossz sorrendű átlépés),
+    // akkor most kap okot.
+    if (invalid && !race.taintReason) race.taintReason = 'checkpoint';
     race.nextCheckpoint = 0;
     race.lapTainted = false;
     if (invalid) race.invalidUntil = now + 2500;
@@ -2225,7 +2290,25 @@ function moveTowardsAngle(current, target, maxDelta) {
   return current + Math.sign(diff) * maxDelta;
 }
 const maxForce = 900;
-const brakeForce = 60;
+// A fék NEM lehet akármilyen erős: a Rapier a fékezést közvetlen impulzusként
+// viszi fel, megkerülve a gumi tapadási határát. A régi, mind a négy keréken
+// egyforma 60-as érték 6.2 g-s lassulást adott — a gumi (frictionSlip 1.4)
+// legfeljebb ~1.4 g-t vinne át —, és ezzel HÁROMSZOROSAN túllépte azt a
+// lassulást, aminél a kocsi előrebukik (a hátulja emelkedik meg). Innen jött
+// az egyenesben való bukfencezés.
+//
+// A kézifék ezért most tengelyenként külön dolgozik, ahogy a valódi is:
+// elöl csak annyi, amennyi a lassításhoz kell, hátul valamivel több.
+const brakeForce = 14;        // első tengely
+const BRAKE_FORCE_REAR = 25;  // hátsó tengely
+// A drift viszont NEM a fékerő nagyságából jön, hanem abból, hogy a hátsó
+// kerék elveszti az oldalirányú tapadását — ezért a kanyarban kitörést
+// külön, a hátsó kerekek tapadásának csökkentésével adjuk meg. Enélkül a
+// mérsékeltebb fékerő majdnem teljesen megszüntetné a driftet (mérve: 88 -> 14 fok).
+const HANDBRAKE_REAR_SLIP = 1.1;
+// Rajt előtti visszaszámláláskor és a verseny végén a kocsit HELYBEN kell
+// tartani, akár lejtőn is — ott a menetdinamika már nem számít.
+const HOLD_BRAKE = 60;
 const ASPHALT_FRICTION_SLIP = 1.4;
 // Kifutón (fű/kavics) kevesebb erő jut a talajra és csúszósabb is —
 // ettől lesz érezhetően lassabb a pályán kívül.
@@ -2268,8 +2351,22 @@ function updateControls() {
   vehicle.setWheelSteering(0, steer);
   vehicle.setWheelSteering(1, steer);
 
-  const b = brake ? brakeForce : 0;
-  for (let i = 0; i < 4; i++) vehicle.setWheelBrake(i, b);
+  if (frozen) {
+    for (let i = 0; i < 4; i++) vehicle.setWheelBrake(i, HOLD_BRAKE);
+  } else if (brake) {
+    vehicle.setWheelBrake(0, brakeForce);
+    vehicle.setWheelBrake(1, brakeForce);
+    vehicle.setWheelBrake(2, BRAKE_FORCE_REAR);
+    vehicle.setWheelBrake(3, BRAKE_FORCE_REAR);
+    // A hátsó kerekek tapadását csak akkor csökkentjük, ha az adott felületen
+    // amúgy is több lenne — kifutón (ahol már eleve csúszós) nem tesszük
+    // még csúszósabbá.
+    const rear = Math.min(slip, HANDBRAKE_REAR_SLIP);
+    vehicle.setWheelFrictionSlip(2, rear);
+    vehicle.setWheelFrictionSlip(3, rear);
+  } else {
+    for (let i = 0; i < 4; i++) vehicle.setWheelBrake(i, 0);
+  }
 
   // Az "up" vektor Y-komponense a kasztni forgatásából: 1 = szabályosan áll,
   // 0 = oldalára dőlt, -1 = a tetején van. 0.2 alatt már egyértelműen borulás.
