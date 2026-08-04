@@ -7,7 +7,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { S2C, ROOM_STATE, TICK_RATE, TICK_MS, SNAPSHOT_RATE } from '../../shared/protocol.js';
+import { S2C, ROOM_STATE, TAINT, TICK_RATE, TICK_MS, SNAPSHOT_RATE } from '../../shared/protocol.js';
 import { GRAVITY, buildVehicle, applyControls, CHASSIS_SIZE } from '../../shared/vehicleConfig.js';
 import {
   decodeZoneCodes, sampleZone, ZONE_OFFTRACK,
@@ -177,7 +177,11 @@ export class RaceSim {
         race: {
           lap: 0,
           nextCheckpoint: 0,
-          tainted: false,
+          // MIÉRT érvénytelen a folyamatban lévő kör (TAINT kódja), vagy NONE.
+          // Egy külön "tainted" igazságérték mellett ez két, kézzel szinkronban
+          // tartandó mező lett volna — a kód pont annyit tud a nullától
+          // különböző értékből, mint egy bitből.
+          taintReason: TAINT.NONE,
           hasCrossedStart: false,
           lapStart: 0,
           lapTimes: [],
@@ -335,9 +339,17 @@ export class RaceSim {
             // Csak SIKERES átlépéskor jegyezzük meg — így az R sosem tesz
             // vissza egy olyan pontra, ahol már rossz úton járt.
             car.respawn = { x: p.x, z: p.z, heading: headingFrom(fromX, fromZ, p.x, p.z, car.respawn.heading) };
-          } else {
-            r.tainted = true;
+          } else if (i > r.nextCheckpoint) {
+            // Előrébb lévő kapu: tényleg kihagyott egyet közben.
+            r.taintReason = TAINT.CHECKPOINT;
           }
+          // Egy MÁR MEGSZERZETT kapu újbóli átlépése (i < nextCheckpoint) nem
+          // hiba, csak nem is számít. A crossedGate iránytól függetlenül metsz
+          // szakaszt, ezért egy megcsúszás, oldalra sodródás vagy pördülés
+          // ugyanazon a vonalon másodszor is "átlépés" — korábban ez rontotta
+          // el a kört, holmi csalás nélkül. Ugyanezért nem hiba az sem, ha az
+          // összes kapu megvan (nextCheckpoint == length), és utána még
+          // egyszer átcsúszik valamelyiken.
           break;
         }
       }
@@ -345,8 +357,8 @@ export class RaceSim {
       // Teljes letérés az aszfaltról: a kör érvénytelen lesz, de tovább lehet
       // menni. Eddig ez csak egyjátékosban élt — multiplayerben a kifutón át
       // le lehetett vágni a kanyart következmények nélkül.
-      if (!r.tainted && allWheelsOffTrack(this.zone, car.body, WHEEL_PROBES)) {
-        r.tainted = true;
+      if (!r.taintReason && allWheelsOffTrack(this.zone, car.body, WHEEL_PROBES)) {
+        r.taintReason = TAINT.OFFTRACK;
       }
 
       if (crossedGate(gates.start, fromX, fromZ, p.x, p.z)) {
@@ -356,12 +368,14 @@ export class RaceSim {
           r.hasCrossedStart = true;
           r.lapStart = now;
         } else {
-          const invalid = r.tainted || r.nextCheckpoint < checkpoints.length;
+          // Igazságértékre kényszerítve: ez az érték a kliensnek és az
+          // adatbázisnak is megy, ott nem a taint OKA a kérdés.
+          const invalid = !!r.taintReason || r.nextCheckpoint < checkpoints.length;
           const time = now - r.lapStart;
           r.lapTimes.push({ time, invalid });
           r.lap++;
           r.nextCheckpoint = 0;
-          r.tainted = false;
+          r.taintReason = TAINT.NONE;
           r.lapStart = now;
           this.room.recordLap(this.room.players.get(car.playerId), r.lap, time, invalid).catch(() => {});
           this.broadcast(S2C.RACE_EVENT, {
@@ -408,12 +422,12 @@ export class RaceSim {
         // ütemét: a két óra sosem jár pontosan egyformán, e visszacsatolás
         // nélkül a sor percek alatt vagy kiürülne, vagy eldobásba fordulna.
         qd: car.queue.length,
-        // Elromlott-e MÁR az aktuális kör (rossz sorrendű checkpoint vagy
-        // teljes letérés az aszfaltról). A kliens ebből írja ki a
-        // figyelmeztetést, hogy ne csak a kör végén derüljön ki.
+        // Elromlott-e MÁR az aktuális kör, és ha igen, MIÉRT (TAINT kódja) —
+        // a kliens ebből írja ki a konkrét okot, hogy ne csak a kör végén
+        // derüljön ki, és hogy tudja, mit csinált másképp legközelebb.
         // A kihagyott checkpointok NEM tartoznak ide: azt csak a rajtvonalnál
         // lehet eldönteni, addig a legtöbb kör "hiányos" lenne.
-        ti: car.race.tainted ? 1 : 0,
+        ti: car.race.taintReason,
         lap: car.race.lap,
         cp: car.race.nextCheckpoint,
       });

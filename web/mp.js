@@ -3,7 +3,7 @@
 // Multiplayerben a SZERVER a hiteles forrás — a helyi fizika nem fut. Ez a
 // modul a bemenetet küldi, és a beérkező állapotot jeleníti meg; a köztes
 // időt interpolálja, hogy a 20/mp állapot is folyamatos mozgásnak látsszon.
-import { C2S, S2C, ROOM_STATE, TICK_RATE, TICK_MS, sanitizeName } from '/shared/protocol.js';
+import { C2S, S2C, ROOM_STATE, TAINT, TICK_RATE, TICK_MS, sanitizeName } from '/shared/protocol.js';
 
 const G = window.__game;
 // Diagnosztika. A step() azért kell, mert a requestAnimationFrame megáll, ha
@@ -55,8 +55,10 @@ let selfBuf = [];
 let inputSeq = 0;
 let awaitingFirstSnapshot = false;
 let queueDepth = 0;
-// A szerver szerint elromlott-e már az aktuális kör (snapshot `ti` mezője).
-let lapTainted = false;
+// Elromlott-e már az aktuális kör a szerver szerint, és ha igen, MIÉRT: a
+// snapshot `ti` mezője a TAINT kódját küldi (0 = érvényes). A konkrét ok kell,
+// nem csak egy igen/nem — abból a játékos nem tudja, mit rontott el.
+let lapTainted = TAINT.NONE;
 let inputTimer = null;
 // A RACE_END után true: a frame() innentől nem írja felül a HUD-ot a
 // kör/játékos szöveggel, különben a showResults() eredménylistája egyetlen
@@ -621,7 +623,7 @@ function onSnapshot(m) {
       myLap = c.lap;
       myCp = c.cp ?? 0;
       ackedSeq = c.seq || 0;
-      lapTainted = !!c.ti;
+      lapTainted = c.ti || TAINT.NONE;
       // A nyugtázott bemenetek hatása már benne van a kapott állapotban,
       // őket nem szabad újrajátszani.
       while (inputHistory.length && inputHistory[0].seq <= ackedSeq) inputHistory.shift();
@@ -815,7 +817,7 @@ function startInputLoop() {
   inputSeq = 0;
   ackedSeq = 0;
   inputHistory.length = 0;
-  lapTainted = false;
+  lapTainted = TAINT.NONE;
   predBuf.length = 0;
   smooth.p = [0, 0, 0];
   smooth.q = [0, 0, 0, 1];

@@ -7,6 +7,7 @@ import {
   CHASSIS_SIZE, WHEEL_RADIUS, SUSPENSION_REST_LENGTH, WHEEL_POSITIONS,
   STEER_VISUAL_SPEED, buildVehicle, applyControls,
 } from '/shared/vehicleConfig.js';
+import { TAINT } from '/shared/protocol.js';
 import {
   ZONE_ASPHALT, ZONE_OFFTRACK, ZONE_WALL, decodeZoneCodes, sampleZone,
   wallProbes, wheelProbes,
@@ -1793,8 +1794,8 @@ const race = {
   startTime: 0,
   lapStartTime: 0,
   lapTimes: [],       // { time, invalid } — az érvénytelen kör is SZÁMÍT, csak meg van jelölve
-  lapTainted: false,  // ebben a körben már volt rossz sorrendű checkpoint-átlépés
-  taintReason: null,  // 'checkpoint' | 'offtrack' — mi rontotta el a kört
+  lapTainted: false,  // elromlott-e már ez a kör (kihagyott checkpoint vagy letérés)
+  taintReason: TAINT.NONE,  // TAINT kódja — mi rontotta el a kört
   prevX: 0,
   prevZ: 0,
   invalidUntil: 0,  // performance.now() időbélyeg, ameddig a "kör érvénytelen" üzenet látszik
@@ -1852,7 +1853,7 @@ function startRace() {
   race.nextCheckpoint = 0;
   race.lapTimes = [];
   race.lapTainted = false;
-  race.taintReason = null;
+  race.taintReason = TAINT.NONE;
   race.prevX = pos.x;
   race.prevZ = pos.z;
   race.invalidUntil = 0;
@@ -1861,6 +1862,16 @@ function startRace() {
   resultsEl.classList.add('hidden');
   lapInvalidAlertEl.classList.add('hidden');
   updateRaceHud();
+}
+
+// A "kör érvénytelen" szöveg — EGY helyen, mert az egyjátékos versenylogika és
+// a multiplayer (a szerver snapshotjának `ti` mezője) ugyanezt írja ki. A kettő
+// korábban elcsúszott: multiplayerben csak egy általános "Kör érvénytelen!"
+// jött, amiből a játékos nem tudta, mit rontott el.
+function lapInvalidText(reason) {
+  if (reason === TAINT.OFFTRACK) return 'Kör érvénytelen — mind a négy kerékkel lehagytad az aszfaltot!';
+  if (reason === TAINT.CHECKPOINT) return 'Kör érvénytelen — checkpoint kimaradt!';
+  return 'Kör érvénytelen!';
 }
 
 function updateRaceHud() {
@@ -1884,9 +1895,7 @@ function updateRaceHud() {
   // amíg a folyamatban lévő kör tart — a játékos végig lássa, hogy ez a kör
   // már nem számít. A rajtvonalnál a lapTainted nullázódik, ezzel együtt ez is.
   if (race.taintReason) {
-    lapInvalidAlertTextEl.textContent = race.taintReason === 'offtrack'
-      ? 'Kör érvénytelen — mind a négy kerékkel lehagytad az aszfaltot!'
-      : 'Kör érvénytelen — checkpoint kimaradt!';
+    lapInvalidAlertTextEl.textContent = lapInvalidText(race.taintReason);
   }
   lapInvalidAlertEl.classList.toggle('hidden', !race.lapTainted && now >= race.invalidUntil);
 }
@@ -1971,12 +1980,18 @@ function updateRace(dt) {
     };
     if (crossedCheckpoint === race.nextCheckpoint) {
       race.nextCheckpoint++;
-    } else {
-      // Rossz sorrendű checkpont: valahol kihagyott egyet. Azonnal jelezzük,
-      // de hagyjuk tovább menni — a rajtvonalnál dől el, hogy a kör
-      // érvénytelen volt.
+    } else if (crossedCheckpoint > race.nextCheckpoint) {
+      // Előrébb lévő kapu: valahol kihagyott egyet. Azonnal jelezzük, de
+      // hagyjuk tovább menni — a rajtvonalnál dől el, hogy a kör érvénytelen
+      // volt.
+      //
+      // Egy MÁR MEGSZERZETT kapu újbóli átlépése viszont NEM hiba: a
+      // crossedGate iránytól függetlenül metsz szakaszt, tehát egy megcsúszás
+      // vagy pördülés ugyanazon a vonalon másodszor is "átlépés". Korábban ez
+      // csalás nélkül is elrontotta a kört. (Ugyanez a szabály fut a
+      // szerveren — a két oldal nem térhet el.)
       race.lapTainted = true;
-      race.taintReason = 'checkpoint';
+      race.taintReason = TAINT.CHECKPOINT;
       race.invalidUntil = now + 2500;
     }
   }
@@ -1987,7 +2002,7 @@ function updateRace(dt) {
   // érvénytelen lesz, de a versenyben tovább lehet menni.
   if (!race.lapTainted && allWheelsOffTrack()) {
     race.lapTainted = true;
-    race.taintReason = 'offtrack';
+    race.taintReason = TAINT.OFFTRACK;
   }
 
   if (startCrossed && !race.hasCrossedStart) {
@@ -2011,7 +2026,7 @@ function updateRace(dt) {
     // következő hiba úgyis felülírja. Ha a kör csak azért érvénytelen, mert a
     // végén maradt ki checkpoint (közben nem volt rossz sorrendű átlépés),
     // akkor most kap okot.
-    if (invalid && !race.taintReason) race.taintReason = 'checkpoint';
+    if (invalid && !race.taintReason) race.taintReason = TAINT.CHECKPOINT;
     race.nextCheckpoint = 0;
     race.lapTainted = false;
     if (invalid) race.invalidUntil = now + 2500;
@@ -3000,9 +3015,11 @@ window.__game = {
   },
   // A "kör érvénytelen" figyelmeztetés. Multiplayerben a szerver dönti el
   // (a snapshot `ti` mezője), egyjátékosban a helyi versenylogika.
-  setLapInvalid(on) {
-    lapInvalidAlertTextEl.textContent = 'Kör érvénytelen!';
-    lapInvalidAlertEl.classList.toggle('hidden', !on);
+  // A `reason` a TAINT kódja (0 = érvényes), ugyanaz, amit az egyjátékos
+  // logika is használ — így a szöveg is ugyanaz, egy helyről.
+  setLapInvalid(reason) {
+    if (reason) lapInvalidAlertTextEl.textContent = lapInvalidText(reason);
+    lapInvalidAlertEl.classList.toggle('hidden', !reason);
   },
   // Multiplayer módba váltás: a versenylogikát a szerver végzi. A helyi
   // fizikát a hálózati modul lépteti, ha a jóslás be van kapcsolva.

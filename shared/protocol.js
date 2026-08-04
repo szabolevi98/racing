@@ -28,6 +28,17 @@ export const S2C = {
   PONG: 'pong',                // { t }
 };
 
+// Mi rontotta el a folyamatban lévő kört. A snapshot `ti` mezője ezt küldi,
+// és a kliens ebből írja ki, MIÉRT érvénytelen — egy puszta igen/nem bitből a
+// játékos nem tudja, mit csinált másképp legközelebb. Egyjátékosban ugyanezek
+// a kódok járnak körbe, hogy a szöveg egy helyen éljen.
+// A NONE szándékosan 0, hogy a puszta igazságérték-vizsgálat is működjön.
+export const TAINT = {
+  NONE: 0,
+  OFFTRACK: 1,    // mind a négy kerék lehagyta az aszfaltot
+  CHECKPOINT: 2,  // kimaradt egy checkpoint
+};
+
 // A szoba életciklusa.
 export const ROOM_STATE = {
   LOBBY: 'lobby',
