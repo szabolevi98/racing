@@ -9,7 +9,17 @@ const G = window.__game;
 // Diagnosztika. A step() azért kell, mert a requestAnimationFrame megáll, ha
 // a lap háttérbe kerül — enélkül a hálózati réteget nem lehetne automatizáltan
 // tesztelni (a képkocka-számláló ilyenkor csalókán nullán marad).
-window.__mp = { stage: 'init', frames: 0, snaps: 0, step: () => frame(), get others() { return others.size; }, get selfBuf() { return selfBuf.length; }, get room() { return room; } };
+window.__mp = {
+  stage: 'init', frames: 0, snaps: 0,
+  step: () => frame(),
+  get others() { return others.size; },
+  get selfBuf() { return selfBuf.length; },
+  get room() { return room; },
+  // Mesterséges késleltetés: __mp.setPing(150) vagy __mp.setPing(150, 30).
+  // Ugyanez URL-ből: ?lag=150&jitter=30
+  setPing: (rtt, jitter) => setPing(rtt, jitter),
+  get net() { return { ...netsim }; },
+};
 const THREE = G.THREE;
 
 let ws = null;
@@ -104,8 +114,52 @@ $('mpCopy').addEventListener('click', () => navigator.clipboard?.writeText(room?
 
 // ---------- Kapcsolat ----------
 
+// ---------- Mesterséges hálózati késleltetés (fejlesztéshez) ----------
+// Localhoston a ping 0 ms: a lomhaság nem látszik, és így a javítása sem
+// ellenőrizhető. Ez a réteg mindkét irányba késleltetést tesz, hogy a valódi
+// játékélményt még deploy nélkül is meg lehessen nézni — determinisztikusan és
+// ismételhetően, szemben egy éles szerverrel, ahol minden mérés más.
+//
+// FONTOS: a WebSocket TCP fölött megy, ami SOHA nem cserél sorrendet. Ezért a
+// kézbesítés jitter mellett is monoton: egy csomag nem előzheti meg az előtte
+// küldöttet. Enélkül a szimulátor olyan hibát mutatna (átrendeződés), ami
+// élesben elő sem fordulhat — és a snapshot-puffer interpolációját is
+// összezavarná.
+const netsim = { up: 0, down: 0, jitter: 0 };
+let upReleaseAt = 0;
+let downReleaseAt = 0;
+
+function delayed(dir, fn) {
+  const base = dir === 'up' ? netsim.up : netsim.down;
+  // Kikapcsolva nincs setTimeout sem — a normál út közvetlen hívás marad.
+  if (base <= 0 && netsim.jitter <= 0) return fn();
+  const now = performance.now();
+  const target = now + base + (netsim.jitter > 0 ? Math.random() * netsim.jitter : 0);
+  const at = dir === 'up'
+    ? (upReleaseAt = Math.max(upReleaseAt, target))
+    : (downReleaseAt = Math.max(downReleaseAt, target));
+  setTimeout(fn, at - now);
+}
+
+// A megadott érték a teljes körbefordulás (RTT), ahogy a ping is — ezért
+// felezve kerül a két irányra.
+function setPing(rttMs, jitterMs = 0) {
+  netsim.up = netsim.down = Math.max(0, rttMs) / 2;
+  netsim.jitter = Math.max(0, jitterMs);
+  return { ...netsim, rtt: rttMs, jitter: jitterMs };
+}
+
+// ?lag=150 (opcionálisan ?jitter=30) az URL-ben — kényelmi kapcsoló, hogy
+// újratöltéskor ne kelljen kézzel beállítani.
+{
+  const q = new URLSearchParams(location.search);
+  if (q.has('lag')) setPing(Number(q.get('lag')) || 0, Number(q.get('jitter')) || 0);
+}
+
 function send(type, data = {}) {
-  if (ws?.readyState === 1) ws.send(JSON.stringify({ type, ...data }));
+  if (ws?.readyState !== 1) return;
+  const payload = JSON.stringify({ type, ...data });
+  delayed('up', () => { if (ws?.readyState === 1) ws.send(payload); });
 }
 
 function connect(name) {
@@ -115,7 +169,12 @@ function connect(name) {
     setErr('');
     send(C2S.HELLO, { name, token: me.token });
   });
-  ws.addEventListener('message', (ev) => onMessage(JSON.parse(ev.data)));
+  ws.addEventListener('message', (ev) => {
+    // A feldolgozást késleltetjük, nem a JSON-elemzést — így a szimulátor
+    // költsége nem torzítja a mért időt.
+    const m = JSON.parse(ev.data);
+    delayed('down', () => onMessage(m));
+  });
   ws.addEventListener('close', () => {
     setErr('A kapcsolat megszakadt.');
     show('mpLogin', true); show('mpRooms', false); show('mpRoom', false);
