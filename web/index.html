@@ -15,7 +15,7 @@
     color: #fff; font-size: 18px; background: #111; z-index: 30;
   }
   
-  #menu.hidden, #hud.hidden, #devHud.hidden, #carTesterHud.hidden,
+  #menu.hidden, #hud.hidden,
   #raceHudWrap.hidden, #countdown.hidden, #results.hidden { display: none !important; }
 
   #raceHudWrap { position: fixed; top: 12px; right: 12px; z-index: 10; min-width: 170px; }
@@ -42,10 +42,12 @@
     background: rgba(0,0,0,0.55);
   }
 
-  #hud, #devHud, #carTesterHud {
+  /* A dev mód saját felületének stílusa a dev.html-ben van — az csak akkor
+     kerül be az oldalba, ha valaki tényleg dev módba lép. */
+  #hud {
     position: fixed; top: 12px; left: 12px; z-index: 10;
   }
-  #hud .card, #devHud .card, #carTesterHud .card { min-width: 220px; }
+  #hud .card { min-width: 220px; }
 
   #miniMapWrap {
     position: fixed; bottom: 12px; left: 12px; z-index: 10;
@@ -100,22 +102,6 @@
      átlátszónak — így a "Kocsi/Pálya betöltése..." felirat megjelenése nem
      tolja el a fölötte/alatta lévő elemeket. */
   #menuStatus { min-height: 1.5em; }
-
-  #zoneEditor.hidden { display: none !important; }
-  /* A 3D pálya élőben, a fő renderer canvas-án látszik alatta — ezért a
-     szerkesztő rétege átlátszó, csak az egérkezelést és a maszk-overlay-t adja. */
-  #zoneEditor { position: fixed; inset: 0; z-index: 40; }
-  #zoneOverlayCanvas { position: absolute; top: 0; left: 0; cursor: crosshair; }
-  #zoneToolbar { position: fixed; top: 12px; left: 12px; z-index: 41; min-width: 300px; }
-
-  #materialPickerPanel.hidden { display: none !important; }
-  #materialPickerPanel { position: fixed; top: 12px; right: 12px; z-index: 42; max-width: 420px; }
-  #materialPickerGrid { max-height: 50vh; overflow-y: auto; }
-  .material-thumb {
-    width: 56px; height: 56px; cursor: pointer; border-radius: 4px;
-    border: 3px solid transparent; box-sizing: border-box;
-  }
-  .material-thumb.selected { border-color: #0dcaf0; }
 
 /* Többjátékos lobby */
 #mpOverlay { position: fixed; inset: 0; background: rgba(0,0,0,.72); z-index: 40;
@@ -211,105 +197,8 @@
   </div>
 </div>
 
-<div id="devHud" class="hidden">
-  <div class="card bg-dark bg-opacity-75 border-warning text-light">
-    <div class="card-body py-2 px-3 small">
-      <strong class="text-warning">DEV MÓD — szabad kamera</strong><br>
-      <select id="devMapSelect" class="form-select form-select-sm my-2"></select>
-      Jobb egérgomb + húzás: nézelődés, WASD: mozgás, Space/Ctrl: fel/le, Shift: gyorsítás<br>
-      Rajtpontok: <span id="devSpawnCount">0</span> / 8 (a zóna szerkesztőben szerkeszthetők)<br>
-      <span id="devSpawnStatus"></span><br>
-      <button id="openZoneEditorBtn" class="btn btn-sm btn-outline-warning mt-2">Zóna / rajtrács szerkesztő</button>
-      <button id="bakeCollisionBtn" class="btn btn-sm btn-outline-info mt-2">Ütközés bekészítése</button>
-      <div id="bakeStatus" class="mt-1"></div>
-      <button id="carTesterBtn" class="btn btn-sm btn-outline-success mt-2">Autó tesztelő</button>
-    </div>
-  </div>
-</div>
-
-<div id="carTesterHud" class="hidden">
-  <div class="card bg-dark bg-opacity-75 border-success text-light">
-    <div class="card-body py-2 px-3 small">
-      <strong class="text-success">AUTÓ TESZTELŐ</strong><br>
-      <select id="carTesterCarSelect" class="form-select form-select-sm mt-1 mb-1"></select>
-      A / D vagy ← / →: kormány (csak vizuális)<br>
-      W / S vagy ↑ / ↓: előző / következő kocsi<br>
-      <button id="carTesterBackBtn" class="btn btn-sm btn-outline-warning mt-2">Vissza a dev módba</button>
-    </div>
-  </div>
-</div>
-
-<div id="zoneEditor" class="hidden">
-  <canvas id="zoneOverlayCanvas"></canvas>
-  <div id="zoneToolbar" class="card bg-dark bg-opacity-75 border-warning text-light">
-    <div class="card-body py-2 px-3 small">
-      <strong class="text-warning">Pálya szerkesztő</strong><br>
-      Bal gomb: festés / lerakás &nbsp; Középső/jobb gomb + húzás: mozgatás &nbsp; Görgő: zoom<br>
-      <div class="btn-group my-2" role="group">
-        <input type="radio" class="btn-check" name="zoneBrush" id="brushAsphalt" value="0" checked>
-        <label class="btn btn-outline-light btn-sm" for="brushAsphalt">Aszfalt (törlés)</label>
-        <input type="radio" class="btn-check" name="zoneBrush" id="brushOfftrack" value="1">
-        <label class="btn btn-outline-warning btn-sm" for="brushOfftrack">Kifutó</label>
-        <input type="radio" class="btn-check" name="zoneBrush" id="brushWall" value="2">
-        <label class="btn btn-outline-danger btn-sm" for="brushWall">Fal</label>
-      </div><br>
-      <div class="btn-group mb-2" role="group">
-        <input type="radio" class="btn-check" name="zoneBrush" id="brushSpawn" value="spawn">
-        <label class="btn btn-outline-info btn-sm" for="brushSpawn">Rajtpont</label>
-        <input type="radio" class="btn-check" name="zoneBrush" id="brushStart" value="start">
-        <label class="btn btn-outline-success btn-sm" for="brushStart">Rajtvonal</label>
-        <input type="radio" class="btn-check" name="zoneBrush" id="brushCheckpoint" value="checkpoint">
-        <label class="btn btn-outline-primary btn-sm" for="brushCheckpoint">Checkpoint</label>
-        <input type="radio" class="btn-check" name="zoneBrush" id="brushGuide" value="guide">
-        <label class="btn btn-outline-warning btn-sm" for="brushGuide">Vezetővonal</label>
-      </div><br>
-      <span id="brushSizeRow">
-        Ecset sugara: <span id="brushSizeLabel">3</span> egység<br>
-        <input type="range" id="brushSizeRange" min="0.25" max="60" step="0.25" value="3" class="form-range" style="width:180px;">
-      </span>
-      <span id="spawnToolRow" class="d-none">
-        Rajtpontok: <span id="zoneSpawnCount">0</span> / 8 — kattints és <em>húzd</em> a nézési irányba &nbsp;
-        <button id="undoSpawnBtn" class="btn btn-sm btn-outline-info py-0">Utolsó törlése</button><br>
-      </span>
-      <span id="gateToolRow" class="d-none">
-        Húzz egy vonalat a pályán keresztbe.<br>
-        Rajtvonal: <span id="startLineState">nincs</span> &nbsp;
-        Checkpointok: <span id="checkpointCount">0</span> &nbsp;
-        <button id="undoGateBtn" class="btn btn-sm btn-outline-primary py-0">Utolsó törlése</button> &nbsp;
-        <button id="clearCheckpointsBtn" class="btn btn-sm btn-outline-secondary py-0">Összes checkpoint törlése</button><br>
-      </span>
-      <span id="guideToolRow" class="d-none">
-        Kattints pontonként a pálya közepe mentén, a rajtvonaltól körbe, vissza a rajtvonalig.<br>
-        Vezetőpontok: <span id="guidePointCount">0</span> &nbsp;
-        <button id="undoGuideBtn" class="btn btn-sm btn-outline-warning py-0">Utolsó törlése</button> &nbsp;
-        <button id="clearGuideBtn" class="btn btn-sm btn-outline-secondary py-0">Törlés</button><br>
-      </span>
-      <span id="autoCheckpointRow" class="d-none">
-        <span class="d-inline-flex align-items-center gap-1 mt-1">
-          <input type="number" id="autoCheckpointCount" class="form-control form-control-sm" style="width:70px;" min="4" max="500" value="100">
-          <button id="generateCheckpointsBtn" class="btn btn-sm btn-outline-primary py-0">Checkpontok automatikus generálása</button>
-        </span>
-      </span>
-      <button id="openMaterialPickerBtn" class="btn btn-sm btn-outline-info mt-1">Aszfalt automatikus felismerés</button>
-      <button id="saveZoneBtn" class="btn btn-sm btn-primary mt-1">Mentés</button>
-      <button id="closeZoneEditorBtn" class="btn btn-sm btn-secondary mt-1">Vissza</button>
-      <div id="zoneStatus" class="mt-2"></div>
-    </div>
-  </div>
-
-  <div id="materialPickerPanel" class="hidden">
-    <div class="card bg-dark bg-opacity-75 border-info text-light">
-      <div class="card-body py-2 px-3 small">
-        <strong class="text-info">Aszfalt anyagok kiválasztása</strong><br>
-        Kattints azokra a textúrákra, amik az útburkolatot ábrázolják (több is lehet), majd Generálás. Ez felülírja a jelenlegi festést.
-        <div id="materialPickerGrid" class="d-flex flex-wrap gap-1 my-2"></div>
-        <button id="generateAsphaltBtn" class="btn btn-sm btn-info mt-1">Generálás</button>
-        <button id="closeMaterialPickerBtn" class="btn btn-sm btn-secondary mt-1">Mégse</button>
-        <div id="materialPickerStatus" class="mt-1"></div>
-      </div>
-    </div>
-  </div>
-</div>
+<!-- A dev mód felülete (devHud, autó tesztelő, zóna-szerkesztő) a dev.html-ben
+     van: a dev.js kéri le és injektálja be, amikor tényleg dev módba lépsz. -->
 
 <script type="importmap">
 {

@@ -37,36 +37,12 @@ const carSelect = document.getElementById('carSelect');
 const envSelect = document.getElementById('envSelect');
 const startBtn = document.getElementById('startBtn');
 const backToMenuLink = document.getElementById('backToMenuLink');
-const devHudEl = document.getElementById('devHud');
-const devSpawnCountEl = document.getElementById('devSpawnCount');
-const devSpawnStatusEl = document.getElementById('devSpawnStatus');
-const devMapSelectEl = document.getElementById('devMapSelect');
-const bakeCollisionBtn = document.getElementById('bakeCollisionBtn');
-const bakeStatusEl = document.getElementById('bakeStatus');
-const openZoneEditorBtn = document.getElementById('openZoneEditorBtn');
-const carTesterBtn = document.getElementById('carTesterBtn');
-const carTesterHudEl = document.getElementById('carTesterHud');
-const carTesterBackBtn = document.getElementById('carTesterBackBtn');
-const carTesterCarSelectEl = document.getElementById('carTesterCarSelect');
+// A fejlesztői felületnek EGY eleme sincs itt: a markupja a dev.html-ben van,
+// és a dev.js injektálja be, amikor tényleg dev módba lépsz. Elrejteni a
+// devTools?.hideOverlays() hívással lehet.
 makeSearchableSelect(mapSelect);
 makeSearchableSelect(carSelect);
 makeSearchableSelect(envSelect);
-makeSearchableSelect(carTesterCarSelectEl);
-const openMaterialPickerBtn = document.getElementById('openMaterialPickerBtn');
-const generateCheckpointsBtn = document.getElementById('generateCheckpointsBtn');
-const autoCheckpointCountEl = document.getElementById('autoCheckpointCount');
-const materialPickerPanelEl = document.getElementById('materialPickerPanel');
-const materialPickerGridEl = document.getElementById('materialPickerGrid');
-const generateAsphaltBtn = document.getElementById('generateAsphaltBtn');
-const closeMaterialPickerBtn = document.getElementById('closeMaterialPickerBtn');
-const materialPickerStatusEl = document.getElementById('materialPickerStatus');
-const closeZoneEditorBtn = document.getElementById('closeZoneEditorBtn');
-const saveZoneBtn = document.getElementById('saveZoneBtn');
-const zoneEditorEl = document.getElementById('zoneEditor');
-const zoneOverlayCanvas = document.getElementById('zoneOverlayCanvas');
-const zoneStatusEl = document.getElementById('zoneStatus');
-const brushSizeRange = document.getElementById('brushSizeRange');
-const brushSizeLabel = document.getElementById('brushSizeLabel');
 const zoneIndicatorEl = document.getElementById('zoneIndicator');
 const miniMapCanvas = document.getElementById('miniMapCanvas');
 const miniMapCtx = miniMapCanvas.getContext('2d');
@@ -75,20 +51,6 @@ const rolloverAlertEl = document.getElementById('rolloverAlert');
 const rolloverAlertTextEl = document.getElementById('rolloverAlertText');
 const lapInvalidAlertEl = document.getElementById('lapInvalidAlert');
 const lapInvalidAlertTextEl = document.getElementById('lapInvalidAlertText');
-const brushSizeRow = document.getElementById('brushSizeRow');
-const spawnToolRow = document.getElementById('spawnToolRow');
-const zoneSpawnCountEl = document.getElementById('zoneSpawnCount');
-const undoSpawnBtn = document.getElementById('undoSpawnBtn');
-const gateToolRow = document.getElementById('gateToolRow');
-const startLineStateEl = document.getElementById('startLineState');
-const checkpointCountEl = document.getElementById('checkpointCount');
-const undoGateBtn = document.getElementById('undoGateBtn');
-const clearCheckpointsBtn = document.getElementById('clearCheckpointsBtn');
-const guideToolRow = document.getElementById('guideToolRow');
-const guidePointCountEl = document.getElementById('guidePointCount');
-const undoGuideBtn = document.getElementById('undoGuideBtn');
-const clearGuideBtn = document.getElementById('clearGuideBtn');
-const autoCheckpointRow = document.getElementById('autoCheckpointRow');
 const lapCountSelect = document.getElementById('lapCountSelect');
 const raceHudEl = document.getElementById('raceHud');
 const raceHudWrapEl = document.getElementById('raceHudWrap');
@@ -1325,188 +1287,6 @@ function buildCoverageMask(track, box, resolution) {
   return { mask, texW, texH, box };
 }
 
-// ---------- Aszfalt automatikus felismerése anyag-kiválasztás alapján ----------
-// A letöltött pályamodellek anyagai gyakran értelmetlen nevekkel jönnek
-// (pl. "282_63"), úgyhogy nem lehet név szerint megkeresni, melyik az
-// útburkolat. Ehelyett a felhasználó bélyegképek alapján, VIZUÁLISAN
-// kiválasztja, melyik anyag(ok) az aszfalt — utána ugyanazzal a felülnézeti
-// GPU-renderrel (mint buildCoverageMask), csak anyag szerint szűrve,
-// kirajzoljuk, hol van ilyen anyagú felület, és abból generáljuk a zóna-maszkot.
-const highlightMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
-
-// Az össze anyag begyűjtése a pálya modelljéből, bélyegkép-készítéshez.
-// Egy anyaghoz több mesh is tartozhat — csak egyszer szerepeljen a listában.
-function collectTrackMaterials(track) {
-  const seen = new Set();
-  const list = [];
-  track.traverse((obj) => {
-    if (!obj.isMesh || !obj.material) return;
-    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-    mats.forEach((mat) => {
-      if (seen.has(mat)) return;
-      seen.add(mat);
-      list.push(mat);
-    });
-  });
-  return list;
-}
-
-// Bélyegkép egy anyagról: ha van diffúz textúrája, azt rajzoljuk ki
-// kicsiben, egyébként az anyag alapszínével töltjük ki a négyzetet.
-function drawMaterialThumb(material, canvas) {
-  const ctx = canvas.getContext('2d');
-  const tex = material.map;
-  const img = tex && tex.image;
-  if (img && (img.width || img.videoWidth)) {
-    try {
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      return;
-    } catch (err) {
-      // pl. még nem dekódolt kép — essünk vissza a színre
-    }
-  }
-  const c = material.color || new THREE.Color(0x888888);
-  ctx.fillStyle = `rgb(${Math.round(c.r * 255)}, ${Math.round(c.g * 255)}, ${Math.round(c.b * 255)})`;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-}
-
-let selectedRoadMaterials = new Set();
-
-function openMaterialPicker() {
-  if (!currentTrack) return;
-  selectedRoadMaterials = new Set();
-  materialPickerGridEl.innerHTML = '';
-  materialPickerStatusEl.textContent = '';
-  const materials = collectTrackMaterials(currentTrack);
-  materials.forEach((mat) => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 56;
-    canvas.height = 56;
-    canvas.className = 'material-thumb';
-    canvas.title = mat.name || '(névtelen anyag)';
-    drawMaterialThumb(mat, canvas);
-    canvas.addEventListener('click', () => {
-      if (selectedRoadMaterials.has(mat)) {
-        selectedRoadMaterials.delete(mat);
-        canvas.classList.remove('selected');
-      } else {
-        selectedRoadMaterials.add(mat);
-        canvas.classList.add('selected');
-      }
-    });
-    materialPickerGridEl.appendChild(canvas);
-  });
-  materialPickerPanelEl.classList.remove('hidden');
-}
-
-function closeMaterialPicker() {
-  materialPickerPanelEl.classList.add('hidden');
-}
-
-// Ugyanaz a GPU-s felülnézeti render, mint buildCoverageMask, csak itt csak
-// a kiválasztott anyagú mesh-ek látszanak (fehéren, világítástól függetlenül),
-// minden más el van rejtve — így a kapott kép pontosan az útburkolat alakja.
-function renderMaterialMask(track, bounds, texW, texH, materialSet) {
-  const saved = [];
-  track.traverse((obj) => {
-    if (!obj.isMesh) return;
-    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-    const uses = mats.some((m) => materialSet.has(m));
-    saved.push({ obj, visible: obj.visible, material: obj.material });
-    obj.visible = uses;
-    if (uses) obj.material = highlightMaterial;
-  });
-
-  // A "lyukakat takaró" vizuális padló és a kocsi NEM a track gyereke, hanem
-  // közvetlenül a jelenethez van adva — enélkül a fenti elrejtés után is
-  // átlátszana rajtuk a kamera, és a padló (ami mindent befed alattuk)
-  // tévesen mindenhol "fehérnek" tűnne.
-  const extraHidden = [safetyFloorMesh, carPivot, ...devSpawnMarkers].filter(Boolean);
-  const savedExtra = extraHidden.map((obj) => ({ obj, visible: obj.visible }));
-  extraHidden.forEach((obj) => { obj.visible = false; });
-
-  const width = bounds.maxX - bounds.minX;
-  const depth = bounds.maxZ - bounds.minZ;
-  const centerX = (bounds.minX + bounds.maxX) / 2;
-  const centerZ = (bounds.minZ + bounds.maxZ) / 2;
-  const topCamera = new THREE.OrthographicCamera(-width / 2, width / 2, depth / 2, -depth / 2, 0.1, (currentTrackBox.max.y - currentTrackBox.min.y) + 200);
-  topCamera.position.set(centerX, currentTrackBox.max.y + 100, centerZ);
-  topCamera.up.set(0, 0, -1);
-  topCamera.lookAt(centerX, currentTrackBox.min.y, centerZ);
-  topCamera.updateProjectionMatrix();
-
-  const prevSize = new THREE.Vector2();
-  renderer.getSize(prevSize);
-  const prevBackground = scene.background;
-  const prevFogDensity = scene.fog.density;
-  scene.background = new THREE.Color(0x000000);
-  scene.fog.density = 0;
-
-  renderer.setSize(texW, texH, false);
-  renderer.render(scene, topCamera);
-
-  const tmpCanvas = document.createElement('canvas');
-  tmpCanvas.width = texW;
-  tmpCanvas.height = texH;
-  tmpCanvas.getContext('2d').drawImage(renderer.domElement, 0, 0, texW, texH);
-  const pixels = tmpCanvas.getContext('2d').getImageData(0, 0, texW, texH).data;
-
-  scene.background = prevBackground;
-  scene.fog.density = prevFogDensity;
-  renderer.setSize(prevSize.x, prevSize.y, false);
-
-  saved.forEach((s) => {
-    s.obj.visible = s.visible;
-    s.obj.material = s.material;
-  });
-  savedExtra.forEach((s) => { s.obj.visible = s.visible; });
-
-  const mask = new Uint8Array(texW * texH);
-  for (let p = 0; p < texW * texH; p++) {
-    const o = p * 4;
-    if (pixels[o] > 40 || pixels[o + 1] > 40 || pixels[o + 2] > 40) mask[p] = 1;
-  }
-  return mask;
-}
-
-// A kiválasztott anyagok alapján legenerálja a TELJES zóna-maszkot: mindenhol
-// kifutó (a felhasználó eredeti kérése — "legyen mindenhol sárga lassító"),
-// kivéve ahol a kiválasztott anyagú felület van, ott aszfalt (törölt/átlátszó
-// pixel — pont úgy, ahogy az aszfalt-ecset is töröl). Fal nem kerül bele.
-function generateAsphaltMask() {
-  if (!currentTrack || !zoneMaskCanvas) return;
-  if (!selectedRoadMaterials.size) {
-    materialPickerStatusEl.textContent = 'Válassz ki legalább egy aszfalt-anyagot.';
-    return;
-  }
-  materialPickerStatusEl.textContent = 'Generálás...';
-  const texW = zoneMaskCanvas.width;
-  const texH = zoneMaskCanvas.height;
-  const mask = renderMaterialMask(currentTrack, zoneBounds, texW, texH, selectedRoadMaterials);
-
-  const ctx = zoneMaskCanvas.getContext('2d');
-  const imageData = ctx.createImageData(texW, texH);
-  const data = imageData.data;
-  // rgb(255,165,0) == OFFTRACK_COLOR — ugyanaz, mint amit az ecset fest.
-  for (let p = 0; p < texW * texH; p++) {
-    const o = p * 4;
-    if (mask[p]) {
-      data[o] = 0; data[o + 1] = 0; data[o + 2] = 0; data[o + 3] = 0;
-    } else {
-      data[o] = 255; data[o + 1] = 165; data[o + 2] = 0; data[o + 3] = 255;
-    }
-  }
-  ctx.clearRect(0, 0, texW, texH);
-  ctx.putImageData(imageData, 0, 0);
-
-  closeMaterialPicker();
-  zoneStatusEl.textContent = 'Aszfalt-maszk legenerálva a kiválasztott anyagokból — nézd át és finomítsd kézzel, majd Mentés.';
-}
-
-openMaterialPickerBtn.addEventListener('click', openMaterialPicker);
-closeMaterialPickerBtn.addEventListener('click', closeMaterialPicker);
-generateAsphaltBtn.addEventListener('click', generateAsphaltMask);
-
 // Van-e bármi a világ (x,z) pont közelében a maszk szerint (kis margóval,
 // hogy a pálya széle biztosan ne maradjon ki egy pixelnyi pontatlanság miatt).
 function maskHasCoverage(cov, x, z) {
@@ -2480,8 +2260,7 @@ function enterMenu() {
   appState = 'menu';
   menuEl.classList.remove('hidden');
   hudEl.classList.add('hidden');
-  devHudEl.classList.add('hidden');
-  carTesterHudEl.classList.add('hidden');
+  devTools?.hideOverlays();
   raceHudWrapEl.classList.add('hidden');
   countdownEl.classList.add('hidden');
   resultsEl.classList.add('hidden');
@@ -2493,8 +2272,7 @@ function enterDriving() {
   appState = 'driving';
   menuEl.classList.add('hidden');
   hudEl.classList.remove('hidden');
-  devHudEl.classList.add('hidden');
-  carTesterHudEl.classList.add('hidden');
+  devTools?.hideOverlays();
   raceHudWrapEl.classList.remove('hidden');
   scene.fog.density = NORMAL_FOG_DENSITY;
   // Ha a gombon/legördülőn maradt a fókusz, a szóköz/nyilak azt vezérelnék
@@ -2508,123 +2286,35 @@ resultsRestartBtn.addEventListener('click', () => {
   startRace();
 });
 
-// ---------- Dev mód: szabad kamera + rajtrács-pontok kijelölése ----------
-const devKeys = {};
-let devYaw = 0;
-let devPitch = 0;
-let devSpeed = 8;
-const devSpawnMarkers = [];
-const devMarkerGeometry = new THREE.SphereGeometry(1.2, 12, 12);
-const devMarkerMaterial = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
+// ---------- Kocsiváltás billentyűzetről ----------
+// A menüben (kirakat nézet) a W/S és a fel/le nyíl az előző/következő kocsira
+// vált, a legördülő megnyitása nélkül. A dev módbeli autó tesztelő UGYANEZT
+// használja — csak ráakaszt egy hookot, hogy a saját legördülőjét is
+// szinkronban tartsa. Ezért él ez itt és nem a dev modulban: a menüben minden
+// játékosnak működnie kell.
+let carSwitching = false;
+let carSwitchHook = null;
 
-function enterDevMode() {
-  appState = 'dev';
-  menuEl.classList.add('hidden');
-  hudEl.classList.add('hidden');
-  devHudEl.classList.remove('hidden');
-  document.activeElement?.blur();
-  // Dev módban a köd csak zavarna a pálya nagyobb távolságú áttekintésénél.
-  scene.fog.density = 0;
-
-  const center = currentTrackBox
-    ? currentTrackBox.getCenter(new THREE.Vector3())
-    : new THREE.Vector3();
-  const topY = currentTrackBox ? currentTrackBox.max.y + 40 : 40;
-  camera.position.set(center.x, topY, center.z);
-  devYaw = 0;
-  devPitch = -0.5;
-
-  refreshSpawnMarkers();
-}
-
-// ---------- Autó tesztelő (dev módból nyitható): a kocsi egy helyben áll a
-// rajtponton, a kerekek folyamatosan forognak és A/D-vel (vagy a nyilakkal)
-// vizuálisan kormányoznak — így gyorsan végig lehet nézni sok kocsi
-// kerekeit anélkül, hogy tényleg vezetni kéne. A W/S (vagy fel/le nyíl) a
-// következő/előző kocsira vált a legördülő megnyitása nélkül.
-let carTestWheelAngle = 0;
-let carTestSteerAngle = 0;
-let carTestSwitching = false;
-const CARTEST_ROLL_SPEED = 6; // rad/mp — kb. 1 fordulat/mp, jól látható tempó
-
-function carTesterLabel(entry, loading) {
-  if (!manifest) return '-';
-  const idx = manifest.cars.indexOf(entry);
-  const total = manifest.cars.length;
-  return `${idx + 1}/${total}: ${entry.label}` + (loading ? ' (betöltés…)' : '');
-}
-
-function populateCarTesterSelect() {
-  if (!manifest || carTesterCarSelectEl.options.length) return;
-  manifest.cars.forEach((entry, idx) => {
-    const opt = document.createElement('option');
-    opt.value = entry.id;
-    opt.textContent = `${idx + 1}/${manifest.cars.length}: ${entry.label}`;
-    carTesterCarSelectEl.appendChild(opt);
-  });
-}
-
-function enterCarTester() {
-  if (!manifest) return;
-  appState = 'cartest';
-  devHudEl.classList.add('hidden');
-  carTesterHudEl.classList.remove('hidden');
-  carTestWheelAngle = 0;
-  // A rajtpont-jelölők kitakarnák a közelről nézett kocsit.
-  devSpawnMarkers.forEach((m) => { m.visible = false; });
-  populateCarTesterSelect();
-  carTesterCarSelectEl.value = carSelect.value;
-}
-
-function exitCarTester() {
-  carTesterHudEl.classList.add('hidden');
-  appState = 'dev';
-  devHudEl.classList.remove('hidden');
-  devSpawnMarkers.forEach((m) => { m.visible = true; });
-}
-
-async function switchCarTestTo(entry) {
-  if (!manifest || carTestSwitching || !entry) return;
-  carTestSwitching = true;
-  carTesterCarSelectEl.disabled = true;
+async function switchCarTo(entry) {
+  if (!manifest || carSwitching || !entry) return;
+  carSwitching = true;
+  carSwitchHook?.begin(entry);
   carSelect.value = entry.id;
   try {
     await setCar('assets/' + entry.file, entry.id, entry.config);
   } finally {
-    carTesterCarSelectEl.value = entry.id;
-    carTesterCarSelectEl.disabled = false;
-    carTestSwitching = false;
+    carSwitching = false;
+    carSwitchHook?.end(entry);
   }
 }
 
-async function switchCarTestBy(delta) {
-  if (!manifest || carTestSwitching) return;
+async function switchCarBy(delta) {
+  if (!manifest || carSwitching) return;
   const list = manifest.cars;
   const currentIdx = list.findIndex((c) => c.id === carSelect.value);
   const nextIdx = ((currentIdx < 0 ? 0 : currentIdx) + delta + list.length) % list.length;
-  await switchCarTestTo(list[nextIdx]);
+  await switchCarTo(list[nextIdx]);
 }
-
-function updateCarTest(dt) {
-  carTestWheelAngle += dt * CARTEST_ROLL_SPEED;
-  const steerLeft = keys['KeyA'] || keys['ArrowLeft'];
-  const steerRight = keys['KeyD'] || keys['ArrowRight'];
-  const targetSteer = steerLeft ? maxSteerVal : steerRight ? -maxSteerVal : 0;
-  carTestSteerAngle = moveTowardsAngle(carTestSteerAngle, targetSteer, STEER_VISUAL_SPEED * dt);
-  for (let i = 0; i < wheelPivots.length; i++) {
-    const src = wheelSources[i];
-    wheelPivots[i].rotation.set(carTestWheelAngle, src.steer ? carTestSteerAngle : 0, 0);
-  }
-  updateSunTarget(carPivot.position);
-  updateShowcaseCamera(dt);
-}
-
-carTesterBtn.addEventListener('click', enterCarTester);
-carTesterBackBtn.addEventListener('click', exitCarTester);
-carTesterCarSelectEl.addEventListener('change', () => {
-  const entry = findEntry(manifest.cars, carTesterCarSelectEl.value);
-  switchCarTestTo(entry);
-});
 
 window.addEventListener('keydown', (e) => {
   if ((appState !== 'cartest' && appState !== 'menu') || e.repeat) return;
@@ -2633,894 +2323,73 @@ window.addEventListener('keydown', (e) => {
   if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
   if (e.code === 'ArrowUp' || e.code === 'KeyW') {
     e.preventDefault();
-    switchCarTestBy(-1);
+    switchCarBy(-1);
   } else if (e.code === 'ArrowDown' || e.code === 'KeyS') {
     e.preventDefault();
-    switchCarTestBy(1);
-  } else if (e.code === 'Escape' && appState === 'cartest') {
-    exitCarTester();
+    switchCarBy(1);
   }
 });
 
-// Jobb-klikk + húzás a nézelődéshez — nem pointer lock, hogy az egérmutató
-// látható maradjon dev módban (nem tűnik el a képernyőről). A mousedown/
-// mouseup PÁROSÍTÁS helyett minden mozgás-eseménynél az aktuális e.buttons
-// bitmaszkot nézzük (2 = jobb gomb) — ha egy mouseup esemény elveszik
-// (pl. a contextmenu miatt), ez önmagát korrigálja, nem "ragad be" a nézelődés.
-let devLastMouseX = 0;
-let devLastMouseY = 0;
+// ---------- Fejlesztői eszközök: külön modul, igény szerint betöltve ----------
+// A szabad kamera, az autó tesztelő, a zóna-szerkesztő, a checkpoint-generátor,
+// az anyag alapú aszfalt-felismerés és az ütközési háló kimentése együtt ~1200
+// sor volt ebben a fájlban. Egy rendes játékosnak — és a multiplayer kliensnek
+// — semmi szüksége rá, ezért a dev.js CSAK dev módba lépéskor töltődik be.
+// A visszakapott hookokat az animate() hívja; amíg nincs betöltve, azok az
+// állapotok (dev / cartest / zone-edit) elő sem fordulhatnak.
+let devTools = null;
+let devToolsLoading = null;
 
-renderer.domElement.addEventListener('contextmenu', (e) => {
-  if (appState === 'dev') e.preventDefault();
-});
-renderer.domElement.addEventListener('mousedown', (e) => {
-  if (appState === 'dev' && e.button === 2) {
-    devLastMouseX = e.clientX;
-    devLastMouseY = e.clientY;
-  }
-});
-window.addEventListener('mousemove', (e) => {
-  const rightButtonHeld = (e.buttons & 2) === 2;
-  if (appState !== 'dev' || !rightButtonHeld) {
-    devLastMouseX = e.clientX;
-    devLastMouseY = e.clientY;
-    return;
-  }
-  const dx = e.clientX - devLastMouseX;
-  const dy = e.clientY - devLastMouseY;
-  devLastMouseX = e.clientX;
-  devLastMouseY = e.clientY;
-  devYaw -= dx * 0.0035;
-  devPitch = THREE.MathUtils.clamp(devPitch - dy * 0.0035, -Math.PI / 2 + 0.05, Math.PI / 2 - 0.05);
-});
-
-// A 3D jelölő-gömböket mindig a currentSpawnPoints listából építjük újra —
-// így a szabad kamerás dev nézetben és a felülnézeti szerkesztőben is
-// ugyanaz látszik, bárhonnan is módosítottuk a listát.
-function refreshSpawnMarkers() {
-  devSpawnMarkers.splice(0).forEach((m) => scene.remove(m));
-  if (!currentTrack || !currentTrackBox) return;
-
-  const raycaster = new THREE.Raycaster();
-  raycaster.firstHitOnly = true;
-  currentSpawnPoints.forEach(({ x, z }) => {
-    raycaster.set(new THREE.Vector3(x, currentTrackBox.max.y + 20, z), new THREE.Vector3(0, -1, 0));
-    const hits = raycaster.intersectObject(currentTrack, true);
-    const y = hits.length ? hits[0].point.y : currentTrackBox.min.y;
-    const marker = new THREE.Mesh(devMarkerGeometry, devMarkerMaterial);
-    marker.position.set(x, y + 1.2, z);
-    scene.add(marker);
-    devSpawnMarkers.push(marker);
-  });
-  devSpawnCountEl.textContent = String(currentSpawnPoints.length);
-}
-
-window.addEventListener('keydown', (e) => {
-  if (appState === 'zone-edit' && e.code === 'Backspace' && isSpawnTool()) {
-    e.preventDefault();
-    removeLastSpawnPoint();
-    return;
-  }
-  if (appState !== 'dev') return;
-  devKeys[e.code] = true;
-});
-window.addEventListener('keyup', (e) => {
-  if (appState === 'dev') devKeys[e.code] = false;
-});
-
-function updateDevCamera(dt) {
-  camera.quaternion.setFromEuler(new THREE.Euler(devPitch, devYaw, 0, 'YXZ'));
-
-  const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-  const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-  const speed = devSpeed * (devKeys['ShiftLeft'] || devKeys['ShiftRight'] ? 15 : 1) * dt;
-
-  if (devKeys['KeyW'] || devKeys['ArrowUp']) camera.position.addScaledVector(forward, speed);
-  if (devKeys['KeyS'] || devKeys['ArrowDown']) camera.position.addScaledVector(forward, -speed);
-  if (devKeys['KeyD'] || devKeys['ArrowRight']) camera.position.addScaledVector(right, speed);
-  if (devKeys['KeyA'] || devKeys['ArrowLeft']) camera.position.addScaledVector(right, -speed);
-  if (devKeys['Space']) camera.position.y += speed;
-  if (devKeys['ControlLeft'] || devKeys['ControlRight']) camera.position.y -= speed;
-}
-
-// ---------- Zóna-szerkesztő: felülnézeti "ecsetes" aszfalt/kifutó/fal térkép ----------
-// A magasságtérkép (mennyire magas a talaj) és a zóna-térkép (milyen FELÜLET
-// van ott) két teljesen külön adatréteg. Ez utóbbit itt festjük fel, egy
-// world-editor jellegű ecsettel.
-//
-// FONTOS tervezési döntés: a pályát NEM egy előre elkészített kép mutatja,
-// hanem élőben, ortografikus felülnézeti kamerával renderelt VALÓDI 3D
-// geometria — így bármilyen zoomon éles marad (egy fix bitmap Spánál ~14
-// világegység/pixel felbontású lenne, tehát nagyítva menthetetlenül homályos).
-// Maga a festett maszk egy külön, világ-koordinátákhoz kötött rácson él, az
-// ecset mérete pedig VILÁGEGYSÉGBEN értendő, nem képernyőpixelben — így a
-// zoomtól függetlenül ugyanakkora területet fest.
-const OFFTRACK_COLOR = 'rgb(255,165,0)';
-const WALL_COLOR = 'rgb(220,20,60)';
-// A festés pontosságának valódi korlátja a MASZK felbontása (nem az ecset
-// mérete): ha egy maszk-pixel 3.5 világegység, akkor a pálya szélét sem lehet
-// ennél pontosabban meghúzni. Ezért 0.5 egység/pixel a cél, összpixel-
-// korláttal, hogy a nagyobb pályák se egyenek meg túl sok memóriát
-// (RGBA canvas ~4 bájt/pixel).
-const TARGET_MASK_CELL = 0.5;      // cél: ennyi világegység / maszk-pixel
-const MAX_MASK_DIM = 8192;         // technikai felső korlát oldalhosszra
-const MAX_MASK_PIXELS = 20e6;      // ~80 MB canvas — efölött arányosan durvítunk
-
-let zoneBounds = null;       // {minX, maxX, minZ, maxZ} — a maszk világ-lefedettsége
-let zoneMaskCanvas = null;   // offscreen: maga a festett maszk, világ-rácsban
-let zonePainting = false;
-let previousAppStateBeforeZone = 'dev';
-
-// Az élő felülnézeti kamera állapota (világegységben).
-const zoneView = { centerX: 0, centerZ: 0, height: 100 };
-const zoneOrthoCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10000);
-zoneOrthoCam.up.set(0, 0, -1);
-
-let zoneCursorWorld = null;  // az ecset-előnézethez
-
-function getSelectedBrush() {
-  const checked = document.querySelector('input[name="zoneBrush"]:checked');
-  return checked ? checked.value : '0';
-}
-
-// A rajtrács-pontok lerakása is itt, a felülnézeti szerkesztőben történik —
-// sokkal pontosabb, mint a 3D szabad kamerából lefelé lőtt sugárral.
-function isSpawnTool() {
-  return getSelectedBrush() === 'spawn';
-}
-function isGateTool() {
-  const b = getSelectedBrush();
-  return b === 'start' || b === 'checkpoint';
-}
-function isGuideTool() {
-  return getSelectedBrush() === 'guide';
-}
-function isPaintTool() {
-  return !isSpawnTool() && !isGateTool() && !isGuideTool();
-}
-
-function updateSpawnToolUI() {
-  brushSizeRow.classList.toggle('d-none', !isPaintTool());
-  spawnToolRow.classList.toggle('d-none', !isSpawnTool());
-  gateToolRow.classList.toggle('d-none', !isGateTool());
-  guideToolRow.classList.toggle('d-none', !isGuideTool());
-  autoCheckpointRow.classList.toggle('d-none', !isGateTool() && !isGuideTool());
-  zoneSpawnCountEl.textContent = String(currentSpawnPoints.length);
-  devSpawnCountEl.textContent = String(currentSpawnPoints.length);
-  startLineStateEl.textContent = currentGates.start ? 'kész' : 'nincs';
-  checkpointCountEl.textContent = String(currentGates.checkpoints.length);
-  guidePointCountEl.textContent = String(currentGuidePath.length);
-}
-
-// A rajtpont iránya (heading): az autó "előre" iránya a világ +Z, ezért a
-// heading az ettől való elfordulás. atan2(dx, dz) adja meg, hogy a húzás
-// irányához mennyit kell fordulni.
-function headingFromDelta(dx, dz) {
-  return Math.atan2(dx, dz);
-}
-
-function addSpawnPointAtWorld(x, z) {
-  if (currentSpawnPoints.length >= 8) {
-    zoneStatusEl.textContent = 'Már megvan mind a 8 rajtpont.';
-    return null;
-  }
-  const point = { x: +x.toFixed(2), z: +z.toFixed(2), heading: 0 };
-  currentSpawnPoints.push(point);
-  refreshSpawnMarkers();
-  updateSpawnToolUI();
-  zoneStatusEl.textContent = '';
-  return point;
-}
-
-function removeLastSpawnPoint() {
-  if (!currentSpawnPoints.length) return;
-  currentSpawnPoints.pop();
-  refreshSpawnMarkers();
-  updateSpawnToolUI();
-}
-
-function removeLastGate() {
-  if (getSelectedBrush() === 'start') {
-    currentGates.start = null;
-  } else if (currentGates.checkpoints.length) {
-    currentGates.checkpoints.pop();
-  }
-  updateSpawnToolUI();
-}
-
-document.querySelectorAll('input[name="zoneBrush"]').forEach((el) => {
-  el.addEventListener('change', updateSpawnToolUI);
-});
-undoSpawnBtn.addEventListener('click', removeLastSpawnPoint);
-undoGateBtn.addEventListener('click', removeLastGate);
-clearCheckpointsBtn.addEventListener('click', () => {
-  currentGates.checkpoints = [];
-  updateSpawnToolUI();
-});
-undoGuideBtn.addEventListener('click', () => { currentGuidePath.pop(); updateSpawnToolUI(); });
-clearGuideBtn.addEventListener('click', () => { currentGuidePath = []; updateSpawnToolUI(); });
-
-function getBrushWorldRadius() {
-  return Number(brushSizeRange.value);
-}
-
-function updateZoneOrthoCamera() {
-  const w = zoneOverlayCanvas.width;
-  const h = zoneOverlayCanvas.height;
-  const aspect = w / h;
-  const halfH = zoneView.height / 2;
-  const halfW = halfH * aspect;
-  zoneOrthoCam.left = -halfW;
-  zoneOrthoCam.right = halfW;
-  zoneOrthoCam.top = halfH;
-  zoneOrthoCam.bottom = -halfH;
-  zoneOrthoCam.near = 0.1;
-  zoneOrthoCam.far = (currentTrackBox.max.y - currentTrackBox.min.y) + 500;
-  zoneOrthoCam.position.set(zoneView.centerX, currentTrackBox.max.y + 200, zoneView.centerZ);
-  zoneOrthoCam.lookAt(zoneView.centerX, currentTrackBox.min.y, zoneView.centerZ);
-  zoneOrthoCam.updateProjectionMatrix();
-}
-
-// Képernyő-pixel -> világ X/Z. A felülnézeti ortokamera up=(0,0,-1) miatt a
-// képernyő jobbra = világ +X, képernyő lefelé = világ +Z.
-function zoneScreenToWorld(clientX, clientY) {
-  const rect = zoneOverlayCanvas.getBoundingClientRect();
-  const w = zoneOverlayCanvas.width;
-  const h = zoneOverlayCanvas.height;
-  const aspect = w / h;
-  const halfH = zoneView.height / 2;
-  const halfW = halfH * aspect;
-  const ndcX = ((clientX - rect.left) / rect.width) * 2 - 1;
-  const ndcY = -((((clientY - rect.top) / rect.height) * 2) - 1);
-  return {
-    x: zoneView.centerX + ndcX * halfW,
-    z: zoneView.centerZ - ndcY * halfH,
-  };
-}
-
-function zoneWorldToMaskPixel(x, z) {
-  return {
-    u: ((x - zoneBounds.minX) / (zoneBounds.maxX - zoneBounds.minX)) * zoneMaskCanvas.width,
-    v: ((z - zoneBounds.minZ) / (zoneBounds.maxZ - zoneBounds.minZ)) * zoneMaskCanvas.height,
-  };
-}
-
-function paintAtWorld(x, z) {
-  const { u, v } = zoneWorldToMaskPixel(x, z);
-  const unitsPerMaskPixel = (zoneBounds.maxX - zoneBounds.minX) / zoneMaskCanvas.width;
-  const radiusPx = Math.max(0.5, getBrushWorldRadius() / unitsPerMaskPixel);
-  const brush = getSelectedBrush();
-  const ctx = zoneMaskCanvas.getContext('2d');
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(u, v, radiusPx, 0, Math.PI * 2);
-  if (brush === '0') {
-    // Aszfalt = törlés (visszaáll az alapértelmezett, "nincs kijelölve" állapotra).
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.fill();
-  } else {
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = brush === '1' ? OFFTRACK_COLOR : WALL_COLOR;
-    ctx.fill();
-  }
-  ctx.restore();
-}
-
-// A maszkot és az ecset-előnézetet a 3D kép TETEJÉRE rajzoljuk, ugyanazzal a
-// vetítéssel, amivel a felülnézeti kamera dolgozik.
-function drawZoneOverlay() {
-  const ctx = zoneOverlayCanvas.getContext('2d');
-  const w = zoneOverlayCanvas.width;
-  const h = zoneOverlayCanvas.height;
-  ctx.clearRect(0, 0, w, h);
-
-  const aspect = w / h;
-  const halfH = zoneView.height / 2;
-  const halfW = halfH * aspect;
-  const worldW = zoneBounds.maxX - zoneBounds.minX;
-  const worldD = zoneBounds.maxZ - zoneBounds.minZ;
-
-  const su = ((zoneView.centerX - halfW - zoneBounds.minX) / worldW) * zoneMaskCanvas.width;
-  const sv = ((zoneView.centerZ - halfH - zoneBounds.minZ) / worldD) * zoneMaskCanvas.height;
-  const sw = ((2 * halfW) / worldW) * zoneMaskCanvas.width;
-  const sh = ((2 * halfH) / worldD) * zoneMaskCanvas.height;
-
-  ctx.globalAlpha = 0.55;
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(zoneMaskCanvas, su, sv, sw, sh, 0, 0, w, h);
-  ctx.globalAlpha = 1;
-
-  // Világ X/Z -> képernyő-pixel (ugyanaz a vetítés, mint a felülnézeti kamerán).
-  const toScreen = (wx, wz) => ({
-    x: ((wx - (zoneView.centerX - halfW)) / (2 * halfW)) * w,
-    y: ((wz - (zoneView.centerZ - halfH)) / (2 * halfH)) * h,
-  });
-
-  // Kapuk: a rajtvonal zöld, a checkpointok kékek és sorszámozottak.
-  const drawGate = (g, color, label) => {
-    const a = toScreen(g.x1, g.z1);
-    const b = toScreen(g.x2, g.z2);
-    ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 4;
-    ctx.stroke();
-    if (label) {
-      ctx.fillStyle = color;
-      ctx.font = 'bold 13px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, (a.x + b.x) / 2, (a.y + b.y) / 2 - 12);
-    }
-  };
-  if (currentGates.start) drawGate(currentGates.start, '#28d17c', 'RAJT');
-  currentGates.checkpoints.forEach((g, i) => drawGate(g, '#4aa3ff', 'CP' + (i + 1)));
-  if (drawingGate) {
-    drawGate(drawingGate, getSelectedBrush() === 'start' ? '#28d17c' : '#4aa3ff', null);
-  }
-
-  // Kézzel rajzolt vezetővonal a checkpont-generáláshoz — pontok sorban
-  // összekötve, hogy lássa a felhasználó, merre fog "menni" a generálás.
-  if (currentGuidePath.length) {
-    ctx.beginPath();
-    currentGuidePath.forEach((p, i) => {
-      const s = toScreen(p.x, p.z);
-      if (i === 0) ctx.moveTo(s.x, s.y); else ctx.lineTo(s.x, s.y);
-    });
-    ctx.strokeStyle = '#ffc107';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-    currentGuidePath.forEach((p) => {
-      const s = toScreen(p.x, p.z);
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, 4, 0, Math.PI * 2);
-      ctx.fillStyle = '#ffc107';
-      ctx.fill();
-    });
-  }
-
-  // Rajtrács-pontok sorszámozva — a sorrend számít (ez lesz a rajtsorrend).
-  // A tüske mutatja, merre néz majd az autó.
-  currentSpawnPoints.forEach((p, idx) => {
-    const s = toScreen(p.x, p.z);
-    const heading = p.heading || 0;
-    const tip = toScreen(p.x + Math.sin(heading) * 8, p.z + Math.cos(heading) * 8);
-    ctx.beginPath();
-    ctx.moveTo(s.x, s.y);
-    ctx.lineTo(tip.x, tip.y);
-    ctx.strokeStyle = '#0dcaf0';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, 9, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(13,202,240,0.85)';
-    ctx.fill();
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.fillStyle = '#00232e';
-    ctx.font = 'bold 11px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(String(idx + 1), s.x, s.y);
-  });
-
-  if (zoneCursorWorld) {
-    const s = toScreen(zoneCursorWorld.x, zoneCursorWorld.z);
-    ctx.beginPath();
-    if (isSpawnTool()) {
-      // Rajtpont eszköznél célkereszt, nem ecset-kör.
-      ctx.moveTo(s.x - 10, s.y); ctx.lineTo(s.x + 10, s.y);
-      ctx.moveTo(s.x, s.y - 10); ctx.lineTo(s.x, s.y + 10);
-    } else {
-      const pxPerUnit = w / (2 * halfW);
-      ctx.arc(s.x, s.y, getBrushWorldRadius() * pxPerUnit, 0, Math.PI * 2);
-    }
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-  }
-}
-
-function resizeZoneOverlayCanvas() {
-  zoneOverlayCanvas.width = window.innerWidth;
-  zoneOverlayCanvas.height = window.innerHeight;
-}
-
-// Húzásos szerkesztés állapota: a rajtpontnál a húzás az irányt adja meg,
-// a kapuknál a vonal két végpontját.
-let aimingSpawn = null;
-let drawingGate = null;
-
-zoneOverlayCanvas.addEventListener('mousedown', (e) => {
-  if (e.button === 0) {
-    const { x, z } = zoneScreenToWorld(e.clientX, e.clientY);
-    if (isSpawnTool()) {
-      aimingSpawn = addSpawnPointAtWorld(x, z);
-      return;
-    }
-    if (isGateTool()) {
-      drawingGate = { x1: x, z1: z, x2: x, z2: z };
-      return;
-    }
-    if (isGuideTool()) {
-      currentGuidePath.push({ x, z });
-      updateSpawnToolUI();
-      return;
-    }
-    zonePainting = true;
-    paintAtWorld(x, z);
-  } else if (e.button === 1 || e.button === 2) {
-    e.preventDefault();
-    zonePanLast = { x: e.clientX, y: e.clientY };
-  }
-});
-zoneOverlayCanvas.addEventListener('contextmenu', (e) => e.preventDefault());
-
-let zonePanLast = null;
-window.addEventListener('mousemove', (e) => {
-  if (appState !== 'zone-edit') return;
-  zoneCursorWorld = zoneScreenToWorld(e.clientX, e.clientY);
-
-  if (zonePainting) {
-    paintAtWorld(zoneCursorWorld.x, zoneCursorWorld.z);
-    return;
-  }
-  if (aimingSpawn) {
-    const dx = zoneCursorWorld.x - aimingSpawn.x;
-    const dz = zoneCursorWorld.z - aimingSpawn.z;
-    // Túl rövid húzásból nem lehet irányt olvasni, olyankor marad a régi.
-    if (Math.hypot(dx, dz) > 0.5) {
-      aimingSpawn.heading = +headingFromDelta(dx, dz).toFixed(4);
-      refreshSpawnMarkers();
-    }
-    return;
-  }
-  if (drawingGate) {
-    drawingGate.x2 = zoneCursorWorld.x;
-    drawingGate.z2 = zoneCursorWorld.z;
-    return;
-  }
-  // Középső/jobb gomb nyomva tartva: pásztázás.
-  const dragging = (e.buttons & 4) === 4 || (e.buttons & 2) === 2;
-  if (dragging && zonePanLast) {
-    const rect = zoneOverlayCanvas.getBoundingClientRect();
-    const aspect = zoneOverlayCanvas.width / zoneOverlayCanvas.height;
-    const unitsPerPxY = zoneView.height / rect.height;
-    const unitsPerPxX = (zoneView.height * aspect) / rect.width;
-    zoneView.centerX -= (e.clientX - zonePanLast.x) * unitsPerPxX;
-    zoneView.centerZ -= (e.clientY - zonePanLast.y) * unitsPerPxY;
-    zonePanLast = { x: e.clientX, y: e.clientY };
-  } else if (!dragging) {
-    zonePanLast = null;
-  }
-});
-window.addEventListener('mouseup', () => {
-  zonePainting = false;
-  zonePanLast = null;
-  aimingSpawn = null;
-
-  if (drawingGate) {
-    const len = Math.hypot(drawingGate.x2 - drawingGate.x1, drawingGate.z2 - drawingGate.z1);
-    // A nulla hosszú kaput (sima kattintás) eldobjuk — azt nem lehet átmetszeni.
-    if (len > 1) {
-      const gate = {
-        x1: +drawingGate.x1.toFixed(2), z1: +drawingGate.z1.toFixed(2),
-        x2: +drawingGate.x2.toFixed(2), z2: +drawingGate.z2.toFixed(2),
-      };
-      if (getSelectedBrush() === 'start') currentGates.start = gate;
-      else currentGates.checkpoints.push(gate);
-      updateSpawnToolUI();
-    }
-    drawingGate = null;
-  }
-});
-
-// Görgő = zoom, a kurzor alatti világpont a helyén marad.
-zoneOverlayCanvas.addEventListener(
-  'wheel',
-  (e) => {
-    if (appState !== 'zone-edit') return;
-    e.preventDefault();
-    const before = zoneScreenToWorld(e.clientX, e.clientY);
-    const trackSpan = Math.max(zoneBounds.maxX - zoneBounds.minX, zoneBounds.maxZ - zoneBounds.minZ);
-    zoneView.height = THREE.MathUtils.clamp(
-      zoneView.height * (e.deltaY < 0 ? 1 / 1.15 : 1.15),
-      20,
-      trackSpan * 1.5
-    );
-    const after = zoneScreenToWorld(e.clientX, e.clientY);
-    zoneView.centerX += before.x - after.x;
-    zoneView.centerZ += before.z - after.z;
-  },
-  { passive: false }
-);
-
-function enterZoneEditor() {
-  if (!currentTrack || !currentTrackBox) return;
-  previousAppStateBeforeZone = appState;
-  appState = 'zone-edit';
-
-  const box = currentTrackBox;
-  zoneBounds = { minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z };
-
-  // A maszk felbontását a világ mérete szabja meg (cél ~2 egység/pixel),
-  // maximált oldalhosszal, hogy a memória/PNG-méret kordában maradjon.
-  const worldW = box.max.x - box.min.x;
-  const worldD = box.max.z - box.min.z;
-  let maskW = Math.ceil(worldW / TARGET_MASK_CELL);
-  let maskH = Math.ceil(worldD / TARGET_MASK_CELL);
-  const shrink = Math.min(
-    1,
-    MAX_MASK_DIM / Math.max(maskW, maskH),
-    Math.sqrt(MAX_MASK_PIXELS / (maskW * maskH))
-  );
-  maskW = Math.max(2, Math.round(maskW * shrink));
-  maskH = Math.max(2, Math.round(maskH * shrink));
-
-  zoneMaskCanvas = document.createElement('canvas');
-  zoneMaskCanvas.width = maskW;
-  zoneMaskCanvas.height = maskH;
-
-  zoneView.centerX = (box.min.x + box.max.x) / 2;
-  zoneView.centerZ = (box.min.z + box.max.z) / 2;
-  zoneView.height = worldD;
-
-  resizeZoneOverlayCanvas();
-  loadExistingZoneMask();
-
-  scene.fog.density = 0;
-  // A dev HUD-ot elrejtjük, különben a zóna-eszköztár alatt átlátszana.
-  devHudEl.classList.add('hidden');
-  zoneEditorEl.classList.remove('hidden');
-  updateSpawnToolUI();
-  zoneStatusEl.textContent = `Maszk: ${maskW}x${maskH} (${(worldW / maskW).toFixed(2)} egység/pixel)`;
-}
-
-function exitZoneEditor() {
-  zoneEditorEl.classList.add('hidden');
-  appState = previousAppStateBeforeZone;
-  if (appState === 'dev') {
-    devHudEl.classList.remove('hidden');
-  } else {
-    scene.fog.density = NORMAL_FOG_DENSITY;
-  }
-}
-
-// Ha a pályához már van mentett zonemap.png, betöltjük a maszkra, hogy
-// tovább lehessen finomítani (ne kelljen mindig nulláról kezdeni).
-function loadExistingZoneMask() {
-  const ctx = zoneMaskCanvas.getContext('2d');
-  ctx.clearRect(0, 0, zoneMaskCanvas.width, zoneMaskCanvas.height);
-  const entry = manifest && findEntry(manifest.maps, currentMapId);
-  if (!entry || !entry.zonemap) return;
-  const img = new Image();
-  img.onload = () => ctx.drawImage(img, 0, 0, zoneMaskCanvas.width, zoneMaskCanvas.height);
-  img.src = 'assets/' + entry.zonemap.file + '?t=' + Date.now();
-}
-
-// A "Mentés" gomb a zóna-maszkot ÉS a rajtrács-pontokat is kiírja — egy
-// helyen szerkesztjük őket, így egy gombbal is mentődjenek.
-function saveSpawnPoints() {
-  if (!currentMapId || !currentSpawnPoints.length) return Promise.resolve(null);
-  return fetch('/api/dev/spawn', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mapId: currentMapId, spawns: currentSpawnPoints }),
-  }).then((res) => res.json());
-}
-
-function saveGates() {
-  if (!currentMapId) return Promise.resolve(null);
-  if (!currentGates.start && !currentGates.checkpoints.length) return Promise.resolve(null);
-  return fetch('/api/dev/gates', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      mapId: currentMapId,
-      start: currentGates.start,
-      checkpoints: currentGates.checkpoints,
-    }),
-  }).then((res) => res.json());
-}
-
-function saveZoneMap() {
-  if (!currentMapId || !zoneMaskCanvas) return;
-  zoneStatusEl.textContent = 'Mentés...';
-  saveSpawnPoints().catch((err) => {
-    zoneStatusEl.textContent = 'Rajtpont mentési hiba: ' + err.message;
-  });
-  saveGates().catch((err) => {
-    zoneStatusEl.textContent = 'Kapu mentési hiba: ' + err.message;
-  });
-  zoneMaskCanvas.toBlob((blob) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      fetch('/api/dev/zonemap', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mapId: currentMapId,
-          pngBase64: reader.result,
-          bounds: zoneBounds,
-          texW: zoneMaskCanvas.width,
-          texH: zoneMaskCanvas.height,
-        }),
+function loadDevTools() {
+  if (!devToolsLoading) {
+    devToolsLoading = import('./dev.js')
+      // Az initDevTools async: előbb lekéri és beszúrja a dev.html markupját,
+      // csak utána tud bármit is bekötni.
+      .then((mod) => mod.initDevTools(devApi))
+      .then((hooks) => {
+        devTools = hooks;
+        return hooks;
       })
-        .then((res) => res.json())
-        .then((data) => {
-          zoneStatusEl.textContent = data.ok
-            ? `Elmentve (zóna + ${currentSpawnPoints.length} rajtpont + ${currentGates.checkpoints.length} CP${currentGates.start ? ' + rajtvonal' : ''}).`
-            : 'Hiba: ' + (data.error || 'ismeretlen');
-          if (data.ok) {
-            // A manifestet is frissítjük, hogy a mentett zóna azonnal életbe
-            // lépjen a vezetésben, oldal-újratöltés nélkül.
-            const entry = manifest && findEntry(manifest.maps, currentMapId);
-            if (entry) {
-              entry.zonemap = {
-                file: `maps/${currentMapId}/zonemap.png`,
-                bounds: zoneBounds,
-                texW: zoneMaskCanvas.width,
-                texH: zoneMaskCanvas.height,
-              };
-              loadZoneRuntime(entry);
-            }
-          }
-        })
-        .catch((err) => {
-          zoneStatusEl.textContent = 'Hiba: ' + err.message;
-        });
-    };
-    reader.readAsDataURL(blob);
-  }, 'image/png');
+      .catch((err) => {
+        devToolsLoading = null; // hadd lehessen újrapróbálni
+        console.error('A fejlesztői modul nem töltődött be:', err);
+        throw err;
+      });
+  }
+  return devToolsLoading;
 }
 
-// ---------- Checkpontok automatikus generálása ----------
-// A rajtvonaltól indulva, a rajtpontok iránya szerint, "középvonal-követéssel"
-// bejárjuk a pályát: minden lépésnél merőlegesen megmérjük az aszfalt szélét
-// balra-jobbra, és a kettő közepére korrigálunk — így akkor sem szalad le a
-// vonal, ha a helyi irány kicsit pontatlan. A bejárt útvonalat a végén
-// egyenletesen felosztjuk a kért darabszámra, és minden ponton a HELYI
-// pályaszélesség alapján méretezzük a kaput (ld. lent).
-function generateCheckpoints(count) {
-  if (!zoneMaskCanvas || !currentGates.start) {
-    zoneStatusEl.textContent = 'Előbb kell rajtvonal és aszfalt-térkép.';
-    return;
-  }
-  if (!currentSpawnPoints.length) {
-    zoneStatusEl.textContent = 'Előbb kell legalább egy rajtpont (ebből tudjuk az irányt).';
-    return;
-  }
-
-  const ctx = zoneMaskCanvas.getContext('2d');
-  const w = zoneMaskCanvas.width, h = zoneMaskCanvas.height;
-  const data = ctx.getImageData(0, 0, w, h).data;
-  const worldPerPixel = (zoneBounds.maxX - zoneBounds.minX) / w;
-
-  function isAsphaltAtMaskPx(u, v) {
-    if (u < 0 || u >= w || v < 0 || v >= h) return false;
-    const alpha = data[(v * w + u) * 4 + 3];
-    return alpha < 16;
-  }
-  function isAsphaltAt(x, z) {
-    const { u, v } = zoneWorldToMaskPixel(x, z);
-    return isAsphaltAtMaskPx(Math.floor(u), Math.floor(v));
-  }
-
-  const MARCH_STEP = Math.max(0.25, worldPerPixel);
-  const MAX_MARCH = 60; // világegység — ennél szélesebb pálya nem valószínű
-
-  // Merőlegesen (perpX,perpZ) irányban, x,z-ből indulva, meddig tart az aszfalt.
-  function marchEdge(x, z, perpX, perpZ) {
-    let dist = 0;
-    while (dist < MAX_MARCH && isAsphaltAt(x + perpX * dist, z + perpZ * dist)) {
-      dist += MARCH_STEP;
-    }
-    return dist;
-  }
-
-  // Ha (x,z) maga nincs aszfalton (pl. egy kicsit pontatlan vezetővonal-pont),
-  // spirálban keresünk a közelben egy aszfalt-pontot — enélkül a lenti
-  // szélesség-mérés 0-t adna, és nulla hosszú (haszontalan) kaput építenénk.
-  function nearestAsphalt(x, z) {
-    if (isAsphaltAt(x, z)) return { x, z };
-    for (let r = 1; r <= 150; r++) {
-      const dist = r * MARCH_STEP;
-      const samples = 8 * r;
-      for (let i = 0; i < samples; i++) {
-        const a = (i / samples) * Math.PI * 2;
-        const tx = x + Math.cos(a) * dist, tz = z + Math.sin(a) * dist;
-        if (isAsphaltAt(tx, tz)) return { x: tx, z: tz };
-      }
-    }
-    return { x, z }; // nem találtunk semmit a közelben — marad az eredeti
-  }
-
-  // Az (x,z) pontot a helyi aszfaltcsík közepére tolja, és visszaadja a
-  // szélességet is (balra + jobbra mért távolság összege).
-  function recenter(x, z, dirX, dirZ) {
-    const near = nearestAsphalt(x, z);
-    const perpX = -dirZ, perpZ = dirX;
-    const left = marchEdge(near.x, near.z, perpX, perpZ);
-    const right = marchEdge(near.x, near.z, -perpX, -perpZ);
-    const shift = (left - right) / 2;
-    return { x: near.x + perpX * shift, z: near.z + perpZ * shift, width: left + right };
-  }
-
-  // Kezdőpont: a rajtvonal közepe, irány: a rajtvonalra merőleges két lehetőség
-  // közül az, amelyik az 1. rajtpont irányával egyezik (skaláris szorzat > 0).
-  const g = currentGates.start;
-  let x = (g.x1 + g.x2) / 2, z = (g.z1 + g.z2) / 2;
-  const gx = g.x2 - g.x1, gz = g.z2 - g.z1;
-  const glen = Math.hypot(gx, gz) || 1;
-  let dirX = -gz / glen, dirZ = gx / glen;
-  const heading = currentSpawnPoints[0].heading || 0;
-  const wantX = Math.sin(heading), wantZ = Math.cos(heading);
-  if (dirX * wantX + dirZ * wantZ < 0) { dirX = -dirX; dirZ = -dirZ; }
-
-  const startCentered = recenter(x, z, dirX, dirZ);
-  x = startCentered.x; z = startCentered.z;
-
-  const STEP = 2; // világegység / lépés
-  let path;
-  let closed;
-
-  // Ha van kézzel rajzolt vezetővonal, azt követjük — a felhasználó vonala
-  // eleve a helyes ágat választja kereszteződéseknél/hidaknál (pl. Suzuka
-  // "8"-as szakasza), ahol a tisztán automatikus bejárás könnyen átvágna a
-  // másik ágra. Csak rá kell simítani az aszfalt közepére.
-  if (currentGuidePath.length >= 2) {
-    path = [];
-    let arc = 0;
-    let prevX = null, prevZ = null;
-    for (let i = 0; i < currentGuidePath.length - 1; i++) {
-      const a = currentGuidePath[i], b = currentGuidePath[i + 1];
-      const segX = b.x - a.x, segZ = b.z - a.z;
-      const segLen = Math.hypot(segX, segZ);
-      if (segLen < 1e-6) continue;
-      const segDirX = segX / segLen, segDirZ = segZ / segLen;
-      const steps = Math.max(1, Math.round(segLen / STEP));
-      for (let s = i === 0 ? 0 : 1; s <= steps; s++) {
-        const t = s / steps;
-        const rec = recenter(a.x + segX * t, a.z + segZ * t, segDirX, segDirZ);
-        if (prevX !== null) arc += Math.hypot(rec.x - prevX, rec.z - prevZ);
-        path.push({ x: rec.x, z: rec.z, arc });
-        prevX = rec.x; prevZ = rec.z;
-      }
-    }
-    closed = true;
-  } else {
-
-  const path2 = [{ x, z, arc: 0 }];
-  const MAX_ITERS = 8000;
-  const MIN_ARC_BEFORE_CLOSE = 150;
-  const CLOSE_RADIUS = STEP * 2.5;
-  let arc = 0;
-  closed = false;
-  // Átlagos pályaszélesség (mozgóátlag) — ha egy pontnál a mért szélesség
-  // ennek sokszorosa, az nem éles kanyar, hanem kereszteződés/híd (pl. a
-  // Suzuka "8"-as át-/alatta-vezetése): a felülnézeti maszkban ott KÉT
-  // pályaszakasz fedi egymást, és az oldalra-korrigálás könnyen átrántaná a
-  // vonalat a másik ágra. Ilyenkor nem korrigálunk oldalra, egyenesen megyünk
-  // tovább az addigi irányban, amíg a szélesség vissza nem áll normálisra.
-  let avgWidth = startCentered.width;
-  const WIDTH_SPIKE_FACTOR = 1.8;
-
-  for (let iter = 0; iter < MAX_ITERS; iter++) {
-    const candX = x + dirX * STEP, candZ = z + dirZ * STEP;
-    if (!isAsphaltAt(candX, candZ)) {
-      // Kis oldalirányú keresés — hátha csak egy kanyar szélén csúszott le.
-      const perpX = -dirZ, perpZ = dirX;
-      let found = null;
-      for (let s = 1; s <= 6 && !found; s++) {
-        for (const sign of [1, -1]) {
-          const tx = candX + perpX * s * MARCH_STEP, tz = candZ + perpZ * s * MARCH_STEP;
-          if (isAsphaltAt(tx, tz)) { found = { x: tx, z: tz }; break; }
-        }
-      }
-      if (!found) break; // tényleg elakadt — amíg addig jutottunk, azt megtartjuk
-      const rec = recenter(found.x, found.z, dirX, dirZ);
-      const newDirX = rec.x - x, newDirZ = rec.z - z;
-      const len = Math.hypot(newDirX, newDirZ) || 1;
-      dirX = newDirX / len; dirZ = newDirZ / len;
-      arc += Math.hypot(rec.x - x, rec.z - z);
-      x = rec.x; z = rec.z;
-      avgWidth = avgWidth * 0.95 + rec.width * 0.05;
-      path2.push({ x, z, arc });
-    } else {
-      const rec = recenter(candX, candZ, dirX, dirZ);
-      if (rec.width > avgWidth * WIDTH_SPIKE_FACTOR) {
-        // Kereszteződés/híd — menjünk egyenesen, ne korrigáljunk oldalra, és
-        // ne is számítsuk bele az átlagba (nehogy elmossa a normál szélességet).
-        arc += STEP;
-        x = candX; z = candZ;
-        path2.push({ x, z, arc });
-      } else {
-        const rawDirX = rec.x - x, rawDirZ = rec.z - z;
-        const rawLen = Math.hypot(rawDirX, rawDirZ) || 1;
-        // Enyhe simítás, hogy a maszk pixel-zaja ne cikkcakkoztassa az irányt.
-        let newDirX = dirX * 0.7 + (rawDirX / rawLen) * 0.3;
-        let newDirZ = dirZ * 0.7 + (rawDirZ / rawLen) * 0.3;
-        const newLen = Math.hypot(newDirX, newDirZ) || 1;
-        dirX = newDirX / newLen; dirZ = newDirZ / newLen;
-        arc += Math.hypot(rec.x - x, rec.z - z);
-        x = rec.x; z = rec.z;
-        avgWidth = avgWidth * 0.95 + rec.width * 0.05;
-        path2.push({ x, z, arc });
-      }
-    }
-
-    if (arc > MIN_ARC_BEFORE_CLOSE && Math.hypot(x - path2[0].x, z - path2[0].z) < CLOSE_RADIUS) {
-      closed = true;
-      break;
-    }
-  }
-  path = path2;
-  }
-
-  if (path.length < count) {
-    zoneStatusEl.textContent = currentGuidePath.length >= 2
-      ? `A vezetővonal csak ${path.length} mintapontot adott — kevés a ${count} checkpointhoz. Rajzolj hosszabb/részletesebb vonalat, vagy kérj kevesebb checkpontot.`
-      : `A bejárás csak ${path.length} pontig jutott — kevés a ${count} checkpointhoz. Próbáld kevesebbel, vagy javítsd kézzel az aszfalt-maszkot ott, ahol elakadt (~${x.toFixed(0)}, ${z.toFixed(0)}).`;
-    return;
-  }
-
-  const totalArc = path[path.length - 1].arc;
-  const checkpoints = [];
-  for (let i = 1; i <= count; i++) {
-    const targetArc = (totalArc * i) / (count + 1); // az utolsó "kör-lezáró" szakaszt a rajtvonal adja, nem kell külön kapu oda
-    let p = path[path.length - 1];
-    for (let k = 0; k < path.length - 1; k++) {
-      if (path[k].arc <= targetArc && path[k + 1].arc >= targetArc) {
-        const span = path[k + 1].arc - path[k].arc || 1;
-        const t = (targetArc - path[k].arc) / span;
-        p = { x: path[k].x + (path[k + 1].x - path[k].x) * t, z: path[k].z + (path[k + 1].z - path[k].z) * t };
-        var prevP = path[k], nextP = path[k + 1];
-        break;
-      }
-    }
-    const tanX = nextP.x - prevP.x, tanZ = nextP.z - prevP.z;
-    const tanLen = Math.hypot(tanX, tanZ) || 1;
-    const dx = tanX / tanLen, dz = tanZ / tanLen;
-    const rec = recenter(p.x, p.z, dx, dz);
-    const perpX = -dz, perpZ = dx;
-    // Fél szélesség az élig + még egy fél szélesség ráhagyás mindkét oldalra —
-    // így egy kicsit lemenve az aszfaltról sem esik ki azonnal a checkpointból.
-    const halfLen = rec.width; // = width/2 (élig) + width/2 (ráhagyás)
-    checkpoints.push({
-      x1: +(rec.x + perpX * halfLen).toFixed(2), z1: +(rec.z + perpZ * halfLen).toFixed(2),
-      x2: +(rec.x - perpX * halfLen).toFixed(2), z2: +(rec.z - perpZ * halfLen).toFixed(2),
-    });
-  }
-
-  currentGates.checkpoints = checkpoints;
-  updateSpawnToolUI();
-  if (currentGuidePath.length >= 2) {
-    zoneStatusEl.textContent = `${checkpoints.length} checkpoint legenerálva a vezetővonal alapján.`;
-  } else {
-    zoneStatusEl.textContent = closed
-      ? `${checkpoints.length} checkpoint legenerálva (a bejárás visszaért a rajtvonalhoz).`
-      : `${checkpoints.length} checkpoint legenerálva, de a bejárás NEM ért vissza a rajtvonalhoz (elakadt kb. itt: ${x.toFixed(0)}, ${z.toFixed(0)}) — nézd át kézzel.`;
-  }
+async function enterDevMode() {
+  const dev = await loadDevTools();
+  dev.enterDevMode();
 }
 
-generateCheckpointsBtn.addEventListener('click', () => {
-  const count = Math.max(4, Math.min(500, Number(autoCheckpointCountEl.value) || 100));
-  generateCheckpoints(count);
-});
-
-openZoneEditorBtn.addEventListener('click', enterZoneEditor);
-closeZoneEditorBtn.addEventListener('click', exitZoneEditor);
-saveZoneBtn.addEventListener('click', saveZoneMap);
-brushSizeRange.addEventListener('input', () => {
-  brushSizeLabel.textContent = brushSizeRange.value;
-});
-window.addEventListener('resize', () => {
-  if (appState === 'zone-edit') resizeZoneOverlayCanvas();
-});
+// A dev modul felülete a játék felé. Ami itt `let` (pályaváltáskor vagy
+// kocsiváltáskor új értéket kap), az GETTERKÉNT megy át — egy egyszerű másolat
+// elavulna. A ténylegesen állandó dolgok mehetnek értékként.
+const devApi = {
+  scene, camera, renderer, carPivot, keys, safetyFloorMesh,
+  hudEl, menuEl, carSelect,
+  NORMAL_FOG_DENSITY,
+  moveTowardsAngle, updateSunTarget, updateShowcaseCamera,
+  findEntry, fillSelect, setTrack, loadZoneRuntime, extractDrivableTriangles,
+  makeSearchableSelect,
+  switchCarTo,
+  setCarSwitchHook(hook) { carSwitchHook = hook; },
+  selectMap(mapId) { mapSelect.value = mapId; },
+  get appState() { return appState; },
+  set appState(v) { appState = v; },
+  get manifest() { return manifest; },
+  get currentMapId() { return currentMapId; },
+  get currentTrack() { return currentTrack; },
+  get currentTrackBox() { return currentTrackBox; },
+  get currentSpawnPoints() { return currentSpawnPoints; },
+  get currentGates() { return currentGates; },
+  get currentGuidePath() { return currentGuidePath; },
+  set currentGuidePath(p) { currentGuidePath = p; },
+  get wheelPivots() { return wheelPivots; },
+  get wheelSources() { return wheelSources; },
+};
 
 // A pálya fizikájának és a látható padlónak az előkészítése. Külön függvény,
 // mert az egyjátékos indítás ÉS a multiplayer is ugyanezt kell csinálja —
@@ -3595,75 +2464,6 @@ async function loadOrExtractCollision() {
   const mesh = extractDrivableTriangles(currentTrack);
   return { ...mesh, source: 'modellből' };
 }
-
-// A kinyeréskor minden háromszög külön 3 csúcsot kap, így a közös csúcsok
-// sokszorosan szerepelnek. Az összevonás nagyjából harmadára csökkenti a
-// fájlt — ez minden játékosnak letöltés, ezért megéri.
-function dedupeVertices(positions, indices) {
-  const map = new Map();
-  const outPositions = [];
-  const outIndices = new Uint32Array(indices.length);
-
-  for (let i = 0; i < indices.length; i++) {
-    const v = indices[i] * 3;
-    // Milliméter-pontosságú kulcs: az ennél közelebbi csúcsok azonosnak
-    // számítanak (a pálya méretéhez képest ez elhanyagolható eltérés).
-    const key =
-      Math.round(positions[v] * 1000) + ',' +
-      Math.round(positions[v + 1] * 1000) + ',' +
-      Math.round(positions[v + 2] * 1000);
-    let idx = map.get(key);
-    if (idx === undefined) {
-      idx = outPositions.length / 3;
-      map.set(key, idx);
-      outPositions.push(positions[v], positions[v + 1], positions[v + 2]);
-    }
-    outIndices[i] = idx;
-  }
-  return { positions: new Float32Array(outPositions), indices: outIndices };
-}
-
-// Dev mód: az aktuális pálya ütközési hálójának kinyerése és kimentése
-// fájlba. Innentől a játék ezt tölti be a modellből való kinyerés helyett.
-async function bakeCollisionToFile() {
-  if (!currentTrack || !currentMapId) return;
-  bakeStatusEl.textContent = 'Kinyerés...';
-  await new Promise((r) => setTimeout(r, 0)); // hadd frissüljön a felirat
-
-  const raw = extractDrivableTriangles(currentTrack);
-  const mesh = dedupeVertices(raw.positions, raw.indices);
-
-  const vertexCount = mesh.positions.length / 3;
-  const buffer = new ArrayBuffer(8 + mesh.positions.byteLength + mesh.indices.byteLength);
-  const view = new DataView(buffer);
-  view.setUint32(0, vertexCount, true);
-  view.setUint32(4, mesh.indices.length, true);
-  new Float32Array(buffer, 8, mesh.positions.length).set(mesh.positions);
-  new Uint32Array(buffer, 8 + mesh.positions.byteLength, mesh.indices.length).set(mesh.indices);
-
-  bakeStatusEl.textContent = 'Mentés...';
-  try {
-    const res = await fetch('/api/dev/collision?mapId=' + encodeURIComponent(currentMapId), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/octet-stream' },
-      body: buffer,
-    });
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error || 'ismeretlen hiba');
-
-    // A manifestet is frissítjük, hogy azonnal a fájl legyen érvényben.
-    const entry = manifest && findEntry(manifest.maps, currentMapId);
-    if (entry) entry.collision = { file: `maps/${currentMapId}/collision.bin`, bytes: data.bytes };
-
-    bakeStatusEl.textContent =
-      `Kész: ${data.triangles} háromszög, ${(data.bytes / 1048576).toFixed(1)} MB ` +
-      `(${raw.positions.length / 3} → ${vertexCount} csúcs)`;
-  } catch (err) {
-    bakeStatusEl.textContent = 'Hiba: ' + err.message;
-  }
-}
-
-bakeCollisionBtn.addEventListener('click', bakeCollisionToFile);
 
 backToMenuLink.addEventListener('click', () => {
   enterMenu();
@@ -3839,7 +2639,6 @@ async function init() {
   fillSelect(mapSelect, manifest.maps);
   fillSelect(carSelect, manifest.cars);
   fillSelect(envSelect, manifest.skyboxes);
-  fillSelect(devMapSelectEl, manifest.maps);
 
   const initialMap = findEntry(manifest.maps, null);
   const initialCar = findEntry(manifest.cars, null);
@@ -3847,7 +2646,6 @@ async function init() {
   mapSelect.value = initialMap.id;
   carSelect.value = initialCar.id;
   envSelect.value = initialEnv.id;
-  devMapSelectEl.value = initialMap.id;
 
   await Promise.all([
     setSkybox('assets/' + initialEnv.file),
@@ -3861,7 +2659,7 @@ async function init() {
   startBtn.disabled = false;
   loadingEl.style.display = 'none';
   if (DEV_MODE) {
-    enterDevMode();
+    await enterDevMode();
   } else {
     enterMenu();
   }
@@ -3877,15 +2675,6 @@ async function init() {
   envSelect.addEventListener('change', () => {
     const entry = findEntry(manifest.skyboxes, envSelect.value);
     setSkybox('assets/' + entry.file);
-  });
-
-  devMapSelectEl.addEventListener('change', async () => {
-    const entry = findEntry(manifest.maps, devMapSelectEl.value);
-    mapSelect.value = entry.id;
-    devSpawnStatusEl.textContent = 'Pálya betöltése...';
-    await setTrack('assets/' + entry.file, entry.id, entry.spawns, entry.gates);
-    enterDevMode();
-    devSpawnStatusEl.textContent = '';
   });
 }
 
@@ -3924,15 +2713,15 @@ function animate() {
   } else if (appState === 'mp') {
     stepMultiplayerFrame(dt);
   } else if (appState === 'dev') {
-    updateDevCamera(dt);
+    // Ezekbe az állapotokba csak a dev modul tud átbillenteni, tehát ha itt
+    // vagyunk, a devTools már be van töltve — a ?. csak biztonsági öv.
+    devTools?.updateDevCamera(dt);
   } else if (appState === 'cartest') {
-    updateCarTest(dt);
+    devTools?.updateCarTest(dt);
   } else if (appState === 'zone-edit') {
-    // A pálya élőben, valódi 3D geometriaként renderelődik felülnézetből —
-    // ezért marad éles bármilyen zoomon, szemben egy fix felbontású képpel.
-    updateZoneOrthoCamera();
-    renderer.render(scene, zoneOrthoCam);
-    drawZoneOverlay();
+    // Külön képkocka: a szerkesztő saját (ortografikus, felülnézeti) kamerával
+    // rendereli a pályát, ezért itt a szokásos renderelés kimarad.
+    devTools?.renderZoneEditorFrame();
     return;
   } else {
     updateSunTarget(carPivot.position);
@@ -3984,8 +2773,7 @@ window.__game = {
     menuEl.classList.add('hidden');
     hudEl.classList.remove('hidden');
     raceHudWrapEl.classList.remove('hidden');
-    devHudEl.classList.add('hidden');
-    carTesterHudEl.classList.add('hidden');
+    devTools?.hideOverlays();
     scene.fog.density = NORMAL_FOG_DENSITY;
     document.activeElement?.blur();
   },
@@ -4012,13 +2800,13 @@ window.__debug = {
   get currentTrackBox() { return currentTrackBox; },
   race, updateRace, crossedGate,
   getTrackCollider: () => trackCollider,
+  // A FUTÁSIDEJŰ zóna-vizsgálat (vezetés közben is él) — a szerkesztő-oldali
+  // részeket (maszk, nézet, checkpoint-generálás) a dev.js fűzi ehhez hozzá,
+  // amikor betöltődik.
   zone: {
-    getMask: () => zoneMaskCanvas, getBounds: () => zoneBounds, getView: () => zoneView,
-    screenToWorld: zoneScreenToWorld, worldToMask: zoneWorldToMaskPixel,
     setRuntime: (z) => { zoneRuntime = z; }, sampleAt: sampleZoneAt, touchesWall: carTouchesWall,
     applyWall: applyWallConstraint, lastSafe: lastSafePos,
-    getGuidePath: () => currentGuidePath, setGuidePath: (p) => { currentGuidePath = p; updateSpawnToolUI(); },
-    generateCheckpoints,
+    getGuidePath: () => currentGuidePath,
   },
 };
 
