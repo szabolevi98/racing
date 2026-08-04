@@ -355,15 +355,64 @@ const WHEEL_CONNECTION_DROP = -WHEEL_POSITIONS[0].y;
 let groundOffset = WHEEL_CONNECTION_DROP + SUSPENSION_REST_LENGTH + WHEEL_RADIUS;
 let groundOffsetCalibrated = false;
 
+// A "megnyugodott-e" próba MAGÁN a felfüggesztés-hosszon fut, nem a kasztni
+// függőleges sebességén.
+//
+// A sebesség itt használhatatlan: a jármű-vezérlő alatt a test helyben áll
+// (mérve: y négy tizedesjegyre változatlan 500 ticken át), a linvel().y mégis
+// konstans ~0.95-öt jelent — a felfüggesztés által épp kioltott, névleges
+// értéket. A régi `|linvel.y| > 0.05` feltétel ezért 600 tickből 19-ben
+// engedett át: a kalibrálás egyjátékosban is csak szerencsével futott le,
+// multiplayerben pedig sosem. Ha nem fut le, a modell a teljesen kinyúlt
+// rugóval számolt magassággal ül, vagyis ~7 cm-rel az aszfalt alá kerül.
+// Mennyit mozdulhat a felfüggesztés az ablak EGÉSZE alatt, hogy még
+// "megnyugodott"-nak számítson.
+const SUSPENSION_SETTLED_EPS = 0.002;
+// Ennyi egymást követő képkockán kell ennyire stabilnak lennie. Nem elég EGY
+// egyező mérés: a fizika fix 60 Hz-en lép, a képernyő gyorsabban rajzol, tehát
+// két képkocka közé eshet nulla fizikai lépés — olyankor a leolvasás magától
+// azonos, és egy épp pattogó rugót is megnyugodottnak hinnénk.
+const SUSPENSION_SETTLED_FRAMES = 8;
+// Az összehasonlítás alapja az ABLAK ELEJE, nem az előző képkocka. Ez nem
+// finomság: a rugó a rajt utáni első másodpercben lassan, egyenletesen
+// süllyed, képkockánként a küszöb alatti lépésekben. Az előző képkockához
+// mérve ez végig "stabilnak" látszik, és a kalibrálás egy még mozgó
+// állapotot rögzít (mérve: 1.1 cm hibával). Az ablak kezdetéhez mérve a
+// TELJES elmozdulás korlátos, és a mért érték 0.1 mm-re pontos.
+let suspensionRefAvg = null;
+let suspensionStableFrames = 0;
+
+function resetGroundOffsetCalibration() {
+  groundOffsetCalibrated = false;
+  suspensionRefAvg = null;
+  suspensionStableFrames = 0;
+}
+
 function calibrateGroundOffset() {
   if (groundOffsetCalibrated) return;
-  if (Math.abs(chassisBody.linvel().y) > 0.05) return;
   let sum = 0;
   for (let i = 0; i < 4; i++) {
-    if (!vehicle.wheelIsInContact(i)) return;
+    // Mind a négy keréknek a talajon kell lennie, különben nem a nyugalmi
+    // helyzetet mérnénk (ugratás, felborulás, félig kerékvetőn állás).
+    if (!vehicle.wheelIsInContact(i)) {
+      suspensionRefAvg = null;
+      suspensionStableFrames = 0;
+      return;
+    }
     sum += vehicle.wheelSuspensionLength(i) ?? SUSPENSION_REST_LENGTH;
   }
-  groundOffset = WHEEL_CONNECTION_DROP + sum / 4 + WHEEL_RADIUS;
+
+  const avg = sum / 4;
+  if (suspensionRefAvg !== null && Math.abs(avg - suspensionRefAvg) < SUSPENSION_SETTLED_EPS) {
+    suspensionStableFrames++;
+  } else {
+    // Kilépett a sávból: innen indul az új ablak.
+    suspensionRefAvg = avg;
+    suspensionStableFrames = 0;
+  }
+  if (suspensionStableFrames < SUSPENSION_SETTLED_FRAMES) return;
+
+  groundOffset = WHEEL_CONNECTION_DROP + avg + WHEEL_RADIUS;
   groundOffsetCalibrated = true;
   applyCarModelHeight();
 }
@@ -1206,7 +1255,7 @@ async function setCar(carUrl, carId, config, onProgress) {
   // kasztni egy IDEGEN kocsi kalibrált magasságában állt meg fizikailag.
   // Kocsiváltáskor ezért újra kalibrálni kell.
   groundOffset = WHEEL_CONNECTION_DROP + SUSPENSION_REST_LENGTH + WHEEL_RADIUS;
-  groundOffsetCalibrated = false;
+  resetGroundOffsetCalibration();
   // Csak a korábbi karosszéria-modellt dobjuk el — a fényszórók (és a
   // célpontjaik) szintén a carPivot gyerekei, azokat meg kell tartani.
   if (currentCarModel) {
@@ -2973,6 +3022,14 @@ let mpFrameHook = null;
 // megkapja a szót, hogy interpolálhasson két állapot között.
 function stepMultiplayerFrame(dt) {
   mpFrameHook?.(dt);
+  // Ugyanaz, mint az egyjátékos animate()-ben: a modell magasságát a VALÓDI,
+  // terhelt felfüggesztés-hosszból kell beállítani. Eddig ez csak vezetés
+  // közben futott, multiplayerben nem — ezért a kocsi a teljesen kinyúlt
+  // rugóval számolt 0.85-tel ült a kasztni alatt, miközben a valódi nyugalmi
+  // távolság ~0.78, vagyis a modellt pár centivel az aszfalt alá rajzoltuk.
+  // A függvény maga őrzi a feltételeit (négy kerék a talajon, függőlegesen
+  // megnyugodott), és csak egyszer fut le kocsinként.
+  calibrateGroundOffset();
   updateSunTarget(carPivot.position);
   updateWheelVisuals(dt);
   updateChaseCamera(dt);
