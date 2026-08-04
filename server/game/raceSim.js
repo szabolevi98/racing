@@ -9,6 +9,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { S2C, ROOM_STATE, TICK_RATE, TICK_MS, SNAPSHOT_RATE } from '../../shared/protocol.js';
 import { GRAVITY, buildVehicle, applyControls, CHASSIS_SIZE } from '../../shared/vehicleConfig.js';
+import { decodeZoneCodes, sampleZone, ZONE_OFFTRACK } from '../../shared/zone.js';
+import { decodePng } from './pngDecode.js';
 import { ASSETS_DIR } from '../paths.js';
 
 let rapierReady = null;
@@ -31,6 +33,21 @@ async function loadCollision(mapId) {
   for (let i = 0; i < vertices.length; i++, o += 4) vertices[i] = buf.readFloatLE(o);
   for (let i = 0; i < indices.length; i++, o += 4) indices[i] = buf.readUInt32LE(o);
   return { vertices, indices };
+}
+
+// A dev módban festett zóna-maszk beolvasása. Ugyanaz a zonemap.png, amit a
+// kliens is letölt — ezért ad a két oldal ugyanolyan választ arra, hogy egy
+// pont aszfalt-e vagy kifutó.
+async function loadZoneMap(map) {
+  if (!map?.zonemap?.bounds) throw new Error('nincs zonemap a manifestben');
+  const file = path.join(ASSETS_DIR, 'maps', map.id, 'zonemap.png');
+  const { width, height, rgba } = decodePng(await fs.readFile(file));
+  return {
+    codes: decodeZoneCodes(rgba, width, height),
+    w: width,
+    h: height,
+    bounds: map.zonemap.bounds,
+  };
 }
 
 // Két szakasz metszése — a kör- és checkpoint-számoláshoz. Ugyanaz a
@@ -92,6 +109,15 @@ export class RaceSim {
       const ground = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -0.05, 0));
       this.world.createCollider(RAPIER.ColliderDesc.cuboid(2000, 0.05, 2000), ground);
     }
+
+    // Zóna-térkép: enélkül a pályán kívül ugyanolyan gyors lenne a kocsi,
+    // mint az aszfalton. Nem végzetes, ha hiányzik — a verseny elindul,
+    // csak nincs kifutó-büntetés (és a kliens jóslata is ehhez igazodik,
+    // mert ugyanezt a maszkot tölti be).
+    this.zone = await loadZoneMap(this.map).catch((err) => {
+      console.warn(`[${this.room.code}] Nincs zóna-térkép (${this.map.id}): ${err.message}`);
+      return null;
+    });
 
     // A lekérdező pipeline-t a world.step() frissíti — enélkül a talajkeresés
     // semmit nem találna, mert még nincs feltöltve a térbeli index.
@@ -224,7 +250,12 @@ export class RaceSim {
         car.input = next;
         car.appliedSeq = next.seq;
       }
-      applyControls(car.vehicle, car.body, car.input, { frozen });
+      // A kifutó lassít. A kliens ugyanezt a maszkot ugyanezzel a képlettel
+      // mintázza a jóslásához (shared/zone.js), különben a pálya szélén
+      // folyamatosan elcsúsznának egymástól.
+      const pos = car.body.translation();
+      const offtrack = sampleZone(this.zone, pos.x, pos.z) === ZONE_OFFTRACK;
+      applyControls(car.vehicle, car.body, car.input, { frozen, offtrack });
       car.vehicle.updateVehicle(this.world.timestep);
     }
     this.world.step();

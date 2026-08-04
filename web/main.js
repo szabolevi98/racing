@@ -7,6 +7,9 @@ import {
   CHASSIS_SIZE, WHEEL_RADIUS, SUSPENSION_REST_LENGTH, WHEEL_POSITIONS,
   STEER_VISUAL_SPEED, buildVehicle, applyControls,
 } from '/shared/vehicleConfig.js';
+import {
+  ZONE_ASPHALT, ZONE_OFFTRACK, ZONE_WALL, decodeZoneCodes, sampleZone,
+} from '/shared/zone.js';
 
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
@@ -1461,9 +1464,9 @@ function findGroundAt(track, box, x, z) {
 // A dev módban festett maszkot itt olvassuk vissza, és tömör (1 bájt/cella)
 // kódtömbbé alakítjuk — így a vezetés közbeni lekérdezés egy sima
 // tömb-indexelés, nincs képfeldolgozás képkockánként.
-const ZONE_ASPHALT = 0;
-const ZONE_OFFTRACK = 1;
-const ZONE_WALL = 2;
+// A zóna-kódok, a maszk értelmezése és a mintavétel a shared/zone.js-ben van,
+// mert a SZERVER is pontosan ugyanezt csinálja: multiplayerben ő dönti el,
+// lassul-e a kocsi a kifutón, a kliens pedig ezt előre jósolja.
 let zoneRuntime = null;
 
 async function loadZoneRuntime(entry) {
@@ -1486,17 +1489,7 @@ async function loadZoneRuntime(entry) {
   ctx.drawImage(img, 0, 0);
   const data = ctx.getImageData(0, 0, img.width, img.height).data;
 
-  const codes = new Uint8Array(img.width * img.height);
-  for (let i = 0; i < codes.length; i++) {
-    const alpha = data[i * 4 + 3];
-    // Az ecsetvonás pereme élsimított (halvány) — alacsony küszöb kell, hogy
-    // a látható folt SZÉLE is beleszámítson, különben a fal/kifutó egy
-    // pixelnyivel kisebb lenne, mint amit a szerkesztőben látsz.
-    if (alpha < 16) continue; // festetlen = aszfalt (0)
-    // A két festék jól elkülönül a zöld csatornán:
-    // kifutó = rgb(255,165,0) -> g=165, fal = rgb(220,20,60) -> g=20.
-    codes[i] = data[i * 4 + 1] > 100 ? ZONE_OFFTRACK : ZONE_WALL;
-  }
+  const codes = decodeZoneCodes(data, img.width, img.height);
 
   zoneRuntime = { codes, w: img.width, h: img.height, bounds: entry.zonemap.bounds };
   buildMiniMapTrack(zoneRuntime);
@@ -1642,12 +1635,7 @@ function updateMiniMap(carX, carZ) {
 }
 
 function sampleZoneAt(x, z) {
-  if (!zoneRuntime) return ZONE_ASPHALT;
-  const b = zoneRuntime.bounds;
-  const u = Math.floor(((x - b.minX) / (b.maxX - b.minX)) * zoneRuntime.w);
-  const v = Math.floor(((z - b.minZ) / (b.maxZ - b.minZ)) * zoneRuntime.h);
-  if (u < 0 || v < 0 || u >= zoneRuntime.w || v >= zoneRuntime.h) return ZONE_ASPHALT;
-  return zoneRuntime.codes[v * zoneRuntime.w + u];
+  return sampleZone(zoneRuntime, x, z);
 }
 
 // A falkezeléshez tudnunk kell, hol volt a kocsi utoljára érvényes helyen.
@@ -2707,12 +2695,14 @@ window.__game = {
     if (w) chassisBody.setAngvel({ x: w[0], y: w[1], z: w[2] }, true);
   },
   // Egyetlen szimulációs lépés, PONTOSAN úgy, ahogy a szerver csinálja
-  // (raceSim.step). Szándékosan NEM adunk át offtrack-et: a szerver sem ad,
-  // tehát ha itt beletennénk a kifutó-lassítást, a két szimuláció eltérne.
-  // (Következmény: multiplayerben jelenleg nincs kifutó-büntetés — ez a
-  // szerveren hiányzik, nem itt.)
+  // (raceSim.step) — beleértve a kifutó-lassítást is. A zóna mintavétele
+  // ugyanabból a maszkból, ugyanazzal a képlettel megy mindkét oldalon
+  // (shared/zone.js), különben a pálya szélén a jóslat folyamatosan
+  // eltérne a szervertől.
   stepLocalPhysics(input, frozen = false) {
-    applyControls(vehicle, chassisBody, input, { frozen });
+    const p = chassisBody.translation();
+    const offtrack = sampleZoneAt(p.x, p.z) === ZONE_OFFTRACK;
+    applyControls(vehicle, chassisBody, input, { frozen, offtrack });
     vehicle.updateVehicle(world.timestep);
     world.step();
   },

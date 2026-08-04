@@ -114,9 +114,9 @@ forrása (300 ms-nál ~1,5 m).
 
 ## Ami még hátravan
 
-- **Kifutó-büntetés multiplayerben.** A szerver nem ad `offtrack` jelzést az
-  `applyControls`-nak, tehát a pályán kívül sem lassul a kocsi. Egyjátékosban
-  működik.
+- **Falak multiplayerben.** A `zonemap` „fal" festése egyjátékosban
+  visszalöki a kocsit (`applyWallConstraint`), a szerver viszont nem ismeri —
+  multiplayerben át lehet menni rajta.
 - **Éles kiszolgálás**: systemd unit és Apache reverse proxy a VPS-en. A kliens
   `wss://`-re már magától vált HTTPS alatt; a szerver oldali teendők leírva a
   [DEPLOY.md](DEPLOY.md)-ben.
