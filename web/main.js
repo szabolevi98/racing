@@ -2593,6 +2593,13 @@ function stepMultiplayerFrame(dt) {
   // Ugyanaz a kifejezés, mint az egyjátékos HUD-on (updateControls).
   zoneIndicatorEl.textContent =
     carTouchesWall() ? 'FAL' : sampleZoneAt(p.x, p.z) === ZONE_OFFTRACK ? 'kifutó (lassít)' : 'aszfalt';
+
+  // Felborulás. A visszahelyezést multiplayerben nem mi végezzük — a szerver
+  // a hiteles forrás —, ezért csak jelezzük; az R-t a hálózati modul küldi el.
+  const q = chassisBody.rotation();
+  const flipped = 1 - 2 * (q.x * q.x + q.z * q.z) < 0.2;
+  if (flipped) rolloverAlertTextEl.textContent = 'Felborultál! Nyomj R-et — vissza az utolsó checkpontra.';
+  rolloverAlertEl.classList.toggle('hidden', !flipped);
 }
 
 // A multiplayer modul felülete a játék felé. Szándékosan szűk: csak annyit

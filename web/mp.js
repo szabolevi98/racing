@@ -131,6 +131,13 @@ $('mpStart').addEventListener('click', () => send(C2S.START_RACE));
 $('mpLeave').addEventListener('click', () => { send(C2S.LEAVE_ROOM); room = null; show('mpRoom', false); show('mpRooms', true); });
 $('mpCopy').addEventListener('click', () => navigator.clipboard?.writeText(room?.code || ''));
 
+// Az "R" multiplayerben KÉRÉS a szerver felé, nem helyi teleport — a kocsi
+// helyét a szerver birtokolja. Élre figyelünk (e.repeat nélkül), nem a
+// lenyomva tartásra: különben képkockánként küldenénk egy kérést.
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'KeyR' && !e.repeat && G.appState === 'mp') send(C2S.RESET);
+});
+
 // ---------- Kapcsolat ----------
 
 // ---------- Mesterséges hálózati késleltetés (fejlesztéshez) ----------

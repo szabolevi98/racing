@@ -138,6 +138,12 @@ async function handleMessage(player, msg) {
       return;
     }
 
+    case C2S.RESET: {
+      const room = rooms.get(player.roomCode);
+      room?.sim?.resetCar(player.id);
+      return;
+    }
+
     case C2S.PING: {
       send(socket, S2C.PONG, { t: msg.t });
       return;

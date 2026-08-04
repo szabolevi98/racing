@@ -114,9 +114,9 @@ forrása (300 ms-nál ~1,5 m).
 
 ## Ami még hátravan
 
-- **Falak multiplayerben.** A `zonemap` „fal" festése egyjátékosban
-  visszalöki a kocsit (`applyWallConstraint`), a szerver viszont nem ismeri —
-  multiplayerben át lehet menni rajta.
+- **Egyetlen pályán sincs falfestés.** A fal-ecset és a hozzá tartozó
+  visszalökés kész (mindkét oldalon), de amíg a zóna-szerkesztőben senki nem
+  fest falat, nincs mit érvényesíteni.
 - **Éles kiszolgálás**: systemd unit és Apache reverse proxy a VPS-en. A kliens
   `wss://`-re már magától vált HTTPS alatt; a szerver oldali teendők leírva a
   [DEPLOY.md](DEPLOY.md)-ben.

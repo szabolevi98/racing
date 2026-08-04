@@ -54,6 +54,14 @@ async function loadZoneMap(map) {
   };
 }
 
+// Merre nézett a kocsi, amikor áthaladt egy kapun? A mozgás irányából, mert
+// az megbízhatóbb, mint a kasztni pillanatnyi állása (pl. csúszás közben).
+function headingFrom(fromX, fromZ, toX, toZ, fallback) {
+  const dx = toX - fromX, dz = toZ - fromZ;
+  if (Math.abs(dx) < 1e-4 && Math.abs(dz) < 1e-4) return fallback;
+  return Math.atan2(dx, dz);
+}
+
 // Két szakasz metszése — a kör- és checkpoint-számoláshoz. Ugyanaz a
 // geometria, mint a kliensben.
 function crossedGate(gate, fromX, fromZ, toX, toZ) {
@@ -162,6 +170,10 @@ export class RaceSim {
         appliedSeq: 0,     // a legutóbb FELHASZNÁLT sorszám — ezt kapja a kliens
         // A falkezeléshez: hol volt a kocsi utoljára érvényes helyen.
         lastSafe: { x: pos.x, y: pos.y, z: pos.z },
+        // Az "R" ide tesz vissza: az utolsó SIKERESEN érintett checkpont.
+        // Kihagyott/rossz sorrendű átlépéskor szándékosan nem frissül, így
+        // R mindig a legutóbbi jó pontra visz.
+        respawn: { x: pos.x, z: pos.z, heading: s.heading || 0 },
         race: {
           lap: 0,
           nextCheckpoint: 0,
@@ -190,6 +202,27 @@ export class RaceSim {
     const ray = new RAPIER.Ray({ x, y: RAY_FROM_Y, z }, { x: 0, y: -1, z: 0 });
     const hit = this.world.castRay(ray, RAY_FROM_Y * 2, true);
     return hit ? RAY_FROM_Y - hit.timeOfImpact : 0;
+  }
+
+  // Az "R" multiplayerben: a kliens nem teleportálhatja magát (a szerver a
+  // hiteles forrás), ezért kér, mi pedig elvégezzük. Enélkül egy felborult
+  // kocsi véglegesen ott maradt.
+  resetCar(playerId) {
+    const car = this.cars.get(playerId);
+    if (!car || car.race.finished) return;
+    const { x, z, heading } = car.respawn;
+    const y = this.groundAt(x, z) + SPAWN_HEIGHT;
+    car.body.setTranslation({ x, y, z }, true);
+    const half = heading / 2;
+    car.body.setRotation({ x: 0, y: Math.sin(half), z: 0, w: Math.cos(half) }, true);
+    car.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    car.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    car.lastSafe = { x, y, z };
+    // A kör-logika az ELŐZŐ és a mostani pozíció közötti szakaszt metszi a
+    // kapukkal. Teleportálás után ez a szakasz a régi helytől az újig érne, és
+    // útközben átvágna kapukon — ezért itt "megszakítjuk".
+    car.race.prevX = x;
+    car.race.prevZ = z;
   }
 
   queueInput(playerId, msg) {
@@ -297,8 +330,14 @@ export class RaceSim {
 
       for (let i = 0; i < checkpoints.length; i++) {
         if (crossedGate(checkpoints[i], fromX, fromZ, p.x, p.z)) {
-          if (i === r.nextCheckpoint) r.nextCheckpoint++;
-          else r.tainted = true;
+          if (i === r.nextCheckpoint) {
+            r.nextCheckpoint++;
+            // Csak SIKERES átlépéskor jegyezzük meg — így az R sosem tesz
+            // vissza egy olyan pontra, ahol már rossz úton járt.
+            car.respawn = { x: p.x, z: p.z, heading: headingFrom(fromX, fromZ, p.x, p.z, car.respawn.heading) };
+          } else {
+            r.tainted = true;
+          }
           break;
         }
       }
@@ -311,6 +350,7 @@ export class RaceSim {
       }
 
       if (crossedGate(gates.start, fromX, fromZ, p.x, p.z)) {
+        car.respawn = { x: p.x, z: p.z, heading: headingFrom(fromX, fromZ, p.x, p.z, car.respawn.heading) };
         if (!r.hasCrossedStart) {
           // A rajtpont a rajtvonal ELŐTT van: az első átlépés a kört KEZDI.
           r.hasCrossedStart = true;
