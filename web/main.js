@@ -334,6 +334,44 @@ function calibrateGroundOffset() {
 // nem mindenhol néz ugyanabba az irányba.
 let spawnHeading = 0;
 
+// A kirajzoláshoz a két utolsó fizikai állapot kell. A fizika fix 60 Hz-en lép,
+// a képernyő viszont a saját frissítésével rajzol — 75 Hz-en a képkockák egy
+// részére NULLA lépés jut, másokra kettő. Ha a test pillanatnyi állapotát
+// rajzolnánk ki, a kocsi pontosan ilyen egyenetlenül haladna.
+//
+// (Korábban ez a rángás azért nem létezett, mert a fizika képkockánként lépett
+// egyet — de épp emiatt függött a játék sebessége a monitortól. A helyes
+// megoldás mindkettőt kezeli: valós idő szerinti léptetés + interpoláció.
+// Multiplayerben ugyanezt időbélyeges pufferrel csináljuk; itt elég a két
+// szomszédos állapot, mert a lépéseket maga a képkocka-hurok végzi.)
+const prevCarPos = new THREE.Vector3();
+const currCarPos = new THREE.Vector3();
+const prevCarQuat = new THREE.Quaternion();
+const currCarQuat = new THREE.Quaternion();
+let carInterpReady = false;
+
+function captureCarState() {
+  prevCarPos.copy(currCarPos);
+  prevCarQuat.copy(currCarQuat);
+  const p = chassisBody.translation();
+  const q = chassisBody.rotation();
+  currCarPos.set(p.x, p.y, p.z);
+  currCarQuat.set(q.x, q.y, q.z, q.w);
+}
+
+// Teleportálás (rajt, R) után a két állapot közé interpolálni annyi lenne, mint
+// a régi helyről átcsúsztatni a kocsit az újra — ezért ilyenkor mindkettőt az
+// új állapotra állítjuk.
+function resetCarInterpolation() {
+  const p = chassisBody.translation();
+  const q = chassisBody.rotation();
+  currCarPos.set(p.x, p.y, p.z);
+  currCarQuat.set(q.x, q.y, q.z, q.w);
+  prevCarPos.copy(currCarPos);
+  prevCarQuat.copy(currCarQuat);
+  carInterpReady = true;
+}
+
 function resetCarTo(pos, heading = spawnHeading) {
   const half = heading / 2;
   chassisBody.setTranslation({ x: pos.x, y: pos.y, z: pos.z }, true);
@@ -347,6 +385,9 @@ function resetCarTo(pos, heading = spawnHeading) {
   // itt "megszakítjuk" azzal, hogy az előző pozíciót is az újra állítjuk.
   race.prevX = pos.x;
   race.prevZ = pos.z;
+  // Ugyanez a megfontolás a kirajzolásnál: a képkocka-interpoláció se
+  // csúsztassa át a kocsit a régi helyről az újra.
+  resetCarInterpolation();
 }
 
 function removeTrackCollider() {
@@ -2543,6 +2584,7 @@ const clock = new THREE.Clock();
 // Az egyjátékos fizika fix lépésközének maradéka két képkocka között.
 let physicsAccum = 0;
 
+
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.1);
@@ -2567,6 +2609,7 @@ function animate() {
       vehicle.updateVehicle(world.timestep);
       world.step();
       applyWallConstraint();
+      captureCarState();
       physicsAccum -= world.timestep;
       physSteps++;
     }
@@ -2574,10 +2617,18 @@ function animate() {
     updateRace(dt);
 
     if (carLoaded) {
-      const p = chassisBody.translation();
-      const q = chassisBody.rotation();
-      carPivot.position.set(p.x, p.y, p.z);
-      carPivot.quaternion.set(q.x, q.y, q.z, q.w);
+      if (carInterpReady) {
+        // A maradék mondja meg, hol tartunk a következő lépés felé: nulla =
+        // épp most lépett, majdnem egy = mindjárt lép a következőt.
+        const alpha = Math.max(0, Math.min(1, physicsAccum / world.timestep));
+        carPivot.position.lerpVectors(prevCarPos, currCarPos, alpha);
+        carPivot.quaternion.slerpQuaternions(prevCarQuat, currCarQuat, alpha);
+      } else {
+        const p = chassisBody.translation();
+        const q = chassisBody.rotation();
+        carPivot.position.set(p.x, p.y, p.z);
+        carPivot.quaternion.set(q.x, q.y, q.z, q.w);
+      }
       updateSunTarget(carPivot.position);
       updateWheelVisuals(dt);
     }
