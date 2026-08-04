@@ -3,7 +3,7 @@
 // A szoba a memóriában él — másodpercenként sokszor változik, és egy
 // szerver-újraindítás után úgyis értelmét vesztené. Csak a lefutott verseny
 // eredménye kerül adatbázisba.
-import { ROOM_STATE, MAX_PLAYERS_PER_ROOM, COUNTDOWN_MS } from '../../shared/protocol.js';
+import { ROOM_STATE, MAX_PLAYERS_PER_ROOM, COUNTDOWN_MS, PLAYER_COLORS } from '../../shared/protocol.js';
 import { createRace, finishRace, saveResult, saveLap } from '../db/index.js';
 
 export class Room {
@@ -35,6 +35,7 @@ export class Room {
     // A rajtrács-hely érkezési sorrendben; a szimuláció ez alapján osztja ki
     // a spawn pontokat, hogy ne egymáson induljanak.
     player.slot = this.nextFreeSlot();
+    player.color = this.nextFreeColor();
     this.players.set(player.id, player);
   }
 
@@ -43,6 +44,7 @@ export class Room {
     if (p) {
       p.roomCode = null;
       p.slot = null;
+      p.color = null;
       this.players.delete(playerId);
     }
     // Ha a tulajdonos lépett ki, a legrégebben bent lévő veszi át — így a
@@ -57,6 +59,17 @@ export class Room {
     const taken = new Set([...this.players.values()].map((p) => p.slot));
     for (let i = 0; i < MAX_PLAYERS_PER_ROOM; i++) if (!taken.has(i)) return i;
     return this.players.size;
+  }
+
+  // Szín a szoba palettájából: a szabadok közül VÉLETLENÜL választ, hogy két
+  // egymás utáni verseny ne mindig ugyanabban a sorrendben osztódjon ki, de
+  // egy szobán belül soha ne legyen két egyforma (a paletta pont annyi elemű,
+  // mint a maximális létszám, tehát mindig van szabad).
+  nextFreeColor() {
+    const taken = new Set([...this.players.values()].map((p) => p.color));
+    const free = PLAYER_COLORS.filter((c) => !taken.has(c));
+    if (!free.length) return PLAYER_COLORS[this.players.size % PLAYER_COLORS.length];
+    return free[Math.floor(Math.random() * free.length)];
   }
 
   canStart() {
@@ -82,6 +95,7 @@ export class Room {
         name: p.name,
         carId: p.carId,
         slot: p.slot,
+        color: p.color,
         ready: !!p.ready,
         isHost: p.id === this.hostId,
         connected: p.socket?.readyState === 1,

@@ -1700,6 +1700,27 @@ function buildMiniMapTrack(runtime) {
   }
 }
 
+// A többi játékos pöttyei a minitérképen. Multiplayerben a hálózati modul
+// tölti fel (setMiniMapMarkers), egyjátékosban üres. A saját színt külön
+// tartjuk, hogy a HUD-listán és itt UGYANAZ látszódjon.
+let miniMapMarkers = [];
+let miniMapSelfColor = null;
+
+function drawMiniMapDot(x, z, color, radius) {
+  const w = miniMapCanvas.width;
+  const h = miniMapCanvas.height;
+  const b = miniMapBounds;
+  const px = ((x - b.minX) / (b.maxX - b.minX)) * w;
+  const py = ((z - b.minZ) / (b.maxZ - b.minZ)) * h;
+  miniMapCtx.beginPath();
+  miniMapCtx.arc(px, py, radius, 0, Math.PI * 2);
+  miniMapCtx.fillStyle = color;
+  miniMapCtx.strokeStyle = 'rgba(0,0,0,0.6)';
+  miniMapCtx.lineWidth = 1.5;
+  miniMapCtx.fill();
+  miniMapCtx.stroke();
+}
+
 function updateMiniMap(carX, carZ) {
   const w = miniMapCanvas.width;
   const h = miniMapCanvas.height;
@@ -1707,16 +1728,10 @@ function updateMiniMap(carX, carZ) {
   if (!miniMapBounds || !miniMapTrackCanvas) return;
   miniMapCtx.drawImage(miniMapTrackCanvas, 0, 0, w, h);
 
-  const b = miniMapBounds;
-  const px = ((carX - b.minX) / (b.maxX - b.minX)) * w;
-  const py = ((carZ - b.minZ) / (b.maxZ - b.minZ)) * h;
-  miniMapCtx.beginPath();
-  miniMapCtx.arc(px, py, 5, 0, Math.PI * 2);
-  miniMapCtx.fillStyle = '#ff3b3b';
-  miniMapCtx.strokeStyle = 'rgba(0,0,0,0.6)';
-  miniMapCtx.lineWidth = 1.5;
-  miniMapCtx.fill();
-  miniMapCtx.stroke();
+  // A többiek ELŐBB, hogy a saját pötty mindig a legfelső legyen — egymáson
+  // állva is tudni akarjuk, hol vagyunk.
+  for (const m of miniMapMarkers) drawMiniMapDot(m.x, m.z, m.color, 4);
+  drawMiniMapDot(carX, carZ, miniMapSelfColor || '#ff3b3b', 5.5);
 }
 
 function sampleZoneAt(x, z) {
@@ -2942,6 +2957,13 @@ window.__game = {
   findGroundAt,
   get currentTrackBox() { return currentTrackBox; },
   showLoadingOverlay, hideLoadingOverlay, runLoadTasks,
+  // A minitérkép pöttyei: a hálózati modul képkockánként adja meg, hol tartanak
+  // a többiek, és milyen színt kapott ő maga. A sorrend fontos — ezt a
+  // stepMultiplayerFrame ELŐTT hívja a modul, mielőtt a térkép kirajzolódik.
+  setMiniMapMarkers(markers, selfColor) {
+    miniMapMarkers = markers || [];
+    miniMapSelfColor = selfColor || null;
+  },
   // ---- Client-side prediction felülete ----
   // A helyi kocsi ÁLLAPOTÁNAK kiolvasása és beállítása, plusz egyetlen
   // szimulációs lépés. A hálózati modul ezekből építi fel a jóslást: a
@@ -2996,6 +3018,10 @@ window.__game = {
   },
   leaveMultiplayer() {
     mpFrameHook = null;
+    // Enélkül a legutóbbi verseny pöttyei az egyjátékos térképen is ott
+    // maradnának, mozdulatlanul.
+    miniMapMarkers = [];
+    miniMapSelfColor = null;
     enterMenu();
   },
   // A látható kocsit a szerver állapotára állítja (a helyi fizika helyett).

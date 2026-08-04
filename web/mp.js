@@ -273,7 +273,7 @@ function renderRoom() {
   $('mpRoomLaps').textContent = room.laps;
   $('mpPlayers').innerHTML = room.players.map((p) => {
     const car = G.manifest?.cars.find((c) => c.id === p.carId);
-    return `<li>${p.isHost ? '👑 ' : ''}${escapeHtml(p.name)}${p.id === me.id ? ' <em>(te)</em>' : ''}
+    return `<li>${p.isHost ? '👑 ' : ''}${colorDot(p.color)}${escapeHtml(p.name)}${p.id === me.id ? ' <em>(te)</em>' : ''}
       <span class="text-secondary">— ${escapeHtml(car?.label || p.carId || 'nincs kocsi')}</span></li>`;
   }).join('');
   const isHost = room.hostId === me.id;
@@ -285,6 +285,15 @@ function renderRoom() {
 
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// A játékos színe apró pöttyként. Ugyanez a szín jelöli a minitérképen, a
+// névtáblán és a lobby-listán is — a szoba osztja ki, tehát mindenkinél egyezik.
+// A szín a palettából jön (shared/protocol.js), nem felhasználói adat, de a
+// CSS-be így is csak a hexa-alakot engedjük be.
+const colorDot = (color) => {
+  const safe = /^#[0-9a-f]{6}$/i.test(color || '') ? color : '#ffffff';
+  return `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${safe};margin-right:5px;vertical-align:middle;"></span>`;
+};
 
 // ---------- Verseny ----------
 
@@ -361,23 +370,25 @@ async function addOtherCar(p, onProgress) {
     group.add(model);
   } catch {
     // Ha a modell nem tölthető, egy doboz is jobb, mint egy láthatatlan
-    // ellenfél, akinek nekimehetünk.
+    // ellenfél, akinek nekimehetünk. A doboz a játékos színét kapja, hogy
+    // ilyenkor is beazonosítható legyen.
     group.add(new THREE.Mesh(
       new THREE.BoxGeometry(2, 0.8, 4.4),
-      new THREE.MeshStandardMaterial({ color: 0xff4444 })
+      new THREE.MeshStandardMaterial({ color: p.color || '#ff4444' })
     ));
   }
 
-  // Névtábla a kocsi fölött
-  const label = makeNameSprite(p.name);
+  // Névtábla a kocsi fölött, a játékos színével keretezve — ugyanaz a szín,
+  // ami a HUD-listán és a minitérképen is jelöli őt.
+  const label = makeNameSprite(p.name, p.color);
   label.position.y = 1.8;
   group.add(label);
 
   G.scene.add(group);
-  others.set(p.id, { group, buf: [] });
+  others.set(p.id, { group, buf: [], color: p.color, name: p.name, lap: 0, cp: 0 });
 }
 
-function makeNameSprite(name) {
+function makeNameSprite(name, color) {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 64;
   const g = c.getContext('2d');
@@ -385,6 +396,13 @@ function makeNameSprite(name) {
   g.textAlign = 'center';
   g.fillStyle = 'rgba(0,0,0,0.55)';
   g.fillRect(0, 0, 256, 64);
+  if (color) {
+    // Kitöltés helyett keret: a névnek fehéren, olvashatóan kell maradnia
+    // akkor is, ha a kiosztott szín világos (sárga/türkiz).
+    g.strokeStyle = color;
+    g.lineWidth = 6;
+    g.strokeRect(3, 3, 250, 58);
+  }
   g.fillStyle = '#fff';
   g.fillText(name.slice(0, 16), 128, 42);
   const tex = new THREE.CanvasTexture(c);
@@ -591,9 +609,17 @@ function onSnapshot(m) {
     buf.push({ t: m.t, p: c.p, q: c.q, v: c.v, seq: c.seq, lap: c.lap });
     // Csak a közelmúlt kell; a régit eldobjuk.
     while (buf.length > 30) buf.shift();
+    if (entry) {
+      // A HUD-lista sorrendjéhez: hányadik körben tart, és azon belül melyik
+      // checkpointot várja. A puffer az interpolációról szól, ez viszont a
+      // LEGFRISSEBB állás — a sorrendet nem akarjuk 100 ms-mal késleltetni.
+      entry.lap = c.lap ?? 0;
+      entry.cp = c.cp ?? 0;
+    }
     if (c.id === me.id) {
       G.setSpeed(Math.hypot(c.v[0], c.v[2]) * 3.6);
       myLap = c.lap;
+      myCp = c.cp ?? 0;
       ackedSeq = c.seq || 0;
       lapTainted = !!c.ti;
       // A nyugtázott bemenetek hatása már benne van a kapott állapotban,
@@ -610,6 +636,9 @@ function onSnapshot(m) {
 }
 
 let myLap = 0;
+// Melyik checkpointot várja a saját kocsi — a HUD-lista sorrendjéhez, körön
+// belüli másodlagos rendezési kulcsként.
+let myCp = 0;
 
 function sampleAt(buf, renderTime) {
   if (!buf.length) return null;
@@ -680,12 +709,21 @@ function frame(dt = 1 / 60) {
     }
   }
 
-  for (const { group, buf } of others.values()) {
-    const s = sampleAt(buf, renderTime);
+  // A többiek helye a minitérképhez is kell, ezért ugyanabban a körben
+  // gyűjtjük — a kirajzolt (interpolált) pozícióból, hogy a pötty pontosan azt
+  // mutassa, amit a képen látunk.
+  const markers = [];
+  for (const o of others.values()) {
+    const s = sampleAt(o.buf, renderTime);
     if (!s) continue;
-    group.position.set(s.p[0], s.p[1], s.p[2]);
-    group.quaternion.set(s.q[0], s.q[1], s.q[2], s.q[3]);
+    o.group.position.set(s.p[0], s.p[1], s.p[2]);
+    o.group.quaternion.set(s.q[0], s.q[1], s.q[2], s.q[3]);
+    markers.push({ x: s.p[0], z: s.p[2], color: o.color || '#ffffff' });
   }
+  // A main.js a stepMultiplayerFrame-ben MIUTÁN meghívta ezt a frame()-et,
+  // rajzolja a térképet — tehát az itt beadott pöttyök még ebben a képkockában
+  // megjelennek.
+  G.setMiniMapMarkers(markers, myColor());
 
   // A nagy 3-2-1. A szerver órája a mérvadó (starting.startsAt), nem a helyi
   // versenyállapot — az multiplayerben nem is fut.
@@ -696,10 +734,35 @@ function frame(dt = 1 / 60) {
 
   const evt = lastEvents[0];
   G.setHud(
-    `Kör: <strong>${myLap + 1} / ${room?.laps ?? '?'}</strong><br>` +
-    `Játékosok: ${(room?.players.length ?? 1)}<br>` +
-    (evt ? `<span class="text-warning">${escapeHtml(eventText(evt))}</span>` : '')
+    `Kör: <strong>${myLap + 1} / ${room?.laps ?? '?'}</strong>` +
+    `<div class="mt-1">${standingsHtml()}</div>` +
+    (evt ? `<div class="text-warning mt-1">${escapeHtml(eventText(evt))}</div>` : '')
   );
+}
+
+// A saját színünk. A szoba osztja ki (szerver = hiteles forrás), tehát ugyanaz,
+// amit a többiek látnak rólunk.
+function myColor() {
+  return room?.players.find((p) => p.id === me.id)?.color || null;
+}
+
+// Élő állás a HUD-on: ki hol tart. Sorrend: több teljes kör előrébb, azon belül
+// aki messzebb jár a körében (a következő checkpoint indexe). A célba érés
+// pillanatában a kör nő és a checkpoint nullázódik, tehát a kör az elsődleges
+// kulcs — enélkül a célba érő visszacsúszna a lista aljára.
+function standingsHtml() {
+  const rows = [
+    { id: me.id, name: me.name || 'Te', color: myColor(), lap: myLap, cp: myCp, self: true },
+    ...[...others.entries()].map(([id, o]) => ({
+      id, name: o.name || '?', color: o.color, lap: o.lap || 0, cp: o.cp || 0, self: false,
+    })),
+  ].sort((a, b) => (b.lap - a.lap) || (b.cp - a.cp));
+
+  return rows.map((r, i) => {
+    const name = escapeHtml(r.name.slice(0, 14));
+    return `<div${r.self ? ' class="fw-semibold"' : ''}>${i + 1}. ${colorDot(r.color)}${name}` +
+      `<span class="text-secondary"> — ${r.lap + 1}. kör</span></div>`;
+  }).join('');
 }
 
 function eventText(e) {
@@ -817,9 +880,10 @@ function showResults(results) {
   stopInputLoop();
   raceEnded = true;
   const rows = results.map((r) => {
-    const name = room?.players.find((p) => p.id === r.playerId)?.name || '?';
+    const player = room?.players.find((p) => p.id === r.playerId);
+    const name = player?.name || '?';
     const best = r.bestLapMs ? (r.bestLapMs / 1000).toFixed(2) + 's' : '—';
-    return `<div class="small">${r.position}. ${escapeHtml(name)} — ${(r.totalMs / 1000).toFixed(2)}s (legjobb kör: ${best})</div>`;
+    return `<div class="small">${r.position}. ${colorDot(player?.color)}${escapeHtml(name)} — ${(r.totalMs / 1000).toFixed(2)}s (legjobb kör: ${best})</div>`;
   }).join('');
   G.setHud(`<strong>Vége!</strong><br>${rows}`);
   setTimeout(() => {

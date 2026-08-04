@@ -46,6 +46,22 @@ export const TICK_MS = 1000 / TICK_RATE;
 // anélkül, hogy a mozgás akadozna.
 export const SNAPSHOT_RATE = 20;
 
+// Játékos-színek. A szoba osztja ki őket (szerver = hiteles forrás), hogy
+// MINDENKI ugyanazt a színt lássa ugyanahhoz a játékoshoz — a minitérképen, a
+// névtáblán és a HUD-listán is. Pontosan MAX_PLAYERS_PER_ROOM darab van, tehát
+// egy tele szobában sincs két egyforma. Egymástól jól elváló, telített
+// árnyalatok: sötét pályán és a világos aszfalton is felismerhetők.
+export const PLAYER_COLORS = [
+  '#ff3b3b', // piros
+  '#3b9dff', // kék
+  '#3bff6e', // zöld
+  '#ffd23b', // sárga
+  '#c471ff', // lila
+  '#ff8c3b', // narancs
+  '#3bf0ff', // türkiz
+  '#ff5fc4', // rózsaszín
+];
+
 export const MAX_PLAYERS_PER_ROOM = 8;
 export const ROOM_CODE_LENGTH = 6;
 export const COUNTDOWN_MS = 5000;
