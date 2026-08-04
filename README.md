@@ -33,7 +33,7 @@ egymás nevét, és a körök/eredmények a szerveren dőlnek el.
 ## Architektúra
 
 ```
-web/       ← EZ és csak ez publikus (index.html, main.js, mp.js, vendor/, assets/)
+web/       ← EZ és csak ez publikus (index.html, main.js, mp.js, dev.js, vendor/, assets/)
 server/    ← Node játékszerver: statikus kiszolgálás + REST + WebSocket + fizika
 shared/    ← a kliens ÉS a szerver is használja (protocol.js, vehicleConfig.js)
 tools/     ← offline GLB-elemzők (kerék-minták meghatározásához)
@@ -96,5 +96,5 @@ magukat a modelleket kell zsugorítani (Draco geometria, KTX2 textúrák).
   ki van véve.) Minden készen áll hozzá: közös fizika, azonos Rapier build, és
   a protokollban a `seq` mező.
 - **Éles kiszolgálás**: systemd unit és `wss://` reverse proxy a VPS-en.
-- A `main.js` egyetlen, ~4000 soros fájl, aminek nagyjából a fele fejlesztői
-  eszköz — a multiplayer kliensnek nincs rá szüksége, szétszedhető.
+- **Kisebb pályamodellek**: az első betöltés még mindig 63–148 MB. Draco
+  geometria és KTX2 textúrák nélkül ez távoli játékosnál percekben mérhető.
