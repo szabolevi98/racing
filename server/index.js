@@ -12,6 +12,14 @@ import { attachWebSocket, roomStats } from './net/wsServer.js';
 import { initDb, bestLaps, dbAvailable } from './db/index.js';
 
 const PORT = Number(process.env.PORT) || 3000;
+// Melyik hálózati interfészen figyeljen.
+//
+// Alapból MINDEGYIKEN, mert helyi fejlesztéshez ez kell (telefonról vagy másik
+// gépről is elérhető a LAN-on). Éles kiszolgálón viszont a Node egy Apache
+// reverse proxy MÖGÖTT ül, és ott ez azt jelentené, hogy a 3000-es port
+// kívülről közvetlenül is elérhető — megkerülve a proxyt és vele a HTTPS-t.
+// Olyankor HOST=127.0.0.1, és csak a proxy éri el (ld. DEPLOY.md).
+const HOST = process.env.HOST || undefined;
 // A dev-mentések lemezre írnak és nincs mögöttük jogosultság-ellenőrzés.
 // Éles kiszolgálón kapcsold ki (ALLOW_DEV_WRITES=0).
 const ALLOW_DEV_WRITES = process.env.ALLOW_DEV_WRITES !== '0';
@@ -112,7 +120,8 @@ const server = http.createServer(async (req, res) => {
 await initDb();
 attachWebSocket(server);
 
-server.listen(PORT, () => {
-  console.log(`Racing szerver fut:  http://localhost:${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`Racing szerver fut:  http://${HOST || 'localhost'}:${PORT}`);
+  if (HOST) console.log(`Csak a ${HOST} interfészen figyel (HOST env)`);
   if (ALLOW_DEV_WRITES) console.log('Fejlesztői mentés: BE (ALLOW_DEV_WRITES=0 kapcsolja ki)');
 });
