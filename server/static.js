@@ -8,6 +8,8 @@
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
+import zlib from 'node:zlib';
+import { pipeline } from 'node:stream';
 import { WEB_DIR, SHARED_DIR } from './paths.js';
 
 const MIME = {
@@ -33,6 +35,14 @@ const MIME = {
 };
 
 const NO_CACHE = new Set(['.html', '.js', '.mjs', '.css']);
+
+// Amit érdemes menet közben tömöríteni. A .glb/.png/.hdr KIMARAD: a képek és
+// a textúrákat tartalmazó modellek már tömörítettek, azokon a gzip alig nyer,
+// viszont minden kérésnél CPU-t égetne. (Mért adat ebben a projektben:
+// collision.bin 49%-ot nyer, egy 59 MB-os pálya-glb viszont csak 20%-ot.)
+const COMPRESSIBLE = new Set(['.js', '.mjs', '.css', '.html', '.json', '.gltf', '.bin', '.svg', '.txt']);
+// Ez alatt nem érdemes: a fejléc-többlet többe kerül, mint amennyit nyerünk.
+const MIN_COMPRESS_BYTES = 1024;
 
 // A kérés útvonalát fájlrendszer-útvonallá alakítja, és megakadályozza a
 // kitörést a gyökér alól (../-es kérések).
@@ -86,9 +96,12 @@ function sendFile(req, res, full, stat) {
   if (NO_CACHE.has(ext)) {
     headers['Cache-Control'] = 'no-store, no-cache, must-revalidate';
   } else {
-    // Az assetek tartalma a nevükhöz kötött és ritkán változik; az ETag
-    // miatt a böngésző így is ellenőrzi, hogy friss-e.
-    headers['Cache-Control'] = 'public, max-age=3600';
+    // Az assetek nagyok (egy pálya 60-150 MB) és gyakorlatilag sosem
+    // változnak — egy távoli játékosnak az első betöltés így is percekig
+    // tarthat a feltöltési sávszélességen. Hosszú, "immutable" cache-sel a
+    // MÁSODIK indulás azonnali: a böngésző rá se kérdez a szerverre.
+    // (Ha egy asset mégis változna, a fájlnevet kell megváltoztatni.)
+    headers['Cache-Control'] = 'public, max-age=31536000, immutable';
   }
 
   // Egyszerű, de elegendő ETag: méret + módosítási idő.
@@ -115,6 +128,18 @@ function sendFile(req, res, full, stat) {
         return true;
       }
     }
+  }
+
+  // Tömörítés, ha a böngésző kéri és a típuson van mit nyerni. A
+  // Content-Length ilyenkor elmarad (nem tudjuk előre a tömörített méretet),
+  // ezért chunked válasz megy.
+  const acceptsGzip = /\bgzip\b/.test(req.headers['accept-encoding'] || '');
+  if (acceptsGzip && COMPRESSIBLE.has(ext) && stat.size >= MIN_COMPRESS_BYTES && req.method !== 'HEAD') {
+    headers['Content-Encoding'] = 'gzip';
+    headers.Vary = 'Accept-Encoding';
+    res.writeHead(200, headers);
+    pipeline(fs.createReadStream(full), zlib.createGzip({ level: 6 }), res, () => {});
+    return true;
   }
 
   headers['Content-Length'] = stat.size;
