@@ -30,6 +30,10 @@ window.__mp = {
   // eltér egymástól — az bug, nem hangolási kérdés.
   get predict() { return predict; },
   lastError: 0,
+  // Az óra-sodródás elleni szabályozás állapota: milyen mély a szerver sora,
+  // és mennyire tért el ettől a küldési ütem a névleges tick-időtől.
+  get queueDepth() { return queueDepth; },
+  get sendPeriod() { return +sendPeriod.toFixed(2); },
 };
 const THREE = G.THREE;
 
@@ -43,6 +47,7 @@ const others = new Map();
 let selfBuf = [];
 let inputSeq = 0;
 let awaitingFirstSnapshot = false;
+let queueDepth = 0;
 let inputTimer = null;
 let lastEvents = [];
 
@@ -471,6 +476,10 @@ function onSnapshot(m) {
       while (inputHistory.length && inputHistory[0].seq <= ackedSeq) inputHistory.shift();
       // A maradékot viszont igen: a szerver ezekhez még nem ért hozzá.
       if (predict && inputTimer) reconcile({ p: c.p, q: c.q, v: c.v, w: c.w });
+      if (typeof c.qd === 'number') {
+        queueDepth = c.qd;
+        adjustSendRate(c.qd);
+      }
     }
   }
 }
@@ -583,6 +592,27 @@ function eventText(e) {
 // eldobjuk, a többit pedig újra le kell játszani a kapott állapotra.
 const inputHistory = [];
 
+// ---------- Óra-sodródás elleni visszacsatolás ----------
+// A kliens és a szerver órája sosem jár pontosan egyformán. Ha a kliens akár
+// ezrelékkel gyorsabban küld, a szerver sora lassan feltöltődik, és a korlát
+// fölött eldobás lesz belőle; ha lassabban, a sor kiürül, és a szerver az
+// utolsó bemenetet ismételgeti. Mindkettő elrontja az újrajátszást — de csak
+// sok másodperc alatt, ezért localhoston, rövid teszten észre sem venni.
+//
+// Ezért a szerver minden snapshotban megmondja, milyen mély a sor, a kliens
+// pedig ehhez igazítja az ütemét. A cél 1 elem: épp elég a jitter elnyelésére,
+// de még nem ad érzékelhető bemenet-késleltetést.
+const QUEUE_TARGET = 1;
+let sendPeriod = TICK_MS;
+
+function adjustSendRate(depth) {
+  const err = depth - QUEUE_TARGET;
+  // Legfeljebb ±4% eltérés a tick-ütemtől. Ennyi bőven fedi a valós
+  // óra-sodródást (az nagyságrendekkel kisebb), viszont olyan lassan hat,
+  // hogy vezetés közben nem érződik.
+  sendPeriod = TICK_MS * (1 + Math.max(-0.04, Math.min(0.04, err * 0.02)));
+}
+
 function startInputLoop() {
   stopInputLoop();
   // Új verseny: a sorszámozás és az előzmény is nulláról indul, különben a
@@ -593,27 +623,46 @@ function startInputLoop() {
   smooth.p = [0, 0, 0];
   smooth.q = [0, 0, 0, 1];
   smooth.active = false;
-  inputTimer = setInterval(() => {
-    const k = G.keys;
-    const input = {
-      seq: ++inputSeq,
-      steer: (k['KeyA'] || k['ArrowLeft']) ? 1 : (k['KeyD'] || k['ArrowRight']) ? -1 : 0,
-      throttle: (k['KeyW'] || k['ArrowUp']) ? 1 : (k['KeyS'] || k['ArrowDown']) ? -1 : 0,
-      brake: !!k['Space'],
-    };
-    inputHistory.push(input);
-    // Fél másodpercnyi tartalék bőven elég: ennél régebbi bemenetet már
-    // rég nyugtázott a szerver (különben a kapcsolat amúgy is használhatatlan).
-    while (inputHistory.length > TICK_RATE / 2) inputHistory.shift();
-    send(C2S.INPUT, input);
-    // Ugyanaz a bemenet AZONNAL lefut helyben is: egy bemenet = egy lépés,
-    // pontosan úgy, ahogy a szerver majd elvégzi. Ettől reagál a kocsi
-    // késleltetés nélkül a billentyűkre.
-    if (predict) G.stepLocalPhysics(input, isFrozen());
-  }, TICK_MS);
+  sendPeriod = TICK_MS;
+
+  // Önkorrigáló ütemező, nem setInterval: az egész ezredmásodpercre kerekít és
+  // sodródik, ráadásul a küldési ütemet menet közben állítani kell (ld.
+  // adjustSendRate).
+  let next = performance.now();
+  const tick = () => {
+    const now = performance.now();
+    // A behozatalt korlátozzuk. Ha a lap háttérbe került, az ütemező befagy,
+    // és visszatéréskor több száz bemenetet akarna egyszerre kilőni — az csak
+    // elárasztaná a szerver sorát, ami onnan eldobásba fordulna.
+    let steps = 0;
+    while (next <= now && steps < 3) { sendOneInput(); next += sendPeriod; steps++; }
+    if (next < now) next = now;
+    inputTimer = setTimeout(tick, Math.max(0, next - performance.now()));
+  };
+  tick();
 }
+
+function sendOneInput() {
+  const k = G.keys;
+  const input = {
+    seq: ++inputSeq,
+    steer: (k['KeyA'] || k['ArrowLeft']) ? 1 : (k['KeyD'] || k['ArrowRight']) ? -1 : 0,
+    throttle: (k['KeyW'] || k['ArrowUp']) ? 1 : (k['KeyS'] || k['ArrowDown']) ? -1 : 0,
+    brake: !!k['Space'],
+  };
+  inputHistory.push(input);
+  // Fél másodpercnyi tartalék bőven elég: ennél régebbi bemenetet már
+  // rég nyugtázott a szerver (különben a kapcsolat amúgy is használhatatlan).
+  while (inputHistory.length > TICK_RATE / 2) inputHistory.shift();
+  send(C2S.INPUT, input);
+  // Ugyanaz a bemenet AZONNAL lefut helyben is: egy bemenet = egy lépés,
+  // pontosan úgy, ahogy a szerver majd elvégzi. Ettől reagál a kocsi
+  // késleltetés nélkül a billentyűkre.
+  if (predict) G.stepLocalPhysics(input, isFrozen());
+}
+
 function stopInputLoop() {
-  if (inputTimer) clearInterval(inputTimer);
+  if (inputTimer) clearTimeout(inputTimer);
   inputTimer = null;
 }
 

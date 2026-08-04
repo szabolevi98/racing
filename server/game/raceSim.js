@@ -142,7 +142,9 @@ export class RaceSim {
     }
 
     this.startAt = this.room.countdownEndsAt;
-    this.timer = setInterval(() => this.step(), TICK_MS);
+    this.lastPump = Date.now();
+    this.accumulator = 0;
+    this.timer = setInterval(() => this.pump(), TICK_MS);
   }
 
   // Megkeresi a pálya felszínét egy x/z pont fölött, felülről lefelé lőtt
@@ -172,6 +174,33 @@ export class RaceSim {
     // játékos ezt késleltetésként érezné. A legrégebbieket dobjuk el, mert az
     // AKTUÁLIS szándék a fontos.
     while (car.queue.length > MAX_INPUT_QUEUE) car.queue.shift();
+  }
+
+  // A setInterval NEM ad pontos ütemet: a Node egész ezredmásodpercre kerekít,
+  // és a step() saját ideje (fizika egy nagy háromszöghálón) is hozzáadódik.
+  // Mérve 20.18 ms jött ki 16.67 helyett — vagyis 49.6 Hz. Mivel a
+  // world.timestep fix 1/60, ez azt jelentette, hogy a szimuláció a valós idő
+  // 83%-án járt: a kocsik lassabbak voltak, a köridők torzak, és a 60 Hz-en
+  // küldő kliens folyamatosan túltermelt (a bemenet-sor betelt, és eldobásba
+  // fordult, ami az újrajátszást is elrontja).
+  //
+  // Ezért az eltelt VALÓS időt gyűjtjük, és annyi fix lépést futtatunk,
+  // amennyi belefér.
+  pump() {
+    if (this.stopped) return;
+    const now = Date.now();
+    this.accumulator += now - this.lastPump;
+    this.lastPump = now;
+
+    // Egy hosszabb akadás (GC, lemez) után nem játsszuk le gyorsítva a
+    // kimaradt időt — az a játékosoknak ugrásként látszana. Inkább elengedjük.
+    if (this.accumulator > TICK_MS * 8) this.accumulator = TICK_MS * 8;
+
+    while (this.accumulator >= TICK_MS) {
+      this.accumulator -= TICK_MS;
+      this.step();
+      if (this.stopped) return;
+    }
   }
 
   step() {
@@ -281,6 +310,10 @@ export class RaceSim {
         // újrajátszania a többit. (A beérkezett sorszám félrevezetne: egy már
         // megkapott, de még sorban álló bemenet hatása még NINCS benne.)
         seq: car.appliedSeq,
+        // Hány bemenete áll még sorban. A kliens ebből szabályozza a küldési
+        // ütemét: a két óra sosem jár pontosan egyformán, e visszacsatolás
+        // nélkül a sor percek alatt vagy kiürülne, vagy eldobásba fordulna.
+        qd: car.queue.length,
         lap: car.race.lap,
         cp: car.race.nextCheckpoint,
       });
