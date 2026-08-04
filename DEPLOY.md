@@ -61,11 +61,32 @@ Ez két külön menet, mert a nagy binárisok **nincsenek** a gitben (`.gitignor
 `*.glb`, `*.hdr`, `*.bin`, textúrák). A gitben csak a kód és a kézzel készített,
 pótolhatatlan adat van (`zonemap.png`, `spawn.json`, `gates.json`).
 
+A repo **privát**, ezért a VPS-nek olvasási jogot kell adni hozzá. Erre a
+*deploy key* való: egy kulcs, ami **csak ehhez az egy repóhoz** ad hozzáférést,
+csak olvasásra, és bármikor visszavonható a GitHubon. Jelszót nem kell hozzá
+begépelni, tehát a `git pull` később automatizálható.
+
 ```bash
-# a kódot gitből, a VPS-en
-sudo git clone https://github.com/szabolevi98/racing.git /opt/racing
+# 1) kulcs a VPS-en (a -N "" jelenti, hogy nincs rajta jelszó)
+sudo ssh-keygen -t ed25519 -C "racing-vps-deploy" -f /root/.ssh/id_ed25519 -N ""
+sudo cat /root/.ssh/id_ed25519.pub        # ezt a sort másold ki
+
+# 2) a github.com kulcsának elfogadása előre, hogy a klónozás ne kérdezzen
+sudo ssh-keyscan github.com | sudo tee -a /root/.ssh/known_hosts
+```
+
+A kimásolt `ssh-ed25519 AAAA...` sort a GitHubon:
+**repo → Settings → Deploy keys → Add deploy key** — illeszd be, az *Allow write
+access* pipát **hagyd üresen** (a VPS-nek nem kell írnia).
+
+```bash
+# 3) klónozás SSH-val
+sudo git clone git@github.com:szabolevi98/racing.git /opt/racing
 cd /opt/racing && sudo npm ci --omit=dev
 ```
+
+> Ha a repo mégis publikus marad, mindez kihagyható:
+> `sudo git clone https://github.com/szabolevi98/racing.git /opt/racing`
 
 Az assetek a **te gépedről** mennek fel (~2,9 GB, egyszeri). Git Bashból:
 
@@ -145,7 +166,20 @@ kommentek) fölöslegesen okozna hibát.
 
 ```bash
 sudo useradd -r -s /usr/sbin/nologin racing
-sudo chown -R racing:racing /opt/racing
+
+# A kód MARAD a root birtokában, a racing felhasználó csak olvassa.
+# Így a szolgáltatás nem tudja átírni a saját kódját, és a későbbi
+# `sudo git pull` sem ütközik a git "dubious ownership" védelmébe (az akkor
+# szólal meg, ha rootként futtatod egy más birtokolta repóban).
+# Ez azért elég, mert élesben az app SEMMIT nem ír lemezre: az egyetlen író
+# útvonal a devApi.js, amit az ALLOW_DEV_WRITES=0 kikapcsol.
+sudo chown -R root:root /opt/racing
+sudo chmod -R a+rX /opt/racing
+
+# A .env viszont adatbázis-jelszót tartalmaz: ne legyen mindenki által olvasható.
+sudo chown root:racing /opt/racing/.env
+sudo chmod 640 /opt/racing/.env
+
 sudo systemctl daemon-reload
 sudo systemctl enable --now racing
 journalctl -u racing -f          # így látod a naplót
@@ -243,9 +277,12 @@ karbantartani ugyanazt.
 - **Az oldal megy, a Többjátékos nem:** ez a `proxy_wstunnel`, vagy a `/ws`
   szabály sorrendje. `sudo a2enmod proxy_wstunnel && sudo systemctl reload apache2`.
   A böngésző konzoljában a WebSocket hiba is látszik.
-- **Üres kocsi/pálya lista:** az assetek nem mentek fel, vagy nem a `racing`
-  felhasználó olvashatja őket. `ls /opt/racing/web/assets/maps/`, majd
-  `sudo chown -R racing:racing /opt/racing`.
+- **Üres kocsi/pálya lista:** az assetek nem mentek fel, vagy a `racing`
+  felhasználó nem olvashatja őket. `ls /opt/racing/web/assets/maps/`, majd
+  `sudo chmod -R a+rX /opt/racing`.
+- **„dubious ownership" a `git pull`-nál:** a repo nem a root birtokában van.
+  Vagy `sudo chown -R root:root /opt/racing`, vagy
+  `sudo git config --global --add safe.directory /opt/racing`.
 - **„A pálya ütközési fájlja nem tölthető le"** a multiplayer indításánál: a
   `collision.bin` fájlok hiányoznak az assetek közül. Ezek nélkül a multiplayer
   szándékosan nem indul (a szerverrel bitre egyeznie kell a geometriának).
@@ -261,8 +298,12 @@ Frissítés később:
 
 ```bash
 cd /opt/racing && sudo git pull && sudo npm ci --omit=dev
+sudo chmod -R a+rX /opt/racing        # az új fájlok is olvashatók legyenek
 sudo systemctl restart racing
 ```
+
+Ez a deploy key-jel megy, jelszó nélkül (a `sudo` miatt a root kulcsát
+használja, amivel a klónozás is történt).
 
 Az assetek nem változnak `git pull`-lal — azokat külön kell rsync-elni, ha új
 pálya vagy kocsi kerül be.
