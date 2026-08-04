@@ -3205,7 +3205,7 @@ function loadExistingZoneMask() {
 // helyen szerkesztjük őket, így egy gombbal is mentődjenek.
 function saveSpawnPoints() {
   if (!currentMapId || !currentSpawnPoints.length) return Promise.resolve(null);
-  return fetch('assets/save_spawn.php', {
+  return fetch('/api/dev/spawn', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ mapId: currentMapId, spawns: currentSpawnPoints }),
@@ -3215,7 +3215,7 @@ function saveSpawnPoints() {
 function saveGates() {
   if (!currentMapId) return Promise.resolve(null);
   if (!currentGates.start && !currentGates.checkpoints.length) return Promise.resolve(null);
-  return fetch('assets/save_gates.php', {
+  return fetch('/api/dev/gates', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -3238,7 +3238,7 @@ function saveZoneMap() {
   zoneMaskCanvas.toBlob((blob) => {
     const reader = new FileReader();
     reader.onload = () => {
-      fetch('assets/save_zonemap.php', {
+      fetch('/api/dev/zonemap', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -3634,7 +3634,7 @@ async function bakeCollisionToFile() {
 
   bakeStatusEl.textContent = 'Mentés...';
   try {
-    const res = await fetch('assets/save_collision.php?mapId=' + encodeURIComponent(currentMapId), {
+    const res = await fetch('/api/dev/collision?mapId=' + encodeURIComponent(currentMapId), {
       method: 'POST',
       headers: { 'Content-Type': 'application/octet-stream' },
       body: buffer,
@@ -3660,7 +3660,7 @@ backToMenuLink.addEventListener('click', () => {
   enterMenu();
 });
 
-// ---------- Menü UI: assets/list.php betöltése és a select-ek feltöltése ----------
+// ---------- Menü UI: /api/assets betöltése és a select-ek feltöltése ----------
 let manifest = null;
 
 function fillSelect(selectEl, items) {
@@ -3818,8 +3818,8 @@ function makeSearchableSelect(selectEl) {
 }
 
 async function init() {
-  const res = await fetch('assets/list.php');
-  if (!res.ok) throw new Error('assets/list.php HTTP ' + res.status);
+  const res = await fetch('/api/assets');
+  if (!res.ok) throw new Error('/api/assets HTTP ' + res.status);
   manifest = await res.json();
 
   if (!manifest.maps.length || !manifest.cars.length || !manifest.skyboxes.length) {
