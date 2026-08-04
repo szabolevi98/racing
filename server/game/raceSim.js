@@ -9,7 +9,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { S2C, ROOM_STATE, TICK_RATE, TICK_MS, SNAPSHOT_RATE } from '../../shared/protocol.js';
 import { GRAVITY, buildVehicle, applyControls, CHASSIS_SIZE } from '../../shared/vehicleConfig.js';
-import { decodeZoneCodes, sampleZone, ZONE_OFFTRACK } from '../../shared/zone.js';
+import {
+  decodeZoneCodes, sampleZone, ZONE_OFFTRACK,
+  wallProbes, wheelProbes, allWheelsOffTrack, applyWallConstraint,
+} from '../../shared/zone.js';
+import { WHEEL_POSITIONS } from '../../shared/vehicleConfig.js';
 import { decodePng } from './pngDecode.js';
 import { ASSETS_DIR } from '../paths.js';
 
@@ -78,6 +82,10 @@ const RAY_FROM_Y = 5000;
 // megoldás egy visszacsatolás lesz (a szerver megmondja a sorhosszt, a kliens
 // ehhez igazítja az ütemét); addig ez a korlát csak biztonsági háló.
 const MAX_INPUT_QUEUE = 3;
+// A kocsi alaprajzának mintavételi pontjai — ugyanazok, amiket a kliens is
+// használ (shared/zone.js), különben másképp döntenénk a falról.
+const WALL_PROBES = wallProbes(CHASSIS_SIZE);
+const WHEEL_PROBES = wheelProbes(WHEEL_POSITIONS);
 
 export class RaceSim {
   constructor(room, { map, broadcast }) {
@@ -152,6 +160,8 @@ export class RaceSim {
         input: { steer: 0, throttle: 0, brake: false, seq: 0 },
         lastSeq: 0,        // a legutóbb BEÉRKEZETT sorszám
         appliedSeq: 0,     // a legutóbb FELHASZNÁLT sorszám — ezt kapja a kliens
+        // A falkezeléshez: hol volt a kocsi utoljára érvényes helyen.
+        lastSafe: { x: pos.x, y: pos.y, z: pos.z },
         race: {
           lap: 0,
           nextCheckpoint: 0,
@@ -259,6 +269,12 @@ export class RaceSim {
       car.vehicle.updateVehicle(this.world.timestep);
     }
     this.world.step();
+
+    // A láthatatlan falak a lépés UTÁN érvényesülnek — ugyanabban a
+    // sorrendben, ahogy a kliens animate()-je és a jóslása is csinálja.
+    for (const car of this.cars.values()) {
+      applyWallConstraint(car.body, this.zone, car.lastSafe, WALL_PROBES);
+    }
     this.tick++;
 
     if (!frozen) this.updateRaceProgress(now);
@@ -285,6 +301,13 @@ export class RaceSim {
           else r.tainted = true;
           break;
         }
+      }
+
+      // Teljes letérés az aszfaltról: a kör érvénytelen lesz, de tovább lehet
+      // menni. Eddig ez csak egyjátékosban élt — multiplayerben a kifutón át
+      // le lehetett vágni a kanyart következmények nélkül.
+      if (!r.tainted && allWheelsOffTrack(this.zone, car.body, WHEEL_PROBES)) {
+        r.tainted = true;
       }
 
       if (crossedGate(gates.start, fromX, fromZ, p.x, p.z)) {
@@ -345,6 +368,12 @@ export class RaceSim {
         // ütemét: a két óra sosem jár pontosan egyformán, e visszacsatolás
         // nélkül a sor percek alatt vagy kiürülne, vagy eldobásba fordulna.
         qd: car.queue.length,
+        // Elromlott-e MÁR az aktuális kör (rossz sorrendű checkpoint vagy
+        // teljes letérés az aszfaltról). A kliens ebből írja ki a
+        // figyelmeztetést, hogy ne csak a kör végén derüljön ki.
+        // A kihagyott checkpointok NEM tartoznak ide: azt csak a rajtvonalnál
+        // lehet eldönteni, addig a legtöbb kör "hiányos" lenne.
+        ti: car.race.tainted ? 1 : 0,
         lap: car.race.lap,
         cp: car.race.nextCheckpoint,
       });

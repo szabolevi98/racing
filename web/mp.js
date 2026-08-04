@@ -48,6 +48,8 @@ let selfBuf = [];
 let inputSeq = 0;
 let awaitingFirstSnapshot = false;
 let queueDepth = 0;
+// A szerver szerint elromlott-e már az aktuális kör (snapshot `ti` mezője).
+let lapTainted = false;
 let inputTimer = null;
 let lastEvents = [];
 
@@ -471,6 +473,7 @@ function onSnapshot(m) {
       G.setSpeed(Math.hypot(c.v[0], c.v[2]) * 3.6);
       myLap = c.lap;
       ackedSeq = c.seq || 0;
+      lapTainted = !!c.ti;
       // A nyugtázott bemenetek hatása már benne van a kapott állapotban,
       // őket nem szabad újrajátszani.
       while (inputHistory.length && inputHistory[0].seq <= ackedSeq) inputHistory.shift();
@@ -565,6 +568,7 @@ function frame(dt = 1 / 60) {
   // A nagy 3-2-1. A szerver órája a mérvadó (starting.startsAt), nem a helyi
   // versenyállapot — az multiplayerben nem is fut.
   G.setCountdown(starting?.startsAt ? Math.ceil((starting.startsAt - Date.now()) / 1000) : 0);
+  G.setLapInvalid(lapTainted);
 
   const evt = lastEvents[0];
   G.setHud(
@@ -624,6 +628,7 @@ function startInputLoop() {
   inputSeq = 0;
   ackedSeq = 0;
   inputHistory.length = 0;
+  lapTainted = false;
   smooth.p = [0, 0, 0];
   smooth.q = [0, 0, 0, 1];
   smooth.active = false;

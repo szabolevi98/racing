@@ -9,6 +9,10 @@ import {
 } from '/shared/vehicleConfig.js';
 import {
   ZONE_ASPHALT, ZONE_OFFTRACK, ZONE_WALL, decodeZoneCodes, sampleZone,
+  wallProbes, wheelProbes,
+  carTouchesWall as sharedCarTouchesWall,
+  allWheelsOffTrack as sharedAllWheelsOffTrack,
+  applyWallConstraint as sharedApplyWallConstraint,
 } from '/shared/zone.js';
 
 
@@ -336,7 +340,7 @@ function resetCarTo(pos, heading = spawnHeading) {
   chassisBody.setRotation({ x: 0, y: Math.sin(half), z: 0, w: Math.cos(half) }, true);
   chassisBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
   chassisBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
-  lastSafePos.copy(pos);
+  lastSafePos.x = pos.x; lastSafePos.y = pos.y; lastSafePos.z = pos.z;
   // A kör-logika a kocsi ELŐZŐ és MOSTANI pozíciója közötti szakaszt metszi a
   // kapukkal. Teleportálás után (pl. R) ez a szakasz a régi, akár messzi
   // pozíciótól az új helyig érne — útközben átvágva más kapukon is —, ezért
@@ -1638,84 +1642,18 @@ function sampleZoneAt(x, z) {
   return sampleZone(zoneRuntime, x, z);
 }
 
-// A falkezeléshez tudnunk kell, hol volt a kocsi utoljára érvényes helyen.
-const lastSafePos = new THREE.Vector3();
+// A falkezelés és a "mind a négy kerék lement" szabály a shared/zone.js-ben
+// van, mert multiplayerben a SZERVER is pontosan ugyanezt futtatja — a kliens
+// pedig előre jósolja. Itt csak az aktuális kocsira kötjük rá.
+const WALL_PROBES = wallProbes(chassisSize);
+const WHEEL_PROBES = wheelProbes(WHEEL_POSITIONS);
+// Hol volt a kocsi utoljára érvényes (nem fal) helyen.
+const lastSafePos = { x: 0, y: 0, z: 0 };
 
-// A falat az autó TELJES alaprajzával ütköztetjük, nem csak a középpontjával:
-// négy sarokpontot (+ a közepet) is megmintázunk, elforgatva a kocsi aktuális
-// állásába. Enélkül a kocsi orra/oldala jócskán belelógott a falba, amíg a
-// középpont még kívül volt.
-const wallProbeLocal = [
-  new THREE.Vector3(0, 0, 0),
-  new THREE.Vector3(chassisSize.x, 0, chassisSize.z),
-  new THREE.Vector3(-chassisSize.x, 0, chassisSize.z),
-  new THREE.Vector3(chassisSize.x, 0, -chassisSize.z),
-  new THREE.Vector3(-chassisSize.x, 0, -chassisSize.z),
-];
-const _probeVec = new THREE.Vector3();
-const _probeQuat = new THREE.Quaternion();
-
-// Letért-e a kocsi TELJESEN az aszfaltról? A valódi F1-szabály szerint a kör
-// csak akkor érvénytelen, ha mind a négy kerék a pályán kívülre került — ha
-// akár egy is az aszfalton maradt, az még belefér. Ezért nem a kasztni
-// középpontját nézzük (az akkor is "kint" lenne, amikor a kocsi fele még bent
-// van), hanem a négy kerék tényleges talajpontját, a kocsi aktuális állásába
-// forgatva.
-const wheelProbeLocal = WHEEL_POSITIONS.map((w) => new THREE.Vector3(w.x, 0, w.z));
-
-function allWheelsOffTrack() {
-  if (!zoneRuntime) return false;
-  const q = chassisBody.rotation();
-  const pos = chassisBody.translation();
-  _probeQuat.set(q.x, q.y, q.z, q.w);
-  for (const local of wheelProbeLocal) {
-    _probeVec.copy(local).applyQuaternion(_probeQuat);
-    if (sampleZoneAt(pos.x + _probeVec.x, pos.z + _probeVec.z) === ZONE_ASPHALT) return false;
-  }
-  return true;
-}
-
-function carTouchesWall() {
-  const q = chassisBody.rotation();
-  const pos = chassisBody.translation();
-  _probeQuat.set(q.x, q.y, q.z, q.w);
-  for (const local of wallProbeLocal) {
-    _probeVec.copy(local).applyQuaternion(_probeQuat);
-    if (sampleZoneAt(pos.x + _probeVec.x, pos.z + _probeVec.z) === ZONE_WALL) return true;
-  }
-  return false;
-}
-
-// Láthatatlan fal: nem építünk hozzá ütköző-geometriát, hanem ha a kocsi
-// falcellába kerül, visszatesszük az utolsó érvényes helyre, és csak a falba
-// MUTATÓ sebesség-komponenst vesszük el — így a fal mentén tovább lehet
-// csúszni, nem ragad meg és nem pattan vissza.
-function applyWallConstraint() {
-  const pos = chassisBody.translation();
-  if (!carTouchesWall()) {
-    lastSafePos.set(pos.x, pos.y, pos.z);
-    return;
-  }
-
-  const dx = pos.x - lastSafePos.x;
-  const dz = pos.z - lastSafePos.z;
-  const len = Math.hypot(dx, dz);
-  chassisBody.setTranslation({ x: lastSafePos.x, y: pos.y, z: lastSafePos.z }, true);
-
-  if (len > 1e-4) {
-    const nx = dx / len;
-    const nz = dz / len;
-    const v = chassisBody.linvel();
-    const into = v.x * nx + v.z * nz;
-    let vx = v.x;
-    let vz = v.z;
-    if (into > 0) {
-      vx -= into * nx;
-      vz -= into * nz;
-    }
-    chassisBody.setLinvel({ x: vx * 0.85, y: v.y, z: vz * 0.85 }, true);
-  }
-}
+const allWheelsOffTrack = () => sharedAllWheelsOffTrack(zoneRuntime, chassisBody, WHEEL_PROBES);
+const carTouchesWall = () => sharedCarTouchesWall(zoneRuntime, chassisBody, WALL_PROBES);
+const applyWallConstraint = () =>
+  sharedApplyWallConstraint(chassisBody, zoneRuntime, lastSafePos, WALL_PROBES);
 
 // A látható kerekek beállítása a fizikából: gördülés minden keréken,
 // kormányzás csak az elsőkön. A pivot Euler-sorrendje YXZ, ezért a gördülés
@@ -2705,6 +2643,15 @@ window.__game = {
     applyControls(vehicle, chassisBody, input, { frozen, offtrack });
     vehicle.updateVehicle(world.timestep);
     world.step();
+    // A láthatatlan fal a lépés UTÁN, ugyanabban a sorrendben, mint a
+    // szerveren és mint az egyjátékos animate()-ben.
+    applyWallConstraint();
+  },
+  // A "kör érvénytelen" figyelmeztetés. Multiplayerben a szerver dönti el
+  // (a snapshot `ti` mezője), egyjátékosban a helyi versenylogika.
+  setLapInvalid(on) {
+    lapInvalidAlertTextEl.textContent = 'Kör érvénytelen!';
+    lapInvalidAlertEl.classList.toggle('hidden', !on);
   },
   // Multiplayer módba váltás: a versenylogikát a szerver végzi. A helyi
   // fizikát a hálózati modul lépteti, ha a jóslás be van kapcsolva.

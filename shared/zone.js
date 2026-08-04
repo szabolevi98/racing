@@ -39,3 +39,93 @@ export function sampleZone(runtime, x, z) {
   if (u < 0 || v < 0 || u >= runtime.w || v >= runtime.h) return ZONE_ASPHALT;
   return runtime.codes[v * runtime.w + u];
 }
+
+// ---------- A kocsi alaprajzának mintavétele ----------
+// Innentől a pályaszabályok: fal és "mind a négy kerék lement". Mindkettőt a
+// szerver ÉS a kliens is futtatja (a kliens a jóslásához), ezért itt van, és
+// nem a main.js-ben, ahol eddig volt. THREE nélkül, mert a szerveren nincs.
+
+// Egy lokális pont elforgatása a kocsi állásába: v' = v + 2q⃗ × (q⃗ × v + w·v)
+function rotateByQuat(q, x, y, z) {
+  const tx = 2 * (q.y * z - q.z * y);
+  const ty = 2 * (q.z * x - q.x * z);
+  const tz = 2 * (q.x * y - q.y * x);
+  return {
+    x: x + q.w * tx + (q.y * tz - q.z * ty),
+    y: y + q.w * ty + (q.z * tx - q.x * tz),
+    z: z + q.w * tz + (q.x * ty - q.y * tx),
+  };
+}
+
+// A falat az autó TELJES alaprajzával ütköztetjük, nem csak a középpontjával:
+// négy sarok + a közép. Enélkül a kocsi orra/oldala jócskán belelógna a falba,
+// amíg a középpont még kívül van.
+export function wallProbes(chassisSize) {
+  return [
+    { x: 0, z: 0 },
+    { x: chassisSize.x, z: chassisSize.z },
+    { x: -chassisSize.x, z: chassisSize.z },
+    { x: chassisSize.x, z: -chassisSize.z },
+    { x: -chassisSize.x, z: -chassisSize.z },
+  ];
+}
+
+// A kerekek talajpontjai — a "mind a négy kerék lement" szabályhoz.
+export function wheelProbes(wheelPositions) {
+  return wheelPositions.map((w) => ({ x: w.x, z: w.z }));
+}
+
+function probeHits(runtime, body, probes, predicate) {
+  const q = body.rotation();
+  const p = body.translation();
+  for (const local of probes) {
+    const r = rotateByQuat(q, local.x, 0, local.z);
+    if (predicate(sampleZone(runtime, p.x + r.x, p.z + r.z))) return true;
+  }
+  return false;
+}
+
+export function carTouchesWall(runtime, body, probes) {
+  if (!runtime) return false;
+  return probeHits(runtime, body, probes, (zone) => zone === ZONE_WALL);
+}
+
+// A valódi F1-szabály: a kör csak akkor vész el, ha MIND A NÉGY kerék a pályán
+// kívülre kerül — ha akár egy is az aszfalton maradt, az még belefér.
+export function allWheelsOffTrack(runtime, body, probes) {
+  if (!runtime) return false;
+  return !probeHits(runtime, body, probes, (zone) => zone === ZONE_ASPHALT);
+}
+
+// Láthatatlan fal: nem építünk hozzá ütköző-geometriát, hanem ha a kocsi
+// falcellába kerül, visszatesszük az utolsó érvényes helyre, és csak a falba
+// MUTATÓ sebesség-komponenst vesszük el — így a fal mentén tovább lehet
+// csúszni, nem ragad meg és nem pattan vissza.
+//
+// A `lastSafe` a hívóé ({x, y, z}), mert kocsinként külön kell tárolni.
+export function applyWallConstraint(body, runtime, lastSafe, probes) {
+  const pos = body.translation();
+  if (!carTouchesWall(runtime, body, probes)) {
+    lastSafe.x = pos.x; lastSafe.y = pos.y; lastSafe.z = pos.z;
+    return;
+  }
+
+  const dx = pos.x - lastSafe.x;
+  const dz = pos.z - lastSafe.z;
+  const len = Math.hypot(dx, dz);
+  body.setTranslation({ x: lastSafe.x, y: pos.y, z: lastSafe.z }, true);
+
+  if (len > 1e-4) {
+    const nx = dx / len;
+    const nz = dz / len;
+    const v = body.linvel();
+    const into = v.x * nx + v.z * nz;
+    let vx = v.x;
+    let vz = v.z;
+    if (into > 0) {
+      vx -= into * nx;
+      vz -= into * nz;
+    }
+    body.setLinvel({ x: vx * 0.85, y: v.y, z: vz * 0.85 }, true);
+  }
+}
