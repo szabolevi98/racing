@@ -4,10 +4,8 @@ import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import RAPIER from 'rapier';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import {
-  CHASSIS_SIZE, COM_DROP, WHEEL_RADIUS, SUSPENSION_REST_LENGTH, WHEEL_POSITIONS,
-  MAX_ENGINE_FORCE, MAX_STEER, BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_REAR_SLIP,
-  HOLD_BRAKE, ASPHALT_FRICTION_SLIP, OFFTRACK_FRICTION_SLIP, OFFTRACK_FORCE_FACTOR,
-  OFFTRACK_DRAG, STEER_VISUAL_SPEED,
+  CHASSIS_SIZE, WHEEL_RADIUS, SUSPENSION_REST_LENGTH, WHEEL_POSITIONS,
+  STEER_VISUAL_SPEED, buildVehicle, applyControls,
 } from '/shared/vehicleConfig.js';
 
 
@@ -287,60 +285,14 @@ let trackColliderBody = null;
 let trackCollider = null;
 
 // ---------- Autó (chassis + Rapier raycast vehicle) ----------
+// A kocsit a KÖZÖS buildVehicle() építi, ugyanaz a függvény, amit a szerver is
+// hív. Korábban itt egy külön, kézzel karbantartott másolat állt: minden értéke
+// egyezett a shared/vehicleConfig.js-ével, de két helyen kellett javítani, és
+// egy elmaradt átvezetés csendben elrontotta volna a client-side predictiont —
+// a kliens és a szerver ilyenkor másképp számol, a kocsi pedig ugrálni kezd.
 const chassisSize = CHASSIS_SIZE;
-const chassisBody = world.createRigidBody(
-  RAPIER.RigidBodyDesc.dynamic()
-    .setTranslation(0, 5, 0)
-    // Enélkül a kocsi a legkisebb egyenetlenségen is pörögni kezdene; a
-    // cannon-es alapból csillapított, a Rapier nem.
-    .setLinearDamping(0.05)
-    .setAngularDamping(0.5)
-    // A pálya ütközője háromszögháló, aminek NINCS vastagsága: gyors esésnél
-    // (pl. rajtoláskor vagy ugratás után) a kasztni doboza egyetlen lépés
-    // alatt átugorhatná a felületet, és a kocsi a világ alá kerülne. A
-    // folytonos ütközésdetektálás ezt megakadályozza.
-    .setCcdEnabled(true)
-);
-const chassisCollider = world.createCollider(
-  RAPIER.ColliderDesc.cuboid(chassisSize.x, chassisSize.y, chassisSize.z).setMass(250),
-  chassisBody
-);
-// A tömegközéppont alapból a kasztni-doboz KÖZEPÉN ül, ami a talaj fölött 0.85 —
-// egy 4.4 hosszú kocsihoz képest irreálisan magas. Fékezéskor ez billentette
-// előre az autót (a hátulja emelkedett meg). Egy versenyautó súlypontja
-// nagyjából a keréktengely magasságában van, ezért visszük lejjebb.
-// A tehetetlenségi főnyomatékok a doboz méretéből: I = m/12 * (a² + b²).
-
-{
-  const m = 250, w = chassisSize.x * 2, h = chassisSize.y * 2, d = chassisSize.z * 2;
-  chassisCollider.setMassProperties(
-    m,
-    { x: 0, y: -COM_DROP, z: 0 },
-    { x: (m / 12) * (h * h + d * d), y: (m / 12) * (w * w + d * d), z: (m / 12) * (w * w + h * h) },
-    { x: 0, y: 0, z: 0, w: 1 }
-  );
-  // A collider tömegadatainak átírása magától NEM frissíti a merev testét —
-  // enélkül a súlypont csendben a doboz közepén maradna.
-  chassisBody.recomputeMassPropertiesFromColliders();
-}
-
-const vehicle = world.createVehicleController(chassisBody);
-vehicle.indexUpAxis = 1;          // Y = fel
-vehicle.setIndexForwardAxis = 2;  // Z = előre (a .d.ts-ben tényleg így hívják a settert)
-
-const wheelPositions = WHEEL_POSITIONS;
-wheelPositions.forEach((pos, i) => {
-  vehicle.addWheel(pos, { x: 0, y: -1, z: 0 }, { x: -1, y: 0, z: 0 }, SUSPENSION_REST_LENGTH, WHEEL_RADIUS);
-  // A cannon-es-ből átemelt, már behangolt felfüggesztés-értékek — mindkét
-  // motor ugyanannak a Bullet-féle raycast vehicle-nek a portja, ezért
-  // közvetlenül átvihetők.
-  vehicle.setWheelSuspensionStiffness(i, 30);
-  vehicle.setWheelSuspensionCompression(i, 4.4);
-  vehicle.setWheelSuspensionRelaxation(i, 2.3);
-  vehicle.setWheelMaxSuspensionTravel(i, 0.3);
-  vehicle.setWheelMaxSuspensionForce(i, 100000);
-  vehicle.setWheelFrictionSlip(i, 1.4);
-});
+const { body: chassisBody, collider: chassisCollider, vehicle } =
+  buildVehicle(RAPIER, world, { x: 0, y: 5, z: 0 });
 
 // Milyen mélyen van a talaj a kasztni KÖZEPE alatt, ha az autó nyugalomban áll?
 // A látható modellt ehhez igazítjuk, nem a kasztni-doboz aljához: a kerék a
@@ -351,7 +303,7 @@ wheelPositions.forEach((pos, i) => {
 // pontos alakja motor-belső), hanem az első olyan képkockán MÉRJÜK, amikor
 // mind a négy kerék a talajon van és a kocsi már nem mozog függőlegesen.
 // Addig a teljesen kinyúlt rugóval számolunk.
-const WHEEL_CONNECTION_DROP = -wheelPositions[0].y;
+const WHEEL_CONNECTION_DROP = -WHEEL_POSITIONS[0].y;
 let groundOffset = WHEEL_CONNECTION_DROP + SUSPENSION_REST_LENGTH + WHEEL_RADIUS;
 let groundOffsetCalibrated = false;
 
@@ -1721,7 +1673,7 @@ const _probeQuat = new THREE.Quaternion();
 // középpontját nézzük (az akkor is "kint" lenne, amikor a kocsi fele még bent
 // van), hanem a négy kerék tényleges talajpontját, a kocsi aktuális állásába
 // forgatva.
-const wheelProbeLocal = wheelPositions.map((w) => new THREE.Vector3(w.x, 0, w.z));
+const wheelProbeLocal = WHEEL_POSITIONS.map((w) => new THREE.Vector3(w.x, 0, w.z));
 
 function allWheelsOffTrack() {
   if (!zoneRuntime) return false;
@@ -2057,42 +2009,21 @@ const keys = {};
 window.addEventListener('keydown', (e) => { keys[e.code] = true; });
 window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
-const maxSteerVal = MAX_STEER;
 // A LÁTHATÓ kerék-kormányzás simán közelít a célértékhez, nem ugrik rá
 // azonnal — valóságosabb, mint a korábbi azonnali végállás-váltás, de elég
 // gyors ahhoz, hogy gyors ide-oda kormányzásnál se maradjon el az input
 // mögött. Csak a MEGJELENÍTÉST érinti (a fizikai kormányzás — setWheelSteering
 // — továbbra is azonnali, hogy a kocsi kezelése ne változzon).
-
 function moveTowardsAngle(current, target, maxDelta) {
   const diff = target - current;
   if (Math.abs(diff) <= maxDelta) return target;
   return current + Math.sign(diff) * maxDelta;
 }
-const maxForce = MAX_ENGINE_FORCE;
-// A fék NEM lehet akármilyen erős: a Rapier a fékezést közvetlen impulzusként
-// viszi fel, megkerülve a gumi tapadási határát. A régi, mind a négy keréken
-// egyforma 60-as érték 6.2 g-s lassulást adott — a gumi (frictionSlip 1.4)
-// legfeljebb ~1.4 g-t vinne át —, és ezzel HÁROMSZOROSAN túllépte azt a
-// lassulást, aminél a kocsi előrebukik (a hátulja emelkedik meg). Innen jött
-// az egyenesben való bukfencezés.
-//
-// A kézifék ezért most tengelyenként külön dolgozik, ahogy a valódi is:
-// elöl csak annyi, amennyi a lassításhoz kell, hátul valamivel több.
-const brakeForce = BRAKE_FRONT;
-const BRAKE_FORCE_REAR = BRAKE_REAR;
-// A drift viszont NEM a fékerő nagyságából jön, hanem abból, hogy a hátsó
-// kerék elveszti az oldalirányú tapadását — ezért a kanyarban kitörést
-// külön, a hátsó kerekek tapadásának csökkentésével adjuk meg. Enélkül a
-// mérsékeltebb fékerő majdnem teljesen megszüntetné a driftet (mérve: 88 -> 14 fok).
 
-// Rajt előtti visszaszámláláskor és a verseny végén a kocsit HELYBEN kell
-// tartani, akár lejtőn is — ott a menetdinamika már nem számít.
-
-
-// Kifutón (fű/kavics) kevesebb erő jut a talajra és csúszósabb is —
-// ettől lesz érezhetően lassabb a pályán kívül.
-
+// A motorerő, a fékerők, a kézifék-csúszás és a kifutó-szorzók a
+// shared/vehicleConfig.js-ben laknak, az applyControls()-szal együtt — az
+// indoklásuk (miért nem lehet a fék akármilyen erős, honnan jön a drift) is
+// ott olvasható, egy helyen az értékekkel.
 
 function updateControls() {
   // Visszaszámlálás alatt és a verseny után nincs gáz/kormány — a kocsi
@@ -2112,39 +2043,19 @@ function updateControls() {
   speedValueEl.textContent = Math.round(Math.hypot(linvel.x, linvel.z) * 3.6);
   zoneIndicatorEl.textContent =
     carTouchesWall() ? 'FAL' : offtrack ? 'kifutó (lassít)' : 'aszfalt';
-  const forceFactor = offtrack ? OFFTRACK_FORCE_FACTOR : 1;
-  const slip = offtrack ? OFFTRACK_FRICTION_SLIP : ASPHALT_FRICTION_SLIP;
-  for (let i = 0; i < 4; i++) vehicle.setWheelFrictionSlip(i, slip);
-  if (offtrack) {
-    const v = chassisBody.linvel();
-    chassisBody.setLinvel({ x: v.x * OFFTRACK_DRAG, y: v.y, z: v.z * OFFTRACK_DRAG }, true);
-  }
-
-  // A Rapiernél a pozitív motorerő hajt előre (+Z), a cannon-esnél negatív volt.
-  const force = (forward ? maxForce : backward ? -maxForce * 0.6 : 0) * forceFactor;
-  vehicle.setWheelEngineForce(2, force);
-  vehicle.setWheelEngineForce(3, force);
-
-  const steer = left ? maxSteerVal : right ? -maxSteerVal : 0;
-  vehicle.setWheelSteering(0, steer);
-  vehicle.setWheelSteering(1, steer);
-
-  if (frozen) {
-    for (let i = 0; i < 4; i++) vehicle.setWheelBrake(i, HOLD_BRAKE);
-  } else if (brake) {
-    vehicle.setWheelBrake(0, brakeForce);
-    vehicle.setWheelBrake(1, brakeForce);
-    vehicle.setWheelBrake(2, BRAKE_FORCE_REAR);
-    vehicle.setWheelBrake(3, BRAKE_FORCE_REAR);
-    // A hátsó kerekek tapadását csak akkor csökkentjük, ha az adott felületen
-    // amúgy is több lenne — kifutón (ahol már eleve csúszós) nem tesszük
-    // még csúszósabbá.
-    const rear = Math.min(slip, HANDBRAKE_REAR_SLIP);
-    vehicle.setWheelFrictionSlip(2, rear);
-    vehicle.setWheelFrictionSlip(3, rear);
-  } else {
-    for (let i = 0; i < 4; i++) vehicle.setWheelBrake(i, 0);
-  }
+  // A tényleges vezérlés a KÖZÖS applyControls()-ban van — ugyanaz a kód fut
+  // itt és a szerveren. A billentyűket normalizált bemenetté fordítjuk, pont
+  // olyanná, amilyet a mp.js is küld a hálózaton.
+  applyControls(
+    vehicle,
+    chassisBody,
+    {
+      throttle: forward ? 1 : backward ? -1 : 0,
+      steer: left ? 1 : right ? -1 : 0,
+      brake,
+    },
+    { offtrack, frozen }
+  );
 
   // Az "up" vektor Y-komponense a kasztni forgatásából: 1 = szabályosan áll,
   // 0 = oldalára dőlt, -1 = a tetején van. 0.2 alatt már egyértelműen borulás.
