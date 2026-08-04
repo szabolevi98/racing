@@ -233,11 +233,22 @@ sun.shadow.camera.bottom = -100;
 sun.shadow.camera.near = 1;
 sun.shadow.camera.far = 600;
 sun.shadow.mapSize.set(2048, 2048);
-// A pálya "groove" (gumicsík) overlay mesh-je majdnem egy szinten van az
-// alatta lévő aszfalttal — enélkül a shadow bias/normalBias nélkül a kettő
-// egymást önárnyékolja, ami periodikus csíkokként jelenik meg a pályán.
+// A normalBias VILÁG-egységben tolja el az árnyék-mintavétel helyét a felszín
+// normálisa mentén, tehát az ASZFALT mintavételi pontját is ennyivel emeli:
+// ami ez alatt van, az megszűnik árnyékot vetni. Itt 0.4 állt (a pályán
+// megjelenő önárnyékoló csíkozás ellen), és ez a VÉKONY kocsik árnyékát
+// gyakorlatilag kiirtotta. Mérve: az F2004 geometriájának 64.5%-a van 0.4 m
+// alatt és csak 1.5%-a 0.6 m felett, ezért legfeljebb a légbeömlő/hátsó szárny
+// vetett valamit; egy magas GT-autónál (BMW M3 GTR: a geometria 61%-a van
+// 0.4 m FELETT) ugyanez alig látszott.
+//
+// FIGYELEM, ez a 0.02 még nincs igazolva: az árnyék visszatérését nem sikerült
+// méréssel kimutatni, és nem tudjuk, visszajön-e tőle a csíkozás a pályán. Ha
+// igen, ez az egy sor a visszaút (a régi érték 0.4 volt). Az árnyéktextúra
+// egyébként 9.8 cm/texel (2048² egy 200 m-es frusztumon), ami a szárnyaknál
+// már eleve a texel-méret alatt van — lehet, hogy a valódi ok inkább ez.
 sun.shadow.bias = -0.0004;
-sun.shadow.normalBias = 0.4;
+sun.shadow.normalBias = 0.02;
 scene.add(sun);
 scene.add(sun.target);
 
