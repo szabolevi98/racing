@@ -262,6 +262,7 @@ export class RaceSim {
       const t = car.body.translation();
       const q = car.body.rotation();
       const v = car.body.linvel();
+      const w = car.body.angvel();
       cars.push({
         id: car.playerId,
         // A tizedesek vágása érdemben csökkenti a csomagméretet, és a
@@ -269,6 +270,10 @@ export class RaceSim {
         p: [+t.x.toFixed(3), +t.y.toFixed(3), +t.z.toFixed(3)],
         q: [+q.x.toFixed(4), +q.y.toFixed(4), +q.z.toFixed(4), +q.w.toFixed(4)],
         v: [+v.x.toFixed(2), +v.y.toFixed(2), +v.z.toFixed(2)],
+        // A SZÖGSEBESSÉG a jósláshoz kell: a kliens innen indítja újra a
+        // szimulációt, és pörgés/billenés közben enélkül más állapotból
+        // számolna tovább, mint a szerver — a korrekció sosem konvergálna.
+        w: [+w.x.toFixed(3), +w.y.toFixed(3), +w.z.toFixed(3)],
         st: +(car.vehicle.wheelSteering(0) ?? 0).toFixed(3),
         wr: +(car.vehicle.wheelRotation(2) ?? 0).toFixed(2),
         // A FELHASZNÁLT sorszám, nem a beérkezett: a kliens ebből tudja, melyik

@@ -2677,7 +2677,37 @@ window.__game = {
   setMenuStatus, setStatus,
   findGroundAt,
   get currentTrackBox() { return currentTrackBox; },
-  // Multiplayer módba váltás: a helyi fizika kimarad, a szerver vezérel.
+  // ---- Client-side prediction felülete ----
+  // A helyi kocsi ÁLLAPOTÁNAK kiolvasása és beállítása, plusz egyetlen
+  // szimulációs lépés. A hálózati modul ezekből építi fel a jóslást: a
+  // szerver állapotára visszaáll, majd újrajátssza a még nem nyugtázott
+  // bemeneteket.
+  //
+  // A szögsebesség (w) is kell, nem csak a hely/forgás/sebesség: enélkül a
+  // kocsi pörgés vagy billenés közben más állapotból folytatná, mint a szerver.
+  getCarState() {
+    const p = chassisBody.translation(), q = chassisBody.rotation();
+    const v = chassisBody.linvel(), w = chassisBody.angvel();
+    return { p: [p.x, p.y, p.z], q: [q.x, q.y, q.z, q.w], v: [v.x, v.y, v.z], w: [w.x, w.y, w.z] };
+  },
+  setCarState({ p, q, v, w }) {
+    chassisBody.setTranslation({ x: p[0], y: p[1], z: p[2] }, true);
+    chassisBody.setRotation({ x: q[0], y: q[1], z: q[2], w: q[3] }, true);
+    chassisBody.setLinvel({ x: v[0], y: v[1], z: v[2] }, true);
+    if (w) chassisBody.setAngvel({ x: w[0], y: w[1], z: w[2] }, true);
+  },
+  // Egyetlen szimulációs lépés, PONTOSAN úgy, ahogy a szerver csinálja
+  // (raceSim.step). Szándékosan NEM adunk át offtrack-et: a szerver sem ad,
+  // tehát ha itt beletennénk a kifutó-lassítást, a két szimuláció eltérne.
+  // (Következmény: multiplayerben jelenleg nincs kifutó-büntetés — ez a
+  // szerveren hiányzik, nem itt.)
+  stepLocalPhysics(input, frozen = false) {
+    applyControls(vehicle, chassisBody, input, { frozen });
+    vehicle.updateVehicle(world.timestep);
+    world.step();
+  },
+  // Multiplayer módba váltás: a versenylogikát a szerver végzi. A helyi
+  // fizikát a hálózati modul lépteti, ha a jóslás be van kapcsolva.
   enterMultiplayer(frameHook) {
     mpFrameHook = frameHook;
     appState = 'mp';

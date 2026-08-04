@@ -25,6 +25,11 @@ window.__mp = {
   get inputSeq() { return inputSeq; },
   get ackedSeq() { return ackedSeq; },
   get pending() { return inputHistory.length; },
+  // Jóslás: be van-e kapcsolva (?predict=0 kikapcsolja), és mekkora volt a
+  // legutóbbi korrekció méterben. Ha ez tartósan nagy, a két szimuláció
+  // eltér egymástól — az bug, nem hangolási kérdés.
+  get predict() { return predict; },
+  lastError: 0,
 };
 const THREE = G.THREE;
 
@@ -356,10 +361,94 @@ function makeNameSprite(name) {
 // van két állapot, ami közt interpolálhatunk.
 const INTERP_DELAY_MS = 100;
 
+// ---------- Client-side prediction ----------
+// A saját kocsit a HELYI fizika mozgatja, azonnal a billentyűkre reagálva —
+// nem várjuk meg a szerver válaszát. A szerver marad a hiteles forrás: minden
+// snapshotnál visszaállunk az általa küldött állapotra, és újrajátsszuk azokat
+// a bemeneteket, amiket ő még nem dolgozott fel.
+//
+// Ez CSAK azért működhet pontosan, mert (1) a két oldal ugyanazt a
+// buildVehicle/applyControls kódot futtatja ugyanazon a Rapier buildon, és
+// (2) a szerver tickenként pontosan egy bemenetet fogyaszt — tehát az
+// újrajátszás bemenetenként egy lépés.
+//
+// ?predict=0 kikapcsolja, és visszaáll a régi, szerverkövető viselkedésre —
+// így ugyanazon a késleltetésen összehasonlítható a kettő.
+const predict = new URLSearchParams(location.search).get('predict') !== '0';
+
 // A szerver által legutóbb FELHASZNÁLT saját bemenet sorszáma. Minden, ami
-// ennél nem régebbi, még nincs benne a kapott állapotban — azokat kell majd a
+// ennél újabb, még nincs benne a kapott állapotban — azokat kell a
 // prediction újrajátszania.
 let ackedSeq = 0;
+
+// A korrekció simítása. A jóslat és a szerver igazsága közti különbséget nem
+// ugrásként visszük fel, hanem eltolásként, ami ~120 ms alatt lecseng. A
+// fizika közben MÁR a helyes állapotban van; ez pusztán a megjelenítés.
+const smooth = { p: [0, 0, 0], q: [0, 0, 0, 1], active: false };
+const SMOOTH_HALFLIFE = 0.12;   // mp
+// Efölött nincs értelme simítani (újraszületés, nagy ütközés, teleport) —
+// olyankor a hirtelen ugrás a helyes, mert a köztes út hazugság lenne.
+const SMOOTH_MAX_DIST = 8;
+
+function decaySmoothing(dt) {
+  if (!smooth.active) return;
+  const k = Math.pow(0.5, dt / SMOOTH_HALFLIFE);
+  smooth.p[0] *= k; smooth.p[1] *= k; smooth.p[2] *= k;
+  smooth.q = slerp([0, 0, 0, 1], smooth.q, k);
+  if (Math.hypot(...smooth.p) < 0.005) {
+    smooth.p = [0, 0, 0];
+    smooth.q = [0, 0, 0, 1];
+    smooth.active = false;
+  }
+}
+
+function mulQuat(a, b) {
+  return [
+    a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1],
+    a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0],
+    a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3],
+    a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2],
+  ];
+}
+
+// A szerver állapotára visszaállás, majd a nyugtázatlan bemenetek
+// újrajátszása. Bemenetenként PONTOSAN egy lépés — ugyanannyi, amennyit a
+// szerver is tenni fog, mire hozzájuk ér.
+function reconcile(state) {
+  const before = G.getCarState();
+
+  G.setCarState(state);
+  for (const input of inputHistory) G.stepLocalPhysics(input, isFrozen());
+
+  const after = G.getCarState();
+  const dx = before.p[0] - after.p[0];
+  const dy = before.p[1] - after.p[1];
+  const dz = before.p[2] - after.p[2];
+  const dist = Math.hypot(dx, dy, dz);
+  window.__mp.lastError = +dist.toFixed(3);
+
+  if (dist > SMOOTH_MAX_DIST) {
+    // Túl nagy ugrás a simításhoz: ilyenkor a hirtelen váltás a helyes.
+    smooth.p = [0, 0, 0];
+    smooth.q = [0, 0, 0, 1];
+    smooth.active = false;
+    return;
+  }
+  // A LÁTHATÓ kocsi ott marad, ahol volt, és onnan csúszik a helyes helyre.
+  smooth.p = [dx, dy, dz];
+  smooth.q = mulQuat(before.q, invQuat(after.q));
+  smooth.active = true;
+}
+
+function invQuat(q) {
+  return [-q[0], -q[1], -q[2], q[3]];   // egységkvaternióra a konjugált
+}
+
+// A visszaszámlálás alatt a szerver befagyasztja a kocsikat — a jóslatnak
+// ugyanezt kell tennie, különben elindulnánk a rajt előtt.
+function isFrozen() {
+  return !!starting?.startsAt && Date.now() < starting.startsAt;
+}
 
 function onSnapshot(m) {
   window.__mp.snaps++;
@@ -380,6 +469,8 @@ function onSnapshot(m) {
       // A nyugtázott bemenetek hatása már benne van a kapott állapotban,
       // őket nem szabad újrajátszani.
       while (inputHistory.length && inputHistory[0].seq <= ackedSeq) inputHistory.shift();
+      // A maradékot viszont igen: a szerver ezekhez még nem ért hozzá.
+      if (predict && inputTimer) reconcile({ p: c.p, q: c.q, v: c.v, w: c.w });
     }
   }
 }
@@ -419,25 +510,40 @@ function slerp(a, b, f) {
 }
 
 // Minden képkockán fut (a main.js animate-jéből).
-function frame() {
+// A dt-nek van alapértéke, mert a __mp.step() (kézi léptetés teszteléshez)
+// paraméter nélkül hívja — enélkül a simítás lecsengése NaN-ra futna.
+function frame(dt = 1 / 60) {
   window.__mp.frames++;
   const renderTime = Date.now() - INTERP_DELAY_MS;
 
-  // A SAJÁT kocsira NEM alkalmazzuk a késleltetést. Az arra való, hogy a
-  // többiek mozgása sima legyen (legyen két állapot, ami közt interpolálunk),
-  // a sajátunkat viszont fölöslegesen tenné még lomhábbá: a hálózati út
-  // késése MELLÉ jönne rá. Helyette a legfrissebb állapotot vesszük, és a
-  // szerver óta eltelt időre a sebességgel előre becsüljük.
-  const mine = selfBuf[selfBuf.length - 1];
-  if (mine) {
-    // A mine.t a SZERVER órája szerinti idő, a Date.now() a kliensé — a kettő
-    // eltérhet, ezért az eredményt mindkét irányban korlátozzuk. Enélkül egy
-    // elállított óra a kocsit a semmibe repítené (vagy hátrafelé rántaná).
-    const ahead = Math.max(0, Math.min((Date.now() - mine.t) / 1000, 0.25));
+  if (predict) {
+    // JÓSLÁS: a saját kocsit a HELYI fizika mozgatja, azonnal reagálva a
+    // billentyűkre. A szerver korrekcióját nem ugrásként visszük fel, hanem
+    // egy lecsengő eltolással (ld. reconcile) — így a kocsi akkor sem
+    // rándul, ha a jóslat egy kicsit mellément.
+    const s = G.getCarState();
+    decaySmoothing(dt);
     G.applyServerTransform(
-      [mine.p[0] + mine.v[0] * ahead, mine.p[1] + mine.v[1] * ahead, mine.p[2] + mine.v[2] * ahead],
-      mine.q
+      [s.p[0] + smooth.p[0], s.p[1] + smooth.p[1], s.p[2] + smooth.p[2]],
+      smooth.active ? mulQuat(smooth.q, s.q) : s.q
     );
+  } else {
+    // JÓSLÁS NÉLKÜL (?predict=0): a saját kocsi a szerver állapotát követi.
+    // A késleltetést itt sem alkalmazzuk — az a többiek simításához kell, a
+    // sajátunkat csak még lomhábbá tenné a hálózati út késése MELLÉ jőve.
+    // Helyette a legfrissebb állapotot vesszük, és a szerver óta eltelt időre
+    // a sebességgel előre becsüljük.
+    const mine = selfBuf[selfBuf.length - 1];
+    if (mine) {
+      // A mine.t a SZERVER órája szerinti idő, a Date.now() a kliensé — a kettő
+      // eltérhet, ezért az eredményt mindkét irányban korlátozzuk. Enélkül egy
+      // elállított óra a kocsit a semmibe repítené (vagy hátrafelé rántaná).
+      const ahead = Math.max(0, Math.min((Date.now() - mine.t) / 1000, 0.25));
+      G.applyServerTransform(
+        [mine.p[0] + mine.v[0] * ahead, mine.p[1] + mine.v[1] * ahead, mine.p[2] + mine.v[2] * ahead],
+        mine.q
+      );
+    }
   }
 
   for (const { group, buf } of others.values()) {
@@ -484,6 +590,9 @@ function startInputLoop() {
   inputSeq = 0;
   ackedSeq = 0;
   inputHistory.length = 0;
+  smooth.p = [0, 0, 0];
+  smooth.q = [0, 0, 0, 1];
+  smooth.active = false;
   inputTimer = setInterval(() => {
     const k = G.keys;
     const input = {
@@ -497,6 +606,10 @@ function startInputLoop() {
     // rég nyugtázott a szerver (különben a kapcsolat amúgy is használhatatlan).
     while (inputHistory.length > TICK_RATE / 2) inputHistory.shift();
     send(C2S.INPUT, input);
+    // Ugyanaz a bemenet AZONNAL lefut helyben is: egy bemenet = egy lépés,
+    // pontosan úgy, ahogy a szerver majd elvégzi. Ettől reagál a kocsi
+    // késleltetés nélkül a billentyűkre.
+    if (predict) G.stepLocalPhysics(input, isFrozen());
   }, TICK_MS);
 }
 function stopInputLoop() {
