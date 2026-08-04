@@ -2022,7 +2022,9 @@ let lastMouseY = 0;
 
 renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
 renderer.domElement.addEventListener('mousedown', (e) => {
-  if (e.button === 2 && appState === 'driving') {
+  // Multiplayerben is: a kamera tisztán megjelenítés, semmi köze a
+  // versenylogikához — nincs okunk elvenni a körbenézést.
+  if (e.button === 2 && (appState === 'driving' || appState === 'mp')) {
     manualOrbitActive = true;
     lastMouseX = e.clientX;
     lastMouseY = e.clientY;

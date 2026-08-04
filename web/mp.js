@@ -403,6 +403,13 @@ const SMOOTH_HALFLIFE = 0.12;   // mp
 // Efölött nincs értelme simítani (újraszületés, nagy ütközés, teleport) —
 // olyankor a hirtelen ugrás a helyes, mert a köztes út hazugság lenne.
 const SMOOTH_MAX_DIST = 8;
+// Az eltolás felső korlátja. Kell, mert a korrekciók sűrűbben jönnek (20/mp),
+// mint ahogy a simítás lecseng (120 ms félidő): két korrekció közt csak ~0.75-re
+// esik, a maradék pedig halmozódik. Az egyensúly így a hiba ~négyszerese lenne
+// — 0 pingnél láthatatlan (1 mm -> 4 mm), nagy késleltetésnél viszont több
+// méterrel a valódi helye MÖGÖTT rajzolnánk ki a kocsit. Inkább vállalunk egy
+// alig látható maradék-ugrást, mint egy tartós lemaradást.
+const SMOOTH_MAX_OFFSET = 1.5;
 
 function decaySmoothing(dt) {
   if (!smooth.active) return;
@@ -430,28 +437,82 @@ function mulQuat(a, b) {
 // szerver is tenni fog, mire hozzájuk ér.
 function reconcile(state) {
   const before = G.getCarState();
+  // Ahol a kocsi LÁTSZIK most — a jóslat PLUSZ a még le nem csengett korábbi
+  // korrekció. Ez a fontos: ha csak a nyers jóslatból számolnánk az új
+  // eltolást, minden snapshotnál (20/mp) egy csapásra eldobnánk a maradékot,
+  // és pont ez adna egy apró, folyamatos rángatást.
+  const visualX = before.p[0] + smooth.p[0];
+  const visualY = before.p[1] + smooth.p[1];
+  const visualZ = before.p[2] + smooth.p[2];
+  const visualQ = smooth.active ? mulQuat(smooth.q, before.q) : before.q;
 
   G.setCarState(state);
   for (const input of inputHistory) G.stepLocalPhysics(input, isFrozen());
 
   const after = G.getCarState();
-  const dx = before.p[0] - after.p[0];
-  const dy = before.p[1] - after.p[1];
-  const dz = before.p[2] - after.p[2];
-  const dist = Math.hypot(dx, dy, dz);
-  window.__mp.lastError = +dist.toFixed(3);
+  // A jóslási hiba maga a nyers jóslat és a szerver igazsága közti eltérés —
+  // ezt mérjük, nem a látható eltolást.
+  window.__mp.lastError = +Math.hypot(
+    before.p[0] - after.p[0], before.p[1] - after.p[1], before.p[2] - after.p[2]
+  ).toFixed(3);
 
-  if (dist > SMOOTH_MAX_DIST) {
-    // Túl nagy ugrás a simításhoz: ilyenkor a hirtelen váltás a helyes.
+  // Az újrajátszás ugrásszerűen átírta a fizikai testet: a képkocka-
+  // interpoláció nem simíthat át a régi és az új állapot között, mert az egy
+  // nem létező úton vinné végig a kocsit.
+  physPrev = null;
+  physCurr = after;
+  physAt = performance.now();
+
+  const dx = visualX - after.p[0];
+  const dy = visualY - after.p[1];
+  const dz = visualZ - after.p[2];
+  if (Math.hypot(dx, dy, dz) > SMOOTH_MAX_DIST) {
+    // Túl nagy ugrás a simításhoz (újraszületés, teleport): ilyenkor a
+    // hirtelen váltás a helyes, a köztes út hazugság lenne.
     smooth.p = [0, 0, 0];
     smooth.q = [0, 0, 0, 1];
     smooth.active = false;
     return;
   }
   // A LÁTHATÓ kocsi ott marad, ahol volt, és onnan csúszik a helyes helyre.
-  smooth.p = [dx, dy, dz];
-  smooth.q = mulQuat(before.q, invQuat(after.q));
+  const len = Math.hypot(dx, dy, dz);
+  const k = len > SMOOTH_MAX_OFFSET ? SMOOTH_MAX_OFFSET / len : 1;
+  smooth.p = [dx * k, dy * k, dz * k];
+  smooth.q = mulQuat(visualQ, invQuat(after.q));
   smooth.active = true;
+}
+
+// ---------- Képkocka-interpoláció ----------
+// A fizika fix 60 Hz-en lép (a bemenet-hurokban), a képernyő viszont a saját
+// frissítésével rajzol, és a kettő nincs szinkronban. Ha egyszerűen a fizikai
+// test PILLANATNYI állapotát rajzolnánk ki, egyes képkockákra két lépés jutna,
+// másokra egy sem — ez látszik rángatásként. Ezért az utolsó két fizikai
+// állapot között interpolálunk, a képkocka idejének megfelelően.
+//
+// Ára ~egy tick (17 ms) megjelenítési késleltetés. Ez bőven megéri: a
+// rángatást a szem azonnal észreveszi, ennyi késleltetést nem.
+let physPrev = null;
+let physCurr = null;
+let physAt = 0;
+
+function recordPhysState() {
+  physPrev = physCurr;
+  physCurr = G.getCarState();
+  physAt = performance.now();
+}
+
+function interpolatedPhys() {
+  if (!physCurr) return G.getCarState();
+  if (!physPrev) return physCurr;
+  const a = Math.max(0, Math.min(1, (performance.now() - physAt) / TICK_MS));
+  return {
+    p: [
+      physPrev.p[0] + (physCurr.p[0] - physPrev.p[0]) * a,
+      physPrev.p[1] + (physCurr.p[1] - physPrev.p[1]) * a,
+      physPrev.p[2] + (physCurr.p[2] - physPrev.p[2]) * a,
+    ],
+    q: slerp(physPrev.q, physCurr.q, a),
+  };
 }
 
 function invQuat(q) {
@@ -540,8 +601,8 @@ function frame(dt = 1 / 60) {
     // billentyűkre. A szerver korrekcióját nem ugrásként visszük fel, hanem
     // egy lecsengő eltolással (ld. reconcile) — így a kocsi akkor sem
     // rándul, ha a jóslat egy kicsit mellément.
-    const s = G.getCarState();
     decaySmoothing(dt);
+    const s = interpolatedPhys();
     G.applyServerTransform(
       [s.p[0] + smooth.p[0], s.p[1] + smooth.p[1], s.p[2] + smooth.p[2]],
       smooth.active ? mulQuat(smooth.q, s.q) : s.q
@@ -636,6 +697,8 @@ function startInputLoop() {
   ackedSeq = 0;
   inputHistory.length = 0;
   lapTainted = false;
+  physPrev = null;
+  physCurr = null;
   smooth.p = [0, 0, 0];
   smooth.q = [0, 0, 0, 1];
   smooth.active = false;
@@ -674,7 +737,10 @@ function sendOneInput() {
   // Ugyanaz a bemenet AZONNAL lefut helyben is: egy bemenet = egy lépés,
   // pontosan úgy, ahogy a szerver majd elvégzi. Ettől reagál a kocsi
   // késleltetés nélkül a billentyűkre.
-  if (predict) G.stepLocalPhysics(input, isFrozen());
+  if (predict) {
+    G.stepLocalPhysics(input, isFrozen());
+    recordPhysState();
+  }
 }
 
 function stopInputLoop() {
