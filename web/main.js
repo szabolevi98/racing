@@ -2540,17 +2540,36 @@ init().catch((err) => {
 // ---------- Fő ciklus ----------
 const clock = new THREE.Clock();
 
+// Az egyjátékos fizika fix lépésközének maradéka két képkocka között.
+let physicsAccum = 0;
+
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.1);
 
   if (appState === 'driving') {
     updateControls();
-    // A Rapiernél a jármű-vezérlőt a világ léptetése ELŐTT kell frissíteni:
-    // ez lövi ki a kerék-sugarakat és számolja a felfüggesztés/tapadás erőket.
-    vehicle.updateVehicle(world.timestep);
-    world.step();
-    applyWallConstraint();
+    // A fizikát a VALÓS eltelt idő szerint léptetjük, nem képkockánként egyszer.
+    //
+    // Korábban képkockánként pontosan egy lépés futott, a lépésköz viszont fix
+    // 1/60 — így a szimuláció a képfrissítés ütemében járt: 75 Hz-en 1.25-ször
+    // gyorsabban a valós időnél, 144 Hz-en 2.4-szer, 30 fps-en feleakkora
+    // sebességgel. Vagyis mindenki más játékot játszott, a gépe szerint, és az
+    // egyjátékos érezhetően fürgébb volt a multiplayernél (ami mindig pontos
+    // 60 lépés/mp). Ez utóbbi a helyes, ezért igazodunk hozzá.
+    physicsAccum += dt;
+    let physSteps = 0;
+    // Egy hosszabb akadás után nem játsszuk le gyorsítva a kimaradt időt.
+    if (physicsAccum > world.timestep * 5) physicsAccum = world.timestep * 5;
+    while (physicsAccum >= world.timestep && physSteps < 5) {
+      // A Rapiernél a jármű-vezérlőt a világ léptetése ELŐTT kell frissíteni:
+      // ez lövi ki a kerék-sugarakat és számolja a felfüggesztés/tapadás erőket.
+      vehicle.updateVehicle(world.timestep);
+      world.step();
+      applyWallConstraint();
+      physicsAccum -= world.timestep;
+      physSteps++;
+    }
     calibrateGroundOffset();
     updateRace(dt);
 
@@ -2606,6 +2625,9 @@ function recordDiagFrame() {
   diag.rows.push({
     t: now,
     x: p.x, z: p.z,
+    // A függőleges külön: egyenetlen talajon a felfüggesztés mozgatja a kocsit,
+    // és azt a vízszintes mérőszám nem látja.
+    y: p.y,
     // A kirajzolt pozíció összetevői külön, hogy lássuk, melyik ugrik:
     // rawX/rawZ  = a fizikai test PILLANATNYI állapota (interpoláció nélkül)
     // ipX/ipZ    = az időbélyeges pufferből interpolált érték
@@ -2662,6 +2684,23 @@ window.__diag = {
 
     // Ugyanez tetszőleges koordináta-párra, hogy a kirajzolt pozíció
     // összetevőit külön-külön is meg tudjuk mérni.
+    // Egytengelyű változat. A függőleges mozgás átlaga nulla körüli (fel-le),
+    // ezért nem az átlaghoz viszonyítunk, hanem a mozgás tipikus MÉRETÉHEZ —
+    // különben nullával osztanánk.
+    function jitter1D(key) {
+      const sp = [];
+      for (let i = 1; i < r.length; i++) {
+        const dt2 = r[i].t - r[i - 1].t;
+        if (dt2 <= 0 || r[i][key] === undefined) continue;
+        sp.push((r[i][key] - r[i - 1][key]) / (dt2 / 1000));
+      }
+      if (sp.length < 3) return 0;
+      const scale = mean(sp.map(Math.abs)) || 1;
+      const z = [];
+      for (let i = 1; i < sp.length - 1; i++) z.push(Math.abs(sp[i] - (sp[i - 1] + sp[i + 1]) / 2));
+      return (mean(z) / scale) * 100;
+    }
+
     function jitterOf(kx, kz) {
       const sp = [];
       for (let i = 1; i < r.length; i++) {
@@ -2698,6 +2737,8 @@ window.__diag = {
       rangas_interpolalt: +jitterOf('ipX', 'ipZ').toFixed(1),
       // A ténylegesen látott kép ettől függ: a kamera mozgásának egyenletessége.
       rangas_kamera: +jitterOf('camX', 'camZ').toFixed(1),
+      // Függőleges (felfüggesztés, bukkanók) — ezt a vízszintes szám nem méri.
+      rangas_fuggoleges: +jitter1D('y').toFixed(1),
       simitasEltolas_m: { atlag: +mean(r.map((q) => q.sm || 0)).toFixed(3), max: +Math.max(...r.map((q) => q.sm || 0)).toFixed(3) },
       ingadozas_szazalek: +((spStd / (spMean || 1)) * 100).toFixed(1),
       // Hány fizikai lépés jutott egy-egy képkockára. Ha ez 0 és 2 közt
