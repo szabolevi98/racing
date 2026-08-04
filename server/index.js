@@ -8,6 +8,8 @@ import 'dotenv/config';
 import { serveStatic } from './static.js';
 import { getManifest } from './assets.js';
 import { saveSpawn, saveGates, saveZonemap, saveCollision } from './devApi.js';
+import { attachWebSocket, roomStats } from './net/wsServer.js';
+import { initDb, bestLaps, dbAvailable } from './db/index.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 // A dev-mentések lemezre írnak és nincs mögöttük jogosultság-ellenőrzés.
@@ -45,6 +47,17 @@ function readBody(req, limitBytes = 128 * 1024 * 1024) {
 async function handleApi(req, res, url) {
   if (url.pathname === '/api/assets' && req.method === 'GET') {
     sendJson(res, 200, await getManifest());
+    return true;
+  }
+
+  if (url.pathname === '/api/status' && req.method === 'GET') {
+    sendJson(res, 200, { ok: true, db: dbAvailable(), ...roomStats() });
+    return true;
+  }
+
+  if (url.pathname === '/api/leaderboard' && req.method === 'GET') {
+    const mapId = url.searchParams.get('mapId') || '';
+    sendJson(res, 200, { mapId, entries: await bestLaps(mapId).catch(() => []) });
     return true;
   }
 
@@ -95,6 +108,9 @@ const server = http.createServer(async (req, res) => {
     else res.end();
   }
 });
+
+await initDb();
+attachWebSocket(server);
 
 server.listen(PORT, () => {
   console.log(`Racing szerver fut:  http://localhost:${PORT}`);
