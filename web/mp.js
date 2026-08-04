@@ -338,8 +338,22 @@ function frame() {
   window.__mp.frames++;
   const renderTime = Date.now() - INTERP_DELAY_MS;
 
-  const mine = sampleAt(selfBuf, renderTime);
-  if (mine) G.applyServerTransform(mine.p, mine.q);
+  // A SAJÁT kocsira NEM alkalmazzuk a késleltetést. Az arra való, hogy a
+  // többiek mozgása sima legyen (legyen két állapot, ami közt interpolálunk),
+  // a sajátunkat viszont fölöslegesen tenné még lomhábbá: a hálózati út
+  // késése MELLÉ jönne rá. Helyette a legfrissebb állapotot vesszük, és a
+  // szerver óta eltelt időre a sebességgel előre becsüljük.
+  const mine = selfBuf[selfBuf.length - 1];
+  if (mine) {
+    // A mine.t a SZERVER órája szerinti idő, a Date.now() a kliensé — a kettő
+    // eltérhet, ezért az eredményt mindkét irányban korlátozzuk. Enélkül egy
+    // elállított óra a kocsit a semmibe repítené (vagy hátrafelé rántaná).
+    const ahead = Math.max(0, Math.min((Date.now() - mine.t) / 1000, 0.25));
+    G.applyServerTransform(
+      [mine.p[0] + mine.v[0] * ahead, mine.p[1] + mine.v[1] * ahead, mine.p[2] + mine.v[2] * ahead],
+      mine.q
+    );
+  }
 
   for (const { group, buf } of others.values()) {
     const s = sampleAt(buf, renderTime);
