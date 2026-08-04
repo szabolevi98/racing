@@ -89,12 +89,34 @@ alapbetöltés 3,9 MB helyett 1,1 MB), a nagy fájlok pedig egy éves cache-t
 kapnak — a **második** indulás ezért már azonnali. Ha ennél is gyorsabb kell,
 magukat a modelleket kell zsugorítani (Draco geometria, KTX2 textúrák).
 
+## Hálózati késleltetés kezelése
+
+A saját autót a kliens **maga szimulálja**, azonnal reagálva a billentyűkre,
+és minden szerver-snapshotnál visszaáll a hiteles állapotra, majd újrajátssza
+a még fel nem dolgozott bemeneteit. Ez azért lehet pontos, mert a két oldal
+ugyanazt a `shared/vehicleConfig.js`-t futtatja ugyanazon a Rapier buildon, és
+a szerver tickenként **pontosan egy** bemenetet fogyaszt el.
+
+Fejlesztéshez mesterséges késleltetés kapcsolható, mert localhoston a ping 0:
+
+```
+http://localhost:3000/?lag=150&jitter=30      # ms, teljes körbefordulás
+http://localhost:3000/?predict=0              # vissza a régi, szerverkövető módra
+```
+
+Diagnosztika a konzolban: `__mp.lastError` (a legutóbbi korrekció méterben),
+`__mp.queueDepth`, `__mp.sendPeriod`. Ha a `lastError` tartósan nagy, a két
+szimuláció eltér — az bug, nem hangolási kérdés.
+
+Ismert korlát: nagy késleltetésnél a szerver bemenet-sora kiürülhet, olyankor
+az utolsó bemenetet ismétli, amiről a kliens nem tud — ez a maradék hiba
+forrása (300 ms-nál ~1,5 m).
+
 ## Ami még hátravan
 
-- **Client-side prediction.** A saját autó jelenleg a szerver állapotát
-  követi, ezért nagy késleltetésnél lomha. (A késleltetés fölösleges fele már
-  ki van véve.) Minden készen áll hozzá: közös fizika, azonos Rapier build, és
-  a protokollban a `seq` mező.
+- **Kifutó-büntetés multiplayerben.** A szerver nem ad `offtrack` jelzést az
+  `applyControls`-nak, tehát a pályán kívül sem lassul a kocsi. Egyjátékosban
+  működik.
 - **Éles kiszolgálás**: systemd unit és Apache reverse proxy a VPS-en. A kliens
   `wss://`-re már magától vált HTTPS alatt; a szerver oldali teendők leírva a
   [DEPLOY.md](DEPLOY.md)-ben.
