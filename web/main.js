@@ -1869,7 +1869,7 @@ function startRace() {
 // korábban elcsúszott: multiplayerben csak egy általános "Kör érvénytelen!"
 // jött, amiből a játékos nem tudta, mit rontott el.
 function lapInvalidText(reason) {
-  if (reason === TAINT.OFFTRACK) return 'Kör érvénytelen — mind a négy kerékkel lehagytad az aszfaltot!';
+  if (reason === TAINT.OFFTRACK) return 'Kör érvénytelen — mind a négy kerékkel letértél az aszfaltról!';
   if (reason === TAINT.CHECKPOINT) return 'Kör érvénytelen — checkpoint kimaradt!';
   return 'Kör érvénytelen!';
 }
