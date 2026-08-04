@@ -95,6 +95,8 @@ magukat a modelleket kell zsugorítani (Draco geometria, KTX2 textúrák).
   követi, ezért nagy késleltetésnél lomha. (A késleltetés fölösleges fele már
   ki van véve.) Minden készen áll hozzá: közös fizika, azonos Rapier build, és
   a protokollban a `seq` mező.
-- **Éles kiszolgálás**: systemd unit és `wss://` reverse proxy a VPS-en.
+- **Éles kiszolgálás**: systemd unit és Apache reverse proxy a VPS-en. A kliens
+  `wss://`-re már magától vált HTTPS alatt; a szerver oldali teendők leírva a
+  [DEPLOY.md](DEPLOY.md)-ben.
 - **Kisebb pályamodellek**: az első betöltés még mindig 63–148 MB. Draco
   geometria és KTX2 textúrák nélkül ez távoli játékosnál percekben mérhető.
