@@ -3,6 +3,13 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import RAPIER from 'rapier';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
+import {
+  CHASSIS_SIZE, COM_DROP, WHEEL_RADIUS, SUSPENSION_REST_LENGTH, WHEEL_POSITIONS,
+  MAX_ENGINE_FORCE, MAX_STEER, BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_REAR_SLIP,
+  HOLD_BRAKE, ASPHALT_FRICTION_SLIP, OFFTRACK_FRICTION_SLIP, OFFTRACK_FORCE_FACTOR,
+  OFFTRACK_DRAG, STEER_VISUAL_SPEED,
+} from '/shared/vehicleConfig.js';
+
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -318,7 +325,7 @@ let trackColliderBody = null;
 let trackCollider = null;
 
 // ---------- Autó (chassis + Rapier raycast vehicle) ----------
-const chassisSize = { x: 1.0, y: 0.4, z: 2.2 }; // fél-méretek: szélesség/2, magasság/2, hossz/2
+const chassisSize = CHASSIS_SIZE;
 const chassisBody = world.createRigidBody(
   RAPIER.RigidBodyDesc.dynamic()
     .setTranslation(0, 5, 0)
@@ -341,7 +348,7 @@ const chassisCollider = world.createCollider(
 // előre az autót (a hátulja emelkedett meg). Egy versenyautó súlypontja
 // nagyjából a keréktengely magasságában van, ezért visszük lejjebb.
 // A tehetetlenségi főnyomatékok a doboz méretéből: I = m/12 * (a² + b²).
-const COM_DROP = 0.15;
+
 {
   const m = 250, w = chassisSize.x * 2, h = chassisSize.y * 2, d = chassisSize.z * 2;
   chassisCollider.setMassProperties(
@@ -359,14 +366,7 @@ const vehicle = world.createVehicleController(chassisBody);
 vehicle.indexUpAxis = 1;          // Y = fel
 vehicle.setIndexForwardAxis = 2;  // Z = előre (a .d.ts-ben tényleg így hívják a settert)
 
-const WHEEL_RADIUS = 0.35;
-const SUSPENSION_REST_LENGTH = 0.3;
-const wheelPositions = [
-  { x: -0.85, y: -0.2, z: 1.5 },  // 0: első bal
-  { x: 0.85, y: -0.2, z: 1.5 },   // 1: első jobb
-  { x: -0.85, y: -0.2, z: -1.5 }, // 2: hátsó bal
-  { x: 0.85, y: -0.2, z: -1.5 },  // 3: hátsó jobb
-];
+const wheelPositions = WHEEL_POSITIONS;
 wheelPositions.forEach((pos, i) => {
   vehicle.addWheel(pos, { x: 0, y: -1, z: 0 }, { x: -1, y: 0, z: 0 }, SUSPENSION_REST_LENGTH, WHEEL_RADIUS);
   // A cannon-es-ből átemelt, már behangolt felfüggesztés-értékek — mindkét
@@ -2277,19 +2277,19 @@ const keys = {};
 window.addEventListener('keydown', (e) => { keys[e.code] = true; });
 window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
-const maxSteerVal = 0.5;
+const maxSteerVal = MAX_STEER;
 // A LÁTHATÓ kerék-kormányzás simán közelít a célértékhez, nem ugrik rá
 // azonnal — valóságosabb, mint a korábbi azonnali végállás-váltás, de elég
 // gyors ahhoz, hogy gyors ide-oda kormányzásnál se maradjon el az input
 // mögött. Csak a MEGJELENÍTÉST érinti (a fizikai kormányzás — setWheelSteering
 // — továbbra is azonnali, hogy a kocsi kezelése ne változzon).
-const STEER_VISUAL_SPEED = 3.5; // rad/mp
+
 function moveTowardsAngle(current, target, maxDelta) {
   const diff = target - current;
   if (Math.abs(diff) <= maxDelta) return target;
   return current + Math.sign(diff) * maxDelta;
 }
-const maxForce = 900;
+const maxForce = MAX_ENGINE_FORCE;
 // A fék NEM lehet akármilyen erős: a Rapier a fékezést közvetlen impulzusként
 // viszi fel, megkerülve a gumi tapadási határát. A régi, mind a négy keréken
 // egyforma 60-as érték 6.2 g-s lassulást adott — a gumi (frictionSlip 1.4)
@@ -2299,22 +2299,20 @@ const maxForce = 900;
 //
 // A kézifék ezért most tengelyenként külön dolgozik, ahogy a valódi is:
 // elöl csak annyi, amennyi a lassításhoz kell, hátul valamivel több.
-const brakeForce = 14;        // első tengely
-const BRAKE_FORCE_REAR = 25;  // hátsó tengely
+const brakeForce = BRAKE_FRONT;
+const BRAKE_FORCE_REAR = BRAKE_REAR;
 // A drift viszont NEM a fékerő nagyságából jön, hanem abból, hogy a hátsó
 // kerék elveszti az oldalirányú tapadását — ezért a kanyarban kitörést
 // külön, a hátsó kerekek tapadásának csökkentésével adjuk meg. Enélkül a
 // mérsékeltebb fékerő majdnem teljesen megszüntetné a driftet (mérve: 88 -> 14 fok).
-const HANDBRAKE_REAR_SLIP = 1.1;
+
 // Rajt előtti visszaszámláláskor és a verseny végén a kocsit HELYBEN kell
 // tartani, akár lejtőn is — ott a menetdinamika már nem számít.
-const HOLD_BRAKE = 60;
-const ASPHALT_FRICTION_SLIP = 1.4;
+
+
 // Kifutón (fű/kavics) kevesebb erő jut a talajra és csúszósabb is —
 // ettől lesz érezhetően lassabb a pályán kívül.
-const OFFTRACK_FORCE_FACTOR = 0.75;
-const OFFTRACK_FRICTION_SLIP = 1.0;
-const OFFTRACK_DRAG = 0.995;
+
 
 function updateControls() {
   // Visszaszámlálás alatt és a verseny után nincs gáz/kormány — a kocsi
