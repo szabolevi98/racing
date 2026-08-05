@@ -5,7 +5,7 @@ import RAPIER from 'rapier';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import {
   CHASSIS_SIZE, WHEEL_RADIUS, SUSPENSION_REST_LENGTH, WHEEL_POSITIONS,
-  STEER_VISUAL_SPEED, buildVehicle, applyControls,
+  STEER_VISUAL_SPEED, buildVehicle, applyControls, resetLiveVehicleTunables,
 } from '/shared/vehicleConfig.js';
 import { TAINT } from '/shared/protocol.js';
 import {
@@ -106,9 +106,14 @@ const resultsBodyEl = document.getElementById('resultsBody');
 const resultsRestartBtn = document.getElementById('resultsRestartBtn');
 const resultsMenuBtn = document.getElementById('resultsMenuBtn');
 
-// Dev mód: ?dev=1 az URL-ben — szabad kamerával be lehet járni a pályát és
-// kijelölni a rajtrács-pontokat (assets/maps/<id>/spawn.json).
-const DEV_MODE = new URLSearchParams(window.location.search).has('dev');
+// Dev mód: /dev útvonalon VAGY ?dev=1 lekérdezés-paraméterrel — szabad
+// kamerával be lehet járni a pályát és kijelölni a rajtrács-pontokat
+// (assets/maps/<id>/spawn.json). A /dev-et a szerver (static.js) is
+// ugyanarra az index.html-re képezi le, mint a "/"-t — itt csak fel kell
+// ismerni, melyik útvonalon jöttünk.
+const DEV_MODE =
+  window.location.pathname === '/dev' ||
+  new URLSearchParams(window.location.search).has('dev');
 
 function setStatus(text) {
   statusEl.textContent = text;
@@ -1925,6 +1930,10 @@ function formatTime(ms) {
 }
 
 function startRace() {
+  // Biztonsági háló: ha a dev autó-tesztelőben hangoltunk (élő motorerő/fék/
+  // tapadás), egy valódi versenynek MINDIG a kanonikus értékekkel kell
+  // indulnia, függetlenül attól, hogyan hagytuk ott a dev módot.
+  resetLiveVehicleTunables();
   const pos = chassisBody.translation();
   race.active = !!currentGates.start;
   race.phase = 'countdown';
@@ -2438,6 +2447,19 @@ const devApi = {
   set currentGuidePath(p) { currentGuidePath = p; },
   get wheelPivots() { return wheelPivots; },
   get wheelSources() { return wheelSources; },
+  // ---- Autó-tesztelő: élő fizikai vezetés + hangolás ----
+  // A chassisBody/vehicle egyszer, a modul betöltésekor épül fel (lásd a
+  // buildVehicle hívást lentebb), és a teljes oldal-élet alatt ugyanaz marad —
+  // ezért nyugodtan adható direkt értékként, nem getterként.
+  chassisBody, vehicle,
+  prepareTrackPhysics, resetCarTo,
+  resetLiveVehicleTunables,
+  get spawnPoint() { return spawnPoint; },
+  // A race objektum referenciaként megy át: a dev.js az `active` mezőt írja,
+  // hogy versenylogika/visszaszámlálás nélkül, azonnal vezethető legyen a
+  // kocsi — a getter csak azért kell, mert `race` egy const, de a benne lévő
+  // mezők mutálhatók.
+  get race() { return race; },
 };
 
 // A pálya fizikájának és a látható padlónak az előkészítése. Külön függvény,
@@ -3089,6 +3111,7 @@ function stepMultiplayerFrame(dt) {
 // multiplayerben a szerver végzi.
 window.__game = {
   THREE, scene, camera, carPivot, renderer,
+  resetLiveVehicleTunables,
   get appState() { return appState; },
   get hasFrameHook() { return !!mpFrameHook; },
   stepMpFrame: stepMultiplayerFrame,

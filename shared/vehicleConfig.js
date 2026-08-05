@@ -6,6 +6,31 @@
 // folyamatosan eltérne a szerver igazságától, és a kocsi ugrálna.
 //
 // (A Rapier build is bitre azonos a két oldalon: @dimforge/rapier3d-compat 0.14.0.)
+//
+// A menetdinamikai (hangolható) számok NEM itt vannak, hanem a
+// vehicleTunables.js-ben — az a fájl csak sima export-lista, semmi logika,
+// hogy a dev autó-tesztelő "Mentés fájlba" gombja pontosan ilyen tartalmat
+// tudjon generálni, és felülírható legyen vele. Innen csak TOVÁBBADJUK őket
+// (export ... from), hogy a többi fájlnak (main.js, dev.js, raceSim.js) ne
+// kelljen tudnia a szétválasztásról — mindenki továbbra is a
+// shared/vehicleConfig.js-ből importál, ugyanazokkal a nevekkel.
+export {
+  MAX_ENGINE_FORCE, REVERSE_FACTOR, MAX_STEER,
+  BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_REAR_SLIP,
+  FRONT_FRICTION_SLIP, REAR_FRICTION_SLIP,
+  LINEAR_DAMPING, ANGULAR_DAMPING,
+} from './vehicleTunables.js';
+// Ugyanezek importként is kellenek: az `export ... from` csak TOVÁBBADJA a
+// bindingot a hívóknak, de nem hoz létre helyi nevet — a lenti SUSPENSION
+// objektumnak, a buildVehicle/applyControls-nak és az élő hangoló
+// mechanizmusnak ITT, ebben a fájlban is szüksége van rájuk.
+import {
+  MAX_ENGINE_FORCE, REVERSE_FACTOR, MAX_STEER,
+  BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_REAR_SLIP,
+  FRONT_FRICTION_SLIP, REAR_FRICTION_SLIP,
+  SUSPENSION_STIFFNESS, SUSPENSION_COMPRESSION, SUSPENSION_RELAXATION, SUSPENSION_MAX_TRAVEL,
+  LINEAR_DAMPING, ANGULAR_DAMPING,
+} from './vehicleTunables.js';
 
 export const GRAVITY = { x: 0, y: -9.81, z: 0 };
 
@@ -17,11 +42,6 @@ export const CHASSIS_MASS = 250;
 // egy 4.4 hosszú kocsihoz képest irreálisan magas, és fékezéskor előrebuktatta
 // az autót. Egy versenyautó súlypontja nagyjából a keréktengely magasságában van.
 export const COM_DROP = 0.15;
-
-// A Rapier nem csillapít alapból; enélkül a kocsi a legkisebb egyenetlenségen
-// is pörögni kezdene.
-export const LINEAR_DAMPING = 0.05;
-export const ANGULAR_DAMPING = 0.5;
 
 export const WHEEL_RADIUS = 0.35;
 export const SUSPENSION_REST_LENGTH = 0.3;
@@ -35,47 +55,20 @@ export const WHEEL_POSITIONS = [
   { x: 0.85, y: -0.2, z: -1.5 },
 ];
 
+// A maxForce nem hangolható a dev-tesztelőből (a Rapier-nél gyakorlatilag
+// sosem ez a korlátozó tényező) — marad itt, a többi négy a
+// vehicleTunables.js-ből jön.
 export const SUSPENSION = {
-  stiffness: 30,
-  compression: 4.4,
-  relaxation: 2.3,
-  maxTravel: 0.3,
+  stiffness: SUSPENSION_STIFFNESS,
+  compression: SUSPENSION_COMPRESSION,
+  relaxation: SUSPENSION_RELAXATION,
+  maxTravel: SUSPENSION_MAX_TRAVEL,
   maxForce: 100000,
 };
 
-export const MAX_ENGINE_FORCE = 1100;
-export const REVERSE_FACTOR = 0.6;
-// Élesebb, gyorsabb bekanyarodás.
-export const MAX_STEER = 0.66;
-
-// A fék NEM lehet akármilyen erős: a Rapier a fékezést közvetlen impulzusként
-// viszi fel, megkerülve a gumi tapadási határát. Egyforma 60-as érték 6.2 g-s
-// lassulást adott, miközben a gumi ~1.4 g-t vinne át — ettől bukfencezett az
-// autó egyenesben. Tengelyenként külön, mérsékeltebben fékezünk.
-// A jelenlegi érték az ALÁBBI (megemelt) FRONT/REAR_FRICTION_SLIP-hez van
-// méretezve: a nagyobb tapadási tartalék teszi biztonságossá az erősebb
-// féket — ha a tapadást lejjebb vesszük, ezt is vissza kell venni, különben
-// visszajön a bukfenc.
-export const BRAKE_FRONT = 17;
-export const BRAKE_REAR = 29;
-// A drift nem a fékerőből jön, hanem abból, hogy a hátsó kerék elveszti az
-// oldalirányú tapadását — ezért azt külön adjuk meg.
-export const HANDBRAKE_REAR_SLIP = 1.1;
+export const ASPHALT_FRICTION_SLIP = REAR_FRICTION_SLIP;
 // Rajt előtt / verseny után a kocsit helyben kell tartani, akár lejtőn is.
 export const HOLD_BRAKE = 60;
-
-// Gyorsításkor a hátsó tengelyre tolódik a teher, az első kerekek alól
-// "elfogy" a nyomóerő — emiatt egyenlő tapadásnál nagy sebességen gázzal
-// alig fordul a kocsi (a kormányzás hatna, csak nincs alatta elég grip).
-// Az első tengelynek ezért külön, magasabb tartalék tapadás jár, hogy a
-// fordulóképesség gázadás közben is megmaradjon.
-// Mindkét érték ~15%-kal feljebb az általános csúszás csökkentésére (ez adja
-// a nagyobb féktávolság-biztonságot is, ld. BRAKE_FRONT/REAR) — az arányuk
-// (első/hátsó) változatlan, hogy a gázos-forduló és a lift-off oversteer
-// közti egyensúly, amit korábban erre hangoltunk, ne boruljon fel.
-export const FRONT_FRICTION_SLIP = 2.0;
-export const REAR_FRICTION_SLIP = 1.9;
-export const ASPHALT_FRICTION_SLIP = REAR_FRICTION_SLIP;
 // Kifutón (fű/kavics) kevesebb erő jut a talajra és csúszósabb is.
 export const OFFTRACK_FRICTION_SLIP = 1.0;
 export const OFFTRACK_FORCE_FACTOR = 0.75;
@@ -84,6 +77,41 @@ export const OFFTRACK_DRAG = 0.995;
 // A látható kerék-kormányzás simán közelít a célértékhez (rad/mp). Csak a
 // megjelenítést érinti, a fizikai kormányzás azonnali.
 export const STEER_VISUAL_SPEED = 3.5;
+
+// ---------- Élő hangolás (kizárólag a fejlesztői autó-tesztelőhöz) ----------
+// A vehicleTunables.js-ből importált értékek maradnak a KANONIKUS
+// alapértékek — a szerver és minden normál játékmenet (egyjátékos,
+// multiplayer) ezeket olvassa, érintetlenül. Az applyControls azonban nem
+// közvetlenül ezekből, hanem egy velük induló, MUTÁLHATÓ másolatból
+// dolgozik — ez teszi lehetővé, hogy a dev autó-tesztelő panelje élőben
+// hangolhassa a motorerőt/kormányszöget/féket/tapadást, anélkül hogy a
+// vehicleTunables.js-t kellene módosítani és újratölteni a szervert.
+//
+// Ez nem kockázat a szerverre: az egy külön Node-folyamat, saját
+// modulpéldánnyal — a böngészőből ide semmi nem ér el. Az egyetlen valódi
+// veszély, hogy EGY böngészőlapon belül a hangolás "átszivárogna" a dev
+// tesztelésből a rendes vezetésbe/multiplayerbe — ezért a dev.js mindig
+// visszaállítja induláskor ÉS kilépéskor is (resetLiveVehicleTunables), és
+// biztonsági hálóként a valódi versenyindítás (startRace / multiplayer
+// beginRace) is hívja ugyanezt.
+const live = {
+  MAX_ENGINE_FORCE, REVERSE_FACTOR, MAX_STEER,
+  BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_REAR_SLIP,
+  FRONT_FRICTION_SLIP, REAR_FRICTION_SLIP,
+};
+const LIVE_DEFAULTS = { ...live };
+
+export function setLiveVehicleTunables(partial) {
+  Object.assign(live, partial);
+}
+
+export function resetLiveVehicleTunables() {
+  Object.assign(live, LIVE_DEFAULTS);
+}
+
+export function getLiveVehicleTunables() {
+  return { ...live };
+}
 
 // Egy kocsi felépítése a Rapier világban. Ugyanaz a kód fut a kliensen és a
 // szerveren, hogy a két szimuláció egyforma legyen.
@@ -135,8 +163,8 @@ export function buildVehicle(RAPIER, world, position = { x: 0, y: 5, z: 0 }) {
 //   throttle: -1..1 (negatív = hátramenet), steer: -1..1, brake/hold: bool
 export function applyControls(vehicle, body, input, { offtrack = false, frozen = false } = {}) {
   // Kifutón az első/hátsó arány is ugyanúgy megmarad, csak lejjebb tolva.
-  const frontRatio = FRONT_FRICTION_SLIP / REAR_FRICTION_SLIP;
-  const rearSlip = offtrack ? OFFTRACK_FRICTION_SLIP : REAR_FRICTION_SLIP;
+  const frontRatio = live.FRONT_FRICTION_SLIP / live.REAR_FRICTION_SLIP;
+  const rearSlip = offtrack ? OFFTRACK_FRICTION_SLIP : live.REAR_FRICTION_SLIP;
   const frontSlip = rearSlip * frontRatio;
   const slip = rearSlip;
   vehicle.setWheelFrictionSlip(0, frontSlip);
@@ -151,22 +179,22 @@ export function applyControls(vehicle, body, input, { offtrack = false, frozen =
 
   const forceFactor = offtrack ? OFFTRACK_FORCE_FACTOR : 1;
   const throttle = frozen ? 0 : Math.max(-1, Math.min(1, input.throttle || 0));
-  const force = (throttle >= 0 ? throttle : throttle * REVERSE_FACTOR) * MAX_ENGINE_FORCE * forceFactor;
+  const force = (throttle >= 0 ? throttle : throttle * live.REVERSE_FACTOR) * live.MAX_ENGINE_FORCE * forceFactor;
   vehicle.setWheelEngineForce(2, force);
   vehicle.setWheelEngineForce(3, force);
 
-  const steer = frozen ? 0 : Math.max(-1, Math.min(1, input.steer || 0)) * MAX_STEER;
+  const steer = frozen ? 0 : Math.max(-1, Math.min(1, input.steer || 0)) * live.MAX_STEER;
   vehicle.setWheelSteering(0, steer);
   vehicle.setWheelSteering(1, steer);
 
   if (frozen) {
     for (let i = 0; i < 4; i++) vehicle.setWheelBrake(i, HOLD_BRAKE);
   } else if (input.brake) {
-    vehicle.setWheelBrake(0, BRAKE_FRONT);
-    vehicle.setWheelBrake(1, BRAKE_FRONT);
-    vehicle.setWheelBrake(2, BRAKE_REAR);
-    vehicle.setWheelBrake(3, BRAKE_REAR);
-    const rear = Math.min(slip, HANDBRAKE_REAR_SLIP);
+    vehicle.setWheelBrake(0, live.BRAKE_FRONT);
+    vehicle.setWheelBrake(1, live.BRAKE_FRONT);
+    vehicle.setWheelBrake(2, live.BRAKE_REAR);
+    vehicle.setWheelBrake(3, live.BRAKE_REAR);
+    const rear = Math.min(slip, live.HANDBRAKE_REAR_SLIP);
     vehicle.setWheelFrictionSlip(2, rear);
     vehicle.setWheelFrictionSlip(3, rear);
   } else {

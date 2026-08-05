@@ -314,6 +314,11 @@ async function beginRace(info) {
   closeLobby();
   window.__mp.stage = 'start';
   raceEnded = false;
+  // Biztonsági háló: a dev autó-tesztelő élő hangolása (motorerő/fék/tapadás)
+  // csak a helyi jóslatot érintené, de multiplayerben a szerver mindig a
+  // kanonikus értékekkel számol — a jóslatnak is azzal kell indulnia, különben
+  // folytonos, meglepő korrekciók jönnének.
+  G.resetLiveVehicleTunables();
   G.setMenuStatus('Verseny betöltése...');
 
   // A saját kocsi, a pálya és a többi játékos kocsija — mind egyszerre, EGY

@@ -8,9 +8,19 @@
   átnevezel egy id-t, a dev.js mellette van, nem egy másik fájlban.
 -->
 <style>
-  #devHud.hidden, #carTesterHud.hidden { display: none !important; }
+  #devHud.hidden, #carTesterHud.hidden, #devDriveHud.hidden { display: none !important; }
   #devHud, #carTesterHud { position: fixed; top: 12px; left: 12px; z-index: 10; }
   #devHud .card, #carTesterHud .card { min-width: 220px; }
+
+  #devDriveHud {
+    position: fixed; top: 12px; right: 12px; z-index: 10;
+    max-height: calc(100vh - 24px); overflow-y: auto;
+  }
+  #devDriveHud .card { min-width: 300px; max-width: 340px; }
+  .vt-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+  .vt-row label { flex: 1 1 auto; font-size: 0.8rem; }
+  .vt-row input[type="range"] { flex: 1 1 auto; width: 100%; }
+  .vt-row .vt-value { flex: 0 0 auto; width: 3.4em; text-align: right; font-size: 0.8rem; }
 
   #zoneEditor.hidden { display: none !important; }
   /* A 3D pálya élőben, a fő renderer canvas-án látszik alatta — ezért a
@@ -40,7 +50,8 @@
       <button id="openZoneEditorBtn" class="btn btn-sm btn-outline-warning mt-2">Zóna / rajtrács szerkesztő</button>
       <button id="bakeCollisionBtn" class="btn btn-sm btn-outline-info mt-2">Ütközés bekészítése</button>
       <div id="bakeStatus" class="mt-1"></div>
-      <button id="carTesterBtn" class="btn btn-sm btn-outline-success mt-2">Autó tesztelő</button>
+      <button id="carTesterBtn" class="btn btn-sm btn-outline-success mt-2">Autó kerék tesztelő</button>
+      <button id="devDriveBtn" class="btn btn-sm btn-outline-primary mt-2">Vezetéses teszt + hangolás</button>
     </div>
   </div>
 </div>
@@ -48,11 +59,29 @@
 <div id="carTesterHud" class="hidden">
   <div class="card bg-dark bg-opacity-75 border-success text-light">
     <div class="card-body py-2 px-3 small">
-      <strong class="text-success">AUTÓ TESZTELŐ</strong><br>
+      <strong class="text-success">AUTÓ KERÉK TESZTELŐ</strong><br>
       <select id="carTesterCarSelect" class="form-select form-select-sm mt-1 mb-1"></select>
       A / D vagy ← / →: kormány (csak vizuális)<br>
       W / S vagy ↑ / ↓: előző / következő kocsi<br>
       <button id="carTesterBackBtn" class="btn btn-sm btn-outline-warning mt-2">Vissza a dev módba</button>
+    </div>
+  </div>
+</div>
+
+<div id="devDriveHud" class="hidden">
+  <div class="card bg-dark bg-opacity-75 border-primary text-light">
+    <div class="card-body py-2 px-3">
+      <strong class="text-primary">VEZETÉSES TESZT</strong>
+      <div class="small text-secondary mb-1">
+        Az alábbi csúszkák ÉLŐBEN hatnak, de önmaguktól NEM mentődnek — a
+        "Mentés fájlba" a projekt <code>shared/vehicleTunables.js</code>-ével
+        egyező tartalmú fájlt generál, amivel felülírható (Chromium-alapú
+        böngészőben közvetlenül a projekt mappájába is menthető).
+      </div>
+      <div id="devDriveSliders"></div>
+      <button id="devDriveSaveBtn" class="btn btn-sm btn-primary mt-2">Mentés fájlba</button>
+      <button id="devDriveResetBtn" class="btn btn-sm btn-outline-secondary mt-2">Alapértékek visszaállítása</button>
+      <button id="devDriveBackBtn" class="btn btn-sm btn-outline-warning mt-2">Vissza a dev módba</button>
     </div>
   </div>
 </div>

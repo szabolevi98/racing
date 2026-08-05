@@ -14,7 +14,12 @@
 // destrukturáljuk. A ténylegesen állandó dolgok (scene, camera, renderer, …)
 // viszont nyugodtan kicsomagolhatók.
 import * as THREE from 'three';
-import { MAX_STEER, STEER_VISUAL_SPEED } from '/shared/vehicleConfig.js';
+import {
+  MAX_STEER, STEER_VISUAL_SPEED,
+  MAX_ENGINE_FORCE, REVERSE_FACTOR, BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_REAR_SLIP,
+  FRONT_FRICTION_SLIP, REAR_FRICTION_SLIP, SUSPENSION, LINEAR_DAMPING, ANGULAR_DAMPING,
+  setLiveVehicleTunables, resetLiveVehicleTunables,
+} from '/shared/vehicleConfig.js';
 
 // ---------- DOM: a csak dev módban használt elemek ----------
 // A markupjuk NINCS benne az index.html-ben — a dev.html-ből injektáljuk be
@@ -23,6 +28,7 @@ import { MAX_STEER, STEER_VISUAL_SPEED } from '/shared/vehicleConfig.js';
 let devHudEl, devSpawnCountEl, devSpawnStatusEl, devMapSelectEl;
 let bakeCollisionBtn, bakeStatusEl, openZoneEditorBtn;
 let carTesterBtn, carTesterHudEl, carTesterBackBtn, carTesterCarSelectEl;
+let devDriveBtn, devDriveHudEl, devDriveBackBtn, devDriveResetBtn, devDriveSaveBtn, devDriveSlidersEl;
 let openMaterialPickerBtn, generateCheckpointsBtn, autoCheckpointCountEl;
 let materialPickerPanelEl, materialPickerGridEl, generateAsphaltBtn;
 let closeMaterialPickerBtn, materialPickerStatusEl;
@@ -64,6 +70,12 @@ function queryElements() {
   carTesterHudEl = $('carTesterHud');
   carTesterBackBtn = $('carTesterBackBtn');
   carTesterCarSelectEl = $('carTesterCarSelect');
+  devDriveBtn = $('devDriveBtn');
+  devDriveHudEl = $('devDriveHud');
+  devDriveBackBtn = $('devDriveBackBtn');
+  devDriveResetBtn = $('devDriveResetBtn');
+  devDriveSaveBtn = $('devDriveSaveBtn');
+  devDriveSlidersEl = $('devDriveSliders');
   openMaterialPickerBtn = $('openMaterialPickerBtn');
   generateCheckpointsBtn = $('generateCheckpointsBtn');
   autoCheckpointCountEl = $('autoCheckpointCount');
@@ -101,7 +113,19 @@ function queryElements() {
 function hideOverlays() {
   devHudEl.classList.add('hidden');
   carTesterHudEl.classList.add('hidden');
+  devDriveHudEl.classList.add('hidden');
   zoneEditorEl.classList.add('hidden');
+  // Ha épp vezetéses tesztelés közben hívják (pl. a "Vissza a menübe" linkkel,
+  // nem a panel saját gombjával), a hangolást AKKOR IS visszaállítjuk —
+  // különben a felfüggesztés/csillapítás élőben módosított értéke átszivárogna
+  // egy utána indított valódi versenybe (a motorerő/fék/tapadás ellen a
+  // startRace() már véd, de ezek a Rapier-objektumon direktben módosított
+  // értékek nem mennek át azon a biztonsági hálón).
+  if (devDriveActive) {
+    devDriveActive = false;
+    resetAllTunables();
+    devSpawnMarkers.forEach((m) => { m.visible = true; });
+  }
 }
 
 let api = null;
@@ -173,6 +197,10 @@ function enterCarTester() {
   devSpawnMarkers.forEach((m) => { m.visible = false; });
   populateCarTesterSelect();
   carTesterCarSelectEl.value = carSelect.value;
+  // A szabad kamerás dev nézetben a köd csak zavarna a pálya áttekintésénél
+  // (enterDevMode ezért nullázza) — közelről néző autó-tesztelőben viszont
+  // pont úgy kell kinéznie a kocsinak, mint rendes vezetés közben.
+  scene.fog.density = NORMAL_FOG_DENSITY;
 }
 
 function exitCarTester() {
@@ -180,6 +208,7 @@ function exitCarTester() {
   api.appState = 'dev';
   devHudEl.classList.remove('hidden');
   devSpawnMarkers.forEach((m) => { m.visible = true; });
+  scene.fog.density = 0;
 }
 
 function updateCarTest(dt) {
@@ -196,6 +225,234 @@ function updateCarTest(dt) {
   }
   updateSunTarget(carPivot.position);
   updateShowcaseCamera(dt);
+}
+
+// ---------- Vezetéses teszt: a kocsi VALÓDI fizikával megy a pályán, verseny/
+// checkpointok nélkül, plusz egy panel a menetdinamika élő hangolásához.
+//
+// Nincs önálló animate()-ág: a meglévő 'driving' állapotot használjuk
+// (ugyanaz a fix-timestep fizika, interpoláció, kerékvizuál, kameraden, amit
+// az egyjátékos vezetés is), csak `race.active = false`-ra állítva — így
+// verseny/visszaszámlálás nélkül, azonnal irányítható a kocsi. Ez a
+// legkisebb kockázatú megoldás: a driving-ág kódját egyáltalán nem kell
+// megérteni/módosítani, csak "belépünk" az állapotba.
+//
+// A csúszkák a motorerőt/kormányt/féket/tapadást a shared/vehicleConfig.js
+// MUTÁLHATÓ élő másolatán (setLiveVehicleTunables) írják át — ezt az
+// applyControls minden képkockán onnan olvassa. A felfüggesztést és a
+// csillapítást viszont KÖZVETLENÜL a Rapier-objektumon állítjuk, mert azok
+// nem "per-frame" olvasott értékek, hanem a jármű felépítésekor egyszer
+// beállított paraméterek — de a Rapier engedi őket futás közben is módosítani.
+let devDriveActive = false;
+
+// [kulcs, felirat, min, max, lépésköz]. A kulcs SZÁNDÉKOSAN pontosan
+// megegyezik a shared/vehicleTunables.js export-nevével (SUSPENSION_* is!) —
+// ez teszi lehetővé, hogy a "Mentés fájlba" gomb közvetlenül ebből a
+// listából generáljon egy azzal a fájllal 1:1 megegyező tartalmat, mapping
+// nélkül. A felfüggesztés/csillapítás nem "per-frame" olvasott érték
+// (azokat az applyTunable közvetlenül a Rapier-objektumon állítja), a többi
+// a shared/vehicleConfig.js élő, mutálható másolatán megy át.
+const VEHICLE_TUNABLES = [
+  ['MAX_ENGINE_FORCE', 'Motorerő', 300, 2500, 10],
+  ['REVERSE_FACTOR', 'Hátramenet szorzó', 0.1, 1, 0.01],
+  ['MAX_STEER', 'Kormány max. szöge', 0.2, 1.0, 0.01],
+  ['BRAKE_FRONT', 'Fék — elöl', 1, 60, 0.5],
+  ['BRAKE_REAR', 'Fék — hátul', 1, 60, 0.5],
+  ['HANDBRAKE_REAR_SLIP', 'Kézifék — hátsó tapadás', 0.1, 3, 0.05],
+  ['FRONT_FRICTION_SLIP', 'Tapadás — elöl', 0.5, 8, 0.05],
+  ['REAR_FRICTION_SLIP', 'Tapadás — hátul', 0.5, 8, 0.05],
+  ['SUSPENSION_STIFFNESS', 'Felfüggesztés — merevség', 5, 100, 1],
+  ['SUSPENSION_COMPRESSION', 'Felfüggesztés — kompresszió', 0.5, 10, 0.1],
+  ['SUSPENSION_RELAXATION', 'Felfüggesztés — relaxáció', 0.5, 10, 0.1],
+  ['SUSPENSION_MAX_TRAVEL', 'Felfüggesztés — max. löket', 0.05, 1, 0.01],
+  ['LINEAR_DAMPING', 'Lineáris csillapítás', 0, 1, 0.01],
+  ['ANGULAR_DAMPING', 'Szögsebesség-csillapítás', 0, 2, 0.01],
+];
+
+// A kanonikus (shared/vehicleTunables.js-beli) alapérték minden kulcshoz —
+// ebből épül a panel induláskor, és ide áll vissza az "Alapértékek".
+const CANONICAL_TUNABLES = {
+  MAX_ENGINE_FORCE, REVERSE_FACTOR, MAX_STEER,
+  BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_REAR_SLIP,
+  FRONT_FRICTION_SLIP, REAR_FRICTION_SLIP,
+  SUSPENSION_STIFFNESS: SUSPENSION.stiffness,
+  SUSPENSION_COMPRESSION: SUSPENSION.compression,
+  SUSPENSION_RELAXATION: SUSPENSION.relaxation,
+  SUSPENSION_MAX_TRAVEL: SUSPENSION.maxTravel,
+  LINEAR_DAMPING, ANGULAR_DAMPING,
+};
+
+// A négy kerékre egyszerre — a felfüggesztés minden keréken azonos, a
+// vehicleConfig.js is így építi fel (ld. buildVehicle).
+function applyTunable(key, value) {
+  const vehicle = api.vehicle;
+  switch (key) {
+    case 'SUSPENSION_STIFFNESS':
+      for (let i = 0; i < 4; i++) vehicle.setWheelSuspensionStiffness(i, value);
+      break;
+    case 'SUSPENSION_COMPRESSION':
+      for (let i = 0; i < 4; i++) vehicle.setWheelSuspensionCompression(i, value);
+      break;
+    case 'SUSPENSION_RELAXATION':
+      for (let i = 0; i < 4; i++) vehicle.setWheelSuspensionRelaxation(i, value);
+      break;
+    case 'SUSPENSION_MAX_TRAVEL':
+      for (let i = 0; i < 4; i++) vehicle.setWheelMaxSuspensionTravel(i, value);
+      break;
+    case 'LINEAR_DAMPING':
+      api.chassisBody.setLinearDamping(value);
+      break;
+    case 'ANGULAR_DAMPING':
+      api.chassisBody.setAngularDamping(value);
+      break;
+    default:
+      // MAX_ENGINE_FORCE, MAX_STEER, BRAKE_*, HANDBRAKE_REAR_SLIP,
+      // FRONT/REAR_FRICTION_SLIP, REVERSE_FACTOR — ezeket az applyControls
+      // olvassa minden képkockán a shared/vehicleConfig.js élő másolatából.
+      setLiveVehicleTunables({ [key]: value });
+  }
+}
+
+// A jelenlegi csúszka-állásokból generál egy, a shared/vehicleTunables.js-szel
+// FORMÁTUM szerint megegyező .js fájl-tartalmat — a kulcsok szándékos
+// egyezése miatt (ld. VEHICLE_TUNABLES) ez tényleg csak felsorolás, mapping
+// nélkül. A DOM-ból olvasunk (nem a Rapier-állapotból): a csúszka maga az
+// egyetlen forrás, ami a "mit állítottam be" kérdésre válaszol.
+function generateTunablesFileContent() {
+  const lines = VEHICLE_TUNABLES.map(([key]) => {
+    const input = document.getElementById(`vt-${key}`);
+    const value = input ? Number(input.value) : CANONICAL_TUNABLES[key];
+    return `export const ${key} = ${value};`;
+  });
+  return (
+    '// A dev autó-tesztelő "Mentés fájlba" gombjával generálva.\n' +
+    '// Ha ez jó lett, ez a fájl írja felül a projekt shared/vehicleTunables.js-ét.\n\n' +
+    lines.join('\n') + '\n'
+  );
+}
+
+// A böngésző File System Access API-ja (showSaveFilePicker) valódi "Mentés
+// másként" ablakot nyit, amiben a projekt shared/ mappájába navigálva
+// KÖZVETLENÜL felülírható a vehicleTunables.js — ez pontosan az, amit
+// kértél. Csak Chromium-alapú böngészőkben létezik; ha nincs (Firefox/
+// Safari, vagy ha a dev.html-t nem https/localhost-ról szolgálják ki),
+// visszaesünk egy sima letöltésre — az a Letöltések mappába megy, onnan
+// kézzel kell átmozgatni.
+async function saveTunablesToFile() {
+  const content = generateTunablesFileContent();
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: 'vehicleTunables.js',
+        types: [{ description: 'JavaScript modul', accept: { 'text/javascript': ['.js'] } }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(content);
+      await writable.close();
+      return;
+    } catch (err) {
+      // Az AbortError azt jelenti, hogy a mentési ablakot a felhasználó
+      // zárta be — ez nem hiba, nincs mit jelezni.
+      if (err.name === 'AbortError') return;
+      console.warn('showSaveFilePicker sikertelen, letöltésre esünk vissza', err);
+    }
+  }
+  const blob = new Blob([content], { type: 'text/javascript' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'vehicleTunables.js';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function formatTunableValue(value, step) {
+  const decimals = step < 1 ? String(step).split('.')[1]?.length ?? 2 : 0;
+  return value.toFixed(decimals);
+}
+
+// A panel egyszeri felépítése: minden sor egy csúszka + élő kiolvasás.
+// Nem a dev.html-ben van kézzel felsorolva mind a 14 sor, hogy a felirat, a
+// tartomány és a kulcs EGY helyen (VEHICLE_TUNABLES) éljen — elgépelés esetén
+// itt derül ki, nem egy másik fájlban eltérő id-ként.
+function buildTunablePanel() {
+  if (devDriveSlidersEl.childElementCount) return;
+  for (const [key, label, min, max, step] of VEHICLE_TUNABLES) {
+    const row = document.createElement('div');
+    row.className = 'vt-row';
+    row.innerHTML =
+      `<label for="vt-${key}">${label}</label>` +
+      `<input type="range" id="vt-${key}" min="${min}" max="${max}" step="${step}">` +
+      `<span class="vt-value" id="vt-${key}-val"></span>`;
+    devDriveSlidersEl.appendChild(row);
+    const input = row.querySelector('input');
+    const valueEl = row.querySelector('.vt-value');
+    input.addEventListener('input', () => {
+      const value = Number(input.value);
+      applyTunable(key, value);
+      valueEl.textContent = formatTunableValue(value, step);
+    });
+  }
+}
+
+// Minden csúszkát és a mögötte lévő élő/Rapier-értéket visszaállít a
+// kanonikus alapra. Ezt hívja a "Vissza a dev módba" gomb ÉS a
+// hideOverlays() is (ha máshonnan lép ki, pl. a "Vissza a menübe" linkkel) —
+// így hangolás után SOSEM maradhat élesben a helyi jóslat vagy egy következő
+// egyjátékos/multiplayer verseny.
+function resetAllTunables() {
+  resetLiveVehicleTunables();
+  for (const [key, , , , step] of VEHICLE_TUNABLES) {
+    const value = CANONICAL_TUNABLES[key];
+    applyTunable(key, value);
+    const input = document.getElementById(`vt-${key}`);
+    if (input) {
+      input.value = value;
+      document.getElementById(`vt-${key}-val`).textContent = formatTunableValue(value, step);
+    }
+  }
+}
+
+function enterDevDrive() {
+  if (!api.manifest || !api.currentTrack || devDriveActive) return;
+  devDriveActive = true;
+  devHudEl.classList.add('hidden');
+  buildTunablePanel();
+  resetAllTunables();
+  api.prepareTrackPhysics()
+    .then(() => {
+      api.resetCarTo(api.spawnPoint);
+      // Szabad vezetés: nincs rajtvonal-logika, visszaszámlálás, kör.
+      api.race.active = false;
+      api.appState = 'driving';
+      hudEl.classList.remove('hidden');
+      devDriveHudEl.classList.remove('hidden');
+      // Ugyanaz a megfontolás, mint az autó-tesztelőnél: rendes vezetés
+      // közben is van köd, a teszt akkor ér valamit, ha úgy néz ki, mint éles.
+      scene.fog.density = NORMAL_FOG_DENSITY;
+      // A 8 rajtpont-gömb csak a felülnézeti dev szerkesztéshez kell —
+      // vezetés közben csak zavarna, és a saját kocsi mellett/alatt állva
+      // kitakarná a kilátást.
+      devSpawnMarkers.forEach((m) => { m.visible = false; });
+      document.activeElement?.blur();
+    })
+    .catch((err) => {
+      devDriveActive = false;
+      devHudEl.classList.remove('hidden');
+      devSpawnStatusEl.textContent = 'Nem sikerült előkészíteni a pálya fizikáját: ' + err.message;
+    });
+}
+
+function exitDevDrive() {
+  if (!devDriveActive) return;
+  devDriveActive = false;
+  resetAllTunables();
+  devDriveHudEl.classList.add('hidden');
+  hudEl.classList.add('hidden');
+  api.appState = 'dev';
+  devHudEl.classList.remove('hidden');
+  scene.fog.density = 0;
+  devSpawnMarkers.forEach((m) => { m.visible = true; });
 }
 
 // Jobb-klikk + húzás a nézelődéshez — nem pointer lock, hogy az egérmutató
@@ -1205,10 +1462,16 @@ function wireEvents() {
     api.switchCarTo(findEntry(manifest.cars, carTesterCarSelectEl.value));
   });
 
+  devDriveBtn.addEventListener('click', enterDevDrive);
+  devDriveBackBtn.addEventListener('click', exitDevDrive);
+  devDriveResetBtn.addEventListener('click', resetAllTunables);
+  devDriveSaveBtn.addEventListener('click', saveTunablesToFile);
+
   // A W/S kocsiváltást a main.js kezeli (a menüben is működik) — mi csak az
-  // Escape-et vesszük át, ami kilép a tesztelőből.
+  // Escape-et vesszük át, ami kilép a tesztelőből / a vezetéses tesztből.
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Escape' && api.appState === 'cartest') exitCarTester();
+    else if (e.code === 'Escape' && devDriveActive) exitDevDrive();
   });
 
   // Kocsiváltás közben a tesztelő legördülője le van tiltva, utána szinkronba

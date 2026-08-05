@@ -56,7 +56,10 @@ function resolveSafe(baseDir, urlPath) {
 
 export async function serveStatic(req, res) {
   let urlPath = req.url.split('?')[0];
-  if (urlPath === '/') urlPath = '/index.html';
+  // A /dev csak egy szebb alternatíva a ?dev=1-hez — ugyanazt az index.html-t
+  // adja ki, a dev mód felismerése a kliens oldalon (main.js) az útvonalból
+  // is megy, nem csak a query paraméterből.
+  if (urlPath === '/' || urlPath === '/dev') urlPath = '/index.html';
 
   // A kliens és a szerver közös kódja a shared/ mappában él (a repo
   // gyökerében, nem a web/ alatt) — a böngészőnek viszont el kell érnie,
