@@ -13,8 +13,8 @@
 export const MAX_ENGINE_FORCE = 1100;
 export const REVERSE_FACTOR = 0.6;
 export const MAX_STEER = 0.66;
-export const BRAKE_FRONT = 60;
-export const BRAKE_REAR = 40;
+export const BRAKE_FRONT = 70;
+export const BRAKE_REAR = 60;
 export const HANDBRAKE_REAR_SLIP = 1.1;
 export const FRONT_FRICTION_SLIP = 3;
 export const REAR_FRICTION_SLIP = 2.9;
