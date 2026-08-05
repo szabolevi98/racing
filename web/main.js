@@ -6,6 +6,7 @@ import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-
 import {
   CHASSIS_SIZE, WHEEL_RADIUS, SUSPENSION_REST_LENGTH, WHEEL_POSITIONS,
   STEER_VISUAL_SPEED, buildVehicle, applyControls, resetLiveVehicleTunables,
+  FLOOR_COLLIDER_GROUPS, WALL_COLLIDER_GROUPS, WHEEL_RAY_FILTER_GROUPS,
 } from '/shared/vehicleConfig.js';
 import { TAINT } from '/shared/protocol.js';
 import {
@@ -1296,7 +1297,7 @@ async function setCar(carUrl, carId, config, onProgress) {
 // csökken, és nem a falakon akad meg a kerék-sugár.
 const COLLISION_NORMAL_MIN_Y = 0.5;
 
-function extractDrivableTriangles(track) {
+function extractDrivableTriangles(track, pruneDebris = true) {
   track.updateMatrixWorld(true);
   const positions = [];
   const indices = [];
@@ -1325,7 +1326,55 @@ function extractDrivableTriangles(track) {
     }
   });
 
-  return pruneIsolatedDebris(new Float32Array(positions), new Uint32Array(indices));
+  const mesh = { positions: new Float32Array(positions), indices: new Uint32Array(indices) };
+  return pruneDebris ? pruneIsolatedDebris(mesh.positions, mesh.indices) : mesh;
+}
+
+// A fal-háromszögek kinyerése: pontosan a fordítottja az extractDrivableTriangles
+// szűrésének (a majdnem-vízszintes lapok itt esnek ki, a majdnem-függőlegesek
+// maradnak). Ez adja a kasztni-only ütközőt, ami megállítja a kocsit a
+// falaknál/kerítéseknél, anélkül hogy a kerék-sugarat zavarná (lásd
+// shared/vehicleConfig.js: COLLISION_GROUP_WALL, WHEEL_RAY_FILTER_GROUPS).
+//
+// A debris-szűrést itt is futtatjuk, a talaj-hálóhoz hasonlóan: egy kis,
+// önmagában álló doboznak (pl. bokszutcai reklám-kocka) minden oldala megvan,
+// a függőleges falai is — szűrés nélkül épp ezek a "kockák" kerülnének be
+// látszólag szilárd, láthatatlan falként. Egy valódi kerítés/fal ennél a
+// méret-küszöbnél (3 m) jóval hosszabb, tehát nem esik ki.
+//
+// A `pruneDebris` kikapcsolható (dev bake felület, ellenőrzés célból) —
+// normál játékmenetben (fallback kinyerés) mindig bekapcsolva marad.
+function extractWallTriangles(track, pruneDebris = true) {
+  track.updateMatrixWorld(true);
+  const positions = [];
+  const indices = [];
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  const ab = new THREE.Vector3(), ac = new THREE.Vector3(), n = new THREE.Vector3();
+
+  track.traverse((obj) => {
+    if (!obj.isMesh || !obj.geometry) return;
+    const pos = obj.geometry.attributes.position;
+    const idx = obj.geometry.index;
+    const count = idx ? idx.count : pos.count;
+    for (let i = 0; i < count; i += 3) {
+      const i0 = idx ? idx.getX(i) : i;
+      const i1 = idx ? idx.getX(i + 1) : i + 1;
+      const i2 = idx ? idx.getX(i + 2) : i + 2;
+      a.fromBufferAttribute(pos, i0).applyMatrix4(obj.matrixWorld);
+      b.fromBufferAttribute(pos, i1).applyMatrix4(obj.matrixWorld);
+      c.fromBufferAttribute(pos, i2).applyMatrix4(obj.matrixWorld);
+      ab.subVectors(b, a);
+      ac.subVectors(c, a);
+      n.crossVectors(ab, ac).normalize();
+      if (Math.abs(n.y) > COLLISION_NORMAL_MIN_Y) continue;
+      const base = positions.length / 3;
+      positions.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+      indices.push(base, base + 1, base + 2);
+    }
+  });
+
+  const mesh = { positions: new Float32Array(positions), indices: new Uint32Array(indices) };
+  return pruneDebris ? pruneIsolatedDebris(mesh.positions, mesh.indices) : mesh;
 }
 
 // Néhány letöltött pályamodellben apró, a valódi útfelülettől teljesen
@@ -1424,13 +1473,25 @@ function pruneIsolatedDebris(positions, indices) {
   return { positions: new Float32Array(keptPositions), indices: new Uint32Array(keptIndices) };
 }
 
-function applyTrackCollider(positions, indices) {
+function applyTrackCollider(floor, wall) {
   removeTrackCollider();
   trackColliderBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
   trackCollider = world.createCollider(
-    RAPIER.ColliderDesc.trimesh(positions, indices).setFriction(1.0),
+    RAPIER.ColliderDesc.trimesh(floor.positions, floor.indices)
+      .setFriction(1.0)
+      .setCollisionGroups(FLOOR_COLLIDER_GROUPS),
     trackColliderBody
   );
+  // A fal-collider csak a kasztnival ütközik — a kerék-sugarat a
+  // WHEEL_RAY_FILTER_GROUPS zárja ki belőle (lásd az updateVehicle hívásokat).
+  if (wall && wall.indices.length > 0) {
+    world.createCollider(
+      RAPIER.ColliderDesc.trimesh(wall.positions, wall.indices)
+        .setFriction(1.0)
+        .setCollisionGroups(WALL_COLLIDER_GROUPS),
+      trackColliderBody
+    );
+  }
   // A Rapier lekérdező pipeline-ját a world.step() frissíti; enélkül a
   // kerekek sugarai némán semmit sem találnának el az első képkockákon.
   world.step();
@@ -2244,7 +2305,7 @@ const devApi = {
   hudEl, menuEl, carSelect,
   NORMAL_FOG_DENSITY,
   moveTowardsAngle, updateSunTarget, updateShowcaseCamera,
-  findEntry, fillSelect, setTrack, loadZoneRuntime, extractDrivableTriangles,
+  findEntry, fillSelect, setTrack, loadZoneRuntime, extractDrivableTriangles, extractWallTriangles,
   makeSearchableSelect,
   switchCarTo,
   setCarSwitchHook(hook) { carSwitchHook = hook; },
@@ -2282,7 +2343,7 @@ const devApi = {
 // azonos geometrián számoljon.
 async function prepareTrackPhysics({ strict = false } = {}) {
   const mesh = await loadOrExtractCollision(strict);
-  applyTrackCollider(mesh.positions, mesh.indices);
+  applyTrackCollider(mesh.floor, mesh.wall);
   return mesh;
 }
 
@@ -2313,7 +2374,9 @@ startBtn.addEventListener('click', async () => {
     }
     resetCarTo(spawnPoint);
 
-    setStatus(`Ütközés: ${mesh.indices.length / 3} háromszög (${mesh.source})`);
+    setStatus(
+      `Ütközés: ${mesh.floor.indices.length / 3} talaj + ${mesh.wall.indices.length / 3} fal háromszög (${mesh.source})`
+    );
     setMenuStatus('');
     startRace();
     enterDriving();
@@ -2331,6 +2394,17 @@ startBtn.addEventListener('click', async () => {
 // hálózaton simán elhasal — egy második próbálkozás a legtöbb esetet megoldja.
 const COLLISION_FETCH_ATTEMPTS = 3;
 
+// A collision.bin v2 fejléce — lásd server/devApi.js: COLLISION_MAGIC.
+const COLLISION_MAGIC = 0xc0111505;
+
+function readCollisionMesh(view, buf, offset) {
+  const vertexCount = view.getUint32(offset, true);
+  const indexCount = view.getUint32(offset + 4, true);
+  const positions = new Float32Array(buf, offset + 8, vertexCount * 3);
+  const indices = new Uint32Array(buf, offset + 8 + vertexCount * 12, indexCount);
+  return { positions, indices, nextOffset: offset + 8 + vertexCount * 12 + indexCount * 4 };
+}
+
 async function fetchPreparedCollision(entry) {
   // Cache-kulcs a manifestből (méret + mtime), nem Date.now(): így a böngésző
   // MEGTARTHATJA a fájlt két verseny között, de dev módbeli újragenerálás után
@@ -2343,11 +2417,12 @@ async function fetchPreparedCollision(entry) {
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const buf = await res.arrayBuffer();
       const view = new DataView(buf);
-      const vertexCount = view.getUint32(0, true);
-      const indexCount = view.getUint32(4, true);
-      const positions = new Float32Array(buf, 8, vertexCount * 3);
-      const indices = new Uint32Array(buf, 8 + vertexCount * 12, indexCount);
-      return { positions, indices, source: 'fájlból' };
+      if (buf.byteLength < 4 || view.getUint32(0, true) !== COLLISION_MAGIC) {
+        throw new Error('érvénytelen vagy régi formátumú collision.bin — süsd be újra a Fejlesztői eszközökből');
+      }
+      const floor = readCollisionMesh(view, buf, 4);
+      const wall = readCollisionMesh(view, buf, floor.nextOffset);
+      return { floor, wall, source: 'fájlból' };
     } catch (err) {
       lastErr = err;
       console.warn(`Ütközési fájl letöltése sikertelen (${attempt}/${COLLISION_FETCH_ATTEMPTS})`, err);
@@ -2386,8 +2461,9 @@ async function loadOrExtractCollision(strict = false) {
       'nem lenne azonos.'
     );
   }
-  const mesh = extractDrivableTriangles(currentTrack);
-  return { ...mesh, source: 'modellből' };
+  const floor = extractDrivableTriangles(currentTrack);
+  const wall = extractWallTriangles(currentTrack);
+  return { floor, wall, source: 'modellből' };
 }
 
 backToMenuLink.addEventListener('click', () => {
@@ -2678,7 +2754,7 @@ function animate() {
     while (physicsAccum >= world.timestep && physSteps < 5) {
       // A Rapiernél a jármű-vezérlőt a világ léptetése ELŐTT kell frissíteni:
       // ez lövi ki a kerék-sugarakat és számolja a felfüggesztés/tapadás erőket.
-      vehicle.updateVehicle(world.timestep);
+      vehicle.updateVehicle(world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
       world.step();
       applyWallConstraint();
       captureCarState();
@@ -2973,7 +3049,7 @@ window.__game = {
     const p = chassisBody.translation();
     const offtrack = sampleZoneAt(p.x, p.z) === ZONE_OFFTRACK;
     applyControls(vehicle, chassisBody, input, { frozen, offtrack });
-    vehicle.updateVehicle(world.timestep);
+    vehicle.updateVehicle(world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
     world.step();
     // A láthatatlan fal a lépés UTÁN, ugyanabban a sorrendben, mint a
     // szerveren és mint az egyjátékos animate()-ben.

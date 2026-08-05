@@ -34,6 +34,27 @@ import {
 
 export const GRAVITY = { x: 0, y: -9.81, z: 0 };
 
+// ---------- Pálya-ütköző csoportok: talaj vs. fal ----------
+// A kerék-sugár (updateVehicle raycast) csak a talajt "látja" — a felfüggesztés
+// magasságát méri, sosem oldalra. Ha a falat is látná, a majdnem-vízszintes
+// fal-tetőkbe/párkányokba akadna bele a felfüggesztés-számítás. A kasztni
+// dobozának normál ütközője viszont MINDKÉT csoporttal ütközik (nincs rajta
+// szűrés), így a fal ellen a kasztni test fizikailag megáll, a kerék-sugár
+// pedig zavartalanul a talajt méri alatta.
+//
+// InteractionGroups egy 32 bites szám: a felső 16 bit a tagság (groups), az
+// alsó 16 bit a szűrő (mask). Két fél ütközik, ha A tagsága metszi B szűrőjét
+// ÉS B tagsága metszi A szűrőjét — lásd a Rapier interaction_groups.d.ts-ét.
+export const COLLISION_GROUP_FLOOR = 0x0001;
+export const COLLISION_GROUP_WALL = 0x0002;
+const GROUPS_ALL_MASK = 0xffff;
+export const FLOOR_COLLIDER_GROUPS = (COLLISION_GROUP_FLOOR << 16) | GROUPS_ALL_MASK;
+export const WALL_COLLIDER_GROUPS = (COLLISION_GROUP_WALL << 16) | GROUPS_ALL_MASK;
+// A kerék-sugár lekérdezés "önmaga" groups/mask párja: tagság = minden (hogy
+// bármelyik collider szűrőjén átjusson), szűrő = csak a talaj csoportja (hogy
+// csak a talaj colliderek tagsága illeszkedjen rá).
+export const WHEEL_RAY_FILTER_GROUPS = (GROUPS_ALL_MASK << 16) | COLLISION_GROUP_FLOOR;
+
 // Fél-méretek: szélesség/2, magasság/2, hossz/2.
 export const CHASSIS_SIZE = { x: 1.0, y: 0.4, z: 2.2 };
 export const CHASSIS_MASS = 250;

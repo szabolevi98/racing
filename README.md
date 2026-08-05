@@ -114,9 +114,14 @@ forrása (300 ms-nál ~1,5 m).
 
 ## Ami még hátravan
 
-- **Egyetlen pályán sincs falfestés.** A fal-ecset és a hozzá tartozó
-  visszalökés kész (mindkét oldalon), de amíg a zóna-szerkesztőben senki nem
-  fest falat, nincs mit érvényesíteni.
+- **A zóna-szerkesztő fal-ecsete opcionális.** A valódi falakat/kerítéseket a
+  pálya 3D modelljéből kinyert, bekészített ütközési háló (`collision.bin`)
+  állítja meg — ez a kasztnira külön collidert épít (lásd
+  `shared/vehicleConfig.js`: `COLLISION_GROUP_WALL`/`FLOOR`,
+  `WHEEL_RAY_FILTER_GROUPS`), a kerék-sugarat nem zavarja. A fal-ecset és a
+  hozzá tartozó zóna-alapú visszalökés (`shared/zone.js`) ettől függetlenül
+  tovább is megy, csak láthatatlan, extra falak kijelölésére kell ott, ahol
+  nincs 3D geometria (pl. egy szakasz lezárása).
 - **Éles kiszolgálás**: systemd unit és Apache reverse proxy a VPS-en. A kliens
   `wss://`-re már magától vált HTTPS alatt; a szerver oldali teendők leírva a
   [DEPLOY.md](DEPLOY.md)-ben.

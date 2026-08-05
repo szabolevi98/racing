@@ -8,7 +8,10 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { S2C, ROOM_STATE, TAINT, TICK_RATE, TICK_MS, SNAPSHOT_RATE } from '../../shared/protocol.js';
-import { GRAVITY, buildVehicle, applyControls, CHASSIS_SIZE } from '../../shared/vehicleConfig.js';
+import {
+  GRAVITY, buildVehicle, applyControls, CHASSIS_SIZE,
+  FLOOR_COLLIDER_GROUPS, WALL_COLLIDER_GROUPS, WHEEL_RAY_FILTER_GROUPS,
+} from '../../shared/vehicleConfig.js';
 import {
   decodeZoneCodes, sampleZone, ZONE_OFFTRACK,
   wallProbes, wheelProbes, allWheelsOffTrack, applyWallConstraint,
@@ -23,20 +26,33 @@ function initRapier() {
   return rapierReady;
 }
 
-// A pálya ütközési hálója: [uint32 vertexCount][uint32 indexCount]
-// [float32*3*verts][uint32*indices] — ugyanaz a fájl, amit a kliens tölt le,
-// így a két oldal BITRE azonos geometrián számol.
+// A pálya ütközési hálója (v2, két háló — talaj és fal): [uint32 magic]
+// [uint32 floorVertexCount][uint32 floorIndexCount][float32*3*verts][uint32*indices]
+// [uint32 wallVertexCount][uint32 wallIndexCount][float32*3*verts][uint32*indices]
+// — ugyanaz a fájl, amit a kliens tölt le, így a két oldal BITRE azonos
+// geometrián számol. Lásd server/devApi.js: COLLISION_MAGIC.
+const COLLISION_MAGIC = 0xc0111505;
+
+function readMesh(buf, offset) {
+  const vertCount = buf.readUInt32LE(offset);
+  const indexCount = buf.readUInt32LE(offset + 4);
+  const vertices = new Float32Array(vertCount * 3);
+  const indices = new Uint32Array(indexCount);
+  let o = offset + 8;
+  for (let i = 0; i < vertices.length; i++, o += 4) vertices[i] = buf.readFloatLE(o);
+  for (let i = 0; i < indices.length; i++, o += 4) indices[i] = buf.readUInt32LE(o);
+  return { vertices, indices, nextOffset: o };
+}
+
 async function loadCollision(mapId) {
   const file = path.join(ASSETS_DIR, 'maps', mapId, 'collision.bin');
   const buf = await fs.readFile(file);
-  const vertCount = buf.readUInt32LE(0);
-  const indexCount = buf.readUInt32LE(4);
-  const vertices = new Float32Array(vertCount * 3);
-  const indices = new Uint32Array(indexCount);
-  let o = 8;
-  for (let i = 0; i < vertices.length; i++, o += 4) vertices[i] = buf.readFloatLE(o);
-  for (let i = 0; i < indices.length; i++, o += 4) indices[i] = buf.readUInt32LE(o);
-  return { vertices, indices };
+  if (buf.length < 4 || buf.readUInt32LE(0) !== COLLISION_MAGIC) {
+    throw new Error('érvénytelen vagy régi formátumú collision.bin — süsd be újra a Fejlesztői eszközökből');
+  }
+  const floor = readMesh(buf, 4);
+  const wall = readMesh(buf, floor.nextOffset);
+  return { floor, wall };
 }
 
 // A dev módban festett zóna-maszk beolvasása. Ugyanaz a zonemap.png, amit a
@@ -119,15 +135,26 @@ export class RaceSim {
     // magasan fekvő pályánál a kocsik a pálya alatt születtek (beékelődés),
     // egy lejjebb fekvőnél a levegőben lebegtek. Inkább ne induljon a verseny,
     // és derüljön ki a hiba.
-    const { vertices, indices } = await loadCollision(this.map.id).catch((err) => {
+    const { floor, wall } = await loadCollision(this.map.id).catch((err) => {
       throw new Error(`A pálya ütközési hálója nem olvasható (${this.map.id}): ${err.message}`);
     });
     const trackBody = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
-    this.world.createCollider(RAPIER.ColliderDesc.trimesh(vertices, indices), trackBody);
+    this.world.createCollider(
+      RAPIER.ColliderDesc.trimesh(floor.vertices, floor.indices).setCollisionGroups(FLOOR_COLLIDER_GROUPS),
+      trackBody
+    );
+    // A fal-háló csak a kasztnival ütközik — a kerék-sugarat a
+    // WHEEL_RAY_FILTER_GROUPS zárja ki belőle (lásd updateVehicle hívás lent).
+    if (wall.indices.length > 0) {
+      this.world.createCollider(
+        RAPIER.ColliderDesc.trimesh(wall.vertices, wall.indices).setCollisionGroups(WALL_COLLIDER_GROUPS),
+        trackBody
+      );
+    }
     // A háló legfelső pontja: ha egy rajtponton a talajkeresés nem talál
     // semmit (lyuk a hálóban), innen ejtjük le a kocsit — a pálya FÖLÜL.
     let topY = -Infinity;
-    for (let i = 1; i < vertices.length; i += 3) if (vertices[i] > topY) topY = vertices[i];
+    for (let i = 1; i < floor.vertices.length; i += 3) if (floor.vertices[i] > topY) topY = floor.vertices[i];
     this.trackTopY = Number.isFinite(topY) ? topY : 0;
 
     // Zóna-térkép: enélkül a pályán kívül ugyanolyan gyors lenne a kocsi,
@@ -217,7 +244,9 @@ export class RaceSim {
   // sugárral. null, ha nem talált semmit — a hívó dönt, mit tesz vele.
   groundAt(x, z) {
     const ray = new RAPIER.Ray({ x, y: RAY_FROM_Y, z }, { x: 0, y: -1, z: 0 });
-    const hit = this.world.castRay(ray, RAY_FROM_Y * 2, true);
+    // Csak a talaj-collidert nézi, ne a falat — egy fal fölé eső rajtpont
+    // ne a fal tetejére, hanem a fal ALATTI útra tegye a kocsit.
+    const hit = this.world.castRay(ray, RAY_FROM_Y * 2, true, undefined, WHEEL_RAY_FILTER_GROUPS);
     return hit ? RAY_FROM_Y - hit.timeOfImpact : null;
   }
 
@@ -334,7 +363,7 @@ export class RaceSim {
       const pos = car.body.translation();
       const offtrack = sampleZone(this.zone, pos.x, pos.z) === ZONE_OFFTRACK;
       applyControls(car.vehicle, car.body, car.input, { frozen, offtrack });
-      car.vehicle.updateVehicle(this.world.timestep);
+      car.vehicle.updateVehicle(this.world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
     }
     this.world.step();
 

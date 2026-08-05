@@ -26,7 +26,7 @@ import {
 // (ld. injectMarkup lent), hogy egy rendes játékosnak ne kelljen letöltenie.
 // Ezért ezek `let`-ek, és csak az injektálás UTÁN kapnak értéket.
 let devHudEl, devSpawnCountEl, devSpawnStatusEl, devMapSelectEl;
-let bakeCollisionBtn, bakeStatusEl, openZoneEditorBtn;
+let bakeCollisionBtn, bakeStatusEl, bakeDebrisFilterCheck, openZoneEditorBtn;
 let carTesterBtn, carTesterHudEl, carTesterBackBtn, carTesterCarSelectEl;
 let devDriveBtn, devDriveHudEl, devDriveBackBtn, devDriveResetBtn, devDriveSaveBtn, devDriveSlidersEl;
 let openMaterialPickerBtn, generateCheckpointsBtn, autoCheckpointCountEl;
@@ -65,6 +65,7 @@ function queryElements() {
   devMapSelectEl = $('devMapSelect');
   bakeCollisionBtn = $('bakeCollisionBtn');
   bakeStatusEl = $('bakeStatus');
+  bakeDebrisFilterCheck = $('bakeDebrisFilterCheck');
   openZoneEditorBtn = $('openZoneEditorBtn');
   carTesterBtn = $('carTesterBtn');
   carTesterHudEl = $('carTesterHud');
@@ -133,7 +134,7 @@ let api = null;
 let scene, camera, renderer, carPivot, keys, hudEl, menuEl, carSelect;
 let NORMAL_FOG_DENSITY;
 let moveTowardsAngle, updateSunTarget, updateShowcaseCamera;
-let findEntry, fillSelect, setTrack, loadZoneRuntime, extractDrivableTriangles, makeSearchableSelect;
+let findEntry, fillSelect, setTrack, loadZoneRuntime, extractDrivableTriangles, extractWallTriangles, makeSearchableSelect;
 
 const maxSteerVal = MAX_STEER;
 
@@ -1387,8 +1388,17 @@ function dedupeVertices(positions, indices) {
   return { positions: new Float32Array(outPositions), indices: outIndices };
 }
 
-// Dev mód: az aktuális pálya ütközési hálójának kinyerése és kimentése
-// fájlba. Innentől a játék ezt tölti be a modellből való kinyerés helyett.
+// A collision.bin v2 fejléce: ez a szám sosem lehetne valódi vertexCount
+// (a régi, fejléc nélküli formátum első 4 bájtja), így egy régi fájl a
+// szerveren/kliensen egyértelműen és hangosan elbukik, nem csendben
+// félreértelmeződik.
+const COLLISION_MAGIC = 0xc0111505;
+
+// Dev mód: az aktuális pálya talaj- ÉS fal-ütközési hálójának kinyerése és
+// kimentése fájlba. Innentől a játék ezt tölti be a modellből való kinyerés
+// helyett. Két külön hálót mentünk (lásd shared/vehicleConfig.js:
+// COLLISION_GROUP_FLOOR/WALL) — a kerék-sugár csak a talajjal, a kasztni
+// mindkettővel ütközik.
 async function bakeCollisionToFile() {
   const track = api.currentTrack;
   const mapId = api.currentMapId;
@@ -1396,16 +1406,29 @@ async function bakeCollisionToFile() {
   bakeStatusEl.textContent = 'Kinyerés...';
   await new Promise((r) => setTimeout(r, 0)); // hadd frissüljön a felirat
 
-  const raw = extractDrivableTriangles(track);
-  const mesh = dedupeVertices(raw.positions, raw.indices);
+  const pruneDebris = bakeDebrisFilterCheck.checked;
+  const rawFloor = extractDrivableTriangles(track, pruneDebris);
+  const floor = dedupeVertices(rawFloor.positions, rawFloor.indices);
+  const rawWall = extractWallTriangles(track, pruneDebris);
+  const wall = dedupeVertices(rawWall.positions, rawWall.indices);
 
-  const vertexCount = mesh.positions.length / 3;
-  const buffer = new ArrayBuffer(8 + mesh.positions.byteLength + mesh.indices.byteLength);
+  const floorVertexCount = floor.positions.length / 3;
+  const wallVertexCount = wall.positions.length / 3;
+  const buffer = new ArrayBuffer(
+    4 + 8 + floor.positions.byteLength + floor.indices.byteLength +
+    8 + wall.positions.byteLength + wall.indices.byteLength
+  );
   const view = new DataView(buffer);
-  view.setUint32(0, vertexCount, true);
-  view.setUint32(4, mesh.indices.length, true);
-  new Float32Array(buffer, 8, mesh.positions.length).set(mesh.positions);
-  new Uint32Array(buffer, 8 + mesh.positions.byteLength, mesh.indices.length).set(mesh.indices);
+  let o = 0;
+  view.setUint32(o, COLLISION_MAGIC, true); o += 4;
+  view.setUint32(o, floorVertexCount, true); o += 4;
+  view.setUint32(o, floor.indices.length, true); o += 4;
+  new Float32Array(buffer, o, floor.positions.length).set(floor.positions); o += floor.positions.byteLength;
+  new Uint32Array(buffer, o, floor.indices.length).set(floor.indices); o += floor.indices.byteLength;
+  view.setUint32(o, wallVertexCount, true); o += 4;
+  view.setUint32(o, wall.indices.length, true); o += 4;
+  new Float32Array(buffer, o, wall.positions.length).set(wall.positions); o += wall.positions.byteLength;
+  new Uint32Array(buffer, o, wall.indices.length).set(wall.indices); o += wall.indices.byteLength;
 
   bakeStatusEl.textContent = 'Mentés...';
   try {
@@ -1422,13 +1445,10 @@ async function bakeCollisionToFile() {
     const entry = manifest && findEntry(manifest.maps, mapId);
     if (entry) entry.collision = { file: `maps/${mapId}/collision.bin`, bytes: data.bytes };
 
-    // A háromszögszámot magunk számoljuk (mesh.indices.length / 3) — a szerver
-    // válasza nem "triangles" mezőt ad, hanem "indices"-t (az index-tömb
-    // HOSSZÁT, nem a háromszögek számát), ezért a data.triangles mindig
-    // undefined volt.
     bakeStatusEl.textContent =
-      `Kész: ${mesh.indices.length / 3} háromszög, ${(data.bytes / 1048576).toFixed(1)} MB ` +
-      `(${raw.positions.length / 3} → ${vertexCount} csúcs)`;
+      `Kész: talaj ${floor.indices.length / 3} (${rawFloor.positions.length / 3}→${floorVertexCount} csúcs), ` +
+      `fal ${wall.indices.length / 3} (${rawWall.positions.length / 3}→${wallVertexCount} csúcs) háromszög, ` +
+      `${(data.bytes / 1048576).toFixed(1)} MB`;
   } catch (err) {
     bakeStatusEl.textContent = 'Hiba: ' + err.message;
   }
@@ -1700,7 +1720,7 @@ export async function initDevTools(gameApi) {
     scene, camera, renderer, carPivot, keys, hudEl, menuEl, carSelect,
     NORMAL_FOG_DENSITY,
     moveTowardsAngle, updateSunTarget, updateShowcaseCamera,
-    findEntry, fillSelect, setTrack, loadZoneRuntime, extractDrivableTriangles, makeSearchableSelect,
+    findEntry, fillSelect, setTrack, loadZoneRuntime, extractDrivableTriangles, extractWallTriangles, makeSearchableSelect,
   } = api);
 
   // THREE-objektumok csak most jönnek létre — a modul betöltésekor még nem

@@ -49,6 +49,12 @@
       <span id="devSpawnStatus"></span><br>
       <button id="openZoneEditorBtn" class="btn btn-sm btn-outline-warning mt-2">Zóna / rajtrács szerkesztő</button>
       <button id="bakeCollisionBtn" class="btn btn-sm btn-outline-info mt-2">Ütközés bekészítése</button>
+      <div class="form-check form-check-inline mt-1">
+        <input type="checkbox" id="bakeDebrisFilterCheck" class="form-check-input" checked>
+        <label for="bakeDebrisFilterCheck" class="form-check-label small">
+          Elszigetelt, apró darabok kiszűrése (debris)
+        </label>
+      </div>
       <div id="bakeStatus" class="mt-1"></div>
       <button id="carTesterBtn" class="btn btn-sm btn-outline-success mt-2">Autó kerék tesztelő</button>
       <button id="devDriveBtn" class="btn btn-sm btn-outline-primary mt-2">Vezetéses teszt + hangolás</button>
@@ -99,6 +105,11 @@
         <input type="radio" class="btn-check" name="zoneBrush" id="brushWall" value="2">
         <label class="btn btn-outline-danger btn-sm" for="brushWall">Fal</label>
       </div><br>
+      <span class="text-secondary">
+        A "Fal" festés opcionális: a valódi falakat/kerítéseket már a bekészített
+        ütközési háló (collision.bin) is megállítja — ez csak láthatatlan,
+        extra falak kijelölésére kell (pl. ahol nincs 3D geometria).
+      </span><br>
       <div class="btn-group mb-2" role="group">
         <input type="radio" class="btn-check" name="zoneBrush" id="brushSpawn" value="spawn">
         <label class="btn btn-outline-info btn-sm" for="brushSpawn">Rajtpont</label>

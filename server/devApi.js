@@ -90,25 +90,56 @@ export async function saveZonemap(body) {
   return { ok: true, bytes: png.length };
 }
 
-// Az ütközési háló nyers bináris: [uint32 vertexCount][uint32 indexCount]
-// [float32 * 3 * vertexCount][uint32 * indexCount]. A fejlécet ellenőrizzük,
-// hogy egy csonka feltöltés ne írjon felül egy jó fájlt.
-export async function saveCollision(mapId, buf) {
-  const dir = await mapDirOf(mapId);
-  if (!buf || buf.length < 8) {
-    const e = new Error('Üres vagy hibás törzs.');
+// Az ütközési háló nyers bináris (v2, két háló): [uint32 magic]
+// [uint32 floorVertexCount][uint32 floorIndexCount]
+// [float32 * 3 * floorVertexCount][uint32 * floorIndexCount]
+// [uint32 wallVertexCount][uint32 wallIndexCount]
+// [float32 * 3 * wallVertexCount][uint32 * wallIndexCount].
+//
+// A magic egy olyan érték, ami sosem lehetne valódi (régi formátumú)
+// vertexCount — így egy régi, egyhálós fájl feltöltése hangosan elbukik itt,
+// nem csendben íródik felül félreértett tartalommal.
+const COLLISION_MAGIC = 0xc0111505;
+
+function readMeshHeader(buf, offset) {
+  if (buf.length < offset + 8) {
+    const e = new Error('Csonka fejléc.');
     e.status = 400;
     throw e;
   }
-  const verts = buf.readUInt32LE(0);
-  const indices = buf.readUInt32LE(4);
-  const expected = 8 + verts * 12 + indices * 4;
-  if (expected !== buf.length) {
-    const e = new Error(`Méret-eltérés: várt ${expected}, kapott ${buf.length}.`);
+  const verts = buf.readUInt32LE(offset);
+  const indices = buf.readUInt32LE(offset + 4);
+  const bodyEnd = offset + 8 + verts * 12 + indices * 4;
+  if (bodyEnd > buf.length) {
+    const e = new Error(`Méret-eltérés: várt legalább ${bodyEnd} bájt, kapott ${buf.length}.`);
+    e.status = 400;
+    throw e;
+  }
+  return { verts, indices, bodyEnd };
+}
+
+export async function saveCollision(mapId, buf) {
+  const dir = await mapDirOf(mapId);
+  if (!buf || buf.length < 4 || buf.readUInt32LE(0) !== COLLISION_MAGIC) {
+    const e = new Error(
+      'Érvénytelen vagy régi formátumú ütközési fájl (hiányzó magic fejléc) — süsd be újra a Fejlesztői eszközökből.'
+    );
+    e.status = 400;
+    throw e;
+  }
+  const floor = readMeshHeader(buf, 4);
+  const wall = readMeshHeader(buf, floor.bodyEnd);
+  if (wall.bodyEnd !== buf.length) {
+    const e = new Error(`Méret-eltérés: várt pontosan ${wall.bodyEnd} bájt, kapott ${buf.length}.`);
     e.status = 400;
     throw e;
   }
   await fs.writeFile(path.join(dir, 'collision.bin'), buf);
   invalidateManifest();
-  return { ok: true, verts, indices, bytes: buf.length };
+  return {
+    ok: true,
+    floorVerts: floor.verts, floorIndices: floor.indices,
+    wallVerts: wall.verts, wallIndices: wall.indices,
+    bytes: buf.length,
+  };
 }
