@@ -276,73 +276,6 @@ function updateSunTarget(targetPos) {
 const world = new RAPIER.World({ x: 0, y: -9.82, z: 0 });
 world.timestep = 1 / 60;
 
-// Biztonsági "aljzat" — arra kell, hogy a kocsi ne essen a végtelenségig, ha
-// lecsúszik a pályáról, VAGY ha a pálya modelljén lévő lyukon esik át. Csak
-// pár egységgel a pálya legalja alatt van, hogy ne egy láthatatlan mélységbe
-// zuhanjon az autó, hanem szinte azonnal elkapja egy sötétszürke "padló",
-// ami takarja a lyukakat. A Rapiernek nincs végtelen síkja, ezért egy nagyon
-// nagy, lapos hasáb tölti be ezt a szerepet.
-const safetyNetBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
-const safetyNetCollider = world.createCollider(
-  RAPIER.ColliderDesc.cuboid(5000, 1, 5000),
-  safetyNetBody
-);
-
-// Világos szürke, hogy jól elüssön az aszfalttól: ahol a modell lyukas, ott
-// egyértelműen látszódjon, hogy ez a takaró padló, ne olvadjon össze az úttal.
-const safetyFloorMesh = new THREE.Mesh(
-  new THREE.PlaneGeometry(6000, 6000),
-  new THREE.MeshStandardMaterial({ color: 0x8b9096, roughness: 1, metalness: 0, side: THREE.DoubleSide })
-);
-safetyFloorMesh.rotation.x = -Math.PI / 2;
-safetyFloorMesh.receiveShadow = true;
-scene.add(safetyFloorMesh);
-
-// Egy sík, fix magasságú padló völgyekben átlógna, dombos/hidas részeken meg
-// túl messze maradna a lyukaktól. Ehelyett a padlót a magasságtérkép ADATÁBÓL
-// (amit a fizikához amúgy is kiszámolunk) építjük fel: a pálya tényleges
-// terepkontúrját követi, csak mindenhol pár egységgel lejjebb tolva — így
-// garantáltan mindenhol közel marad, sosem lóg át a valódi felszínen.
-function buildContourFloorMesh(data, elementSize, box, margin) {
-  const nx = data.length;
-  const nz = data[0].length;
-  const positions = new Float32Array(nx * nz * 3);
-
-  for (let i = 0; i < nx; i++) {
-    const worldX = box.min.x + i * elementSize;
-    for (let j = 0; j < nz; j++) {
-      const worldZ = box.max.z - j * elementSize;
-      const idx = (i * nz + j) * 3;
-      positions[idx] = worldX;
-      positions[idx + 1] = data[i][j] - margin;
-      positions[idx + 2] = worldZ;
-    }
-  }
-
-  const indices = [];
-  for (let i = 0; i < nx - 1; i++) {
-    for (let j = 0; j < nz - 1; j++) {
-      const a = i * nz + j;
-      const b = (i + 1) * nz + j;
-      const c = (i + 1) * nz + (j + 1);
-      const d = i * nz + (j + 1);
-      indices.push(a, b, d, b, c, d);
-    }
-  }
-
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geometry.setIndex(indices);
-  geometry.computeVertexNormals();
-
-  safetyFloorMesh.geometry.dispose();
-  safetyFloorMesh.geometry = geometry;
-  // A geometria már világ-koordinátákban van felépítve, nincs szükség
-  // pozíció/forgatás transzformra.
-  safetyFloorMesh.position.set(0, 0, 0);
-  safetyFloorMesh.rotation.set(0, 0, 0);
-}
-
 let spawnPoint = new THREE.Vector3(0, 5, 0);
 // A pálya ütközési háromszöghálója (a heightfieldet váltja ki).
 let trackColliderBody = null;
@@ -914,15 +847,6 @@ async function setTrack(trackUrl, mapId, spawnPoints, gates, onProgress) {
   currentTrack = track;
   currentTrackBox = new THREE.Box3().setFromObject(track);
 
-  const floorY = currentTrackBox.min.y - 3;
-  safetyFloorMesh.position.set(
-    (currentTrackBox.min.x + currentTrackBox.max.x) / 2,
-    floorY,
-    (currentTrackBox.min.z + currentTrackBox.max.z) / 2
-  );
-  // A hasáb közepét kell megadni: a teteje legyen a floorY szinten.
-  safetyNetBody.setTranslation({ x: 0, y: floorY - 1, z: 0 }, true);
-
   const slot = pickSpawnSlot(currentSpawnPoints);
   const spot = findShowcaseSpot(track, currentTrackBox, slot);
   spawnPoint.copy(spot).add(new THREE.Vector3(0, 2, 0));
@@ -1362,72 +1286,6 @@ async function setCar(carUrl, carId, config, onProgress) {
   setMenuStatus('');
 }
 
-// Egyetlen GPU-render alapú "fedettségi maszk": felülről lefotózzuk a pályát
-// (fekete háttérrel), és minden nem-fekete pixel jelzi, hogy ott VAN valami.
-// Ez sokezerszer gyorsabb, mint sugarakkal letapogatni ugyanezt, és — mivel
-// egy hurok-alakú pálya kontúrja amúgy is majdnem kitölti a saját bbox-át —
-// ez az egyetlen praktikus módja annak, hogy finoman (ne csak egy durva
-// rács alapján) kizárjuk a pálya melletti üres területeket a sűrű
-// mintavételből.
-function buildCoverageMask(track, box, resolution) {
-  const width = box.max.x - box.min.x;
-  const depth = box.max.z - box.min.z;
-  const aspect = width / depth;
-  const texW = Math.max(2, Math.round(aspect >= 1 ? resolution : resolution * aspect));
-  const texH = Math.max(2, Math.round(aspect >= 1 ? resolution / aspect : resolution));
-
-  const centerX = (box.min.x + box.max.x) / 2;
-  const centerZ = (box.min.z + box.max.z) / 2;
-  const topCamera = new THREE.OrthographicCamera(-width / 2, width / 2, depth / 2, -depth / 2, 0.1, (box.max.y - box.min.y) + 200);
-  topCamera.position.set(centerX, box.max.y + 100, centerZ);
-  topCamera.up.set(0, 0, -1);
-  topCamera.lookAt(centerX, box.min.y, centerZ);
-  topCamera.updateProjectionMatrix();
-
-  const prevSize = new THREE.Vector2();
-  renderer.getSize(prevSize);
-  const prevBackground = scene.background;
-  const prevFogDensity = scene.fog.density;
-  scene.background = new THREE.Color(0x000000);
-  scene.fog.density = 0;
-
-  renderer.setSize(texW, texH, false);
-  renderer.render(scene, topCamera);
-
-  const tmpCanvas = document.createElement('canvas');
-  tmpCanvas.width = texW;
-  tmpCanvas.height = texH;
-  tmpCanvas.getContext('2d').drawImage(renderer.domElement, 0, 0, texW, texH);
-  const pixels = tmpCanvas.getContext('2d').getImageData(0, 0, texW, texH).data;
-
-  scene.background = prevBackground;
-  scene.fog.density = prevFogDensity;
-  renderer.setSize(prevSize.x, prevSize.y, false);
-  camera.aspect = prevSize.x / prevSize.y;
-  camera.updateProjectionMatrix();
-
-  const mask = new Uint8Array(texW * texH);
-  for (let p = 0; p < texW * texH; p++) {
-    const o = p * 4;
-    if (pixels[o] > 12 || pixels[o + 1] > 12 || pixels[o + 2] > 12) mask[p] = 1;
-  }
-  return { mask, texW, texH, box };
-}
-
-// Van-e bármi a világ (x,z) pont közelében a maszk szerint (kis margóval,
-// hogy a pálya széle biztosan ne maradjon ki egy pixelnyi pontatlanság miatt).
-function maskHasCoverage(cov, x, z) {
-  const px = Math.floor(((x - cov.box.min.x) / (cov.box.max.x - cov.box.min.x)) * cov.texW);
-  const py = Math.floor(((z - cov.box.min.z) / (cov.box.max.z - cov.box.min.z)) * cov.texH);
-  for (let dx = -1; dx <= 1; dx++) {
-    for (let dy = -1; dy <= 1; dy++) {
-      const nx = px + dx, ny = py + dy;
-      if (nx >= 0 && nx < cov.texW && ny >= 0 && ny < cov.texH && cov.mask[ny * cov.texW + nx]) return true;
-    }
-  }
-  return false;
-}
-
 // ---------- Ütközési háromszögháló kinyerése a pálya modelljéből ----------
 // Ez váltja ki a korábbi magasságtérképet. Egy magasságtérkép 2D függvény —
 // egy (x,z) ponthoz egyetlen magasság —, ezért elvileg sem tud hidat/felüljárót
@@ -1576,50 +1434,6 @@ function applyTrackCollider(positions, indices) {
   // A Rapier lekérdező pipeline-ját a world.step() frissíti; enélkül a
   // kerekek sugarai némán semmit sem találnának el az első képkockákon.
   world.step();
-}
-
-// A LÁTHATÓ padlóhoz (ami a modell lyukait takarja) továbbra is kell egy durva
-// magasság-rács. Ez viszont csak dísz, nem fizika, ezért sokkal ritkább
-// mintavétel is elég — a fedettségi maszkkal együtt ez már gyors.
-function buildVisualFloorGrid(track, box) {
-  track.traverse((obj) => {
-    if (obj.isMesh && obj.geometry) obj.geometry.computeBoundsTree();
-  });
-  const coverage = buildCoverageMask(track, box, 1024);
-
-  const sizeX = box.max.x - box.min.x;
-  const sizeZ = box.max.z - box.min.z;
-  const elementSize = Math.max(8, Math.sqrt((sizeX * sizeZ) / 20000));
-  const nx = Math.max(2, Math.ceil(sizeX / elementSize) + 1);
-  const nz = Math.max(2, Math.ceil(sizeZ / elementSize) + 1);
-
-  const data = [];
-  for (let i = 0; i < nx; i++) data.push(new Array(nz).fill(box.min.y - 50));
-
-  const raycaster = new THREE.Raycaster();
-  // A LEGALSÓ találat kell, nem a legfelső. A legfelső egy épületnél a tető
-  // lenne, és a padló felkúszna a tetőig (fekete tüskék a pálya mellett).
-  // A padlónak definíció szerint minden alatt kell lennie.
-  raycaster.firstHitOnly = false;
-  // A rács ritka (több tíz méteres cellák), ezért két mintavételi pont között
-  // a padló átlósan elvághatja a domborzatot, és néhol kibukkan a talajból.
-  // Ezért az egészet lejjebb toljuk: a lyukakat így is takarja, de nem kúszik fel.
-  const FLOOR_DROP = 3.5;
-  const dir = new THREE.Vector3(0, -1, 0);
-  const rayOriginY = box.max.y + 20;
-
-  for (let i = 0; i < nx; i++) {
-    const worldX = box.min.x + i * elementSize;
-    for (let j = 0; j < nz; j++) {
-      const worldZ = box.max.z - j * elementSize;
-      if (!maskHasCoverage(coverage, worldX, worldZ)) continue;
-      raycaster.set(new THREE.Vector3(worldX, rayOriginY, worldZ), dir);
-      const hits = raycaster.intersectObject(track, true);
-      if (hits.length) data[i][j] = hits[hits.length - 1].point.y - FLOOR_DROP;
-    }
-  }
-
-  return { data, elementSize };
 }
 
 // A rajtponthoz a legközelebbi tényleges felszín megkeresése (a kocsit ide
@@ -2426,7 +2240,7 @@ async function enterDevMode() {
 // kocsiváltáskor új értéket kap), az GETTERKÉNT megy át — egy egyszerű másolat
 // elavulna. A ténylegesen állandó dolgok mehetnek értékként.
 const devApi = {
-  scene, camera, renderer, carPivot, keys, safetyFloorMesh,
+  scene, camera, renderer, carPivot, keys,
   hudEl, menuEl, carSelect,
   NORMAL_FOG_DENSITY,
   moveTowardsAngle, updateSunTarget, updateShowcaseCamera,
@@ -2462,15 +2276,13 @@ const devApi = {
   get race() { return race; },
 };
 
-// A pálya fizikájának és a látható padlónak az előkészítése. Külön függvény,
-// mert az egyjátékos indítás ÉS a multiplayer is ugyanezt kell csinálja —
-// különösen a bekészített ütközési fájlt, hogy minden kliens (és a szerver)
-// bitre azonos geometrián számoljon.
+// A pálya fizikájának előkészítése. Külön függvény, mert az egyjátékos
+// indítás ÉS a multiplayer is ugyanezt kell csinálja — különösen a
+// bekészített ütközési fájlt, hogy minden kliens (és a szerver) bitre
+// azonos geometrián számoljon.
 async function prepareTrackPhysics({ strict = false } = {}) {
   const mesh = await loadOrExtractCollision(strict);
   applyTrackCollider(mesh.positions, mesh.indices);
-  const { data, elementSize } = buildVisualFloorGrid(currentTrack, currentTrackBox);
-  buildContourFloorMesh(data, elementSize, currentTrackBox, 3);
   return mesh;
 }
 

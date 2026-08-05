@@ -130,7 +130,7 @@ function hideOverlays() {
 
 let api = null;
 // A main.js-ből kicsomagolt, nem változó dolgok — az initDevTools tölti fel.
-let scene, camera, renderer, carPivot, keys, safetyFloorMesh, hudEl, menuEl, carSelect;
+let scene, camera, renderer, carPivot, keys, hudEl, menuEl, carSelect;
 let NORMAL_FOG_DENSITY;
 let moveTowardsAngle, updateSunTarget, updateShowcaseCamera;
 let findEntry, fillSelect, setTrack, loadZoneRuntime, extractDrivableTriangles, makeSearchableSelect;
@@ -506,8 +506,8 @@ function updateDevCamera(dt) {
 // (pl. "282_63"), úgyhogy nem lehet név szerint megkeresni, melyik az
 // útburkolat. Ehelyett a felhasználó bélyegképek alapján, VIZUÁLISAN
 // kiválasztja, melyik anyag(ok) az aszfalt — utána ugyanazzal a felülnézeti
-// GPU-renderrel (mint buildCoverageMask), csak anyag szerint szűrve,
-// kirajzoljuk, hol van ilyen anyagú felület, és abból generáljuk a zóna-maszkot.
+// GPU-renderrel, anyag szerint szűrve, kirajzoljuk, hol van ilyen anyagú
+// felület, és abból generáljuk a zóna-maszkot.
 let highlightMaterial = null;
 
 // Az össze anyag begyűjtése a pálya modelljéből, bélyegkép-készítéshez.
@@ -580,9 +580,9 @@ function closeMaterialPicker() {
   materialPickerPanelEl.classList.add('hidden');
 }
 
-// Ugyanaz a GPU-s felülnézeti render, mint buildCoverageMask, csak itt csak
-// a kiválasztott anyagú mesh-ek látszanak (fehéren, világítástól függetlenül),
-// minden más el van rejtve — így a kapott kép pontosan az útburkolat alakja.
+// GPU-s felülnézeti render, ahol csak a kiválasztott anyagú mesh-ek
+// látszanak (fehéren, világítástól függetlenül), minden más el van rejtve —
+// így a kapott kép pontosan az útburkolat alakja.
 function renderMaterialMask(track, bounds, texW, texH, materialSet) {
   const trackBox = api.currentTrackBox;
   const saved = [];
@@ -595,11 +595,9 @@ function renderMaterialMask(track, bounds, texW, texH, materialSet) {
     if (uses) obj.material = highlightMaterial;
   });
 
-  // A "lyukakat takaró" vizuális padló és a kocsi NEM a track gyereke, hanem
-  // közvetlenül a jelenethez van adva — enélkül a fenti elrejtés után is
-  // átlátszana rajtuk a kamera, és a padló (ami mindent befed alattuk)
-  // tévesen mindenhol "fehérnek" tűnne.
-  const extraHidden = [safetyFloorMesh, carPivot, ...devSpawnMarkers].filter(Boolean);
+  // A kocsi NEM a track gyereke, hanem közvetlenül a jelenethez van adva —
+  // enélkül a fenti elrejtés után is átlátszana rajta a kamera.
+  const extraHidden = [carPivot, ...devSpawnMarkers].filter(Boolean);
   const savedExtra = extraHidden.map((obj) => ({ obj, visible: obj.visible }));
   extraHidden.forEach((obj) => { obj.visible = false; });
 
@@ -1699,7 +1697,7 @@ export async function initDevTools(gameApi) {
   queryElements();
 
   ({
-    scene, camera, renderer, carPivot, keys, safetyFloorMesh, hudEl, menuEl, carSelect,
+    scene, camera, renderer, carPivot, keys, hudEl, menuEl, carSelect,
     NORMAL_FOG_DENSITY,
     moveTowardsAngle, updateSunTarget, updateShowcaseCamera,
     findEntry, fillSelect, setTrack, loadZoneRuntime, extractDrivableTriangles, makeSearchableSelect,
