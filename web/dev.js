@@ -1167,8 +1167,12 @@ async function bakeCollisionToFile() {
     const entry = manifest && findEntry(manifest.maps, mapId);
     if (entry) entry.collision = { file: `maps/${mapId}/collision.bin`, bytes: data.bytes };
 
+    // A háromszögszámot magunk számoljuk (mesh.indices.length / 3) — a szerver
+    // válasza nem "triangles" mezőt ad, hanem "indices"-t (az index-tömb
+    // HOSSZÁT, nem a háromszögek számát), ezért a data.triangles mindig
+    // undefined volt.
     bakeStatusEl.textContent =
-      `Kész: ${data.triangles} háromszög, ${(data.bytes / 1048576).toFixed(1)} MB ` +
+      `Kész: ${mesh.indices.length / 3} háromszög, ${(data.bytes / 1048576).toFixed(1)} MB ` +
       `(${raw.positions.length / 3} → ${vertexCount} csúcs)`;
   } catch (err) {
     bakeStatusEl.textContent = 'Hiba: ' + err.message;
