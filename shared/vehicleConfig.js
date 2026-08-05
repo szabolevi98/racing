@@ -41,7 +41,16 @@ export const CHASSIS_MASS = 250;
 // A tömegközéppont alapból a doboz közepén ülne, ami a talaj fölött 0.85 —
 // egy 4.4 hosszú kocsihoz képest irreálisan magas, és fékezéskor előrebuktatta
 // az autót. Egy versenyautó súlypontja nagyjából a keréktengely magasságában van.
-export const COM_DROP = 0.15;
+//
+// A 0.15 még a korábbi, gyengébb fékerőhöz volt méretezve. Az erősebb fék
+// (BRAKE_FRONT=70) mellett ez már nem volt elég: mérve, egyenes vonalban
+// 200 km/h-ról fékezve a kocsi 1,05 másodperc alatt teljesen előre bukott
+// (upright -1.0). Minél lejjebb van a súlypont, annál nagyobb fékező
+// nyomatékot visel el a kocsi borulás nélkül — méréssel a 0.55 már
+// tökéletesen stabil (upright 0.999) UGYANAZZAL a fékerővel, és mellékesen
+// a kanyarodást is javítja (szögsebesség +53% ugyanannál a kormányszögnél,
+// alacsonyabb súlyponttal kevesebb a bólintás/dőlés, ami elviszi az energiát).
+export const COM_DROP = 0.55;
 
 export const WHEEL_RADIUS = 0.35;
 export const SUSPENSION_REST_LENGTH = 0.3;
