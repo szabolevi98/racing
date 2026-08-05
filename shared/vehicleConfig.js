@@ -45,14 +45,19 @@ export const SUSPENSION = {
 
 export const MAX_ENGINE_FORCE = 1100;
 export const REVERSE_FACTOR = 0.6;
-export const MAX_STEER = 0.58;
+// Élesebb, gyorsabb bekanyarodás.
+export const MAX_STEER = 0.66;
 
 // A fék NEM lehet akármilyen erős: a Rapier a fékezést közvetlen impulzusként
 // viszi fel, megkerülve a gumi tapadási határát. Egyforma 60-as érték 6.2 g-s
 // lassulást adott, miközben a gumi ~1.4 g-t vinne át — ettől bukfencezett az
 // autó egyenesben. Tengelyenként külön, mérsékeltebben fékezünk.
-export const BRAKE_FRONT = 14;
-export const BRAKE_REAR = 25;
+// A jelenlegi érték az ALÁBBI (megemelt) FRONT/REAR_FRICTION_SLIP-hez van
+// méretezve: a nagyobb tapadási tartalék teszi biztonságossá az erősebb
+// féket — ha a tapadást lejjebb vesszük, ezt is vissza kell venni, különben
+// visszajön a bukfenc.
+export const BRAKE_FRONT = 17;
+export const BRAKE_REAR = 29;
 // A drift nem a fékerőből jön, hanem abból, hogy a hátsó kerék elveszti az
 // oldalirányú tapadását — ezért azt külön adjuk meg.
 export const HANDBRAKE_REAR_SLIP = 1.1;
@@ -63,10 +68,13 @@ export const HOLD_BRAKE = 60;
 // "elfogy" a nyomóerő — emiatt egyenlő tapadásnál nagy sebességen gázzal
 // alig fordul a kocsi (a kormányzás hatna, csak nincs alatta elég grip).
 // Az első tengelynek ezért külön, magasabb tartalék tapadás jár, hogy a
-// fordulóképesség gázadás közben is megmaradjon; a hátsó marad a régi
-// értéken, hogy a gyorsítás/fékezés karaktere ne változzon.
-export const FRONT_FRICTION_SLIP = 1.75;
-export const REAR_FRICTION_SLIP = 1.65;
+// fordulóképesség gázadás közben is megmaradjon.
+// Mindkét érték ~15%-kal feljebb az általános csúszás csökkentésére (ez adja
+// a nagyobb féktávolság-biztonságot is, ld. BRAKE_FRONT/REAR) — az arányuk
+// (első/hátsó) változatlan, hogy a gázos-forduló és a lift-off oversteer
+// közti egyensúly, amit korábban erre hangoltunk, ne boruljon fel.
+export const FRONT_FRICTION_SLIP = 2.0;
+export const REAR_FRICTION_SLIP = 1.9;
 export const ASPHALT_FRICTION_SLIP = REAR_FRICTION_SLIP;
 // Kifutón (fű/kavics) kevesebb erő jut a talajra és csúszósabb is.
 export const OFFTRACK_FRICTION_SLIP = 1.0;
