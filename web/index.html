@@ -7,113 +7,429 @@
 <link rel="icon" type="image/svg+xml" href="favicon.svg" />
 <link href="vendor/bootstrap.min.css" rel="stylesheet">
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #111; }
-  canvas { display: block; }
+  /* ============================================================
+     Vizuális alapok — EGY helyen, hogy a menü, a HUD és a
+     multiplayer lobby ugyanúgy nézzen ki. Korábban mindegyik a
+     maga módján volt összerakva (Bootstrap-kártya, saját panel,
+     inline stílus), ettől olvadt össze és tűnt igénytelennek.
+     ============================================================ */
+  :root {
+    --bg:            #0b0d12;
+    /* A HUD-panelek szándékosan erősen áttetszők: a pálya végig látszik
+       mögöttük, a blur+telítettség adja az olvashatóságot, nem egy sötét
+       tömb. (A lobby a --panel-solid-ot használja, az viszont NEM átlátszó:
+       ott a háttér zavarna, mert olvasni és gépelni kell benne.) */
+    /* Az áttetszőség HANGOLÁSA az alfával megy, nem az alapszínnel: 0.52-nél
+       a szín csak feleannyit számít, tehát pl. 13,16,23 → 6,8,12 sötétítés
+       ~3/255-nyi különbséget adna. Az alfa viszont azt szabja, mennyi süt át
+       a világos pályából — ez okozza a "kivilágosodást". 0.60 még bőven
+       átlátszó, de olvashatóbb; ha még sötétebb kell, 0.66 a következő lépés. */
+    --panel:         rgba(13, 16, 23, 0.60);
+    --panel-solid:   #12151d;
+    --line:          rgba(255, 255, 255, 0.10);
+    --line-strong:   rgba(255, 255, 255, 0.18);
+    --text:          #e9edf5;
+    --muted:         #858ea3;
+    --accent:        #4d8dff;
+    --accent-soft:   rgba(77, 141, 255, 0.14);
+    --warn:          #ffc247;
+    --danger:        #ff5f5f;
+    --ok:            #3ddc84;
+    --r:             14px;
+    --r-sm:          9px;
+    --shadow:        0 10px 34px rgba(0, 0, 0, 0.5);
+  }
 
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); }
+  canvas { display: block; }
+  body {
+    font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+    color: var(--text);
+  }
+
+  /* Minden szám (idő, sebesség) azonos szélességű számjegyekkel — enélkül a
+     futó óra folyamatosan ugrálna, mert a "1" keskenyebb, mint a "8". */
+  .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+
+  .hidden { display: none !important; }
+
+  /* ---------- Közös panel ---------- */
+  .panel {
+    background: var(--panel);
+    -webkit-backdrop-filter: blur(16px) saturate(1.3);
+    backdrop-filter: blur(16px) saturate(1.3);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    box-shadow: var(--shadow);
+  }
+
+  /* Apró, ritkított nagybetűs felirat — az értékek FÖLÖTT/MELLETT, hogy a
+     szám legyen a hangsúlyos, ne a címke. */
+  .lbl {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--muted); line-height: 1;
+  }
+
+  kbd.k {
+    display: inline-block; min-width: 20px; padding: 2px 6px;
+    font-family: inherit; font-size: 11px; font-weight: 700; line-height: 1.3;
+    text-align: center; color: var(--text);
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid var(--line-strong);
+    border-bottom-width: 2px; border-radius: 5px;
+  }
+
+  /* ============================================================
+     Betöltés
+     ============================================================ */
   #loading {
     position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
-    color: #fff; font-size: 18px; background: #111; z-index: 30;
-    transition: background-color .15s ease;
+    background: var(--bg); z-index: 60; transition: background-color .15s ease;
   }
-  /* Kocsi/pálya/ég váltásnál a játék/menü mögötte marad látható (bár állóképként,
-     a renderelés eddig is állt ilyenkor) — így legalább nem tűnik el minden. */
-  #loading.overlay-translucent { background: rgba(17, 17, 17, .6); }
-  
-  #menu.hidden, #hud.hidden,
-  #raceHudWrap.hidden, #countdown.hidden, #results.hidden { display: none !important; }
+  #loading.overlay-translucent { background: rgba(11, 13, 18, .72); }
+  #loadingText { font-size: 15px; color: var(--text); }
 
-  #raceHudWrap { position: fixed; top: 12px; right: 12px; z-index: 10; min-width: 170px; }
+  /* ============================================================
+     Főmenü (oldalsáv)
+     ============================================================ */
+  #menu {
+    position: fixed; top: 0; right: 0; height: 100%; width: min(430px, 92vw);
+    background: linear-gradient(180deg, rgba(12, 15, 21, 0.93), rgba(9, 11, 16, 0.96));
+    -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+    border-left: 1px solid var(--line);
+    box-shadow: -30px 0 70px rgba(0, 0, 0, 0.6);
+    z-index: 20;
+  }
+  #menu h1 {
+    font-size: 2rem; font-weight: 800; letter-spacing: -0.02em;
+    background: linear-gradient(100deg, #8fb4ff, #ffffff 60%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    margin-bottom: 0.15rem;
+  }
+  .menu-sub {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 2rem;
+  }
+  #menu .form-label { margin-bottom: 0.3rem; }
+  /* A kereshető legördülő (makeSearchableSelect) a <select>-et elrejti, és egy
+     szöveges mezőt tesz a helyére ugyanazokkal az osztályokkal — ezért kell a
+     kettőre azonos stílus, különben a pálya/kocsi/környezet választó másképp
+     nézne ki, mint a körszám. */
+  #menu .form-select,
+  #menu .form-control {
+    background-color: rgba(255, 255, 255, 0.04);
+    border-color: var(--line-strong);
+    border-radius: var(--r-sm);
+    padding: 0.6rem 0.85rem; font-size: 0.98rem;
+    color: var(--text);
+  }
+  #menu .form-select:focus,
+  #menu .form-control:focus {
+    background-color: rgba(255, 255, 255, 0.06);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
 
+  .ss-wrap { position: relative; }
+  .ss-menu {
+    position: absolute; top: 100%; left: 0; right: 0; z-index: 50;
+    max-height: 280px; overflow-y: auto; margin-top: 5px; padding: 5px;
+    background: var(--panel-solid); border: 1px solid var(--line-strong);
+    border-radius: var(--r-sm); box-shadow: 0 14px 36px rgba(0, 0, 0, 0.6);
+  }
+  .ss-option {
+    padding: 7px 11px; border-radius: 7px; cursor: pointer;
+    color: var(--text); font-size: 0.93rem;
+  }
+  .ss-option:hover, .ss-option.active { background: var(--accent-soft); }
+  .ss-option.ss-empty { color: var(--muted); cursor: default; }
+  .ss-option.ss-empty:hover { background: none; }
+  .ss-option.ss-selected { font-weight: 650; }
+  .ss-option.ss-selected::after { content: ' ✓'; color: var(--accent); }
+  /* Mindig foglalja a helyét, hogy a "betöltés..." felirat ne tolja el a
+     fölötte lévő gombokat. */
+  #menuStatus { min-height: 1.4em; font-size: 12px; color: var(--muted); }
+
+  .btn-race {
+    border: none; border-radius: var(--r-sm); padding: 0.8rem 1rem;
+    font-size: 1rem; font-weight: 700; letter-spacing: 0.01em; color: #fff;
+    transition: filter .15s ease, transform .05s ease;
+  }
+  .btn-race:disabled { opacity: 0.45; }
+  .btn-race:not(:disabled):hover { filter: brightness(1.12); }
+  .btn-race:not(:disabled):active { transform: translateY(1px); }
+  .btn-solo { background: linear-gradient(180deg, #4d8dff, #2f6de0); }
+  .btn-mp {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--line-strong); color: var(--text);
+  }
+
+  /* ============================================================
+     Vezetés közbeni HUD
+     Elrendezés: bal fent időmérés, jobb fent állás, bal lent
+     térkép, jobb lent sebesség, lent középen a gombkiosztás.
+     ============================================================ */
+  #hud { position: fixed; inset: 0; z-index: 10; pointer-events: none; }
+  #hud > * { pointer-events: auto; }
+
+  /* --- jobb fent: időmérés --- */
+  #raceHudWrap { position: fixed; top: 14px; right: 14px; z-index: 11; }
+  #raceHud { padding: 12px 14px; min-width: 196px; }
+
+  /* A kör-kijelző a panel fejléce: nagy szám, mellette halványan az összes. */
+  .lap-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px; padding-bottom: 9px; margin-bottom: 9px;
+    border-bottom: 1px solid var(--line);
+  }
+  .lap-now { font-size: 26px; font-weight: 800; line-height: 1; letter-spacing: -0.02em; }
+  .lap-total { font-size: 15px; font-weight: 600; color: var(--muted); }
+
+  .t-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+  .t-row + .t-row { margin-top: 5px; }
+  .t-val { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+  .t-row.is-best .t-val { color: var(--ok); }
+  .t-warn { color: var(--warn); font-size: 11px; font-weight: 700; }
+  .hud-note { font-size: 12px; color: var(--muted); }
+
+  /* --- bal fent: vissza gomb, súgó, állás (az állás csak multiplayerben) --- */
+  #topLeft { position: fixed; top: 14px; left: 14px; z-index: 11; width: 212px; }
+  .tl-bar { display: flex; align-items: stretch; gap: 6px; margin-bottom: 8px; }
+  #backToMenuLink, #helpBtn {
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; color: var(--muted);
+    background: var(--panel);
+    -webkit-backdrop-filter: blur(16px) saturate(1.3); backdrop-filter: blur(16px) saturate(1.3);
+    border: 1px solid var(--line); border-radius: var(--r-sm); box-shadow: var(--shadow);
+    cursor: pointer; transition: color .15s ease, border-color .15s ease, background .15s ease;
+  }
+  #backToMenuLink { gap: 7px; padding: 7px 12px; }
+  #helpBtn {
+    width: 30px; flex: none; padding: 0;
+    font-family: Georgia, "Times New Roman", serif; font-size: 14px; font-style: italic; font-weight: 700;
+  }
+  #backToMenuLink:hover, #helpBtn:hover { color: var(--text); border-color: var(--line-strong); }
+  #helpBtn.is-open { color: var(--text); border-color: rgba(77, 141, 255, 0.5); background: var(--accent-soft); }
+
+  /* Súgópanel: a gombkiosztás korábban egy állandó csík volt a kép alján —
+     folyamatosan takart, pedig az első pár kör után már senki nem olvassa.
+     Innentől kérésre nyílik, az "i" gombbal. */
+  #helpPanel { width: 236px; margin-bottom: 8px; padding: 14px 16px; }
+  #helpPanel h6 {
+    margin: 0 0 12px; font-size: 14px; font-weight: 700; letter-spacing: -0.01em;
+  }
+  .help-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 5px 0; font-size: 12.5px; color: var(--muted);
+  }
+  .help-row + .help-row { border-top: 1px solid var(--line); }
+  .help-keys { display: flex; align-items: center; gap: 4px; flex: none; }
+  .help-keys .sep { color: var(--muted); font-size: 11px; }
+
+  #standings { padding: 11px 12px; }
+  #standings .lbl { display: block; margin-bottom: 8px; }
+  .st-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 6px; margin: 0 -6px; border-radius: 7px; font-size: 13px;
+  }
+  .st-row.is-self { background: var(--accent-soft); }
+  .st-pos { width: 15px; font-size: 11px; font-weight: 700; color: var(--muted); text-align: right; }
+  .st-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .st-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .st-lap { font-size: 11px; color: var(--muted); }
+  .st-event {
+    margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--line);
+    font-size: 11.5px; color: var(--warn);
+  }
+
+  /* --- bal lent: minitérkép ---
+     Csak vékony keret, saját háttér NÉLKÜL: a canvas maga átlátszó (clearRect
+     után csak a pályavonalat rajzoljuk rá), így a panel áttetszősége érvényesül.
+     Korábban a canvas külön sötét háttere + a panel háttere egymásra rétegződve
+     vastag, dobozos keretnek látszott. */
+  #miniMapWrap { position: fixed; bottom: 14px; left: 14px; z-index: 11; padding: 5px; line-height: 0; }
+  #miniMapCanvas { display: block; border-radius: 10px; }
+
+  /* --- jobb lent: sebesség --- */
+  #speedPanel {
+    position: fixed; bottom: 14px; right: 14px; z-index: 11;
+    padding: 14px 20px 13px; min-width: 172px; text-align: right;
+  }
+  .sp-value { display: flex; align-items: baseline; justify-content: flex-end; gap: 7px; }
+  #speedValue {
+    font-size: 62px; font-weight: 800; line-height: 0.9; letter-spacing: -0.045em;
+  }
+  .sp-unit { font-size: 13px; font-weight: 700; color: var(--muted); }
+  /* A zóna nem "jelvény", hanem állapotsor: egy színes pont + ritkított
+     nagybetűs felirat, a sebesség alatt egy vékony elválasztóval. Keretes
+     pilulaként ez volt a HUD legigénytelenebb eleme. */
+  .sp-zone {
+    display: flex; align-items: center; justify-content: flex-end;
+    margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line);
+  }
+  #zoneIndicator {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--zone-c);
+  }
+  #zoneIndicator::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--zone-c); box-shadow: 0 0 9px var(--zone-c);
+  }
+  #zoneIndicator[data-zone="asphalt"]  { --zone-c: #7f8798; }
+  #zoneIndicator[data-zone="offtrack"] { --zone-c: var(--warn); }
+  #zoneIndicator[data-zone="wall"]     { --zone-c: var(--danger); }
+
+  /* ============================================================
+     Figyelmeztetések, visszaszámlálás, eredmény
+     ============================================================ */
   .top-center-alert {
-    position: fixed; left: 50%; transform: translateX(-50%); z-index: 15;
-    pointer-events: none;
+    position: fixed; left: 50%; transform: translateX(-50%); z-index: 15; pointer-events: none;
   }
-  #lapInvalidAlert { top: 12px; }
-  #rolloverAlert { top: 70px; }
-  .top-center-alert.hidden { display: none !important; }
+  #lapInvalidAlert { top: 16px; }
+  #rolloverAlert { top: 74px; }
+  .alert-pill {
+    padding: 9px 20px; border-radius: 30px;
+    font-size: 13px; font-weight: 700; letter-spacing: 0.01em;
+    box-shadow: var(--shadow); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  }
+  .alert-pill.warn {
+    color: #2b1d00; background: rgba(255, 194, 71, 0.94); border: 1px solid rgba(255, 210, 120, 0.9);
+  }
+  .alert-pill.danger {
+    color: #fff; background: rgba(214, 48, 48, 0.92); border: 1px solid rgba(255, 120, 120, 0.55);
+  }
 
   #countdown {
     position: fixed; inset: 0; z-index: 25;
     display: flex; align-items: center; justify-content: center;
-    font-size: 22vh; font-weight: 800; color: #fff;
-    text-shadow: 0 0 40px rgba(0,0,0,0.8);
+    font-size: 21vh; font-weight: 900; line-height: 1; letter-spacing: -0.05em; color: #fff;
+    text-shadow: 0 8px 60px rgba(0, 0, 0, 0.85);
     pointer-events: none;
   }
 
   #results {
     position: fixed; inset: 0; z-index: 26;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(0,0,0,0.55);
+    background: rgba(6, 8, 12, 0.7);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
   }
+  .results-card { width: min(400px, 92vw); padding: 26px 28px; }
+  .results-title {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 18px;
+  }
+  .res-hero { display: flex; gap: 26px; margin-bottom: 20px; }
+  .res-hero .lbl { display: block; margin-bottom: 5px; }
+  .res-big { font-size: 25px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+  .res-lap {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 7px 0; font-size: 13px; border-top: 1px solid var(--line);
+  }
+  .res-lap-i { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; }
+  .res-tag { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+  .res-tag.best { color: var(--ok); }
+  .res-tag.bad { color: var(--warn); }
 
-  /* A dev mód saját felületének stílusa a dev.html-ben van — az csak akkor
-     kerül be az oldalba, ha valaki tényleg dev módba lép. */
-  #hud {
-    position: fixed; top: 12px; left: 12px; z-index: 10;
+  /* ============================================================
+     Többjátékos lobby
+     ============================================================ */
+  #mpOverlay {
+    position: fixed; inset: 0; z-index: 40;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(6, 8, 12, 0.74);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
   }
-  #hud .card { min-width: 220px; }
+  .mp-panel {
+    width: min(440px, 92vw); max-height: 88vh; overflow-y: auto;
+    background: var(--panel-solid); border: 1px solid var(--line);
+    border-radius: var(--r); box-shadow: 0 24px 70px rgba(0, 0, 0, 0.7);
+  }
+  .mp-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 17px 22px; border-bottom: 1px solid var(--line);
+  }
+  .mp-head h5 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+  .mp-x {
+    width: 28px; height: 28px; display: grid; place-items: center;
+    font-size: 18px; line-height: 1; color: var(--muted);
+    background: none; border: 1px solid transparent; border-radius: 7px; cursor: pointer;
+  }
+  .mp-x:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+  .mp-body { padding: 22px; }
+  .mp-body .form-control {
+    background-color: rgba(255, 255, 255, 0.04); border-color: var(--line-strong);
+    border-radius: var(--r-sm); padding: 0.55rem 0.8rem; color: var(--text);
+  }
+  .mp-body .form-control:focus {
+    background-color: rgba(255, 255, 255, 0.06);
+    border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .mp-btn {
+    border-radius: var(--r-sm); padding: 0.55rem 1rem;
+    font-size: 0.9rem; font-weight: 650; border: 1px solid transparent;
+    transition: filter .15s ease;
+  }
+  .mp-btn:hover:not(:disabled) { filter: brightness(1.12); }
+  .mp-btn:disabled { opacity: 0.4; }
+  .mp-btn.primary { background: linear-gradient(180deg, #4d8dff, #2f6de0); color: #fff; }
+  .mp-btn.ghost {
+    background: rgba(255, 255, 255, 0.05); border-color: var(--line-strong); color: var(--text);
+  }
+  .mp-btn.danger { background: rgba(255, 95, 95, 0.12); border-color: rgba(255, 95, 95, 0.4); color: #ff8a8a; }
 
-  #miniMapWrap {
-    position: fixed; bottom: 12px; left: 12px; z-index: 10;
-    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  /* A szobakód a lobby legfontosabb adata — ezt kell felolvasni/átküldeni a
+     többieknek, ezért kap külön, kiemelt blokkot, nem egy sornyi szöveget. */
+  .mp-code-box {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 14px 16px; margin-bottom: 14px;
+    background: var(--accent-soft); border: 1px solid rgba(77, 141, 255, 0.3);
+    border-radius: var(--r-sm);
   }
-  #miniMapCanvas {
-    display: block; border-radius: 8px;
-    background: rgba(10, 12, 17, 0.6);
-    border: 1px solid rgba(255,255,255,0.15);
-    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  .mp-code-val {
+    font-size: 27px; font-weight: 800; letter-spacing: 0.14em; line-height: 1;
   }
-  #speedReadout {
-    color: #fff; font-weight: 700; font-size: 1.1rem;
-    text-shadow: 0 1px 4px rgba(0,0,0,0.8);
-    background: rgba(10, 12, 17, 0.6);
-    padding: 2px 12px; border-radius: 6px;
+  .mp-meta { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 16px; }
+  .mp-chip {
+    padding: 4px 11px; font-size: 11.5px; color: var(--muted);
+    background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line);
+    border-radius: 20px;
   }
-  #speedReadout span { font-size: 1.4rem; }
+  .mp-chip b { color: var(--text); font-weight: 650; }
 
-  #menu {
-    position: fixed; top: 0; right: 0; height: 100%; width: min(420px, 92vw);
-    background: rgba(10, 12, 17, 0.88);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    box-shadow: -24px 0 60px rgba(0, 0, 0, 0.55);
-    z-index: 20;
+  .mp-player {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; margin-bottom: 6px;
+    background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line);
+    border-radius: var(--r-sm); font-size: 13.5px;
   }
+  .mp-player.is-self { border-color: rgba(77, 141, 255, 0.4); background: var(--accent-soft); }
+  .mp-player .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .mp-player .who { flex: 1; min-width: 0; }
+  /* A név és a kocsi EGYMÁS ALÁ kerül — inline span-ként egy sorba folynának
+     össze, és pont ez volt a régi lobby olvashatatlan szövegfala. */
+  .mp-player .nm,
+  .mp-player .car { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mp-player .nm { font-weight: 600; }
+  .mp-player .car { margin-top: 1px; font-size: 11.5px; color: var(--muted); }
+  .mp-crown { font-size: 12px; }
 
-  #menu h1 {
-    background: linear-gradient(90deg, #7aa2ff, #ffffff);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+  .mp-note {
+    padding: 10px 12px; margin-top: 14px; font-size: 12px;
+    border-radius: var(--r-sm); border: 1px solid var(--line); color: var(--muted);
+    background: rgba(255, 255, 255, 0.025);
   }
-
-  .ss-wrap { position: relative; }
-  .ss-menu {
-    position: absolute; top: 100%; left: 0; right: 0; z-index: 50;
-    max-height: 280px; overflow-y: auto;
-    background: #1c1f26; border: 1px solid rgba(255,255,255,0.15);
-    border-radius: 6px; margin-top: 4px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  .mp-note.is-host { color: var(--text); border-color: rgba(61, 220, 132, 0.3); background: rgba(61, 220, 132, 0.08); }
+  #mpError:not(:empty) {
+    padding: 10px 12px; margin-top: 14px; font-size: 12px;
+    color: #ff9b9b; background: rgba(255, 95, 95, 0.1);
+    border: 1px solid rgba(255, 95, 95, 0.3); border-radius: var(--r-sm);
   }
-  .ss-menu.hidden { display: none; }
-  .ss-option { padding: 6px 12px; cursor: pointer; color: #e9ecef; font-size: 0.95rem; }
-  .ss-option:hover, .ss-option.active { background: #375a7f; color: #fff; }
-  .ss-option.ss-empty { color: #888; cursor: default; }
-  .ss-option.ss-selected { font-weight: 600; }
-  .ss-option.ss-selected::after { content: ' ✓'; opacity: 0.7; }
-
-  /* Mindig foglalja a helyét (egy sornyi magasság), csak üresen látszik
-     átlátszónak — így a "Kocsi/Pálya betöltése..." felirat megjelenése nem
-     tolja el a fölötte/alatta lévő elemeket. */
-  #menuStatus { min-height: 1.5em; }
-
-/* Többjátékos lobby */
-#mpOverlay { position: fixed; inset: 0; background: rgba(0,0,0,.72); z-index: 40;
-  display: flex; align-items: center; justify-content: center; }
-#mpOverlay.hidden { display: none; }
-#mpOverlay .mp-panel { background: #1b1f24; color: #eee; padding: 20px 22px;
-  border-radius: 10px; width: min(420px, 92vw); box-shadow: 0 10px 40px rgba(0,0,0,.6); }
-#mpOverlay .hidden { display: none; }
+  .mp-sep {
+    display: flex; align-items: center; gap: 12px; margin: 16px 0;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted);
+  }
+  .mp-sep::before, .mp-sep::after { content: ''; flex: 1; height: 1px; background: var(--line); }
 </style>
 </head>
 <body>
@@ -121,86 +437,112 @@
   <div class="text-center" style="width: min(320px, 80vw);">
     <div class="spinner-border text-primary mb-3" role="status"></div>
     <div id="loadingText">Betöltés...</div>
-    <div class="progress mt-3" style="height: 8px;">
+    <div class="progress mt-3" style="height: 6px;">
       <div id="loadingBar" class="progress-bar" role="progressbar" style="width: 0%;"></div>
     </div>
-    <div id="loadingPct" class="small text-secondary mt-1">0%</div>
+    <div id="loadingPct" class="small text-secondary mt-2">0%</div>
   </div>
 </div>
 
 <div id="menu" class="d-flex flex-column justify-content-center p-4 p-md-5">
-  <h1 class="fw-bold mb-4">Levente Racing</h1>
+  <h1>Levente Racing</h1>
+  <div class="menu-sub">Körverseny</div>
 
   <div class="mb-3">
-    <label for="mapSelect" class="form-label text-uppercase small text-secondary">Pálya</label>
-    <select id="mapSelect" class="form-select form-select-lg" disabled></select>
-  </div>
-
-  <div class="mb-3">
-    <label for="carSelect" class="form-label text-uppercase small text-secondary">Kocsi</label>
-    <select id="carSelect" class="form-select form-select-lg" disabled></select>
+    <label for="mapSelect" class="form-label lbl">Pálya</label>
+    <select id="mapSelect" class="form-select" disabled></select>
   </div>
 
   <div class="mb-3">
-    <label for="envSelect" class="form-label text-uppercase small text-secondary">Környezet</label>
-    <select id="envSelect" class="form-select form-select-lg" disabled></select>
+    <label for="carSelect" class="form-label lbl">Kocsi</label>
+    <select id="carSelect" class="form-select" disabled></select>
   </div>
 
-  <div class="mb-4">
-    <label for="lapCountSelect" class="form-label text-uppercase small text-secondary">Körök száma</label>
-    <select id="lapCountSelect" class="form-select form-select-lg">
-      <option value="1">1</option>
-      <option value="2">2</option>
-      <option value="3" selected>3</option>
-      <option value="5">5</option>
-      <option value="10">10</option>
-    </select>
-  </div>
-
-  <button id="startBtn" class="btn btn-primary btn-lg fw-semibold" disabled>Egyjátékos</button>
-  <div id="menuStatus" class="text-center small text-secondary mt-3"></div>
-</div>
-
-<div id="hud" class="hidden">
-  <div class="card bg-dark bg-opacity-75 border-secondary-subtle text-light">
-    <div class="card-body py-2 px-3 small">
-      WASD / nyilak: gáz, kormány, fék<br>
-      Space: kézifék &nbsp; R: autó visszahelyezése<br>
-      C: kamera váltás<br>
-      Zóna: <span id="zoneIndicator">aszfalt</span><br>
-      <a id="backToMenuLink" class="link-info" role="button">Vissza a menübe</a>
+  <div class="row g-3 mb-4">
+    <div class="col-7">
+      <label for="envSelect" class="form-label lbl">Környezet</label>
+      <select id="envSelect" class="form-select" disabled></select>
+    </div>
+    <div class="col-5">
+      <label for="lapCountSelect" class="form-label lbl">Körök</label>
+      <select id="lapCountSelect" class="form-select">
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3" selected>3</option>
+        <option value="5">5</option>
+        <option value="10">10</option>
+      </select>
     </div>
   </div>
 
-  <div id="miniMapWrap">
-    <div id="speedReadout"><span id="speedValue">0</span> km/h</div>
-    <canvas id="miniMapCanvas" width="180" height="180"></canvas>
-  </div>
+  <button id="startBtn" class="btn-race btn-solo" disabled>Egyjátékos</button>
+  <div id="menuStatus" class="text-center mt-3"></div>
 </div>
 
-<div id="raceHudWrap" class="hidden">
-  <div class="card bg-dark bg-opacity-75 border-secondary-subtle text-light">
-    <div class="card-body py-2 px-3 small" id="raceHud"></div>
+<div id="hud" class="hidden">
+  <div id="topLeft">
+    <div class="tl-bar">
+      <div id="backToMenuLink" role="button">← Vissza a menübe</div>
+      <button id="helpBtn" type="button" title="Irányítás" aria-label="Irányítás">i</button>
+    </div>
+
+    <div id="helpPanel" class="panel hidden">
+      <h6>Irányítás</h6>
+      <div class="help-row"><span>Gyorsítás</span>
+        <span class="help-keys"><kbd class="k">W</kbd><span class="sep">/</span><kbd class="k">↑</kbd></span></div>
+      <div class="help-row"><span>Fék / tolatás</span>
+        <span class="help-keys"><kbd class="k">S</kbd><span class="sep">/</span><kbd class="k">↓</kbd></span></div>
+      <div class="help-row"><span>Kormányzás</span>
+        <span class="help-keys"><kbd class="k">A</kbd><kbd class="k">D</kbd></span></div>
+      <div class="help-row"><span>Kézifék</span>
+        <span class="help-keys"><kbd class="k">Space</kbd></span></div>
+      <div class="help-row"><span>Kamera</span>
+        <span class="help-keys"><kbd class="k">C</kbd></span></div>
+      <div class="help-row"><span>Vissza a pályára</span>
+        <span class="help-keys"><kbd class="k">R</kbd></span></div>
+      <div class="help-row"><span>Körbenézés</span>
+        <span class="help-keys"><kbd class="k">jobb egér</kbd></span></div>
+    </div>
+
+    <div id="standingsWrap" class="hidden">
+      <div id="standings" class="panel"></div>
+    </div>
+  </div>
+
+  <div id="raceHudWrap">
+    <div id="raceHud" class="panel"></div>
+  </div>
+
+  <div id="miniMapWrap" class="panel">
+    <canvas id="miniMapCanvas" width="180" height="180"></canvas>
+  </div>
+
+  <div id="speedPanel" class="panel">
+    <div class="sp-value">
+      <span id="speedValue" class="num">0</span>
+      <span class="sp-unit">km/h</span>
+    </div>
+    <div class="sp-zone"><span id="zoneIndicator" data-zone="asphalt">aszfalt</span></div>
   </div>
 </div>
 
 <div id="lapInvalidAlert" class="top-center-alert hidden">
-  <div class="alert alert-warning fw-bold text-center mb-0 shadow" id="lapInvalidAlertText">Kör érvénytelen!</div>
+  <div class="alert-pill warn" id="lapInvalidAlertText">Kör érvénytelen!</div>
 </div>
 
 <div id="rolloverAlert" class="top-center-alert hidden">
-  <div class="alert alert-danger fw-bold text-center mb-0 shadow" id="rolloverAlertText"></div>
+  <div class="alert-pill danger" id="rolloverAlertText"></div>
 </div>
 
 <div id="countdown" class="hidden">3</div>
 
 <div id="results" class="hidden">
-  <div class="card bg-dark border-primary text-light" style="min-width:280px;">
-    <div class="card-body">
-      <h5 class="card-title text-primary mb-3">Verseny vége</h5>
-      <div id="resultsBody"></div>
-      <button id="resultsRestartBtn" class="btn btn-primary btn-sm mt-3">Újra</button>
-      <button id="resultsMenuBtn" class="btn btn-secondary btn-sm mt-3">Menü</button>
+  <div class="panel results-card">
+    <div class="results-title">Verseny vége</div>
+    <div id="resultsBody"></div>
+    <div class="d-flex gap-2 mt-4">
+      <button id="resultsRestartBtn" class="mp-btn primary flex-grow-1">Újra</button>
+      <button id="resultsMenuBtn" class="mp-btn ghost">Menü</button>
     </div>
   </div>
 </div>

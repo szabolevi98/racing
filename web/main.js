@@ -101,6 +101,10 @@ const lapInvalidAlertTextEl = document.getElementById('lapInvalidAlertText');
 const lapCountSelect = document.getElementById('lapCountSelect');
 const raceHudEl = document.getElementById('raceHud');
 const raceHudWrapEl = document.getElementById('raceHudWrap');
+const standingsEl = document.getElementById('standings');
+const standingsWrapEl = document.getElementById('standingsWrap');
+const helpBtn = document.getElementById('helpBtn');
+const helpPanelEl = document.getElementById('helpPanel');
 const countdownEl = document.getElementById('countdown');
 const resultsEl = document.getElementById('results');
 const resultsBodyEl = document.getElementById('resultsBody');
@@ -1836,9 +1840,19 @@ function lapInvalidText(reason) {
   return 'Kör érvénytelen!';
 }
 
+// A sebességpanel alatti zóna-jelvény. Az egyjátékos HUD és a multiplayer
+// képkocka is ezt hívja, hogy a felirat ÉS a színezés (data-zone, lásd a
+// CSS-t az index.html-ben) biztosan ugyanaz legyen a két módban.
+function updateZoneIndicator(x, z) {
+  const zone = carTouchesWall() ? 'wall' : sampleZoneAt(x, z) === ZONE_OFFTRACK ? 'offtrack' : 'asphalt';
+  zoneIndicatorEl.dataset.zone = zone;
+  zoneIndicatorEl.textContent =
+    zone === 'wall' ? 'fal' : zone === 'offtrack' ? 'kifutó' : 'aszfalt';
+}
+
 function updateRaceHud() {
   if (!race.active) {
-    raceHudEl.textContent = 'Nincs rajtvonal — szabad vezetés';
+    raceHudEl.innerHTML = '<div class="hud-note">Nincs rajtvonal — szabad vezetés</div>';
     lapInvalidAlertEl.classList.add('hidden');
     return;
   }
@@ -1849,10 +1863,18 @@ function updateRaceHud() {
   const validTimes = race.lapTimes.filter((l) => !l.invalid).map((l) => l.time);
   const best = validTimes.length ? Math.min(...validTimes) : NaN;
   raceHudEl.innerHTML =
-    `Kör: <strong>${Math.min(race.lap + 1, race.totalLaps)} / ${race.totalLaps}</strong>${race.lapTainted ? ' ⚠️' : ''}<br>` +
-    `Aktuális: ${formatTime(current)}<br>` +
-    `Legjobb: ${formatTime(best)}<br>` +
-    `Összesen: ${formatTime(total)}`;
+    '<div class="lap-head">' +
+      '<span class="lbl">Kör</span>' +
+      `<span><span class="lap-now num">${Math.min(race.lap + 1, race.totalLaps)}</span>` +
+      `<span class="lap-total num"> / ${race.totalLaps}</span></span>` +
+    '</div>' +
+    (race.lapTainted ? '<div class="t-warn mb-2">⚠ Ez a kör érvénytelen</div>' : '') +
+    `<div class="t-row"><span class="lbl">Aktuális</span><span class="t-val num">${formatTime(current)}</span></div>` +
+    // A zöld kiemelés csak akkor jár, ha VAN már érvényes köridő — enélkül a
+    // "--:--.---" is zölden világítana, mintha eredmény lenne.
+    `<div class="t-row${Number.isFinite(best) ? ' is-best' : ''}">` +
+      `<span class="lbl">Legjobb</span><span class="t-val num">${formatTime(best)}</span></div>` +
+    `<div class="t-row"><span class="lbl">Összes</span><span class="t-val num">${formatTime(total)}</span></div>`;
   // A figyelmeztetés nem néhány másodperc után tűnik el, hanem addig marad,
   // amíg a folyamatban lévő kör tart — a játékos végig lássa, hogy ez a kör
   // már nem számít. A rajtvonalnál a lapTainted nullázódik, ezzel együtt ez is.
@@ -1871,11 +1893,20 @@ function finishRace() {
   const validTimes = race.lapTimes.filter((l) => !l.invalid).map((l) => l.time);
   const best = validTimes.length ? Math.min(...validTimes) : NaN;
   resultsBodyEl.innerHTML =
-    `<div class="mb-2">Összidő: <strong>${formatTime(total)}</strong></div>` +
-    `<div class="mb-3">Legjobb kör: <strong>${formatTime(best)}</strong></div>` +
+    '<div class="res-hero">' +
+      `<div><span class="lbl">Összidő</span><span class="res-big num">${formatTime(total)}</span></div>` +
+      `<div><span class="lbl">Legjobb kör</span><span class="res-big num">${formatTime(best)}</span></div>` +
+    '</div>' +
     race.lapTimes
-      .map((l, i) => `<div class="small">${i + 1}. kör: ${formatTime(l.time)}` +
-        `${l.invalid ? ' ⚠️ érvénytelen' : (l.time === best ? ' ⭐' : '')}</div>`)
+      .map((l, i) => {
+        const tag = l.invalid
+          ? '<span class="res-tag bad">érvénytelen</span>'
+          : l.time === best ? '<span class="res-tag best">legjobb</span>' : '';
+        return '<div class="res-lap">' +
+          `<span class="res-lap-i">${i + 1}. kör</span>` +
+          `<span>${tag}<span class="num ms-2">${formatTime(l.time)}</span></span>` +
+        '</div>';
+      })
       .join('');
   resultsEl.classList.remove('hidden');
 }
@@ -2064,8 +2095,7 @@ function updateControls() {
   updateMiniMap(pos.x, pos.z);
   const linvel = chassisBody.linvel();
   speedValueEl.textContent = Math.round(Math.hypot(linvel.x, linvel.z) * 3.6);
-  zoneIndicatorEl.textContent =
-    carTouchesWall() ? 'FAL' : offtrack ? 'kifutó (lassít)' : 'aszfalt';
+  updateZoneIndicator(pos.x, pos.z);
   // A tényleges vezérlés a KÖZÖS applyControls()-ban van — ugyanaz a kód fut
   // itt és a szerveren. A billentyűket normalizált bemenetté fordítjuk, pont
   // olyanná, amilyet a mp.js is küld a hálózaton.
@@ -2259,6 +2289,8 @@ function enterMenu() {
   hudEl.classList.add('hidden');
   devTools?.hideOverlays();
   raceHudWrapEl.classList.add('hidden');
+  standingsWrapEl.classList.add('hidden');
+  setHelpOpen(false);
   countdownEl.classList.add('hidden');
   resultsEl.classList.add('hidden');
   race.phase = 'idle';
@@ -2271,11 +2303,24 @@ function enterDriving() {
   hudEl.classList.remove('hidden');
   devTools?.hideOverlays();
   raceHudWrapEl.classList.remove('hidden');
+  // Az állás-panel a multiplayeré; egyjátékosban nincs kihez viszonyítani.
+  standingsWrapEl.classList.add('hidden');
+  setHelpOpen(false);
   scene.fog.density = NORMAL_FOG_DENSITY;
   // Ha a gombon/legördülőn maradt a fókusz, a szóköz/nyilak azt vezérelnék
   // vezetés helyett — ezért levesszük róla.
   document.activeElement?.blur();
 }
+
+// A gombkiosztás nem állandó felirat a kép alján (az végig takart, pedig pár
+// kör után már senki nem olvassa), hanem a vissza gomb melletti "i"-re nyíló
+// panel. Mindig CSUKVA indul: a rajtnál a pálya kell látszódjon, nem egy
+// súgódoboz — aki kíváncsi rá, egy kattintással előhozza.
+function setHelpOpen(open) {
+  helpPanelEl.classList.toggle('hidden', !open);
+  helpBtn.classList.toggle('is-open', open);
+}
+helpBtn.addEventListener('click', () => setHelpOpen(helpPanelEl.classList.contains('hidden')));
 
 resultsMenuBtn.addEventListener('click', enterMenu);
 resultsRestartBtn.addEventListener('click', () => {
@@ -3052,9 +3097,7 @@ function stepMultiplayerFrame(dt) {
   // marad a szerveré.
   const p = carPivot.position;
   updateMiniMap(p.x, p.z);
-  // Ugyanaz a kifejezés, mint az egyjátékos HUD-on (updateControls).
-  zoneIndicatorEl.textContent =
-    carTouchesWall() ? 'FAL' : sampleZoneAt(p.x, p.z) === ZONE_OFFTRACK ? 'kifutó (lassít)' : 'aszfalt';
+  updateZoneIndicator(p.x, p.z);
 
   // Felborulás. A visszahelyezést multiplayerben nem mi végezzük — a szerver
   // a hiteles forrás —, ezért csak jelezzük; az R-t a hálózati modul küldi el.
@@ -3141,6 +3184,7 @@ window.__game = {
     menuEl.classList.add('hidden');
     hudEl.classList.remove('hidden');
     raceHudWrapEl.classList.remove('hidden');
+    setHelpOpen(false);
     devTools?.hideOverlays();
     scene.fog.density = NORMAL_FOG_DENSITY;
     document.activeElement?.blur();
@@ -3159,6 +3203,14 @@ window.__game = {
     carPivot.quaternion.set(q[0], q[1], q[2], q[3]);
   },
   setHud(html) { raceHudEl.innerHTML = html; },
+  // A bal felső állás-panel (ki hol tart). Külön a jobb felső időmérőtől:
+  // egy panelbe zsúfolva a kettő pont az az összeolvadó szövegfal volt, ami
+  // olvashatatlanná tette a HUD-ot. Üres tartalomra elrejtjük magát a panelt,
+  // hogy egyjátékosban ne lógjon ott egy üres doboz.
+  setStandings(html) {
+    standingsEl.innerHTML = html || '';
+    standingsWrapEl.classList.toggle('hidden', !html);
+  },
   setSpeed(kmh) { speedValueEl.textContent = Math.round(kmh); },
   // A nagy 3-2-1 kiírás. Multiplayerben a visszaszámlálás a SZERVER órája
   // szerint jár (a kliens csak megjeleníti), ezért nem a helyi race.phase

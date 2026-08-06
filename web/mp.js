@@ -74,33 +74,52 @@ el.id = 'mpOverlay';
 el.className = 'hidden';
 el.innerHTML = `
 <div class="mp-panel">
-  <h5 class="mb-3">Többjátékos</h5>
-  <div id="mpLogin">
-    <label class="form-label small">Játékosnév</label>
-    <input id="mpName" class="form-control form-control-sm mb-2" maxlength="20" placeholder="A neved">
-    <button id="mpConnect" class="btn btn-primary btn-sm w-100">Csatlakozás a szerverhez</button>
+  <div class="mp-head">
+    <h5>Többjátékos</h5>
+    <button id="mpClose" class="mp-x" title="Vissza a menübe">&times;</button>
   </div>
-  <div id="mpRooms" class="hidden">
-    <div class="mb-2 small">Bejelentkezve: <strong id="mpWho"></strong></div>
-    <div class="row g-2 mb-2">
-      <div class="col-12"><button id="mpCreate" class="btn btn-success btn-sm w-100">Új szoba létrehozása</button></div>
-      <div class="col-8"><input id="mpCode" class="form-control form-control-sm text-uppercase" maxlength="6" placeholder="SZOBAKÓD"></div>
-      <div class="col-4"><button id="mpJoin" class="btn btn-outline-light btn-sm w-100">Belépés</button></div>
+  <div class="mp-body">
+    <div id="mpLogin">
+      <label for="mpName" class="lbl d-block mb-2">Játékosnév</label>
+      <input id="mpName" class="form-control mb-3" maxlength="20" placeholder="A neved">
+      <button id="mpConnect" class="mp-btn primary w-100">Csatlakozás a szerverhez</button>
     </div>
-  </div>
-  <div id="mpRoom" class="hidden">
-    <div class="mb-2">Szobakód: <strong id="mpRoomCode" class="fs-5"></strong>
-      <button id="mpCopy" class="btn btn-outline-light btn-sm py-0 px-1 ms-1">másol</button></div>
-    <div class="small mb-1">Pálya: <span id="mpRoomMap"></span> — <span id="mpRoomLaps"></span> kör</div>
-    <ul id="mpPlayers" class="list-unstyled small mb-2"></ul>
-    <div class="d-flex gap-2">
-      <button id="mpStart" class="btn btn-primary btn-sm flex-grow-1">Verseny indítása</button>
-      <button id="mpLeave" class="btn btn-outline-danger btn-sm">Kilépés</button>
+
+    <div id="mpRooms" class="hidden">
+      <div class="mp-chip mb-3">Bejelentkezve: <b id="mpWho"></b></div>
+      <button id="mpCreate" class="mp-btn primary w-100">Új szoba létrehozása</button>
+      <div class="mp-sep">vagy</div>
+      <label for="mpCode" class="lbl d-block mb-2">Csatlakozás kóddal</label>
+      <div class="d-flex gap-2">
+        <input id="mpCode" class="form-control text-uppercase" maxlength="6" placeholder="SZOBAKÓD"
+               style="letter-spacing:.16em; font-weight:700;">
+        <button id="mpJoin" class="mp-btn ghost" style="flex:none;">Belépés</button>
+      </div>
     </div>
-    <div id="mpHint" class="small text-warning mt-2"></div>
+
+    <div id="mpRoom" class="hidden">
+      <div class="mp-code-box">
+        <div>
+          <span class="lbl d-block mb-2">Szobakód</span>
+          <span id="mpRoomCode" class="mp-code-val num"></span>
+        </div>
+        <button id="mpCopy" class="mp-btn ghost" style="flex:none;">Másol</button>
+      </div>
+      <div class="mp-meta">
+        <span class="mp-chip">Pálya: <b id="mpRoomMap"></b></span>
+        <span class="mp-chip"><b id="mpRoomLaps"></b> kör</span>
+      </div>
+      <span class="lbl d-block mb-2">Játékosok</span>
+      <div id="mpPlayers"></div>
+      <div id="mpHint" class="mp-note"></div>
+      <div class="d-flex gap-2 mt-3">
+        <button id="mpStart" class="mp-btn primary flex-grow-1">Verseny indítása</button>
+        <button id="mpLeave" class="mp-btn danger">Kilépés</button>
+      </div>
+    </div>
+
+    <div id="mpError"></div>
   </div>
-  <div id="mpError" class="small text-danger mt-2"></div>
-  <button id="mpClose" class="btn btn-link btn-sm text-secondary mt-2 p-0">Vissza a menübe</button>
 </div>`;
 document.body.appendChild(el);
 
@@ -287,14 +306,22 @@ function renderRoom() {
   $('mpRoomLaps').textContent = room.laps;
   $('mpPlayers').innerHTML = room.players.map((p) => {
     const car = G.manifest?.cars.find((c) => c.id === p.carId);
-    return `<li>${p.isHost ? '👑 ' : ''}${colorDot(p.color)}${escapeHtml(p.name)}${p.id === me.id ? ' <em>(te)</em>' : ''}
-      <span class="text-secondary">— ${escapeHtml(car?.label || p.carId || 'nincs kocsi')}</span></li>`;
+    const self = p.id === me.id;
+    return `<div class="mp-player${self ? ' is-self' : ''}">` +
+      `<span class="dot" style="background:${safeColor(p.color)}"></span>` +
+      '<span class="who">' +
+        `<span class="nm">${escapeHtml(p.name)}${self ? ' (te)' : ''}</span>` +
+        `<span class="car">${escapeHtml(car?.label || p.carId || 'nincs kocsi')}</span>` +
+      '</span>' +
+      (p.isHost ? '<span class="mp-crown" title="Szoba tulajdonosa">👑</span>' : '') +
+    '</div>';
   }).join('');
   const isHost = room.hostId === me.id;
   $('mpStart').disabled = !isHost;
+  $('mpHint').className = 'mp-note' + (isHost ? ' is-host' : '');
   $('mpHint').textContent = isHost
     ? 'Te vagy a szoba tulajdonosa — te indíthatod a versenyt.'
-    : 'Várakozás a szoba tulajdonosára...';
+    : 'Várakozás a szoba tulajdonosára…';
 }
 
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) =>
@@ -304,10 +331,9 @@ const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) =>
 // névtáblán és a lobby-listán is — a szoba osztja ki, tehát mindenkinél egyezik.
 // A szín a palettából jön (shared/protocol.js), nem felhasználói adat, de a
 // CSS-be így is csak a hexa-alakot engedjük be.
-const colorDot = (color) => {
-  const safe = /^#[0-9a-f]{6}$/i.test(color || '') ? color : '#ffffff';
-  return `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${safe};margin-right:5px;vertical-align:middle;"></span>`;
-};
+const safeColor = (color) => (/^#[0-9a-f]{6}$/i.test(color || '') ? color : '#ffffff');
+const colorDot = (color) =>
+  `<span class="st-dot" style="background:${safeColor(color)}"></span>`;
 
 // ---------- Verseny ----------
 
@@ -767,17 +793,31 @@ function frame(dt = 1 / 60) {
   if (!starting?.startsAt) {
     const waiting = room?.players.filter((p) => !p.ready).map((p) => p.name) || [];
     G.setHud(
-      '<strong>Várakozás a többiekre…</strong>' +
-      (waiting.length ? `<div class="text-secondary mt-1">Még tölt: ${escapeHtml(waiting.join(', '))}</div>` : '')
+      '<div class="hud-note"><strong>Várakozás a többiekre…</strong>' +
+      (waiting.length ? `<br>Még tölt: ${escapeHtml(waiting.join(', '))}` : '') +
+      '</div>'
     );
+    G.setStandings('');
     return;
   }
 
-  const evt = lastEvents[0];
+  // A kör-kijelző (jobb fent) ugyanaz a panel, mint egyjátékosban; a mezőny
+  // állása KÜLÖN panelbe megy (bal fent). Korábban a kettő egy dobozban volt,
+  // és pont ettől lett belőle olvashatatlan szövegfal.
   G.setHud(
-    `Kör: <strong>${myLap + 1} / ${room?.laps ?? '?'}</strong>` +
-    `<div class="mt-1">${standingsHtml()}</div>` +
-    (evt ? `<div class="text-warning mt-1">${escapeHtml(eventText(evt))}</div>` : '')
+    '<div class="lap-head">' +
+      '<span class="lbl">Kör</span>' +
+      `<span><span class="lap-now num">${myLap + 1}</span>` +
+      `<span class="lap-total num"> / ${room?.laps ?? '?'}</span></span>` +
+    '</div>' +
+    (lapTainted ? '<div class="t-warn">⚠ Ez a kör érvénytelen</div>' : '')
+  );
+
+  const evt = lastEvents[0];
+  G.setStandings(
+    '<span class="lbl">Állás</span>' +
+    standingsHtml() +
+    (evt ? `<div class="st-event">${escapeHtml(eventText(evt))}</div>` : '')
   );
 }
 
@@ -801,8 +841,11 @@ function standingsHtml() {
 
   return rows.map((r, i) => {
     const name = escapeHtml(r.name.slice(0, 14));
-    return `<div${r.self ? ' class="fw-semibold"' : ''}>${i + 1}. ${colorDot(r.color)}${name}` +
-      `<span class="text-secondary"> — ${r.lap + 1}. kör</span></div>`;
+    return `<div class="st-row${r.self ? ' is-self' : ''}">` +
+      `<span class="st-pos num">${i + 1}</span>${colorDot(r.color)}` +
+      `<span class="st-name">${name}</span>` +
+      `<span class="st-lap num">${r.lap + 1}. kör</span>` +
+    '</div>';
   }).join('');
 }
 
@@ -931,11 +974,16 @@ function showResults(results) {
   raceEnded = true;
   const rows = results.map((r) => {
     const player = room?.players.find((p) => p.id === r.playerId);
-    const name = player?.name || '?';
+    const name = escapeHtml(player?.name || '?');
     const best = r.bestLapMs ? (r.bestLapMs / 1000).toFixed(2) + 's' : '—';
-    return `<div class="small">${r.position}. ${colorDot(player?.color)}${escapeHtml(name)} — ${(r.totalMs / 1000).toFixed(2)}s (legjobb kör: ${best})</div>`;
+    return `<div class="st-row${r.playerId === me.id ? ' is-self' : ''}">` +
+      `<span class="st-pos num">${r.position}</span>${colorDot(player?.color)}` +
+      `<span class="st-name">${name}</span>` +
+      `<span class="st-lap num">${(r.totalMs / 1000).toFixed(2)}s · ${best}</span>` +
+    '</div>';
   }).join('');
-  G.setHud(`<strong>Vége!</strong><br>${rows}`);
+  G.setHud('<div class="lap-head"><span class="lbl">Verseny vége</span></div>');
+  G.setStandings('<span class="lbl">Végeredmény</span>' + rows);
   setTimeout(() => {
     for (const { group } of others.values()) G.scene.remove(group);
     others.clear();
@@ -948,7 +996,7 @@ function showResults(results) {
 // A menübe egy gomb, ami megnyitja a lobbyt.
 const btn = document.createElement('button');
 btn.id = 'mpOpenBtn';
-btn.className = 'btn btn-danger btn-lg w-100 mt-2';
+btn.className = 'btn-race btn-mp mt-2';
 btn.textContent = 'Többjátékos';
 btn.addEventListener('click', openLobby);
 document.getElementById('startBtn')?.insertAdjacentElement('afterend', btn);
