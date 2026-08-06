@@ -26,7 +26,7 @@ import {
 // (ld. injectMarkup lent), hogy egy rendes játékosnak ne kelljen letöltenie.
 // Ezért ezek `let`-ek, és csak az injektálás UTÁN kapnak értéket.
 let devHudEl, devSpawnCountEl, devSpawnStatusEl, devMapSelectEl;
-let bakeCollisionBtn, bakeStatusEl, bakeDebrisFilterCheck, openZoneEditorBtn;
+let bakeCollisionBtn, bakeStatusEl, bakeDebrisFilterCheck, bakeSmoothCheck, openZoneEditorBtn;
 let carTesterBtn, carTesterHudEl, carTesterBackBtn, carTesterCarSelectEl;
 let devDriveBtn, devDriveHudEl, devDriveBackBtn, devDriveResetBtn, devDriveSaveBtn, devDriveSlidersEl;
 let openMaterialPickerBtn, generateCheckpointsBtn, autoCheckpointCountEl;
@@ -66,6 +66,7 @@ function queryElements() {
   bakeCollisionBtn = $('bakeCollisionBtn');
   bakeStatusEl = $('bakeStatus');
   bakeDebrisFilterCheck = $('bakeDebrisFilterCheck');
+  bakeSmoothCheck = $('bakeSmoothCheck');
   openZoneEditorBtn = $('openZoneEditorBtn');
   carTesterBtn = $('carTesterBtn');
   carTesterHudEl = $('carTesterHud');
@@ -134,7 +135,8 @@ let api = null;
 let scene, camera, renderer, carPivot, keys, hudEl, menuEl, carSelect;
 let NORMAL_FOG_DENSITY;
 let moveTowardsAngle, updateSunTarget, updateShowcaseCamera;
-let findEntry, fillSelect, setTrack, loadZoneRuntime, extractDrivableTriangles, extractWallTriangles, makeSearchableSelect;
+let findEntry, fillSelect, setTrack, loadZoneRuntime, extractDrivableTriangles, extractWallTriangles,
+  smoothFloorHeights, makeSearchableSelect;
 
 const maxSteerVal = MAX_STEER;
 
@@ -1411,9 +1413,23 @@ async function bakeCollisionToFile() {
 
   const pruneDebris = bakeDebrisFilterCheck.checked;
   const rawFloor = extractDrivableTriangles(track, pruneDebris);
-  const floor = dedupeVertices(rawFloor.positions, rawFloor.indices);
+  let floor = dedupeVertices(rawFloor.positions, rawFloor.indices);
   const rawWall = extractWallTriangles(track, pruneDebris);
   const wall = dedupeVertices(rawWall.positions, rawWall.indices);
+
+  // A simítás a dedupe UTÁN megy: addigra a szomszédos háromszögek KÖZÖS
+  // csúcsokat használnak, tehát egy csúcs elmozdítása az összes rá illeszkedő
+  // lapot együtt mozgatja. A dedupe előtt minden háromszögnek saját csúcsai
+  // vannak, és a háló szétszakadna.
+  let simStat = null;
+  if (bakeSmoothCheck.checked) {
+    bakeStatusEl.textContent = 'Simítás...';
+    await new Promise((r) => setTimeout(r, 0));
+    const t0 = performance.now();
+    const s = smoothFloorHeights(floor.positions, floor.indices);
+    floor = { positions: s.positions, indices: s.indices };
+    simStat = { jelolt: s.jelolt, mozdult: s.mozdult, osszes: s.osszes, ms: Math.round(performance.now() - t0) };
+  }
 
   const floorVertexCount = floor.positions.length / 3;
   const wallVertexCount = wall.positions.length / 3;
@@ -1451,7 +1467,11 @@ async function bakeCollisionToFile() {
     bakeStatusEl.textContent =
       `Kész: talaj ${floor.indices.length / 3} (${rawFloor.positions.length / 3}→${floorVertexCount} csúcs), ` +
       `fal ${wall.indices.length / 3} (${rawWall.positions.length / 3}→${wallVertexCount} csúcs) háromszög, ` +
-      `${(data.bytes / 1048576).toFixed(1)} MB`;
+      `${(data.bytes / 1048576).toFixed(1)} MB` +
+      (simStat
+        ? ` · simítás: ${simStat.mozdult} csúcs mozdult a ${simStat.osszes}-ből ` +
+          `(${(simStat.mozdult / simStat.osszes * 100).toFixed(1)}%, ${simStat.ms} ms)`
+        : ' · simítás KI');
   } catch (err) {
     bakeStatusEl.textContent = 'Hiba: ' + err.message;
   }
@@ -1732,7 +1752,8 @@ export async function initDevTools(gameApi) {
     scene, camera, renderer, carPivot, keys, hudEl, menuEl, carSelect,
     NORMAL_FOG_DENSITY,
     moveTowardsAngle, updateSunTarget, updateShowcaseCamera,
-    findEntry, fillSelect, setTrack, loadZoneRuntime, extractDrivableTriangles, extractWallTriangles, makeSearchableSelect,
+    findEntry, fillSelect, setTrack, loadZoneRuntime, extractDrivableTriangles, extractWallTriangles,
+    smoothFloorHeights, makeSearchableSelect,
   } = api);
 
   // THREE-objektumok csak most jönnek létre — a modul betöltésekor még nem

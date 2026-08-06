@@ -1475,6 +1475,123 @@ function pruneIsolatedDebris(positions, indices) {
   return { positions: new Float32Array(keptPositions), indices: new Uint32Array(keptIndices) };
 }
 
+// ---------- A talaj-háló lejtéstöréseinek simítása (bake-időben) ----------
+// A rázókövek egy része NEM lépcsős, hanem hullámos: pár méterenként 4-5 cm-es
+// éles emelkedés, aztán lassú visszaesés. Pontonként ez kis magasságkülönbség
+// (a lépcső-mérés simának is látja), a TETŐ SUGARA viszont 1-5 méter — 157
+// km/h-n ennek követéséhez 40 g kellene, a gravitáció 1-et ad, tehát a kocsi
+// elemelkedik. Mérve: mind a négy kerék fél másodpercre elhagyta a talajt, és
+// mivel a felfüggesztésnek csak 8 cm lefelé útja van, utána nem ért vissza —
+// innen a "megakad / elrepül" élmény.
+//
+// Ezért nem a magasságkülönbséget nézzük, hanem azt, hogy a felület egy adott
+// pont körül MENNYIRE NEM SÍK (síkillesztés maradéka). Ez a mennyiség
+// szándékosan érzéketlen a pálya vonalvezetésére: egy kanyar, egy lejtő vagy
+// egy dőlt szakasz lokálisan tökéletesen sík. Suzukán mérve — kanyarok
+// átlaga 0.7 mm (a legélesebb, 89 fokos kanyar 0.5 mm), egyenesek 1.0 mm,
+// a kilövő rázókő 9.2 mm.
+// A sugarat a HÁLÓ FELBONTÁSA szabja meg, nem az ízlés: a csúcsok sorokban
+// állnak (Suzukán a szomszéd medián 0.23 m), a SOROK KÖZT viszont akár 1.6 m a
+// hézag. Egy 0.6 m-es sugár ezért csak egyetlen sort fog be — a síkillesztés
+// elfajul (majdnem kollineáris pontok), és a simítás nem csinál semmit. 1.5 m
+// már biztosan több sort ér el, tehát valódi foltot lát.
+const SMOOTH_RADIUS = 1.5;        // m — ekkora környezetben vizsgáljuk a felületet
+const SMOOTH_TRIGGER = 0.004;     // m — 4 mm fölött simítunk (aszfalt: 0.7-1.0 mm)
+const SMOOTH_MAX_SHIFT = 0.05;    // m — egy csúcs sem mozdulhat 5 cm-nél többet
+const SMOOTH_ITERATIONS = 2;
+
+// A csúcsokat CSAK függőlegesen mozgatjuk: a pálya rajzolata, szélessége és íve
+// így biztosan változatlan marad. A ±5 cm-es korlát pedig azt garantálja, hogy
+// a valódi lépcsők (pályaszél, korlát alja, akár 50 cm) érdemben ne simuljanak
+// el — a szűrő csak a kis amplitúdójú töréseket tudja ténylegesen kiegyenlíteni.
+function smoothFloorHeights(positions, indices) {
+  const n = positions.length / 3;
+  const cell = SMOOTH_RADIUS;
+  const grid = new Map();
+  const key = (ix, iz) => ix + ',' + iz;
+  for (let i = 0; i < n; i++) {
+    const k = key(Math.floor(positions[i * 3] / cell), Math.floor(positions[i * 3 + 2] / cell));
+    let a = grid.get(k);
+    if (!a) grid.set(k, a = []);
+    a.push(i);
+  }
+  const neighboursOf = (i) => {
+    const x = positions[i * 3], z = positions[i * 3 + 2];
+    const ix = Math.floor(x / cell), iz = Math.floor(z / cell);
+    const out = [];
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        const a = grid.get(key(ix + dx, iz + dz));
+        if (!a) continue;
+        for (const j of a) {
+          const ddx = positions[j * 3] - x, ddz = positions[j * 3 + 2] - z;
+          if (ddx * ddx + ddz * ddz <= SMOOTH_RADIUS * SMOOTH_RADIUS) out.push(j);
+        }
+      }
+    }
+    return out;
+  };
+
+  // 1) Hol nem sík a felület? (legkisebb négyzetes síkillesztés maradéka)
+  const marked = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    const nb = neighboursOf(i);
+    if (nb.length < 6) continue;
+    const x0 = positions[i * 3], z0 = positions[i * 3 + 2];
+    let Sxx = 0, Szz = 0, Sxz = 0, Sx = 0, Sz = 0, S1 = 0, Sxy = 0, Szy = 0, Sy = 0;
+    for (const j of nb) {
+      const dx = positions[j * 3] - x0, dz = positions[j * 3 + 2] - z0, y = positions[j * 3 + 1];
+      Sxx += dx * dx; Szz += dz * dz; Sxz += dx * dz;
+      Sx += dx; Sz += dz; S1++; Sxy += dx * y; Szy += dz * y; Sy += y;
+    }
+    const det = Sxx * (Szz * S1 - Sz * Sz) - Sxz * (Sxz * S1 - Sz * Sx) + Sx * (Sxz * Sz - Szz * Sx);
+    if (Math.abs(det) < 1e-12) continue;
+    const a = (Sxy * (Szz * S1 - Sz * Sz) - Sxz * (Szy * S1 - Sz * Sy) + Sx * (Szy * Sz - Szz * Sy)) / det;
+    const b = (Sxx * (Szy * S1 - Sz * Sy) - Sxy * (Sxz * S1 - Sz * Sx) + Sx * (Sxz * Sy - Szy * Sx)) / det;
+    const c = (Sxx * (Szz * Sy - Szy * Sz) - Sxz * (Sxz * Sy - Szy * Sx) + Sxy * (Sxz * Sz - Szz * Sx)) / det;
+    let s = 0;
+    for (const j of nb) {
+      const dx = positions[j * 3] - x0, dz = positions[j * 3 + 2] - z0;
+      const e = positions[j * 3 + 1] - (a * dx + b * dz + c);
+      s += e * e;
+    }
+    if (Math.sqrt(s / nb.length) > SMOOTH_TRIGGER) marked[i] = 1;
+  }
+
+  // 2) A maszkot egy gyűrűvel kiterjesztjük, hogy a simított és az érintetlen
+  //    rész HATÁRÁN ne keletkezzen új törés — épp azt akarjuk megszüntetni.
+  const grown = marked.slice();
+  for (let i = 0; i < n; i++) {
+    if (marked[i]) continue;
+    for (const j of neighboursOf(i)) if (marked[j]) { grown[i] = 1; break; }
+  }
+
+  // 3) Átlagoló simítás — csak a megjelölt csúcsokon, csak az Y-on.
+  const out = new Float32Array(positions);
+  const idxs = [];
+  for (let i = 0; i < n; i++) if (grown[i]) idxs.push(i);
+  const nbCache = idxs.map(neighboursOf);
+  for (let it = 0; it < SMOOTH_ITERATIONS; it++) {
+    const snapshot = out.slice();
+    idxs.forEach((i, k) => {
+      const nb = nbCache[k];
+      let s = 0;
+      for (const j of nb) s += snapshot[j * 3 + 1];
+      out[i * 3 + 1] = s / nb.length;
+    });
+  }
+  // 4) Korlát: senki nem mozdulhat 5 cm-nél többet az eredetihez képest.
+  let moved = 0;
+  for (const i of idxs) {
+    const d = out[i * 3 + 1] - positions[i * 3 + 1];
+    const clamped = Math.max(-SMOOTH_MAX_SHIFT, Math.min(SMOOTH_MAX_SHIFT, d));
+    out[i * 3 + 1] = positions[i * 3 + 1] + clamped;
+    if (Math.abs(clamped) > 0.001) moved++;
+  }
+
+  return { positions: out, indices, jelolt: idxs.length, mozdult: moved, osszes: n };
+}
+
 function applyTrackCollider(floor, wall) {
   removeTrackCollider();
   trackColliderBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
@@ -2450,6 +2567,7 @@ const devApi = {
   NORMAL_FOG_DENSITY,
   moveTowardsAngle, updateSunTarget, updateShowcaseCamera,
   findEntry, fillSelect, setTrack, loadZoneRuntime, extractDrivableTriangles, extractWallTriangles,
+  smoothFloorHeights,
   makeSearchableSelect,
   // A dev pályaváltás ugyanazt a betöltő-overlayt kapja, mint a menü: egy
   // pálya 60-150 MB, ami nélküle 20-30 másodpercnyi néma üres képernyő.
