@@ -83,6 +83,7 @@ z=-1.95-nél lógott) a min-max közepet teljesen félrecsúsztatná
 zavarja meg egyetlen kilógó pont.
 
 ## Hogyan tegyünk be egy új kocsit
+FIGYELEM! Elavult információk. Olvasd el a tools/README.md-t.
 
 1. Tedd be a `.glb`-t ide, ez automatikusan megjelenik a menüben.
 2. Nézd meg, néz-e előre alapból (indítsd el, nézd meg a menü-
@@ -171,8 +172,3 @@ kitalálva a mintája, milyen csapdák voltak benne, és mit ellenőriztünk
 megpróbálni a fenti lépésekkel, mielőtt "lehetetlennek" könyvelnénk el
 — korábban több kocsi is csak azért tűnt annak, mert a geometria-
 szétvágás még nem létezett.
-
-**Törölt kocsik** (a felhasználó törölte, buggos eredeti modellek — nem
-a kerék-szétvágással volt gond, magukkal a fájlokkal): `2016_bmw_m6_gt3`.
-(A `mercedes-benz_clk_gtr`-t a felhasználó visszatette, és a
-kerék-szétvágással most már rendben megy — lásd a saját JSON-ját.)
