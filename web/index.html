@@ -103,7 +103,7 @@
     /* Itt az RGB-t hangoljuk, nem az alfát — fordítva, mint a HUD-paneleknél:
        0.93-0.96 alfánál a sáv már gyakorlatilag átlátszatlan, tehát az alfa
        piszkálása alig látszana, a színé viszont közvetlenül hat. */
-    background: linear-gradient(180deg, rgba(19, 23, 32, 0.93), rgba(15, 18, 26, 0.96));
+    background: linear-gradient(180deg, rgba(16, 19, 27, 0.93), rgba(12, 15, 21, 0.96));
     -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
     border-left: 1px solid var(--line);
     box-shadow: -30px 0 70px rgba(0, 0, 0, 0.6);
@@ -273,6 +273,11 @@
   .sp-value { display: flex; align-items: baseline; justify-content: flex-end; gap: 7px; }
   #speedValue {
     font-size: 62px; font-weight: 800; line-height: 0.9; letter-spacing: -0.045em;
+    /* Három számjegynyi hely MINDIG le van foglalva, akkor is, ha egy- vagy
+       kétjegyű a szám: enélkül 99-ről 100-ra átlépve az egész panel
+       megugrana. A .num tabuláris számjegyeivel az 1ch pontosan egy
+       számjegy szélessége, tehát a 3ch pontosan kiadja a helyet. */
+    min-width: 3ch; text-align: right;
   }
   .sp-unit { font-size: 13px; font-weight: 700; color: var(--muted); }
   /* A zóna nem "jelvény", hanem állapotsor: egy színes pont + ritkított
