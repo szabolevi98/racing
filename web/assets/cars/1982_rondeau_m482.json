@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+  "_wheelPattern": "A propose.mjs javaslatát kézzel kiegészítve: a modell szinte kizárólag Material_N.001 néven van exportálva, a névalapú javaslat több kerékhez tartozó darabot kihagyott. Pozíció+méret alapján (tools/analyze.mjs evaluate) azonosítva és hozzáadva: Material_531 (első gumi, a már bent lévő 543-mal azonos pozíció/méret — enélkül csak a felni forgott), Material_616+628 (hátsó gumi, nagyobb sugarú mint a bent lévő 604 — enélkül a hátsó kerék állva maradt), Material_491 (hátsó, a már bent lévő 479 páratlan párja), Material_555 (vékony dísz-gyűrű mindkét kerék hátsó oldalán).",
+  "wheelPattern": "brakedisc|caliper|fcootire2|Material_604\\.001(?![^\\s])|Material_422\\.001(?![^\\s])|Material_479\\.001(?![^\\s])|Material_518\\.003(?![^\\s])|Material_543\\.001(?![^\\s])|Material_531\\.001(?![^\\s])|Material_616\\.001(?![^\\s])|Material_628\\.001(?![^\\s])|Material_491\\.001(?![^\\s])|Material_555\\.001(?![^\\s])"
+}

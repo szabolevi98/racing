@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+  "_wheelPattern": "A propose.mjs javaslatát kézzel kiegészítve: a 30_FW.001 (első kerék gumi-perem) hiányzott, csak a hátsó (30_RW) párja került be — emiatt csak a futófelület (TREADT) forgott, a perem nem.",
+  "wheelPattern": "rim|treadt|caliper|30_RW\\.001(?![^\\s])|30_FW\\.001(?![^\\s])"
+}

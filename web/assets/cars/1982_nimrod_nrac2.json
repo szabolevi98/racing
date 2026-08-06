@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával.",
+  "wheelPattern": "avontr|fcootire2|tread|pz1disk|fc00tire4|brakedisc|Material_50(?![^\\s])|Material_51(?![^\\s])|Material_53(?![^\\s])|Material_52(?![^\\s])|caliper\\.002(?![^\\s])"
+}
