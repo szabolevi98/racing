@@ -1,7 +1,12 @@
 import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { normalize, evaluate, splitPrim, median } from './analyze.mjs';
 
-const dir = 'D:/xampp/htdocs/racing/assets/cars';
+// A projekt gyökeréhez képest — így akárhonnan futtatva is a helyes,
+// web/assets/cars mappát találja meg (nem a régi, azóta megszűnt
+// D:/xampp/htdocs/racing/assets/cars utat).
+const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web', 'assets', 'cars');
 
 // Egy kiértékelés "kerékszerűségének" pontozása.
 export function score(r) {
