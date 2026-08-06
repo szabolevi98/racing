@@ -124,6 +124,41 @@ export const OFFTRACK_FRICTION_SLIP = 1.0;
 export const OFFTRACK_FORCE_FACTOR = 0.75;
 export const OFFTRACK_DRAG = 0.995;
 
+// ---------- Csúcssebesség-plafon ----------
+// Ez VALÓDI, aktív korlát, nem csak vészfék a szélsőségekre: mérve, sík
+// talajon, teljes gázzal a kocsi magától ~633 km/h-ig gyorsul (a plafont
+// ~19 mp folyamatos gáz után éri el). Az ok, hogy a LINEAR_DAMPING
+// sebességARÁNYOS, a valódi légellenállás viszont a sebesség NÉGYZETÉvel nő —
+// a csillapítás ezért nagy sebességen messze alulfékez, és a végsebesség
+// irreálisan magasra szalad. A plafon ezt vágja vissza, és mellékesen a
+// hosszú lejtőn/ütközés lökésétől elszaladó kocsit is megfogja.
+//
+// Ez NEM hangolható a dev panelről (nincs hozzá csúszka), ezért nem is a
+// vehicleTunables.js-ben van: azt a fájlt a panel "Mentés fájlba" gombja
+// egészében újragenerálja a csúszkákból, és egy ott felejtett, csúszka nélküli
+// konstans az első mentésnél nyomtalanul eltűnne.
+export const MAX_SPEED_KMH = 378;
+export const MAX_SPEED = MAX_SPEED_KMH / 3.6;
+
+// Kizárólag a VÍZSZINTES sebességet korlátozza — pont azt a számot, amit a
+// sebességmérő is mutat (Math.hypot(vx, vz) * 3.6). A függőleges komponens
+// szándékosan érintetlen: az esést nem szabad lefékezni, különben a kocsi
+// lassítva lebegne le a magasabb pályaelemekről.
+//
+// A világ léptetése UTÁN kell hívni, ugyanúgy, mint a zone.js
+// applyWallConstraint-jét — mindkettő a kész sebességre ható kényszer, nem
+// vezérlő-bemenet, ezért nincs helyük az applyControls-ban. Mindhárom hívási
+// helyen ugyanabban a sorrendben kell futniuk (egyjátékos animate,
+// kliens-oldali jóslás stepLocalPhysics, szerver raceSim.step), különben a
+// jóslat elcsúszna a szerver igazságától.
+export function applySpeedCap(body) {
+  const v = body.linvel();
+  const speed = Math.hypot(v.x, v.z);
+  if (speed <= MAX_SPEED) return;
+  const k = MAX_SPEED / speed;
+  body.setLinvel({ x: v.x * k, y: v.y, z: v.z * k }, true);
+}
+
 // A látható kerék-kormányzás simán közelít a célértékhez (rad/mp). Csak a
 // megjelenítést érinti, a fizikai kormányzás azonnali.
 export const STEER_VISUAL_SPEED = 3.5;

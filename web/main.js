@@ -7,7 +7,7 @@ import {
   CHASSIS_SIZE, WHEEL_RADIUS, SUSPENSION_REST_LENGTH, WHEEL_POSITIONS,
   STEER_VISUAL_SPEED, buildVehicle, applyControls, resetLiveVehicleTunables,
   FLOOR_COLLIDER_GROUPS, WALL_COLLIDER_GROUPS, WHEEL_RAY_FILTER_GROUPS,
-  forwardSpeed, REVERSE_BRAKE_THRESHOLD,
+  forwardSpeed, REVERSE_BRAKE_THRESHOLD, applySpeedCap,
 } from '/shared/vehicleConfig.js';
 import { TAINT, requiredCheckpoints } from '/shared/protocol.js';
 import {
@@ -3024,6 +3024,7 @@ function animate() {
       // ez lövi ki a kerék-sugarakat és számolja a felfüggesztés/tapadás erőket.
       vehicle.updateVehicle(world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
       world.step();
+      applySpeedCap(chassisBody);
       applyWallConstraint();
       captureCarState();
       physicsAccum -= world.timestep;
@@ -3315,8 +3316,9 @@ window.__game = {
     applyControls(vehicle, chassisBody, input, { frozen, offtrackWheels: wheelsOffTrack() });
     vehicle.updateVehicle(world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
     world.step();
-    // A láthatatlan fal a lépés UTÁN, ugyanabban a sorrendben, mint a
-    // szerveren és mint az egyjátékos animate()-ben.
+    // A sebességplafon és a láthatatlan fal a lépés UTÁN, ugyanabban a
+    // sorrendben, mint a szerveren és mint az egyjátékos animate()-ben.
+    applySpeedCap(chassisBody);
     applyWallConstraint();
   },
   // A "kör érvénytelen" figyelmeztetés. Multiplayerben a szerver dönti el

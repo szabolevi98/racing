@@ -11,7 +11,7 @@ import {
   S2C, ROOM_STATE, TAINT, TICK_RATE, TICK_MS, SNAPSHOT_RATE, requiredCheckpoints,
 } from '../../shared/protocol.js';
 import {
-  GRAVITY, buildVehicle, applyControls, CHASSIS_SIZE,
+  GRAVITY, buildVehicle, applyControls, CHASSIS_SIZE, applySpeedCap,
   FLOOR_COLLIDER_GROUPS, WALL_COLLIDER_GROUPS, WHEEL_RAY_FILTER_GROUPS,
 } from '../../shared/vehicleConfig.js';
 import {
@@ -383,9 +383,11 @@ export class RaceSim {
     }
     this.world.step();
 
-    // A láthatatlan falak a lépés UTÁN érvényesülnek — ugyanabban a
-    // sorrendben, ahogy a kliens animate()-je és a jóslása is csinálja.
+    // A sebességplafon és a láthatatlan falak a lépés UTÁN érvényesülnek —
+    // ugyanabban a sorrendben, ahogy a kliens animate()-je és a jóslása is
+    // csinálja.
     for (const car of this.cars.values()) {
+      applySpeedCap(car.body);
       applyWallConstraint(car.body, this.zone, car.lastSafe, WALL_PROBES);
     }
     this.tick++;
