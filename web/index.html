@@ -108,6 +108,32 @@
     border-left: 1px solid var(--line);
     box-shadow: -30px 0 70px rgba(0, 0, 0, 0.6);
     z-index: 20;
+    /* Alacsony ablaknál (pl. fekvő telefon: 414 px magas) a menü nem fér ki —
+       ilyenkor GÖRGETHETŐ legyen, ne vágódjon le. A body overflow:hidden, ez
+       a sáv viszont külön görög. */
+    overflow-y: auto;
+  }
+  /* A függőleges középre igazítás a belső dobozon van, nem a #menu-n.
+     Közvetlenül a görgethető elemen a justify-content:center hibás: ha a
+     tartalom magasabb, FELFELÉ is kilóg, és a kilógó rész nem görgethető elő
+     — pont ettől tűnt el fekvőben a cím és a "Többjátékos" gomb. A
+     min-height:100% + auto margó ezt elkerüli: rövid tartalom középen áll,
+     hosszú viszont egyszerűen felülről indul és végiggörgethető. */
+  .menu-inner {
+    min-height: 100%; display: flex; flex-direction: column; justify-content: center;
+  }
+
+  /* Alacsony ablak (fekvő telefon): mindent összehúzunk, hogy lehetőleg
+     görgetés nélkül is kiférjen. */
+  @media (max-height: 640px) {
+    .menu-inner { padding: 1.5rem !important; }
+    #menu h1 { font-size: 1.6rem; }
+    .menu-sub { font-size: 11px; margin-bottom: 1rem; }
+    #menu .form-select, #menu .form-control { padding: 0.42rem 0.7rem; font-size: 0.9rem; }
+    #menu .mb-3 { margin-bottom: 0.6rem !important; }
+    #menu .row.mb-4 { margin-bottom: 0.9rem !important; }
+    .btn-race { padding: 0.6rem 1rem; font-size: 0.94rem; }
+    #menuStatus { margin-top: 0.6rem !important; }
   }
   #menu h1 {
     font-size: 2.25rem; font-weight: 800; letter-spacing: -0.02em;
@@ -464,7 +490,8 @@
   </div>
 </div>
 
-<div id="menu" class="d-flex flex-column justify-content-center p-4 p-md-5">
+<div id="menu">
+ <div class="menu-inner p-4 p-md-5">
   <h1>Levente Racing</h1>
   <div class="menu-sub">Körverseny</div>
 
@@ -497,6 +524,7 @@
 
   <button id="startBtn" class="btn-race btn-solo" disabled>Egyjátékos</button>
   <div id="menuStatus" class="text-center mt-3"></div>
+ </div>
 </div>
 
 <div id="hud" class="hidden">
