@@ -3080,7 +3080,7 @@ window.__game = {
   keys,
   setCar, setTrack, prepareTrackPhysics, loadGLTF,
   enterMenu,
-  setMenuStatus, setStatus,
+  setMenuStatus,
   findGroundAt,
   get currentTrackBox() { return currentTrackBox; },
   showLoadingOverlay, hideLoadingOverlay, runLoadTasks,

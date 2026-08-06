@@ -248,6 +248,15 @@ export function applyControls(vehicle, body, input, { offtrack = false, frozen =
   // Korábban a kettő EGY gomb volt (a fék a hátsó tapadást is elvette),
   // ezért a fékezés mindig kicsúszással járt, és a valódi fékerőt nem
   // lehetett érdemben hangolni.
+  //
+  // A vehicleTunables.js-beli számok MÉRT lassulásra vannak hangolva, nem
+  // érzésre. BRAKE_FRONT/REAR: 200 km/h → 0-ig 27/23 = 2.20 s / 59 m / 2.58 G
+  // (valós F1: 2.2 s / 62 m / 2.6 G); a korábbi 70/60 = 1.02 s / 5.58 G volt —
+  // irreálisan erős, és ~50 fölött a kerék blokkol (csúszó gumi kevesebb erőt
+  // visz át), ezért nem is lehetett feljebb hangolni vele. HANDBRAKE_FORCE és
+  // HANDBRAKE_REAR_SLIP egymástól FÜGGETLENÜL hat: az erő csak a lassítást
+  // szabja (22 → 4.68 s), a tapadás csak a pörgést (~280°/s) — ezért lehet a
+  // kéziféket lassításra szándékosan gyengén, forgatásra viszont erősen hagyni.
   if (frozen) {
     for (let i = 0; i < 4; i++) vehicle.setWheelBrake(i, HOLD_BRAKE);
     return;
