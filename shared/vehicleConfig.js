@@ -120,9 +120,24 @@ export const ASPHALT_FRICTION_SLIP = REAR_FRICTION_SLIP;
 // Rajt előtt / verseny után a kocsit helyben kell tartani, akár lejtőn is.
 export const HOLD_BRAKE = 60;
 // Kifutón (fű/kavics) kevesebb erő jut a talajra és csúszósabb is.
+//
+// A három közül MESSZE a DRAG a meghatározó — mérve, teljes gázzal a fűn
+// elérhető egyensúlyi sebesség: mindhárom hatással 103 km/h, de csak a dragot
+// kivéve 378 (a plafon!), csak a motorerő-vágást kivéve 138, a tapadást
+// aszfaltra állítva pedig VÁLTOZATLAN 103. A tapadás tehát az egyenes vonalú
+// sebességre egyáltalán nem hat (ott nem az a korlát) — a KANYARODÁST teszi
+// csúszóssá, és ezért is érdemes alacsonyan tartani.
 export const OFFTRACK_FRICTION_SLIP = 1.0;
 export const OFFTRACK_FORCE_FACTOR = 0.75;
-export const OFFTRACK_DRAG = 0.995;
+// FIGYELEM: ez képkockánkénti SZORZÓ, és a fizika 60×/mp lép — vagyis a
+// másodpercenkénti hatás a 60. hatvány, sokkal erősebb, mint amilyennek
+// első ránézésre tűnik: 0.997^60 = 0.835, tehát másodpercenként a sebesség
+// 16%-a vész el.
+//
+// Hangolás mérés alapján (fűn elérhető max. / 250 km/h-ról gázt levéve 3 mp
+// múlva): 0.995 → 68 / 87 (ez volt az eredeti, vezethetetlenül lassú),
+// 0.997 → 103 / 125 (ez a mostani), 0.998 → 140 / 150 (túl megengedő volt).
+export const OFFTRACK_DRAG = 0.997;
 
 // ---------- Csúcssebesség-plafon ----------
 // Ez VALÓDI, aktív korlát, nem csak vészfék a szélsőségekre: mérve, sík
