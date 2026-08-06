@@ -4,6 +4,7 @@
 // modul a bemenetet küldi, és a beérkező állapotot jeleníti meg; a köztes
 // időt interpolálja, hogy a 20/mp állapot is folyamatos mozgásnak látsszon.
 import { C2S, S2C, ROOM_STATE, TAINT, TICK_RATE, TICK_MS, sanitizeName } from '/shared/protocol.js';
+import { forwardSpeed, REVERSE_BRAKE_THRESHOLD } from '/shared/vehicleConfig.js';
 
 const G = window.__game;
 // Diagnosztika. A step() azért kell, mert a requestAnimationFrame megáll, ha
@@ -891,11 +892,20 @@ function startInputLoop() {
 
 function sendOneInput(scheduledAt) {
   const k = G.keys;
+  const backwardHeld = !!(k['KeyS'] || k['ArrowDown']);
+  // Ugyanaz a "S/le nyíl fékezzen, amíg még előre gördül" logika, mint az
+  // egyjátékos updateControls()-ban (web/main.js) — különben itt, a
+  // multiplayer bemenetben az S megint csak a gyenge motor-fékezést adná,
+  // ugyanaz a hiba térne vissza hálózaton.
+  const { q, v } = G.getCarState();
+  const fwdSpeed = forwardSpeed(q[0], q[1], q[2], q[3], v[0], v[1], v[2]);
+  const brake = backwardHeld && fwdSpeed > REVERSE_BRAKE_THRESHOLD;
   const input = {
     seq: ++inputSeq,
     steer: (k['KeyA'] || k['ArrowLeft']) ? 1 : (k['KeyD'] || k['ArrowRight']) ? -1 : 0,
-    throttle: (k['KeyW'] || k['ArrowUp']) ? 1 : (k['KeyS'] || k['ArrowDown']) ? -1 : 0,
-    brake: !!k['Space'],
+    throttle: (k['KeyW'] || k['ArrowUp']) ? 1 : (backwardHeld && !brake) ? -1 : 0,
+    brake,
+    handbrake: !!k['Space'],
   };
   inputHistory.push(input);
   // Fél másodpercnyi tartalék bőven elég: ennél régebbi bemenetet már

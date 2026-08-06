@@ -11,7 +11,7 @@ export const C2S = {
   SET_CAR: 'setCar',           // { carId }
   SET_READY: 'setReady',       // { ready }
   START_RACE: 'startRace',     // csak a szoba tulajdonosa
-  INPUT: 'input',              // { seq, t, steer, throttle, brake }
+  INPUT: 'input',              // { seq, t, steer, throttle, brake, handbrake }
   RESET: 'reset',              // az "R": vissza az utolsó érintett checkpontra
   PING: 'ping',                // { t }
 };

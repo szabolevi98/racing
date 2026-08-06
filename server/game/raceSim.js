@@ -196,7 +196,7 @@ export class RaceSim {
         // fogyaszt el belőle — enélkül a kliens nem tudná újrajátszani, amit
         // a szerver csinált, és a client-side prediction sosem konvergálna.
         queue: [],
-        input: { steer: 0, throttle: 0, brake: false, seq: 0 },
+        input: { steer: 0, throttle: 0, brake: false, handbrake: false, seq: 0 },
         lastSeq: 0,        // a legutóbb BEÉRKEZETT sorszám
         appliedSeq: 0,     // a legutóbb FELHASZNÁLT sorszám — ezt kapja a kliens
         // A falkezeléshez: hol volt a kocsi utoljára érvényes helyen.
@@ -301,6 +301,7 @@ export class RaceSim {
       steer: Math.max(-1, Math.min(1, Number(msg.steer) || 0)),
       throttle: Math.max(-1, Math.min(1, Number(msg.throttle) || 0)),
       brake: !!msg.brake,
+      handbrake: !!msg.handbrake,
     });
     // A sor nem nőhet korlátlanul: ha a kliens gyorsabban küld, mint ahogy mi
     // fogyasztunk (órák elcsúszása), a bemenet egyre késve érvényesülne — a

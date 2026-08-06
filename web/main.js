@@ -7,6 +7,7 @@ import {
   CHASSIS_SIZE, WHEEL_RADIUS, SUSPENSION_REST_LENGTH, WHEEL_POSITIONS,
   STEER_VISUAL_SPEED, buildVehicle, applyControls, resetLiveVehicleTunables,
   FLOOR_COLLIDER_GROUPS, WALL_COLLIDER_GROUPS, WHEEL_RAY_FILTER_GROUPS,
+  forwardSpeed, REVERSE_BRAKE_THRESHOLD,
 } from '/shared/vehicleConfig.js';
 import { TAINT } from '/shared/protocol.js';
 import {
@@ -2038,10 +2039,24 @@ function updateControls() {
   // a helyén marad, hogy ne lehessen elrajtolni a "rajt" előtt.
   const frozen = race.active && (race.phase === 'countdown' || race.phase === 'finished');
   const forward = !frozen && (keys['KeyW'] || keys['ArrowUp']);
-  const backward = !frozen && (keys['KeyS'] || keys['ArrowDown']);
+  const backwardHeld = !frozen && (keys['KeyS'] || keys['ArrowDown']);
   const left = !frozen && (keys['KeyA'] || keys['ArrowLeft']);
   const right = !frozen && (keys['KeyD'] || keys['ArrowRight']);
-  const brake = frozen || keys['Space'];
+
+  // Amíg még előre gördül a kocsi, az S/le nyíl FÉKEZZEN (a valódi wheelBrake
+  // mechanikával), ne a REVERSE_FACTOR-ral szorzott, sokkal gyengébb
+  // "motor-fékezéssel" próbálkozzon — csak megálláshoz közel váltson tényleges
+  // hátramenetbe. Sok versenyjátékban ez a megszokott S viselkedés, és ez volt
+  // az, ami hiányzott: eddig az S NEM hívta a fék-mechanikát, ezért a fékerő
+  // hangolásának semmi érzékelhető hatása nem volt.
+  const q0 = chassisBody.rotation();
+  const v0 = chassisBody.linvel();
+  const fwdSpeed = forwardSpeed(q0.x, q0.y, q0.z, q0.w, v0.x, v0.y, v0.z);
+  const brake = backwardHeld && fwdSpeed > REVERSE_BRAKE_THRESHOLD;
+  const backward = backwardHeld && !brake;
+  // A Space innentől KÉZIFÉK (csak hátsó kerék + kitörő hátulja), nem a sima
+  // fék — a kettő szétválasztásáról lásd shared/vehicleConfig.js applyControls.
+  const handbrake = !frozen && !!keys['Space'];
 
   const pos = chassisBody.translation();
   const zone = sampleZoneAt(pos.x, pos.z);
@@ -2061,6 +2076,7 @@ function updateControls() {
       throttle: forward ? 1 : backward ? -1 : 0,
       steer: left ? 1 : right ? -1 : 0,
       brake,
+      handbrake,
     },
     { offtrack, frozen }
   );

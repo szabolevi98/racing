@@ -16,7 +16,7 @@
 import * as THREE from 'three';
 import {
   MAX_STEER, STEER_VISUAL_SPEED,
-  MAX_ENGINE_FORCE, REVERSE_FACTOR, BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_REAR_SLIP,
+  MAX_ENGINE_FORCE, REVERSE_FACTOR, BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_FORCE, HANDBRAKE_REAR_SLIP,
   FRONT_FRICTION_SLIP, REAR_FRICTION_SLIP, SUSPENSION, LINEAR_DAMPING, ANGULAR_DAMPING,
   setLiveVehicleTunables, resetLiveVehicleTunables,
 } from '/shared/vehicleConfig.js';
@@ -257,8 +257,11 @@ const VEHICLE_TUNABLES = [
   ['MAX_ENGINE_FORCE', 'Motorerő', 300, 2500, 10],
   ['REVERSE_FACTOR', 'Hátramenet szorzó', 0.1, 1, 0.01],
   ['MAX_STEER', 'Kormány max. szöge', 0.2, 1.0, 0.01],
-  ['BRAKE_FRONT', 'Fék — elöl', 1, 120, 0.5],
-  ['BRAKE_REAR', 'Fék — hátul', 1, 120, 0.5],
+  // A fék ~50 fölött blokkol (onnan HOSSZABB a fékút) — a 90-es felső határ
+  // szándékosan enged a blokkolásba is belelátni, nem használható tartomány.
+  ['BRAKE_FRONT', 'Fék — elöl', 5, 90, 0.5],
+  ['BRAKE_REAR', 'Fék — hátul', 5, 90, 0.5],
+  ['HANDBRAKE_FORCE', 'Kézifék — erő (csak hátsó)', 5, 120, 0.5],
   ['HANDBRAKE_REAR_SLIP', 'Kézifék — hátsó tapadás', 0.1, 3, 0.05],
   ['FRONT_FRICTION_SLIP', 'Tapadás — elöl', 0.5, 8, 0.05],
   ['REAR_FRICTION_SLIP', 'Tapadás — hátul', 0.5, 8, 0.05],
@@ -274,7 +277,7 @@ const VEHICLE_TUNABLES = [
 // ebből épül a panel induláskor, és ide áll vissza az "Alapértékek".
 const CANONICAL_TUNABLES = {
   MAX_ENGINE_FORCE, REVERSE_FACTOR, MAX_STEER,
-  BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_REAR_SLIP,
+  BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_FORCE, HANDBRAKE_REAR_SLIP,
   FRONT_FRICTION_SLIP, REAR_FRICTION_SLIP,
   SUSPENSION_STIFFNESS: SUSPENSION.stiffness,
   SUSPENSION_COMPRESSION: SUSPENSION.compression,

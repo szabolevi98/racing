@@ -16,7 +16,7 @@
 // shared/vehicleConfig.js-ből importál, ugyanazokkal a nevekkel.
 export {
   MAX_ENGINE_FORCE, REVERSE_FACTOR, MAX_STEER,
-  BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_REAR_SLIP,
+  BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_FORCE, HANDBRAKE_REAR_SLIP,
   FRONT_FRICTION_SLIP, REAR_FRICTION_SLIP,
   LINEAR_DAMPING, ANGULAR_DAMPING,
 } from './vehicleTunables.js';
@@ -26,7 +26,7 @@ export {
 // mechanizmusnak ITT, ebben a fájlban is szüksége van rájuk.
 import {
   MAX_ENGINE_FORCE, REVERSE_FACTOR, MAX_STEER,
-  BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_REAR_SLIP,
+  BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_FORCE, HANDBRAKE_REAR_SLIP,
   FRONT_FRICTION_SLIP, REAR_FRICTION_SLIP,
   SUSPENSION_STIFFNESS, SUSPENSION_COMPRESSION, SUSPENSION_RELAXATION, SUSPENSION_MAX_TRAVEL,
   LINEAR_DAMPING, ANGULAR_DAMPING,
@@ -59,18 +59,38 @@ export const WHEEL_RAY_FILTER_GROUPS = (GROUPS_ALL_MASK << 16) | COLLISION_GROUP
 export const CHASSIS_SIZE = { x: 1.0, y: 0.4, z: 2.2 };
 export const CHASSIS_MASS = 250;
 
+// Ez alatt a sebesség (m/s) alatt számít az S/le nyíl VALÓDI hátramenetnek —
+// fölötte fékezésnek. Sok versenyjátékban megszokott: az "S" gomb előre
+// haladva fékez, és csak megálláshoz közel kezd tényleg hátramenetbe váltani.
+// Anélkül az S/le nyíl a gyenge REVERSE_FACTOR-ral szorzott motorerővel
+// próbálna "fékezni" — ami töredéke a valódi féknek (wheelBrake), és pont ez
+// okozta az "S alig fékez" élményt.
+export const REVERSE_BRAKE_THRESHOLD = 1.5;
+
+// A kocsi haladási sebessége a SAJÁT előre-tengelye (+Z) mentén (pozitív =
+// előre) — kézzel forgatva a kvaternióval, mert ez a szerveren (Node) is fut,
+// ahol nincs three.js. A (0,0,1) vektor kvaternióval forgatott alakja a
+// forgatásmátrix harmadik oszlopa.
+export function forwardSpeed(qx, qy, qz, qw, vx, vy, vz) {
+  const fx = 2 * (qx * qz + qw * qy);
+  const fy = 2 * (qy * qz - qw * qx);
+  const fz = 1 - 2 * (qx * qx + qy * qy);
+  return vx * fx + vy * fy + vz * fz;
+}
+
 // A tömegközéppont alapból a doboz közepén ülne, ami a talaj fölött 0.85 —
 // egy 4.4 hosszú kocsihoz képest irreálisan magas, és fékezéskor előrebuktatta
 // az autót. Egy versenyautó súlypontja nagyjából a keréktengely magasságában van.
 //
-// A 0.15 még a korábbi, gyengébb fékerőhöz volt méretezve. Az erősebb fék
-// (BRAKE_FRONT=70) mellett ez már nem volt elég: mérve, egyenes vonalban
-// 200 km/h-ról fékezve a kocsi 1,05 másodperc alatt teljesen előre bukott
-// (upright -1.0). Minél lejjebb van a súlypont, annál nagyobb fékező
-// nyomatékot visel el a kocsi borulás nélkül — méréssel a 0.55 már
-// tökéletesen stabil (upright 0.999) UGYANAZZAL a fékerővel, és mellékesen
+// A 0.15 még a korábbi, gyengébb fékerőhöz volt méretezve. Az akkori,
+// irreálisan erős fék (BRAKE_FRONT=70, ~5.6 G) mellett ez már nem volt elég:
+// mérve, egyenes vonalban 200 km/h-ról fékezve a kocsi 1,05 másodperc alatt
+// teljesen előre bukott (upright -1.0). Minél lejjebb van a súlypont, annál
+// nagyobb fékező nyomatékot visel el a kocsi borulás nélkül — méréssel a 0.55
+// már tökéletesen stabil (upright 0.999) UGYANAZZAL a fékerővel, és mellékesen
 // a kanyarodást is javítja (szögsebesség +53% ugyanannál a kormányszögnél,
 // alacsonyabb súlyponttal kevesebb a bólintás/dőlés, ami elviszi az energiát).
+// A fék azóta reálisra csökkent (32/27, ~3 G), tehát ez most bőven tartalék.
 export const COM_DROP = 0.55;
 
 export const WHEEL_RADIUS = 0.35;
@@ -126,7 +146,7 @@ export const STEER_VISUAL_SPEED = 3.5;
 // beginRace) is hívja ugyanezt.
 const live = {
   MAX_ENGINE_FORCE, REVERSE_FACTOR, MAX_STEER,
-  BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_REAR_SLIP,
+  BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_FORCE, HANDBRAKE_REAR_SLIP,
   FRONT_FRICTION_SLIP, REAR_FRICTION_SLIP,
 };
 const LIVE_DEFAULTS = { ...live };
@@ -217,17 +237,35 @@ export function applyControls(vehicle, body, input, { offtrack = false, frozen =
   vehicle.setWheelSteering(0, steer);
   vehicle.setWheelSteering(1, steer);
 
+  // ---- Fék és kézifék: két KÜLÖNBÖZŐ dolog ----
+  // Fék (S / le nyíl): mind a négy kerék, első túlsúllyal, a tapadás
+  //   ÉRINTETLEN — hatékonyan és egyenesben stabilan lassít.
+  // Kézifék (Space): csak a HÁTSÓ kerék blokkol, és közben a hátsó tengely
+  //   oldalirányú tapadása is lecsökken — ettől kitör a hátulja, a kocsi
+  //   elfordul. Lassításra szándékosan rossz (két kerék, kevés tapadás):
+  //   szűk kanyarban az orr behelyezésére és driftre való.
+  //
+  // Korábban a kettő EGY gomb volt (a fék a hátsó tapadást is elvette),
+  // ezért a fékezés mindig kicsúszással járt, és a valódi fékerőt nem
+  // lehetett érdemben hangolni.
   if (frozen) {
     for (let i = 0; i < 4; i++) vehicle.setWheelBrake(i, HOLD_BRAKE);
-  } else if (input.brake) {
-    vehicle.setWheelBrake(0, live.BRAKE_FRONT);
-    vehicle.setWheelBrake(1, live.BRAKE_FRONT);
-    vehicle.setWheelBrake(2, live.BRAKE_REAR);
-    vehicle.setWheelBrake(3, live.BRAKE_REAR);
+    return;
+  }
+
+  const braking = !!input.brake;
+  vehicle.setWheelBrake(0, braking ? live.BRAKE_FRONT : 0);
+  vehicle.setWheelBrake(1, braking ? live.BRAKE_FRONT : 0);
+
+  let rearBrake = braking ? live.BRAKE_REAR : 0;
+  if (input.handbrake) {
+    // Nem összeadódik a sima fékkel: egy blokkolt kerék nem tud "még jobban"
+    // blokkolni — a kettő közül a nagyobb érvényesül.
+    rearBrake = Math.max(rearBrake, live.HANDBRAKE_FORCE);
     const rear = Math.min(slip, live.HANDBRAKE_REAR_SLIP);
     vehicle.setWheelFrictionSlip(2, rear);
     vehicle.setWheelFrictionSlip(3, rear);
-  } else {
-    for (let i = 0; i < 4; i++) vehicle.setWheelBrake(i, 0);
   }
+  vehicle.setWheelBrake(2, rearBrake);
+  vehicle.setWheelBrake(3, rearBrake);
 }
