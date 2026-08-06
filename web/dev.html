@@ -47,23 +47,23 @@
       Jobb egérgomb + húzás: nézelődés, WASD: mozgás, Space/Ctrl: fel/le, Shift: gyorsítás<br>
       Rajtpontok: <span id="devSpawnCount">0</span> / 8 (a zóna szerkesztőben szerkeszthetők)<br>
       <span id="devSpawnStatus"></span><br>
-      <button id="openZoneEditorBtn" class="btn btn-sm btn-outline-warning mt-2">Zóna / rajtrács szerkesztő</button>
-      <button id="bakeCollisionBtn" class="btn btn-sm btn-outline-info mt-2">Ütközés bekészítése</button>
-      <div class="form-check form-check-inline mt-1">
-        <input type="checkbox" id="bakeDebrisFilterCheck" class="form-check-input" checked>
-        <label for="bakeDebrisFilterCheck" class="form-check-label small">
-          Elszigetelt, apró darabok kiszűrése (debris)
-        </label>
-      </div>
-      <div class="form-check form-check-inline">
-        <input type="checkbox" id="bakeSmoothCheck" class="form-check-input" checked>
-        <label for="bakeSmoothCheck" class="form-check-label small">
-          Rázókő-hullámok simítása (csak a talaj, ±5 cm)
-        </label>
+      <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+        <button id="bakeCollisionBtn" class="btn btn-sm btn-outline-info">Ütközés bekészítése</button>
+        <div class="form-check form-check-inline mb-0">
+          <input type="checkbox" id="bakeDebrisFilterCheck" class="form-check-input" checked>
+          <label for="bakeDebrisFilterCheck" class="form-check-label small">Apró darabok kiszűrése</label>
+        </div>
+        <div class="form-check form-check-inline mb-0">
+          <input type="checkbox" id="bakeSmoothCheck" class="form-check-input" checked>
+          <label for="bakeSmoothCheck" class="form-check-label small">Rázókő-hullámok simítása</label>
+        </div>
       </div>
       <div id="bakeStatus" class="mt-1"></div>
-      <button id="carTesterBtn" class="btn btn-sm btn-outline-success mt-2">Autó kerék tesztelő</button>
-      <button id="devDriveBtn" class="btn btn-sm btn-outline-primary mt-2">Vezetéses teszt + hangolás</button>
+      <div class="d-flex flex-wrap gap-2 mt-2">
+        <button id="openZoneEditorBtn" class="btn btn-sm btn-outline-warning">Zóna / rajtrács szerkesztő</button>
+        <button id="carTesterBtn" class="btn btn-sm btn-outline-success">Autó kerék tesztelő</button>
+        <button id="devDriveBtn" class="btn btn-sm btn-outline-primary">Vezetéses teszt + hangolás</button>
+      </div>
     </div>
   </div>
 </div>
