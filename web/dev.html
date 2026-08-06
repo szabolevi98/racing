@@ -77,12 +77,12 @@
 <div id="devDriveHud" class="hidden">
   <div class="card bg-dark bg-opacity-75 border-primary text-light">
     <div class="card-body py-2 px-3">
+      <!-- A csúszkák ÉLŐBEN hatnak, de önmaguktól NEM mentődnek: a "Mentés
+           fájlba" a shared/vehicleTunables.js-ével egyező tartalmú fájlt
+           generál, amivel az felülírható. (Ez korábban a panelen is ki volt
+           írva, de a hangoláshoz a csúszkák helye ér többet — a magyarázat
+           itt marad, annak, aki a kódot nézi.) -->
       <strong class="text-primary">VEZETÉSES TESZT</strong>
-      <div class="small text-secondary mb-1">
-        Az alábbi csúszkák ÉLŐBEN hatnak, de önmaguktól NEM mentődnek — a
-        "Mentés fájlba" a projekt <code>shared/vehicleTunables.js</code>-ével
-        egyező tartalmú fájlt generál, amivel felülírható.
-      </div>
       <div id="devDriveSliders"></div>
       <button id="devDriveSaveBtn" class="btn btn-sm btn-primary mt-2">Mentés fájlba</button>
       <button id="devDriveResetBtn" class="btn btn-sm btn-outline-secondary mt-2">Alapértékek visszaállítása</button>
