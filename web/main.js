@@ -2011,6 +2011,16 @@ const keys = {};
 window.addEventListener('keydown', (e) => { keys[e.code] = true; });
 window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
+// A kameranézet váltása egyszeri esemény, nem folytatólagos állapot (mint a
+// mozgásgombok) — ezért NEM a `keys` térképen, hanem egy külön 'keydown'
+// eseményen, `e.repeat` szűréssel: a `keys`-es megoldás nyomva tartva
+// képkockánként újra váltana.
+window.addEventListener('keydown', (e) => {
+  if (e.code !== 'KeyC' || e.repeat) return;
+  if (appState !== 'driving' && appState !== 'mp') return;
+  cycleCameraView();
+});
+
 // A LÁTHATÓ kerék-kormányzás simán közelít a célértékhez, nem ugrik rá
 // azonnal — valóságosabb, mint a korábbi azonnali végállás-váltás, de elég
 // gyors ahhoz, hogy gyors ide-oda kormányzásnál se maradjon el az input
@@ -2084,9 +2094,38 @@ function updateControls() {
   }
 }
 
-// ---------- Kamera: vezetős (harmadik személyű követés) ----------
-const chaseOffset = new THREE.Vector3(0, 3.5, -7);
+// ---------- Kamera: vezetős nézetek, C-vel váltva ----------
+// A `fpv` nézetnél a kamera a kocsi motorháztetője fölé kerül, és nem
+// simítjuk a mozgását (a fej/motorháztető nem "csúszik" a kocsi mögött,
+// mint egy követő kamera) — ilyenkor a SAJÁT kocsit el is rejtjük
+// (lásd applyCameraViewVisibility), különben a modell belelógna a képbe.
+// A `smoothing` (0-1, mennyit zár a kamera a célpozícióra képkockánként
+// 60 fps-en) ADJA a sebességfüggő lemaradást: a célpont a kocsival együtt
+// mozog, a kamera pedig ehhez képest KÉSVE követi — ez a lemaradás a
+// sebességgel arányosan nő, a beállított offset-távolságtól függetlenül.
+// A "far" nézetnél ez szándékos (filmszerűbb, nagy sebességnél hátrébb
+// húzódik), de a "close"-nál épp ez tette a gyors kocsinál a "far"-hoz
+// hasonlóan távolivá — ott nagyobb smoothing kell, hogy a lemaradás kisebb
+// maradjon a fix közelségéhez képest.
+const CAMERA_VIEWS = [
+  { id: 'far', offset: new THREE.Vector3(0, 3.5, -7), fpv: false, smoothing: 0.1 },
+  { id: 'close', offset: new THREE.Vector3(0, 2.1, -5.2), fpv: false, smoothing: 0.2 },
+  { id: 'fpv', offset: new THREE.Vector3(0, 0.65, 0.3), fpv: true },
+];
+let cameraViewIndex = 0;
 const chaseTarget = new THREE.Vector3();
+
+function applyCameraViewVisibility() {
+  const fpv = CAMERA_VIEWS[cameraViewIndex].fpv;
+  if (currentCarModel) currentCarModel.visible = !fpv;
+  wheelPivots.forEach((pivot) => { pivot.visible = !fpv; });
+}
+
+function cycleCameraView() {
+  cameraViewIndex = (cameraViewIndex + 1) % CAMERA_VIEWS.length;
+  applyCameraViewVisibility();
+  saveLastChoice('camera', CAMERA_VIEWS[cameraViewIndex].id);
+}
 
 // Jobb-klikkel körbenézés: csak nyomva tartás alatt forgatja el a kamerát
 // a kocsihoz képest, elengedéskor animálva (nem azonnal) áll vissza az alap nézetbe.
@@ -2124,12 +2163,15 @@ window.addEventListener('mouseup', (e) => {
 });
 
 function updateChaseCamera(dt = 1 / 60) {
+  applyCameraViewVisibility();
+
   // A LÁTHATÓ kocsit követjük, nem a fizikai testet. Egyjátékosban a kettő
   // ugyanott van (a carPivot minden képkockán a chassisBody-ról frissül), de
   // multiplayerben a helyi fizika nem fut — a kocsit a szerver állapota
   // mozgatja —, így a chassisBody a rajtnál maradna, és vele a kamera is.
   const chassisPos = carPivot.position;
   const q = carPivot.quaternion;
+  const view = CAMERA_VIEWS[cameraViewIndex];
 
   // Csak a kocsi YAW-ját (merre néz felülnézetből) vesszük át — a dőlést és a
   // bukást (pl. borulás közben) szándékosan figyelmen kívül hagyjuk. Enélkül
@@ -2142,8 +2184,21 @@ function updateChaseCamera(dt = 1 / 60) {
   const orbitQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(orbitPitch, orbitYaw, 0, 'YXZ'));
   yawQuat.multiply(orbitQuat);
 
-  const desiredOffset = chaseOffset.clone().applyQuaternion(yawQuat);
+  const desiredOffset = view.offset.clone().applyQuaternion(yawQuat);
   const desiredPos = new THREE.Vector3(chassisPos.x, chassisPos.y, chassisPos.z).add(desiredOffset);
+
+  if (view.fpv) {
+    // A motorháztető-nézetnél a kamera MEREVEN a kocsihoz van rögzítve —
+    // egy követő kamera simítása itt épp az ellenkezőjét érné el annak, amit
+    // egy fedélzeti nézettől várunk (a fej nem "csúszik" lemaradva a kocsi
+    // mögött, hanem egyben mozog vele).
+    camera.position.copy(desiredPos);
+    const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(yawQuat);
+    chaseTarget.copy(desiredPos).add(forward.multiplyScalar(50));
+    camera.lookAt(chaseTarget);
+    return;
+  }
+
   // Biztonsági háló: a kamera sose kerüljön a kocsi alá — sem borulásnál, sem
   // ha valaki lefelé néz körbenézés közben.
   desiredPos.y = Math.max(desiredPos.y, chassisPos.y + 0.5);
@@ -2161,7 +2216,7 @@ function updateChaseCamera(dt = 1 / 60) {
   //
   // A képlet 60 fps-nél pont a régi értéket adja, csak most bármilyen
   // képkocka-hossznál ugyanazt a valódi idő szerinti közelítést jelenti.
-  const perFrameAt60 = manualOrbitActive ? 0.3 : 0.1;
+  const perFrameAt60 = manualOrbitActive ? Math.max(view.smoothing, 0.3) : view.smoothing;
   const a = 1 - Math.pow(1 - perFrameAt60, Math.max(dt, 0) * 60);
   camera.position.lerp(desiredPos, a);
   chaseTarget.set(chassisPos.x, chassisPos.y + 1, chassisPos.z);
@@ -2495,7 +2550,10 @@ function findEntry(list, id) {
 const DEFAULT_CAR_ID = '2004_ferrari_f2004';
 const DEFAULT_MAP_ID = 'bugatti_circuit_2017_layout';
 const DEFAULT_ENV_ID = 'day_1';
-const LS_KEYS = { map: 'racing.lastMapId', car: 'racing.lastCarId', env: 'racing.lastEnvId' };
+const LS_KEYS = {
+  map: 'racing.lastMapId', car: 'racing.lastCarId', env: 'racing.lastEnvId',
+  camera: 'racing.lastCameraView',
+};
 
 function loadLastChoice(kind, fallback) {
   try {
@@ -2671,6 +2729,9 @@ async function init() {
   mapSelect.value = initialMap.id;
   carSelect.value = initialCar.id;
   envSelect.value = initialEnv.id;
+
+  const savedViewIdx = CAMERA_VIEWS.findIndex((v) => v.id === loadLastChoice('camera', CAMERA_VIEWS[0].id));
+  if (savedViewIdx >= 0) cameraViewIndex = savedViewIdx;
 
   await runLoadTasks([
     { bytes: initialEnv.bytes, run: (onP) => setSkybox('assets/' + initialEnv.file, onP) },
