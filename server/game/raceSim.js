@@ -7,7 +7,9 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { S2C, ROOM_STATE, TAINT, TICK_RATE, TICK_MS, SNAPSHOT_RATE } from '../../shared/protocol.js';
+import {
+  S2C, ROOM_STATE, TAINT, TICK_RATE, TICK_MS, SNAPSHOT_RATE, requiredCheckpoints,
+} from '../../shared/protocol.js';
 import {
   GRAVITY, buildVehicle, applyControls, CHASSIS_SIZE,
   FLOOR_COLLIDER_GROUPS, WALL_COLLIDER_GROUPS, WHEEL_RAY_FILTER_GROUPS,
@@ -217,6 +219,11 @@ export class RaceSim {
         race: {
           lap: 0,
           nextCheckpoint: 0,
+          // Hányadik kapukat érintette ebben a körben — a SORRENDTŐL függetlenül.
+          // A nextCheckpoint erre nem alkalmas: az egy sorrend-mutató, ami a
+          // kihagyott kapun megáll, tehát a mögötte begyűjtött kapukról semmit
+          // nem mond. A kör lezárásához viszont épp a darabszám kell.
+          passed: new Set(),
           // MIÉRT érvénytelen a folyamatban lévő kör (TAINT kódja), vagy NONE.
           // Egy külön "tainted" igazságérték mellett ez két, kézzel szinkronban
           // tartandó mező lett volna — a kód pont annyit tud a nullától
@@ -404,6 +411,8 @@ export class RaceSim {
 
       for (let i = 0; i < checkpoints.length; i++) {
         if (crossedGate(checkpoints[i], fromX, fromZ, p.x, p.z)) {
+          // A Set miatt ugyanaz a kapu kétszer sem számít duplán.
+          r.passed.add(i);
           if (i === r.nextCheckpoint) {
             r.nextCheckpoint++;
             // Csak SIKERES átlépéskor jegyezzük meg — így az R sosem tesz
@@ -443,26 +452,26 @@ export class RaceSim {
             ...gateMidpoint(gates.start),
             heading: headingFrom(fromX, fromZ, p.x, p.z, car.respawn.heading),
           };
-        } else if (r.nextCheckpoint < checkpoints.length) {
-          // HIÁNYZIK checkpoint: a kör NEM zárul le. Enélkül a rajtvonalon
+        } else if (r.passed.size < requiredCheckpoints(checkpoints.length)) {
+          // TÚL KEVÉS kapu: a kör NEM zárul le. Enélkül a rajtvonalon
           // oda-vissza gurulva végig lehetett "teljesíteni" a versenyt — a
           // crossedGate iránytól független, tehát minden áthaladás számított.
-          // A kör csak akkor záródik, ha a kocsi tényleg körbement.
           r.taintReason = TAINT.CHECKPOINT;
         } else {
           car.respawn = {
             ...gateMidpoint(gates.start),
             heading: headingFrom(fromX, fromZ, p.x, p.z, car.respawn.heading),
           };
-          // Itt már biztosan megvan minden checkpoint, tehát a kör csak attól
-          // lehet érvénytelen, hogy közben lement a pályáról. Ez marad a régi
-          // szabály: a kör SZÁMÍT (nem kell újrázni a többiek elől), csak a
-          // legjobb körbe nem megy bele.
+          // A kör lezárul — de ha bármi hiányzott vagy lement a pályáról, akkor
+          // érvénytelenül. A kör SZÁMÍT (nem kell újrázni a többiek elől), csak
+          // a legjobb körbe nem megy bele.
+          if (r.passed.size < checkpoints.length) r.taintReason = TAINT.CHECKPOINT;
           const invalid = !!r.taintReason;
           const time = now - r.lapStart;
           r.lapTimes.push({ time, invalid });
           r.lap++;
           r.nextCheckpoint = 0;
+          r.passed.clear();
           r.taintReason = TAINT.NONE;
           r.lapStart = now;
           this.room.recordLap(this.room.players.get(car.playerId), r.lap, time, invalid).catch(() => {});

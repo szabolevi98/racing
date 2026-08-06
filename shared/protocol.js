@@ -40,6 +40,31 @@ export const TAINT = {
   CHECKPOINT: 2,  // kimaradt egy checkpoint
 };
 
+// Mennyi checkpointot kell ÖSSZESEN érinteni ahhoz, hogy a rajtvonal lezárja a
+// kört. Nem sorrendben — arra a taint való —, hanem darabszámra.
+//
+// Miért kell egyáltalán küszöb: a crossedGate iránytól függetlenül metsz
+// szakaszt, ezért a rajtvonalon oda-vissza gurulva végig lehetne "menni" a
+// versenyen. Valamennyi tényleges körbeérést tehát meg kell követelni.
+//
+// Miért nem 100%: akkor egyetlen kihagyott kapu miatt a kör csak a KÖVETKEZŐ
+// körben zárulna le (a sorrend-mutató a kihagyott kapun ragad), vagyis egy
+// apró hiba egy egész körbe kerülne.
+//
+// Miért pont 0.8: ez az arány közvetlenül azt szabja meg, mennyit lehet
+// LEVÁGNI a pályából — a kapuk nagyjából egyenletesen oszlanak el. 0.5-nél
+// valaki átvághatna az infielden, kihagyhatná a pálya felét, és fél idő alatt
+// teljesítené a versenyt (a kör érvénytelen lenne, de a körszámlálóba akkor is
+// beleszámít). 0.8 mellett a levágás legfeljebb a pálya ötöde, tisztességes
+// vezetésnél viszont bőven belefér az 1-2 elnézett kapu.
+export const LAP_MIN_CHECKPOINT_RATIO = 0.8;
+
+// Hány kaput kell érinteni egy adott pályán. Közös függvény, mert a kliens és a
+// szerver ugyanazt kell számolja — különben másképp döntenének a kör lezárásáról.
+export function requiredCheckpoints(total) {
+  return Math.ceil(total * LAP_MIN_CHECKPOINT_RATIO);
+}
+
 // A szoba életciklusa.
 //
 // A LOADING külön állapot, és nem kényelmi kérdés: a pálya 100+ MB, egy hideg

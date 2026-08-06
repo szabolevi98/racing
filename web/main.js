@@ -9,7 +9,7 @@ import {
   FLOOR_COLLIDER_GROUPS, WALL_COLLIDER_GROUPS, WHEEL_RAY_FILTER_GROUPS,
   forwardSpeed, REVERSE_BRAKE_THRESHOLD,
 } from '/shared/vehicleConfig.js';
-import { TAINT } from '/shared/protocol.js';
+import { TAINT, requiredCheckpoints } from '/shared/protocol.js';
 import {
   ZONE_ASPHALT, ZONE_OFFTRACK, ZONE_WALL, decodeZoneCodes, sampleZone,
   wallProbes, wheelProbes,
@@ -1752,7 +1752,11 @@ const race = {
   countdownLeft: 0,
   totalLaps: 3,
   lap: 0,             // hány kört teljesített
-  nextCheckpoint: 0,  // hányadik checkpoint jön (utána a rajtvonal zárja a kört)
+  nextCheckpoint: 0,  // hányadik checkpoint jön SORRENDBEN (ezen múlik a taint)
+  // Mely kapukat érintette ebben a körben, sorrendtől függetlenül. A kör
+  // lezárásához ez kell, nem a nextCheckpoint: az egy sorrend-mutató, ami a
+  // kihagyott kapun megáll, tehát a mögötte begyűjtöttekről semmit nem mond.
+  passed: new Set(),
   startTime: 0,
   lapStartTime: 0,
   lapTimes: [],       // { time, invalid } — az érvénytelen kör is SZÁMÍT, csak meg van jelölve
@@ -1827,6 +1831,7 @@ function startRace() {
   race.totalLaps = Number(lapCountSelect.value) || 3;
   race.lap = 0;
   race.nextCheckpoint = 0;
+  race.passed.clear();
   race.lapTimes = [];
   race.lapTainted = false;
   race.taintReason = TAINT.NONE;
@@ -1981,6 +1986,8 @@ function updateRace(dt) {
   // Egy hiba így egy egész körbe kerül — nem holtpont, de nem is a régi,
   // elnéző szabály (ott a kör lezárult, csak "érvénytelen" jelzést kapott).
   if (crossedCheckpoint !== -1) {
+    // A Set miatt ugyanaz a kapu kétszer sem számít duplán.
+    race.passed.add(crossedCheckpoint);
     lastCheckpointSpawn = {
       ...gateMidpoint(checkpoints[crossedCheckpoint]),
       heading: headingFromMovement(fromX, fromZ, pos.x, pos.z, lastCheckpointSpawn?.heading ?? spawnHeading),
@@ -2022,23 +2029,28 @@ function updateRace(dt) {
       ...gateMidpoint(currentGates.start),
       heading: headingFromMovement(fromX, fromZ, pos.x, pos.z, lastCheckpointSpawn?.heading ?? spawnHeading),
     };
-  } else if (startCrossed && race.nextCheckpoint < checkpoints.length) {
-    // HIÁNYZIK checkpoint: a kör NEM zárul le. Enélkül a rajtvonalon oda-vissza
+  } else if (startCrossed && race.passed.size < requiredCheckpoints(checkpoints.length)) {
+    // TÚL KEVÉS kapu: a kör NEM zárul le. Enélkül a rajtvonalon oda-vissza
     // gurulva végig lehetett "teljesíteni" a versenyt — a crossedGate iránytól
-    // független, tehát minden áthaladás számított. A kör csak akkor záródik, ha
-    // a kocsi tényleg körbement. (Ugyanez a szabály fut a szerveren is.)
+    // független, tehát minden áthaladás számított. (Ugyanez a szabály fut a
+    // szerveren is; a két oldal nem térhet el.)
     race.lapTainted = true;
     race.taintReason = TAINT.CHECKPOINT;
     race.invalidUntil = now + 2500;
   } else if (startCrossed) {
-    // Itt már biztosan megvan minden checkpoint, tehát a kör csak attól lehet
-    // érvénytelen, hogy közben lement a pályáról. Ez marad a régi szabály: a
-    // kör SZÁMÍT (nem kell újrázni), csak a legjobb körbe nem megy bele.
+    // A kör lezárul — de ha bármi hiányzott vagy lement a pályáról, akkor
+    // érvénytelenül. A kör SZÁMÍT (nem kell újrázni), csak a legjobb körbe nem
+    // megy bele.
+    if (race.passed.size < checkpoints.length) {
+      race.lapTainted = true;
+      race.taintReason = TAINT.CHECKPOINT;
+    }
     const invalid = race.lapTainted;
     race.lapTimes.push({ time: now - race.lapStartTime, invalid });
     race.lapStartTime = now;
     race.lap++;
     race.nextCheckpoint = 0;
+    race.passed.clear();
     race.lapTainted = false;
     if (invalid) race.invalidUntil = now + 2500;
     lastCheckpointSpawn = {
