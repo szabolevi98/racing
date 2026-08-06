@@ -1846,7 +1846,10 @@ function startRace() {
 // jött, amiből a játékos nem tudta, mit rontott el.
 function lapInvalidText(reason) {
   if (reason === TAINT.OFFTRACK) return 'Kör érvénytelen — mind a négy kerékkel letértél az aszfaltról!';
-  if (reason === TAINT.CHECKPOINT) return 'Kör érvénytelen — checkpoint kimaradt!';
+  // A kihagyott checkpoint nem "érvénytelenít", hanem meg sem engedi a kör
+  // lezárását — a szöveg ezt mondja meg, hogy a játékos tudja: nem elég
+  // átgurulni a rajtvonalon, tényleg körbe kell menni.
+  if (reason === TAINT.CHECKPOINT) return 'Checkpoint kimaradt — a kör csak akkor számít, ha mindegyiken áthaladsz!';
   return 'Kör érvénytelen!';
 }
 
@@ -1969,12 +1972,14 @@ function updateRace(dt) {
     }
   }
 
-  // A checkpont-ellenőrzés csak azt dönti el, ÉRVÉNYES lesz-e a folyamatban
-  // lévő kör — a kört magát mindig a rajtvonal zárja le, akkor is, ha
-  // kihagyott valamit. Multiplayerben ez azért fontos, mert így senkinek nem
-  // kell egy hibázás miatt a végtelenségig újrázni, míg a többiek várnak rá:
-  // a kör egyszerűen "érvénytelen" jelzést kap (a legjobb körbe nem számít
-  // bele), de a versenyben tovább halad.
+  // A kört a rajtvonal zárja le, de CSAK akkor, ha közben minden checkpoint
+  // megvolt. Enélkül a rajtvonalon oda-vissza gurulva végig lehetett "menni" a
+  // versenyen, mert a crossedGate iránytól függetlenül metsz szakaszt.
+  //
+  // Ennek ára van: aki kihagy egy kaput, annak a nextCheckpoint azon a kapun
+  // marad, tehát a kör csak a KÖVETKEZŐ körben zárul le, amikor visszaér oda.
+  // Egy hiba így egy egész körbe kerül — nem holtpont, de nem is a régi,
+  // elnéző szabály (ott a kör lezárult, csak "érvénytelen" jelzést kapott).
   if (crossedCheckpoint !== -1) {
     lastCheckpointSpawn = {
       ...gateMidpoint(checkpoints[crossedCheckpoint]),
@@ -2017,17 +2022,22 @@ function updateRace(dt) {
       ...gateMidpoint(currentGates.start),
       heading: headingFromMovement(fromX, fromZ, pos.x, pos.z, lastCheckpointSpawn?.heading ?? spawnHeading),
     };
+  } else if (startCrossed && race.nextCheckpoint < checkpoints.length) {
+    // HIÁNYZIK checkpoint: a kör NEM zárul le. Enélkül a rajtvonalon oda-vissza
+    // gurulva végig lehetett "teljesíteni" a versenyt — a crossedGate iránytól
+    // független, tehát minden áthaladás számított. A kör csak akkor záródik, ha
+    // a kocsi tényleg körbement. (Ugyanez a szabály fut a szerveren is.)
+    race.lapTainted = true;
+    race.taintReason = TAINT.CHECKPOINT;
+    race.invalidUntil = now + 2500;
   } else if (startCrossed) {
-    const invalid = race.lapTainted || race.nextCheckpoint < checkpoints.length;
+    // Itt már biztosan megvan minden checkpoint, tehát a kör csak attól lehet
+    // érvénytelen, hogy közben lement a pályáról. Ez marad a régi szabály: a
+    // kör SZÁMÍT (nem kell újrázni), csak a legjobb körbe nem megy bele.
+    const invalid = race.lapTainted;
     race.lapTimes.push({ time: now - race.lapStartTime, invalid });
     race.lapStartTime = now;
     race.lap++;
-    // A most LEZÁRT kör érvénytelenségét még pár másodpercig kiírjuk. A
-    // taintReason-t ezért NEM nullázzuk itt: az adja az üzenet szövegét, és a
-    // következő hiba úgyis felülírja. Ha a kör csak azért érvénytelen, mert a
-    // végén maradt ki checkpoint (közben nem volt rossz sorrendű átlépés),
-    // akkor most kap okot.
-    if (invalid && !race.taintReason) race.taintReason = TAINT.CHECKPOINT;
     race.nextCheckpoint = 0;
     race.lapTainted = false;
     if (invalid) race.invalidUntil = now + 2500;

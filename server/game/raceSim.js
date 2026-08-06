@@ -435,18 +435,30 @@ export class RaceSim {
       }
 
       if (crossedGate(gates.start, fromX, fromZ, p.x, p.z)) {
-        car.respawn = {
-          ...gateMidpoint(gates.start),
-          heading: headingFrom(fromX, fromZ, p.x, p.z, car.respawn.heading),
-        };
         if (!r.hasCrossedStart) {
           // A rajtpont a rajtvonal ELŐTT van: az első átlépés a kört KEZDI.
           r.hasCrossedStart = true;
           r.lapStart = now;
+          car.respawn = {
+            ...gateMidpoint(gates.start),
+            heading: headingFrom(fromX, fromZ, p.x, p.z, car.respawn.heading),
+          };
+        } else if (r.nextCheckpoint < checkpoints.length) {
+          // HIÁNYZIK checkpoint: a kör NEM zárul le. Enélkül a rajtvonalon
+          // oda-vissza gurulva végig lehetett "teljesíteni" a versenyt — a
+          // crossedGate iránytól független, tehát minden áthaladás számított.
+          // A kör csak akkor záródik, ha a kocsi tényleg körbement.
+          r.taintReason = TAINT.CHECKPOINT;
         } else {
-          // Igazságértékre kényszerítve: ez az érték a kliensnek és az
-          // adatbázisnak is megy, ott nem a taint OKA a kérdés.
-          const invalid = !!r.taintReason || r.nextCheckpoint < checkpoints.length;
+          car.respawn = {
+            ...gateMidpoint(gates.start),
+            heading: headingFrom(fromX, fromZ, p.x, p.z, car.respawn.heading),
+          };
+          // Itt már biztosan megvan minden checkpoint, tehát a kör csak attól
+          // lehet érvénytelen, hogy közben lement a pályáról. Ez marad a régi
+          // szabály: a kör SZÁMÍT (nem kell újrázni a többiek elől), csak a
+          // legjobb körbe nem megy bele.
+          const invalid = !!r.taintReason;
           const time = now - r.lapStart;
           r.lapTimes.push({ time, invalid });
           r.lap++;
