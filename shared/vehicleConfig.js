@@ -211,23 +211,41 @@ export function buildVehicle(RAPIER, world, position = { x: 0, y: 5, z: 0 }) {
 
 // Egy képkockányi vezérlés alkalmazása. A bemenet normalizált:
 //   throttle: -1..1 (negatív = hátramenet), steer: -1..1, brake/hold: bool
-export function applyControls(vehicle, body, input, { offtrack = false, frozen = false } = {}) {
+//
+// A kifutó-büntetés KEREKENKÉNT megy: az `offtrackWheels` egy 4 elemű tömb
+// (WHEEL_POSITIONS sorrend), amit a shared/zone.js wheelsOffTrack() ad. Csak
+// az a kerék veszít tapadást, amelyik tényleg lement — a fékhatás és a
+// motorerő pedig a lement kerekek ARÁNYÁVAL skálázódik, nem ugrik teljesbe.
+//
+// A régi `offtrack` logikai kapcsoló továbbra is érvényes bemenet (a dev
+// autó-tesztelő és bármely egyszerűbb hívó használhatja): olyankor mind a
+// négy kerékre ugyanaz vonatkozik, mint korábban.
+export function applyControls(
+  vehicle, body, input,
+  { offtrack = false, offtrackWheels = null, frozen = false } = {}
+) {
+  const wheelsOff = offtrackWheels || [offtrack, offtrack, offtrack, offtrack];
+  const offCount = (wheelsOff[0] ? 1 : 0) + (wheelsOff[1] ? 1 : 0)
+                 + (wheelsOff[2] ? 1 : 0) + (wheelsOff[3] ? 1 : 0);
+  const offFrac = offCount / 4;
+
   // Kifutón az első/hátsó arány is ugyanúgy megmarad, csak lejjebb tolva.
   const frontRatio = live.FRONT_FRICTION_SLIP / live.REAR_FRICTION_SLIP;
-  const rearSlip = offtrack ? OFFTRACK_FRICTION_SLIP : live.REAR_FRICTION_SLIP;
-  const frontSlip = rearSlip * frontRatio;
-  const slip = rearSlip;
-  vehicle.setWheelFrictionSlip(0, frontSlip);
-  vehicle.setWheelFrictionSlip(1, frontSlip);
-  vehicle.setWheelFrictionSlip(2, rearSlip);
-  vehicle.setWheelFrictionSlip(3, rearSlip);
+  const slipOf = (i) =>
+    (wheelsOff[i] ? OFFTRACK_FRICTION_SLIP : live.REAR_FRICTION_SLIP) * (i < 2 ? frontRatio : 1);
+  for (let i = 0; i < 4; i++) vehicle.setWheelFrictionSlip(i, slipOf(i));
+  // A kézifékhez a HÁTSÓ tengely tapadása a viszonyítás (lásd lentebb).
+  const slip = Math.min(slipOf(2), slipOf(3));
 
-  if (offtrack) {
+  if (offFrac > 0) {
+    // Arányosan: négy kerékkel a füvön a régi 0.995, kettővel a fele annyi
+    // lassítás — a rázókövet súrolva nem esik ki a kocsi alól a sebesség.
+    const drag = 1 - (1 - OFFTRACK_DRAG) * offFrac;
     const v = body.linvel();
-    body.setLinvel({ x: v.x * OFFTRACK_DRAG, y: v.y, z: v.z * OFFTRACK_DRAG }, true);
+    body.setLinvel({ x: v.x * drag, y: v.y, z: v.z * drag }, true);
   }
 
-  const forceFactor = offtrack ? OFFTRACK_FORCE_FACTOR : 1;
+  const forceFactor = 1 - (1 - OFFTRACK_FORCE_FACTOR) * offFrac;
   const throttle = frozen ? 0 : Math.max(-1, Math.min(1, input.throttle || 0));
   const force = (throttle >= 0 ? throttle : throttle * live.REVERSE_FACTOR) * live.MAX_ENGINE_FORCE * forceFactor;
   vehicle.setWheelEngineForce(2, force);

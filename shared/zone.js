@@ -90,6 +90,27 @@ export function carTouchesWall(runtime, body, probes) {
   return probeHits(runtime, body, probes, (zone) => zone === ZONE_WALL);
 }
 
+// Melyik kerék áll kifutón? KEREKENKÉNT, nem a kocsi középpontjából.
+//
+// Ez korábban egyetlen pont volt (a kasztni középpontja) és bináris: amint a
+// középpont átlépte az aszfalt szélét, MIND A NÉGY kerék egyszerre veszítette
+// el a tapadása kétharmadát. Két baj volt vele. Egy: két kerékkel a rázókövön
+// semmi nem történt, aztán egy centivel arrébb az egész kocsi elszállt. Kettő:
+// a rázókő szélén a középpont képkockánként ide-oda lépett a határon, tehát a
+// tapadás 60 Hz-cel csapkodott a teljes és a harmada között — ettől rántott
+// meg és borult fel a kocsi, nem a pár centis peremtől.
+//
+// A visszaadott tömb sorrendje a WHEEL_POSITIONS sorrendje (0-1 első, 2-3 hátsó).
+export function wheelsOffTrack(runtime, body, probes) {
+  if (!runtime) return probes.map(() => false);
+  const q = body.rotation();
+  const p = body.translation();
+  return probes.map((local) => {
+    const r = rotateByQuat(q, local.x, 0, local.z);
+    return sampleZone(runtime, p.x + r.x, p.z + r.z) === ZONE_OFFTRACK;
+  });
+}
+
 // A valódi F1-szabály: a kör csak akkor vész el, ha MIND A NÉGY kerék a pályán
 // kívülre kerül — ha akár egy is az aszfalton maradt, az még belefér.
 export function allWheelsOffTrack(runtime, body, probes) {

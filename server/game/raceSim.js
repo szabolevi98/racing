@@ -15,8 +15,8 @@ import {
   FLOOR_COLLIDER_GROUPS, WALL_COLLIDER_GROUPS, WHEEL_RAY_FILTER_GROUPS,
 } from '../../shared/vehicleConfig.js';
 import {
-  decodeZoneCodes, sampleZone, ZONE_OFFTRACK,
-  wallProbes, wheelProbes, allWheelsOffTrack, applyWallConstraint,
+  decodeZoneCodes,
+  wallProbes, wheelProbes, allWheelsOffTrack, wheelsOffTrack, applyWallConstraint,
 } from '../../shared/zone.js';
 import { WHEEL_POSITIONS } from '../../shared/vehicleConfig.js';
 import { decodePng } from './pngDecode.js';
@@ -374,12 +374,11 @@ export class RaceSim {
         car.input = next;
         car.appliedSeq = next.seq;
       }
-      // A kifutó lassít. A kliens ugyanezt a maszkot ugyanezzel a képlettel
-      // mintázza a jóslásához (shared/zone.js), különben a pálya szélén
-      // folyamatosan elcsúsznának egymástól.
-      const pos = car.body.translation();
-      const offtrack = sampleZone(this.zone, pos.x, pos.z) === ZONE_OFFTRACK;
-      applyControls(car.vehicle, car.body, car.input, { frozen, offtrack });
+      // A kifutó lassít, KEREKENKÉNT. A kliens ugyanezt a maszkot ugyanezzel a
+      // képlettel mintázza a jóslásához (shared/zone.js), különben a pálya
+      // szélén folyamatosan elcsúsznának egymástól.
+      const offtrackWheels = wheelsOffTrack(this.zone, car.body, WHEEL_PROBES);
+      applyControls(car.vehicle, car.body, car.input, { frozen, offtrackWheels });
       car.vehicle.updateVehicle(this.world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
     }
     this.world.step();

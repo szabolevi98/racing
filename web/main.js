@@ -15,6 +15,7 @@ import {
   wallProbes, wheelProbes,
   carTouchesWall as sharedCarTouchesWall,
   allWheelsOffTrack as sharedAllWheelsOffTrack,
+  wheelsOffTrack as sharedWheelsOffTrack,
   applyWallConstraint as sharedApplyWallConstraint,
 } from '/shared/zone.js';
 
@@ -1710,6 +1711,10 @@ const WHEEL_PROBES = wheelProbes(WHEEL_POSITIONS);
 const lastSafePos = { x: 0, y: 0, z: 0 };
 
 const allWheelsOffTrack = () => sharedAllWheelsOffTrack(zoneRuntime, chassisBody, WHEEL_PROBES);
+// Kerekenkénti kifutó-jelzés a tapadáshoz. UGYANAZOK a mintavételi pontok,
+// mint a kör érvényességénél — a játék eddig is kerekenként mintázott, csak
+// épp a tapadásnál nem használtuk ki.
+const wheelsOffTrack = () => sharedWheelsOffTrack(zoneRuntime, chassisBody, WHEEL_PROBES);
 const carTouchesWall = () => sharedCarTouchesWall(zoneRuntime, chassisBody, WALL_PROBES);
 const applyWallConstraint = () =>
   sharedApplyWallConstraint(chassisBody, zoneRuntime, lastSafePos, WALL_PROBES);
@@ -2119,8 +2124,6 @@ function updateControls() {
   const handbrake = !frozen && !!keys['Space'];
 
   const pos = chassisBody.translation();
-  const zone = sampleZoneAt(pos.x, pos.z);
-  const offtrack = zone === ZONE_OFFTRACK;
   updateMiniMap(pos.x, pos.z);
   const linvel = chassisBody.linvel();
   speedValueEl.textContent = Math.round(Math.hypot(linvel.x, linvel.z) * 3.6);
@@ -2137,7 +2140,7 @@ function updateControls() {
       brake,
       handbrake,
     },
-    { offtrack, frozen }
+    { offtrackWheels: wheelsOffTrack(), frozen }
   );
 
   // Az "up" vektor Y-komponense a kasztni forgatásából: 1 = szabályosan áll,
@@ -3191,9 +3194,7 @@ window.__game = {
   // (shared/zone.js), különben a pálya szélén a jóslat folyamatosan
   // eltérne a szervertől.
   stepLocalPhysics(input, frozen = false) {
-    const p = chassisBody.translation();
-    const offtrack = sampleZoneAt(p.x, p.z) === ZONE_OFFTRACK;
-    applyControls(vehicle, chassisBody, input, { frozen, offtrack });
+    applyControls(vehicle, chassisBody, input, { frozen, offtrackWheels: wheelsOffTrack() });
     vehicle.updateVehicle(world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
     world.step();
     // A láthatatlan fal a lépés UTÁN, ugyanabban a sorrendben, mint a
