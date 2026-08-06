@@ -77,7 +77,6 @@ async function runLoadTasks(tasks) {
   }).then(() => { fractions[i] = 1; update(); })));
 }
 const hudEl = document.getElementById('hud');
-const statusEl = document.getElementById('status');
 const menuStatusEl = document.getElementById('menuStatus');
 const mapSelect = document.getElementById('mapSelect');
 const carSelect = document.getElementById('carSelect');
@@ -116,9 +115,6 @@ const DEV_MODE =
   window.location.pathname === '/dev' ||
   new URLSearchParams(window.location.search).has('dev');
 
-function setStatus(text) {
-  statusEl.textContent = text;
-}
 function setMenuStatus(text) {
   menuStatusEl.textContent = text;
 }
@@ -2411,7 +2407,7 @@ startBtn.addEventListener('click', async () => {
     // Ha van előre bekészített ütközési fájl, azt használjuk — ez a mérvadó
     // a multiplayerhez, mert így minden kliens BITRE ugyanazt a geometriát
     // kapja. Ha nincs, futásidőben nyerjük ki a modellből (ez is gyors).
-    const mesh = await prepareTrackPhysics();
+    await prepareTrackPhysics();
 
     // Épp csak a nyugalmi magasság fölé tesszük a kocsit (kerék sugara +
     // felfüggesztés + fél kasztni ~0.9), hogy egy nagy zuhanás ne verje bele
@@ -2429,9 +2425,6 @@ startBtn.addEventListener('click', async () => {
     }
     resetCarTo(spawnPoint);
 
-    setStatus(
-      `Ütközés: ${mesh.floor.indices.length / 3} talaj + ${mesh.wall.indices.length / 3} fal háromszög (${mesh.source})`
-    );
     setMenuStatus('');
     startRace();
     enterDriving();
@@ -2548,7 +2541,7 @@ function findEntry(list, id) {
 // azt töltjük be. Ha a mentett asset időközben eltűnt (törölt pálya/kocsi),
 // a findEntry úgyis az első elérhetőre esik vissza.
 const DEFAULT_CAR_ID = '2004_ferrari_f2004';
-const DEFAULT_MAP_ID = 'bugatti_circuit_2017_layout';
+const DEFAULT_MAP_ID = 'hungaroring_2020_layout';
 const DEFAULT_ENV_ID = 'day_1';
 const LS_KEYS = {
   map: 'racing.lastMapId', car: 'racing.lastCarId', env: 'racing.lastEnvId',
