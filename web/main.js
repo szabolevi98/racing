@@ -1786,6 +1786,16 @@ function crossedGate(gate, fromX, fromZ, toX, toZ) {
   return segmentsIntersect(fromX, fromZ, toX, toZ, gate.x1, gate.z1, gate.x2, gate.z2);
 }
 
+// Az R-re ide tesszük vissza a kocsit: a kapu FELEZŐPONTJÁRA, nem oda, ahol a
+// játékos áthaladt rajta. A kapuk szélesek (átérnek az aszfalton túlra is),
+// tehát az átlépés pontja simán lehet a kifutón vagy a fal mellett — onnan
+// visszaindulni büntetés lenne. A vonalat viszont mindig úgy húzzuk be, hogy a
+// közepe az aszfalt közepére essen, tehát az biztosan használható rajtpont.
+// (Ugyanez a számítás fut a szerveren is — lásd server/game/raceSim.js.)
+function gateMidpoint(gate) {
+  return { x: (gate.x1 + gate.x2) / 2, z: (gate.z1 + gate.z2) / 2 };
+}
+
 // A kapun áthaladáskor nincs eltárolt "helyes irány" (a checkpointoknak nincs
 // heading-jük, csak egy szakasz) — ezért abból számoljuk, amerre a kocsi
 // éppen haladt, amikor átment rajta. Ha épp egy helyben áll (dx=dz=0), inkább
@@ -1967,8 +1977,7 @@ function updateRace(dt) {
   // bele), de a versenyben tovább halad.
   if (crossedCheckpoint !== -1) {
     lastCheckpointSpawn = {
-      x: pos.x,
-      z: pos.z,
+      ...gateMidpoint(checkpoints[crossedCheckpoint]),
       heading: headingFromMovement(fromX, fromZ, pos.x, pos.z, lastCheckpointSpawn?.heading ?? spawnHeading),
     };
     if (crossedCheckpoint === race.nextCheckpoint) {
@@ -2005,8 +2014,7 @@ function updateRace(dt) {
     race.hasCrossedStart = true;
     race.lapStartTime = now;
     lastCheckpointSpawn = {
-      x: pos.x,
-      z: pos.z,
+      ...gateMidpoint(currentGates.start),
       heading: headingFromMovement(fromX, fromZ, pos.x, pos.z, lastCheckpointSpawn?.heading ?? spawnHeading),
     };
   } else if (startCrossed) {
@@ -2024,8 +2032,7 @@ function updateRace(dt) {
     race.lapTainted = false;
     if (invalid) race.invalidUntil = now + 2500;
     lastCheckpointSpawn = {
-      x: pos.x,
-      z: pos.z,
+      ...gateMidpoint(currentGates.start),
       heading: headingFromMovement(fromX, fromZ, pos.x, pos.z, lastCheckpointSpawn?.heading ?? spawnHeading),
     };
     if (race.lap >= race.totalLaps) finishRace();
@@ -2419,6 +2426,9 @@ const devApi = {
   moveTowardsAngle, updateSunTarget, updateShowcaseCamera,
   findEntry, fillSelect, setTrack, loadZoneRuntime, extractDrivableTriangles, extractWallTriangles,
   makeSearchableSelect,
+  // A dev pályaváltás ugyanazt a betöltő-overlayt kapja, mint a menü: egy
+  // pálya 60-150 MB, ami nélküle 20-30 másodpercnyi néma üres képernyő.
+  showLoadingOverlay, hideLoadingOverlay, runLoadTasks,
   switchCarTo,
   setCarSwitchHook(hook) { carSwitchHook = hook; },
   selectMap(mapId) { mapSelect.value = mapId; },

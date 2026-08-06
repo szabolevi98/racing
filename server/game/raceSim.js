@@ -80,6 +80,15 @@ function headingFrom(fromX, fromZ, toX, toZ, fallback) {
 
 // Két szakasz metszése — a kör- és checkpoint-számoláshoz. Ugyanaz a
 // geometria, mint a kliensben.
+// Az R-re ide tesszük vissza a kocsit: a kapu FELEZŐPONTJÁRA, nem oda, ahol a
+// játékos áthaladt rajta. A kapuk szélesek (átérnek az aszfalton túlra is),
+// tehát az átlépés pontja simán lehet a kifutón vagy a fal mellett — onnan
+// visszaindulni büntetés lenne. A vonalat viszont mindig úgy húzzuk be, hogy a
+// közepe az aszfalt közepére essen. (Ugyanez a számítás fut a kliensen is.)
+function gateMidpoint(gate) {
+  return { x: (gate.x1 + gate.x2) / 2, z: (gate.z1 + gate.z2) / 2 };
+}
+
 function crossedGate(gate, fromX, fromZ, toX, toZ) {
   if (!gate) return false;
   const { x1, z1, x2, z2 } = gate;
@@ -399,7 +408,10 @@ export class RaceSim {
             r.nextCheckpoint++;
             // Csak SIKERES átlépéskor jegyezzük meg — így az R sosem tesz
             // vissza egy olyan pontra, ahol már rossz úton járt.
-            car.respawn = { x: p.x, z: p.z, heading: headingFrom(fromX, fromZ, p.x, p.z, car.respawn.heading) };
+            car.respawn = {
+              ...gateMidpoint(checkpoints[i]),
+              heading: headingFrom(fromX, fromZ, p.x, p.z, car.respawn.heading),
+            };
           } else if (i > r.nextCheckpoint) {
             // Előrébb lévő kapu: tényleg kihagyott egyet közben.
             r.taintReason = TAINT.CHECKPOINT;
@@ -423,7 +435,10 @@ export class RaceSim {
       }
 
       if (crossedGate(gates.start, fromX, fromZ, p.x, p.z)) {
-        car.respawn = { x: p.x, z: p.z, heading: headingFrom(fromX, fromZ, p.x, p.z, car.respawn.heading) };
+        car.respawn = {
+          ...gateMidpoint(gates.start),
+          heading: headingFrom(fromX, fromZ, p.x, p.z, car.respawn.heading),
+        };
         if (!r.hasCrossedStart) {
           // A rajtpont a rajtvonal ELŐTT van: az első átlépés a kört KEZDI.
           r.hasCrossedStart = true;

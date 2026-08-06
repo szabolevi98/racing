@@ -1689,10 +1689,19 @@ function wireEvents() {
   devMapSelectEl.addEventListener('change', async () => {
     const entry = findEntry(api.manifest.maps, devMapSelectEl.value);
     api.selectMap(entry.id);
-    devSpawnStatusEl.textContent = 'Pálya betöltése...';
-    await setTrack('assets/' + entry.file, entry.id, entry.spawns, entry.gates);
+    // Ugyanaz a betöltő-overlay + haladásjelző, mint a menüben. Enélkül egy
+    // 60-150 MB-os pálya 20-30 másodpercig néma üres képernyőnek látszott, és
+    // nem lehetett tudni, tölt-e egyáltalán vagy beragadt.
+    api.showLoadingOverlay(true);
+    try {
+      await api.runLoadTasks([{
+        bytes: entry.bytes,
+        run: (onP) => setTrack('assets/' + entry.file, entry.id, entry.spawns, entry.gates, onP),
+      }]);
+    } finally {
+      api.hideLoadingOverlay();
+    }
     enterDevMode();
-    devSpawnStatusEl.textContent = '';
   });
 
   // A futásidejű zóna-hibakereső felületet (window.__debug.zone) a main.js
