@@ -881,6 +881,7 @@ async function setTrack(trackUrl, mapId, spawnPoints, gates, onProgress) {
 let wheelPivots = [];
 let wheelSources = [];
 
+
 // Néhány modellben (pl. Sketchfab-exportok, anyagonként egy mesh) mind a 4
 // kerék EGYETLEN mesh geometriájába van összeolvasztva — nem 4 külön
 // objektum, hanem 4 külön HÁROMSZÖG-CSOPORT ugyanabban a BufferGeometry-ban.
@@ -1201,8 +1202,48 @@ function buildWheelPivots(carRoot, wheelPattern) {
     // attach (nem add): megtartja a világ-pozíciót, így a baked geometria
     // is a helyén marad.
     group.forEach((p) => pivot.attach(p.mesh));
+    // Megmérjük, milyen mélyen van a GUMI ALJA a pivot origójához képest. Ebből
+    // az updateWheelVisuals pontosan a fizikai érintkezési pontra tudja tenni a
+    // kereket — kocsinként és kerekenként magától, kézi korrekció nélkül.
+    //
+    // Miért mérés és nem becslés: a pivot origója a csoport legnagyobb darabjának
+    // origója (ld. fentebb), ami a keréktengely KÖRNYÉKÉN van, de nem pontosan a
+    // gumi közepén. Ha innen csak a rugóhossz VÁLTOZÁSÁT követnénk, a kiinduló
+    // magasság öröklött hiba maradna — modellenként más, néhány centis eltolás.
+    pivot.userData.bottomOffset = measureLocalBottom(pivot);
     return pivot;
   });
+}
+
+// Egy objektum legalsó pontja a SAJÁT koordinátarendszerében. Nem a
+// Box3.setFromObject-et használjuk, mert az világ-dobozt ad: ha a kocsi épp
+// dől vagy forog, annak az alja nem a lokális alj. A geometriák sarokpontjait
+// visszatranszformáljuk a pivot terébe, így az eredmény független attól, hogy
+// a kocsi hogyan áll — és a kerék gördülésétől is, mert a mérés a pivot
+// forgatása ELŐTTI állapotban, egyszer történik.
+function measureLocalBottom(root) {
+  root.updateWorldMatrix(true, true);
+  const toLocal = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  const corner = new THREE.Vector3();
+  const m = new THREE.Matrix4();
+  let min = Infinity;
+  root.traverse((obj) => {
+    if (!obj.isMesh || !obj.geometry) return;
+    if (!obj.geometry.boundingBox) obj.geometry.computeBoundingBox();
+    const gb = obj.geometry.boundingBox;
+    if (!gb) return;
+    m.multiplyMatrices(toLocal, obj.matrixWorld);
+    for (let xi = 0; xi < 2; xi++) {
+      for (let yi = 0; yi < 2; yi++) {
+        for (let zi = 0; zi < 2; zi++) {
+          corner.set(xi ? gb.max.x : gb.min.x, yi ? gb.max.y : gb.min.y, zi ? gb.max.z : gb.min.z);
+          corner.applyMatrix4(m);
+          if (corner.y < min) min = corner.y;
+        }
+      }
+    }
+  });
+  return Number.isFinite(min) ? min : 0;
 }
 
 async function setCar(carUrl, carId, config, onProgress) {
@@ -1861,6 +1902,30 @@ function updateWheelVisuals(dt) {
     const roll = vehicle.wheelRotation(src.wheel) ?? 0;
     const steer = src.steer ? visualSteerAngle : 0;
     wheelPivots[i].rotation.set(roll, steer, 0);
+
+    // ---- A kerék MAGASSÁGA: a fizikai érintkezési pontra illesztve ----
+    // Korábban a látható kerék mereven a kasztnihoz volt szögezve, ami egy
+    // felfüggesztéses járműnél alapból hibás: a kerék a talajon gördül, és a
+    // kasztni mozog HOZZÁ képest, nem fordítva. A kocsi súlya alatt a rugó
+    // 30 cm-ről ~23-ra nyomódik, és a gumi ennyivel az aszfalt alá került.
+    //
+    // Itt nem becslünk és nem korrigálunk: mindkét oldal MÉRT adat.
+    //  - a fizikából tudjuk, hol ér földet ez a kerék a kasztnihoz képest:
+    //    a rácsatlakozási pont alatt a rugóhossznyival van a kerék közepe,
+    //    az alatt a keréksugárnyival az érintkezési pont;
+    //  - a modellből betöltéskor megmértük, milyen mélyen van a gumi alja a
+    //    pivot origójához képest (bottomOffset).
+    // A kettőből a pivot helye egyenesen adódik. Nincs benne konstans, nincs
+    // kocsinkénti hangolótábla — bármekkora gumival és bárhol álló
+    // pivot-origóval magától a helyére kerül, kerekenként külön (tehát
+    // rázókövön, bukkanón és kanyarban dőlve is a valódi rugóutat mutatja).
+    //
+    // A dev panel csúszkái (merevség, kompresszió, relaxáció, max. löket)
+    // ezért maguktól hatnak: a rugóhossz képkockánként a fizikától jön, a
+    // bottomOffset pedig tisztán geometria, amit a hangolás nem érint.
+    const len = vehicle.wheelSuspensionLength(src.wheel) ?? SUSPENSION_REST_LENGTH;
+    const contactY = WHEEL_POSITIONS[src.wheel].y - len - WHEEL_RADIUS;
+    wheelPivots[i].position.y = contactY - wheelPivots[i].userData.bottomOffset;
   }
 }
 
