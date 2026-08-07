@@ -53,6 +53,11 @@ let starting = null;
 const others = new Map();
 // A saját kocsi állapot-puffere is kell: a szerver mozgat minket is.
 let selfBuf = [];
+// A verseny végi visszaszámláló (eredményhirdetés -> lobby). Azért tároljuk,
+// mert le KELL tudni lőni: ha a játékos a 8 mp letelte előtt a "Menü" gombbal
+// lép ki, a később elsülő időzítő visszarántaná a lobbyba az egyjátékos
+// menetből.
+let resultsTimer = null;
 let inputSeq = 0;
 let awaitingFirstSnapshot = false;
 let queueDepth = 0;
@@ -161,7 +166,12 @@ $('mpJoin').addEventListener('click', () => {
 $('mpCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('mpJoin').click(); });
 
 $('mpStart').addEventListener('click', () => send(C2S.START_RACE));
-$('mpLeave').addEventListener('click', () => { send(C2S.LEAVE_ROOM); room = null; show('mpRoom', false); show('mpRooms', true); });
+$('mpLeave').addEventListener('click', () => {
+  send(C2S.LEAVE_ROOM);
+  clearOtherCars();
+  room = null;
+  show('mpRoom', false); show('mpRooms', true);
+});
 $('mpCopy').addEventListener('click', () => navigator.clipboard?.writeText(room?.code || ''));
 
 // Az "R" multiplayerben KÉRÉS a szerver felé, nem helyi teleport — a kocsi
@@ -236,6 +246,9 @@ function connect(name) {
   });
   ws.addEventListener('close', () => {
     setErr('A kapcsolat megszakadt.');
+    // Verseny közbeni szakadásnál a többiek kocsija ott ragadna a pályán —
+    // örökre mozdulatlanul, hiszen több snapshot nem jön hozzájuk.
+    clearOtherCars();
     show('mpLogin', true); show('mpRooms', false); show('mpRoom', false);
     stopInputLoop();
   });
@@ -257,6 +270,9 @@ function onMessage(m) {
       break;
 
     case S2C.ROOM_CLOSED:
+      // Ez verseny KÖZBEN is jöhet (pl. a szoba gazdája kilép) — ilyenkor a
+      // lobby jön elő, nem a menü, tehát az enterMenu()-s takarítás nem sülne el.
+      clearOtherCars();
       room = null;
       show('mpRoom', false); show('mpRooms', true);
       setErr(m.reason || '');
@@ -266,6 +282,10 @@ function onMessage(m) {
       // Ez a "töltsd be" jel: rajtidő még NINCS benne, azt a RACE_COUNTDOWN adja.
       starting = m;
       beginRace(m).catch((err) => {
+        // A félbeszakadt betöltés is hagyhat kocsikat a jelenetben: az
+        // addOtherCar játékosonként külön fut, tehát a hiba előtt sikeresen
+        // betöltöttek MÁR bekerültek a scene-be.
+        clearOtherCars();
         // A lobbyt újra kinyitjuk, különben a játékos egy üres képernyőn
         // maradna, és nem is látná, mi a hiba.
         openLobby();
@@ -283,6 +303,10 @@ function onMessage(m) {
       break;
 
     case S2C.RACE_EVENT:
+      // A kilépés nem csak egy HUD-üzenet: a kocsiját is le kell venni a
+      // pályáról. Ő nem kap több snapshotot, tehát az utolsó pozícióján
+      // megfagyva ott maradna a verseny végéig.
+      if (m.kind === 'left') removeOtherCar(m.playerId);
       lastEvents.unshift(m);
       lastEvents = lastEvents.slice(0, 4);
       break;
@@ -341,6 +365,10 @@ async function beginRace(info) {
   closeLobby();
   window.__mp.stage = 'start';
   raceEnded = false;
+  // Tiszta lappal indulunk, FÜGGETLENÜL attól, hogyan ért véget az előző
+  // meccs. Ez az utolsó védvonal: ha bármelyik kilépési ág mégis kihagyná a
+  // takarítást, itt akkor sem halmozódhatnak egymásra az előző meccs kocsijai.
+  clearOtherCars();
   // Biztonsági háló: a dev autó-tesztelő élő hangolása (motorerő/fék/tapadás)
   // csak a helyi jóslatot érintené, de multiplayerben a szerver mindig a
   // kanonikus értékekkel számol — a jóslatnak is azzal kell indulnia, különben
@@ -398,6 +426,40 @@ async function beginRace(info) {
   // arra, hogy a szimuláció ÉL és fogyaszt.
   awaitingFirstSnapshot = true;
 }
+
+// ---------- A távoli kocsik eltakarítása ----------
+// EGYETLEN hely, ami a többiek modelljeit leszedi a jelenetről. Idempotens:
+// bármennyiszer hívható, üres állapoton sem csinál semmit. Minden kilépési
+// útnak ezt kell hívnia, mert bármelyik kimaradása "ghost kocsit" hagy az
+// előző meccsből — akár az egyjátékos menetben, akár a következő meccsen.
+//
+// Két beakasztási pontja van, szándékosan átfedésben:
+//  1. a main.js enterMenu()-je (setMultiplayerCleanupHook) — ez fogja a
+//     menübe visszavezető utakat, a verseny végi "Menü" gombot is;
+//  2. innen, közvetlenül azokon az ágakon, amelyek NEM mennek a menübe
+//     (kapcsolatvesztés, szoba bezárása, kilépés a szobából) — ilyenkor a
+//     lobby jön elő, a menü nem, tehát az 1-es nem sülne el.
+function clearOtherCars() {
+  if (resultsTimer) { clearTimeout(resultsTimer); resultsTimer = null; }
+  for (const id of [...others.keys()]) removeOtherCar(id);
+  selfBuf = [];
+}
+
+// Egyetlen játékos kocsijának leszedése — verseny KÖZBEN is, amikor kilép
+// vagy megszakad a kapcsolata. Enélkül a szerver ugyan szól róla
+// (RACE_EVENT 'left'), de a kocsija megfagyva ott maradna a pályán a meccs
+// végéig: több snapshot nem jön hozzá, tehát az utolsó pozícióján ragadna.
+function removeOtherCar(playerId) {
+  const entry = others.get(playerId);
+  if (!entry) return;
+  G.scene.remove(entry.group);
+  // A scene.remove() csak a jelenetgráfból veszi ki; a GPU-oldali
+  // geometria/anyag/textúra enélkül meccsről meccsre halmozódna.
+  G.disposeObject3D(entry.group);
+  others.delete(playerId);
+}
+
+G.setMultiplayerCleanupHook(clearOtherCars);
 
 async function addOtherCar(p, onProgress) {
   const car = G.manifest.cars.find((c) => c.id === p.carId) || G.manifest.cars[0];
@@ -984,10 +1046,13 @@ function showResults(results) {
   }).join('');
   G.setHud('<div class="lap-head"><span class="lbl">Verseny vége</span></div>');
   G.setStandings('<span class="lbl">Végeredmény</span>' + rows);
-  setTimeout(() => {
-    for (const { group } of others.values()) G.scene.remove(group);
-    others.clear();
-    selfBuf = [];
+  // A leaveMultiplayer() az enterMenu()-n át amúgy is meghívja a
+  // clearOtherCars()-t (setMultiplayerCleanupHook) — a takarítás tehát akkor
+  // is megtörténik, ha a játékos a 8 mp letelte előtt lép ki a "Menü" gombbal.
+  // Olyankor viszont ez az időzítő már le is lett lőve, épp a clearOtherCars()
+  // által: enélkül utólag rántaná vissza a lobbyba az egyjátékos menetből.
+  resultsTimer = setTimeout(() => {
+    resultsTimer = null;
     G.leaveMultiplayer();
     openLobby();
   }, 8000);

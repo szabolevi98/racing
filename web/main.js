@@ -2432,7 +2432,18 @@ function updateShowcaseCamera(dt) {
 // ---------- Állapotgép: 'menu' (kirakat) vagy 'driving' (vezetés) ----------
 let appState = 'menu';
 
+// A multiplayer modul ide akasztja be a távoli kocsik eltakarítását. Azért
+// ITT, az enterMenu()-ben hívjuk, mert ez az EGYETLEN út vissza a menübe —
+// a verseny végi "Menü" gomb és a leaveMultiplayer() is ezen megy át. Ha a
+// takarítás csak a mp.js-ben, a kilépési pontokon egyenként ülne, minden új
+// kilépési ág újra elfelejtené, és a többiek kocsija ott ragadna a pályán
+// az egyjátékos menetben is (pontosan ez volt a "ghost kocsi" hiba).
+let multiplayerCleanupHook = null;
+
 function enterMenu() {
+  // A takarítás ELŐBB fut, mint az állapotváltás: így ha bármi hibázna benne,
+  // az nem hagyja félúton a menübe lépést.
+  multiplayerCleanupHook?.();
   appState = 'menu';
   menuEl.classList.remove('hidden');
   hudEl.classList.add('hidden');
@@ -3277,6 +3288,12 @@ window.__game = {
   keys,
   setCar, setTrack, prepareTrackPhysics, loadGLTF,
   enterMenu,
+  // A mp.js ezzel regisztrálja a távoli kocsik eltakarítását — lásd enterMenu().
+  setMultiplayerCleanupHook(hook) { multiplayerCleanupHook = hook; },
+  // A mp.js maga hozza létre a többiek modelljeit, tehát neki is kell tudnia
+  // felszabadítani őket: a scene.remove() csak a jelenetgráfból veszi ki, a
+  // GPU-oldali geometria/textúra ott maradna meccsről meccsre halmozódva.
+  disposeObject3D,
   setMenuStatus,
   findGroundAt,
   get currentTrackBox() { return currentTrackBox; },
