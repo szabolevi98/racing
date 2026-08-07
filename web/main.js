@@ -11,6 +11,10 @@ import {
 } from '/shared/vehicleConfig.js';
 import { TAINT, requiredCheckpoints } from '/shared/protocol.js';
 import {
+  countdownBeep, startBeep, setMuted, isMuted, primeOnFirstGesture,
+  startEngine, stopEngine, updateEngine,
+} from './audio.js';
+import {
   ZONE_ASPHALT, ZONE_OFFTRACK, ZONE_WALL, decodeZoneCodes, sampleZone,
   wallProbes, wheelProbes,
   carTouchesWall as sharedCarTouchesWall,
@@ -1959,6 +1963,32 @@ const race = {
                            // első átlépés csak a kört KEZDI, nem zárja le
 };
 
+// A nagy 3-2-1 kiírás ÉS a hozzá tartozó hang — egy helyen, mert az
+// egyjátékos versenylogika és a multiplayer (a szerver órájából, a mp.js-en át)
+// is ezt hívja. A hang nem képkockánként szól, hanem csak amikor a kiírt SZÁM
+// megváltozik: ezt hívó képkockánként hívja mindkét ág, tehát egy egyszerű
+// "mi volt legutóbb" összehasonlítás kell hozzá.
+//
+// A rajt (0-ra váltás) más hangot kap, mint a számok. A hangmagasság-ugrás az,
+// amitől félrehallás nélkül tudod, hogy indulhatsz, anélkül hogy a képernyő
+// közepére kellene néznod.
+// A kezdőérték 0, nem null: a "nincs visszaszámlálás" állapot maga is 0, tehát
+// innen a legelső 3-as is VÁLTOZÁS, és megkapja a bipet. (Multiplayerben a
+// mp.js képkockánként hívja 0-val, amíg nem megy a visszaszámlálás — az így
+// némán marad.)
+let lastCountdownShown = 0;
+
+function showCountdown(secondsLeft) {
+  const n = !secondsLeft || secondsLeft <= 0 ? 0 : secondsLeft;
+  if (n !== lastCountdownShown) {
+    if (n === 0) startBeep();
+    else countdownBeep();
+    lastCountdownShown = n;
+  }
+  countdownEl.classList.toggle('hidden', n === 0);
+  if (n > 0) countdownEl.textContent = String(n);
+}
+
 // Hova helyezze vissza a kocsit az R billentyű: az utolsó érintett
 // checkpont (vagy a rajtvonal, ha még egyet sem ért el ebben a körben).
 // Csak sikeres áthaladáskor frissül — kihagyott/érvénytelen kereszteződéskor
@@ -2137,10 +2167,13 @@ function updateRace(dt) {
       race.phase = 'running';
       race.startTime = performance.now();
       race.lapStartTime = race.startTime;
-      countdownEl.classList.add('hidden');
+      showCountdown(0);
     } else {
-      countdownEl.classList.remove('hidden');
-      countdownEl.textContent = String(Math.ceil(race.countdownLeft));
+      // A kijelzést (és vele a hangot) a közös showCountdown végzi — korábban ez
+      // az ág maga írta a countdownEl-t, a multiplayer viszont a setCountdown-on
+      // ment. Két külön út két külön hang-bekötést jelentett volna, ami előbb-
+      // utóbb elcsúszik egymástól.
+      showCountdown(Math.ceil(race.countdownLeft));
     }
     return;
   }
@@ -2268,6 +2301,17 @@ window.addEventListener('keydown', (e) => {
   cycleCameraView();
 });
 
+// Némítás. Szándékosan MINDEN állapotban működik (a menüben is), nem csak
+// vezetés közben: aki le akarja némítani a játékot, az általában épp azelőtt
+// akarja, hogy megszólalna. A választás megmarad a következő indulásra is.
+window.addEventListener('keydown', (e) => {
+  if (e.code !== 'KeyM' || e.repeat) return;
+  // Gépelés közben (pl. a multiplayer névmezőjében) az M betű maradjon betű.
+  const el = document.activeElement;
+  if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
+  saveLastChoice('muted', setMuted(!isMuted()) ? '1' : '0');
+});
+
 // A LÁTHATÓ kerék-kormányzás simán közelít a célértékhez, nem ugrik rá
 // azonnal — valóságosabb, mint a korábbi azonnali végállás-váltás, de elég
 // gyors ahhoz, hogy gyors ide-oda kormányzásnál se maradjon el az input
@@ -2284,7 +2328,7 @@ function moveTowardsAngle(current, target, maxDelta) {
 // indoklásuk (miért nem lehet a fék akármilyen erős, honnan jön a drift) is
 // ott olvasható, egy helyen az értékekkel.
 
-function updateControls() {
+function updateControls(dt = 1 / 60) {
   // Visszaszámlálás alatt és a verseny után nincs gáz/kormány — a kocsi
   // a helyén marad, hogy ne lehessen elrajtolni a "rajt" előtt.
   const frozen = race.active && (race.phase === 'countdown' || race.phase === 'finished');
@@ -2311,8 +2355,13 @@ function updateControls() {
   const pos = chassisBody.translation();
   updateMiniMap(pos.x, pos.z);
   const linvel = chassisBody.linvel();
-  speedValueEl.textContent = Math.round(Math.hypot(linvel.x, linvel.z) * 3.6);
+  const speedKmh = Math.hypot(linvel.x, linvel.z) * 3.6;
+  speedValueEl.textContent = Math.round(speedKmh);
   updateZoneIndicator(pos.x, pos.z);
+  // A motorhang a sebességből és a gázállásból él. A visszaszámlálás alatt a
+  // kocsi be van fagyasztva (frozen), de a motor JÁR — ezért a gázt nem a
+  // befagyasztott `forward`-ból vesszük: a rajt előtti gázadás hallatszódjon.
+  updateEngine(speedKmh, (keys['KeyW'] || keys['ArrowUp']) ? 1 : 0, dt);
   // A tényleges vezérlés a KÖZÖS applyControls()-ban van — ugyanaz a kód fut
   // itt és a szerveren. A billentyűket normalizált bemenetté fordítjuk, pont
   // olyanná, amilyet a mp.js is küld a hálózaton.
@@ -2508,6 +2557,10 @@ let appState = 'menu';
 // az egyjátékos menetben is (pontosan ez volt a "ghost kocsi" hiba).
 let multiplayerCleanupHook = null;
 
+// A legutóbb kijelzett sebesség (km/h). Multiplayerben a szerver snapshotjából
+// jön a setSpeed()-en át, és a motorhang ezt követi — lásd ott az indoklást.
+let lastReportedSpeedKmh = 0;
+
 function enterMenu() {
   // A takarítás ELŐBB fut, mint az állapotváltás: így ha bármi hibázna benne,
   // az nem hagyja félúton a menübe lépést.
@@ -2520,6 +2573,13 @@ function enterMenu() {
   standingsWrapEl.classList.add('hidden');
   setHelpOpen(false);
   countdownEl.classList.add('hidden');
+  // A visszaszámláló-számláló is nulláról induljon a következő versenynél.
+  // Enélkül egy visszaszámlálás KÖZBEN otthagyott verseny (pl. 1-nél kiléptél)
+  // után a következő 0-ra váltás rajthangot adna — a menüben.
+  lastCountdownShown = 0;
+  // A motor a menüben ne járjon. (A kirakat-nézet néma; ha később mégis
+  // kellene alapjárat a menübe, az külön döntés, nem ennek a mellékhatása.)
+  stopEngine();
   resultsEl.classList.add('hidden');
   // A két figyelmeztetés a #hud konténeren KÍVÜL él (a képernyő tetején
   // középen, saját z-indexszel), ezért a hudEl elrejtése NEM tünteti el őket —
@@ -2583,6 +2643,9 @@ function enterDriving() {
   standingsWrapEl.classList.add('hidden');
   setHelpOpen(false);
   scene.fog.density = NORMAL_FOG_DENSITY;
+  // Alapjárattal indul, még a visszaszámlálás alatt — ahogy a rajtrácson is
+  // jár a motor.
+  startEngine();
   // Ha a gombon/legördülőn maradt a fókusz, a szóköz/nyilak azt vezérelnék
   // vezetés helyett — ezért levesszük róla.
   document.activeElement?.blur();
@@ -2886,7 +2949,7 @@ const DEFAULT_MAP_ID = 'hungaroring_2020_layout';
 const DEFAULT_ENV_ID = 'day_1';
 const LS_KEYS = {
   map: 'racing.lastMapId', car: 'racing.lastCarId', env: 'racing.lastEnvId',
-  camera: 'racing.lastCameraView',
+  camera: 'racing.lastCameraView', muted: 'racing.muted',
 };
 
 function loadLastChoice(kind, fallback) {
@@ -3067,6 +3130,12 @@ async function init() {
   const savedViewIdx = CAMERA_VIEWS.findIndex((v) => v.id === loadLastChoice('camera', CAMERA_VIEWS[0].id));
   if (savedViewIdx >= 0) cameraViewIndex = savedViewIdx;
 
+  setMuted(loadLastChoice('muted', '0') === '1');
+  // A hang-láncot az első kattintásnál építjük fel, nem az első bipnél: a
+  // böngésző csak felhasználói gesztus után enged hangot, és a felépítés maga
+  // is eltarthat pár tized másodpercig — így a legelső "3" bipje sem késik.
+  primeOnFirstGesture();
+
   await runLoadTasks([
     { bytes: initialEnv.bytes, run: (onP) => setSkybox('assets/' + initialEnv.file, onP) },
     { bytes: initialMap.bytes, run: (onP) => setTrack('assets/' + initialMap.file, initialMap.id, initialMap.spawns, initialMap.gates, onP) },
@@ -3133,7 +3202,7 @@ function animate() {
   const dt = Math.min(clock.getDelta(), 0.1);
 
   if (appState === 'driving') {
-    updateControls();
+    updateControls(dt);
     // A fizikát a VALÓS eltelt idő szerint léptetjük, nem képkockánként egyszer.
     //
     // Korábban képkockánként pontosan egy lépés futott, a lépésköz viszont fix
@@ -3380,6 +3449,12 @@ function stepMultiplayerFrame(dt) {
   updateMiniMap(p.x, p.z);
   updateZoneIndicator(p.x, p.z);
 
+  // Motorhang. A sebesség a szerver snapshotjából jön (setSpeed), nem a helyi
+  // fizikából: multiplayerben az csak jóslat, a hiteles forrás a szerver.
+  // A gáz a saját billentyűzetről, ugyanabból a térképből, amit a mp.js is a
+  // hálózatra küld.
+  updateEngine(lastReportedSpeedKmh, (keys['KeyW'] || keys['ArrowUp']) ? 1 : 0, dt);
+
   // Felborulás. A visszahelyezést multiplayerben nem mi végezzük — a szerver
   // a hiteles forrás —, ezért csak jelezzük; az R-t a hálózati modul küldi el.
   const q = chassisBody.rotation();
@@ -3473,6 +3548,7 @@ window.__game = {
     setHelpOpen(false);
     devTools?.hideOverlays();
     scene.fog.density = NORMAL_FOG_DENSITY;
+    startEngine();
     document.activeElement?.blur();
   },
   leaveMultiplayer() {
@@ -3497,18 +3573,18 @@ window.__game = {
     standingsEl.innerHTML = html || '';
     standingsWrapEl.classList.toggle('hidden', !html);
   },
-  setSpeed(kmh) { speedValueEl.textContent = Math.round(kmh); },
+  setSpeed(kmh) {
+    // Multiplayerben ez a SZERVER által küldött sebesség — a hiteles érték.
+    // A motorhang is ezt használja (lásd stepMultiplayerFrame), nem a helyi
+    // fizikát: az ott csak jóslat, és a hangnak azt kell követnie, amit a
+    // játékos ténylegesen lát.
+    lastReportedSpeedKmh = kmh;
+    speedValueEl.textContent = Math.round(kmh);
+  },
   // A nagy 3-2-1 kiírás. Multiplayerben a visszaszámlálás a SZERVER órája
   // szerint jár (a kliens csak megjeleníti), ezért nem a helyi race.phase
   // vezérli, mint egyjátékosban — null/0 rejti el.
-  setCountdown(secondsLeft) {
-    if (!secondsLeft || secondsLeft <= 0) {
-      countdownEl.classList.add('hidden');
-      return;
-    }
-    countdownEl.classList.remove('hidden');
-    countdownEl.textContent = String(secondsLeft);
-  },
+  setCountdown: showCountdown,
 };
 
 window.__debug = {
