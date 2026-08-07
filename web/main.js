@@ -2456,6 +2456,22 @@ function enterMenu() {
   setHelpOpen(false);
   countdownEl.classList.add('hidden');
   resultsEl.classList.add('hidden');
+  // A két figyelmeztetés a #hud konténeren KÍVÜL él (a képernyő tetején
+  // középen, saját z-indexszel), ezért a hudEl elrejtése NEM tünteti el őket —
+  // kézzel kell. Enélkül a "kör érvénytelen" / "felborultál" pirula ott
+  // maradt a menü fölött is, a következő verseny rajtjáig.
+  //
+  // A megjelenítésüket egyébként a vezetés-képkocka számolja újra
+  // (updateRace / a felborulás-figyelő), az viszont menüben már nem fut —
+  // tehát ami az utolsó képkockán látszott, az fagy be.
+  lapInvalidAlertEl.classList.add('hidden');
+  rolloverAlertEl.classList.add('hidden');
+  // A kocsi vissza a rajthelyre. A menü ugyanazt a kocsit mutatja, amit az
+  // előbb vezettünk: ott hagyva a pálya közepén — esetleg felborulva vagy a
+  // falnak nyomódva — a kirakat-nézet romosan néz ki, és a következő "Indítás"
+  // is onnan folytatná. A spawnPoint a verseny rajtrács-helye (a startBtn
+  // állítja be), boot után pedig a kirakat-pozíció.
+  resetCarTo(spawnPoint);
   race.phase = 'idle';
   scene.fog.density = NORMAL_FOG_DENSITY;
 }
