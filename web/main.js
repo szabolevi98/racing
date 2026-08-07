@@ -2472,6 +2472,38 @@ function enterMenu() {
   // is onnan folytatná. A spawnPoint a verseny rajtrács-helye (a startBtn
   // állítja be), boot után pedig a kirakat-pozíció.
   resetCarTo(spawnPoint);
+  // A LÁTHATÓ modellt külön kell a helyére tenni, és ez nem elhagyható: a
+  // carPivot KIZÁRÓLAG a vezetés-képkockában frissül a fizikai testből (lásd
+  // az animate() 'driving' ágát), a menü ágban csak a kamera mozog. Enélkül a
+  // fizikai test visszaugrott a rajthoz, a kocsi viszont ott maradt a képen,
+  // ahol kiléptünk — ugyanaz a kép a menüben, mint a pályán.
+  //
+  // A magasságot ugyanúgy kézzel számoljuk, ahogy a setTrack teszi a
+  // kirakat-nézethez: a spawnPoint SZÁNDÉKOSAN a talaj fölött van (hogy a
+  // rajtnál a kasztni ne verődjön bele a vékony háromszöghálóba), a menüben
+  // viszont nem lép a fizika, ami leejtené — így ott lebegve maradna.
+  // A groundOffset a kalibrált nyugalmi magasság: ezzel a modell alja pontosan
+  // a talajra kerül.
+  const spawnQ = chassisBody.rotation();
+  carPivot.quaternion.set(spawnQ.x, spawnQ.y, spawnQ.z, spawnQ.w);
+  const spawnGroundY = currentTrack
+    ? findGroundAt(currentTrack, currentTrackBox, spawnPoint.x, spawnPoint.z)
+    : null;
+  carPivot.position.set(
+    spawnPoint.x,
+    spawnGroundY !== null ? spawnGroundY + groundOffset : spawnPoint.y,
+    spawnPoint.z
+  );
+  // A kirakat mindig KÜLSŐ nézet, tehát a kocsinak látszania kell — akkor is,
+  // ha a játékos FPV-ben lépett ki. Az FPV elrejti a karosszériát és a
+  // kerekeket (applyCameraViewVisibility), és ez a rejtés a menüben is
+  // érvényben maradt: a kamera egy üres folt körül forgott.
+  //
+  // A vezetésbe visszatérve nem kell visszaállítani: az updateChaseCamera
+  // minden képkockán újra érvényesíti a nézethez tartozó láthatóságot, tehát
+  // az FPV rejtés magától visszatér az első vezetés-képkockán.
+  if (currentCarModel) currentCarModel.visible = true;
+  wheelPivots.forEach((pivot) => { pivot.visible = true; });
   race.phase = 'idle';
   scene.fog.density = NORMAL_FOG_DENSITY;
 }
