@@ -348,14 +348,36 @@ export function updateEngine(speedKmh, throttle, dt = 1 / 60) {
 
   engine.oscs.forEach(({ osc, g: og, def, flutterGain }) => {
     osc.frequency.setTargetAtTime(fire * def.mul, t, 0.02);
+
     // Terhelés alatt a felső harmonikusok erősödnek — ettől lesz "dühös" a
     // hang gázon, és tompább, amikor csak gurulsz.
     const weight = def.mul >= 2 ? 0.55 + 0.45 * load : 1;
-    og.gain.setTargetAtTime(def.gain * weight, t, 0.05);
-    // Ez a rend SAJÁT lüktetése — a mélysége a rend saját hangerejéhez
-    // arányos (a def.gain-nel), így egy halványabb felhang nem kap
-    // aránytalanul nagy, egy erős pedig nem elenyészően kis moduációt.
-    flutterGain.gain.setTargetAtTime(def.gain * weight * 0.55 * idleness, t, 0.06);
+
+    // Alapjáraton a mélyebb rendek túl erős, fix búgást okoztak
+    // 0–kb. 22 km/h között, amíg az RPM az IDLE_RPM-en marad.
+    // Ezért lent visszavesszük őket, fordulaton pedig fokozatosan visszaengedjük.
+    let idleWeight = 1;
+    if (def.mul === 0.25) {
+      idleWeight = 0.15 + 0.85 * norm;
+    } else if (def.mul === 0.5) {
+      idleWeight = 0.40 + 0.60 * norm;
+    } else if (def.mul === 1.0) {
+      idleWeight = 0.45 + 0.55 * norm;
+    }
+
+    og.gain.setTargetAtTime(
+        def.gain * weight * idleWeight,
+        t,
+        0.05
+    );
+
+    // A lüktetést ugyanilyen arányban csillapítjuk, különben a mély morgás
+    // a moduláción keresztül részben megmaradna.
+    flutterGain.gain.setTargetAtTime(
+        def.gain * weight * idleWeight * 0.55 * idleness,
+        t,
+        0.06
+    );
   });
 
   // A szűrő felső határa jóval lejjebb, mint korábban (10 400 Hz volt): ott a
@@ -368,8 +390,8 @@ export function updateEngine(speedKmh, throttle, dt = 1 / 60) {
   engine.noiseGain.gain.setTargetAtTime(0.05 + (1 - norm) * 0.05 + load * 0.09, t, 0.05);
 
   // A hangmagasság-billegés KÖZÖS marad (a főtengelyen ül mindegyik rend) —
-  // ±28 cent, kb. negyed hang, alapjáraton a legerősebb.
-  engine.wobbleGain.gain.setTargetAtTime(28 * idleness, t, 0.08);
+  // enyhe ±6 centes ingadozás, alapjáraton a legerősebb.
+  engine.wobbleGain.gain.setTargetAtTime(6 * idleness, t, 0.08);
 
   // ---- Hangerő: a FORDULATTÓL és a gáztól is függ ----
   //
