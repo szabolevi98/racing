@@ -1,10 +1,14 @@
 // Statikus fájlkiszolgálás a web/ mappából. Ez váltja ki az Apache-ot.
 //
 // Két dolgot csinál, amit az .htaccess korábban:
-//  - a HTML/JS soha nem cache-elődik (fejlesztés közben a stale cache nagyon
-//    megtévesztő hibákat okoz: "hiba", ami valójában csak régi betöltött kód),
-//  - az assetek (modellek, textúrák, HDRI) viszont igen — ezek nagyok és
-//    ritkán változnak, minden játékosnak letöltés.
+//  - a HTML/JS/CSS mindig újraérvényesítődik: a böngésző eltárolja, de
+//    használat előtt ETag-gel rákérdez, így sosem futhat régi kód (a stale
+//    cache fejlesztés közben nagyon megtévesztő hibákat okoz: "hiba", ami
+//    valójában csak korábban betöltött kód) — a változatlan fájl viszont
+//    304-gyel, üres törzzsel jön vissza, nem tölt le újra;
+//  - az assetek (modellek, textúrák, HDRI) hosszan, "immutable" módon
+//    cache-elődnek — ezek nagyok és ritkán változnak. Amelyik mégis változhat
+//    (zonemap.png, collision.bin), az a manifestből kap `v` cache-kulcsot.
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
@@ -97,7 +101,33 @@ function sendFile(req, res, full, stat) {
   };
 
   if (NO_CACHE.has(ext)) {
-    headers['Cache-Control'] = 'no-store, no-cache, must-revalidate';
+    // "no-cache" NEM azt jelenti, hogy tilos tárolni — azt jelenti, hogy
+    // használat előtt mindig újra kell érvényesíteni. A böngésző eltárolja a
+    // fájlt, majd minden betöltésnél If-None-Match fejléccel rákérdez, és ha
+    // az ETag stimmel, 304-et kap ÜRES törzzsel.
+    //
+    // Korábban itt "no-store" is szerepelt, ami megtiltotta a tárolást — így
+    // az alatta felépített ETag-gépezet sosem jutott szóhoz, és a teljes
+    // kliens (main.js + mp.js + shared + vendor = gzip-pel ~1.1 MB, aminek
+    // 95%-a a gyakorlatilag sosem változó vendor/) MINDEN oldalbetöltésnél
+    // újra lement a dróton.
+    //
+    // A frissesség változatlanul garantált: az ETag a fájl méretéből és
+    // mtime-jából készül, tehát bármilyen mentés új kulcsot ad, és a
+    // böngésző azonnal a friss tartalmat tölti — fejlesztés közben is.
+    //
+    // Ezért NEM kapnak ezek a fájlok hosszú "immutable" cache-t sem, pedig a
+    // vendor/ mérete csábító: egy beragadt régi rapier.es.js némán
+    // szétcsúsztatná a kliens és a szerver fizikáját (a kettőnek bitre
+    // azonos Rapier buildet kell futtatnia — ld. shared/vehicleConfig.js).
+    //
+    // És ezért nincs "?v=..." az index.html <script src="main.js">-én sem.
+    // Egy query string ott CSAK azt az egy fájlt verziózná: az ES-modul
+    // importokat (./vendor/..., /shared/...) a böngésző külön, query nélkül
+    // kéri le, tehát a forgalom 95%-át nem érintené. A teljes modulgráf
+    // verziózásához build lépés kellene, ami minden import útvonalat átír —
+    // az itteni újraérvényesítés ugyanazt a frissességet adja anélkül.
+    headers['Cache-Control'] = 'no-cache, must-revalidate';
   } else {
     // Az assetek nagyok (egy pálya 60-150 MB) és gyakorlatilag sosem
     // változnak — egy távoli játékosnak az első betöltés így is percekig
