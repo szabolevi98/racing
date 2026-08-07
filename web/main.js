@@ -1645,7 +1645,10 @@ async function loadZoneRuntime(entry) {
   await new Promise((resolve, reject) => {
     img.onload = resolve;
     img.onerror = reject;
-    img.src = 'assets/' + entry.zonemap.file + '?t=' + Date.now();
+    // Cache-kulcs a manifestből (méret + mtime), nem Date.now() — ugyanaz a
+    // minta, mint a collision.bin-nél. A Date.now() minden pályabetöltésnél
+    // újratöltette ezt a 330-900 KB-os képet, hiába nem változott.
+    img.src = 'assets/' + entry.zonemap.file + (entry.zonemap.v ? '?v=' + entry.zonemap.v : '');
   });
 
   const c = document.createElement('canvas');

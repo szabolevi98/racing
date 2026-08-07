@@ -1050,6 +1050,10 @@ function loadExistingZoneMask() {
   if (!entry || !entry.zonemap) return;
   const img = new Image();
   img.onload = () => ctx.drawImage(img, 0, 0, zoneMaskCanvas.width, zoneMaskCanvas.height);
+  // Itt SZÁNDÉKOSAN marad a Date.now(), szemben a main.js vezetés-oldali
+  // betöltésével: ez a SZERKESZTŐ kiindulóképe, amire tovább festesz. Egy
+  // véletlenül régi maszkra festeni sokkal drágább hiba, mint újratölteni
+  // 330-900 KB-ot — utóbbi itt egyetlen fejlesztőt érint, nem a játékosokat.
   img.src = 'assets/' + entry.zonemap.file + '?t=' + Date.now();
 }
 
@@ -1120,6 +1124,14 @@ function saveZoneMap() {
                 bounds: zoneBounds,
                 texW: zoneMaskCanvas.width,
                 texH: zoneMaskCanvas.height,
+                // ÚJ cache-kulcs KÖTELEZŐ: a zonemap.png "immutable"-ként megy
+                // ki (egy évig cache-elhető), tehát kulcs nélkül a lenti
+                // loadZoneRuntime a RÉGI, cache-elt maszkot töltené vissza —
+                // pont azt hiúsítva meg, amiért itt frissítjük a manifestet.
+                // A szerver a fájl méret+mtime lenyomatát adja; itt azt nem
+                // ismerjük, de a Date.now() ugyanúgy jó: ez az az egy pont,
+                // ahol BIZTOSAN tudjuk, hogy a tartalom épp megváltozott.
+                v: Date.now().toString(36),
               };
               loadZoneRuntime(entry);
             }

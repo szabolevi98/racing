@@ -130,13 +130,22 @@ async function collectMaps() {
     }
 
     // Zóna-térkép (dev módban festett aszfalt/kifutó/fal maszk).
+    const zonePng = path.join(mapDir, 'zonemap.png');
     const zoneMeta = await readJson(path.join(mapDir, 'zonemap.json'));
-    if (zoneMeta?.bounds && (await exists(path.join(mapDir, 'zonemap.png')))) {
+    if (zoneMeta?.bounds && (await exists(zonePng))) {
+      // A `v` ugyanaz a cache-kulcs, mint a collision.bin-nél: a fájl
+      // lenyomata (méret + módosítási idő). A kliens korábban Date.now()-t
+      // tett a kérés végére, ami MINDEN pályabetöltésnél újratöltette a
+      // 330-900 KB-os képet — pont a nagy pálya-modell letöltése mellett,
+      // ugyanazon a gyenge hálózaton, ahol ez a legrosszabbul esik. Így
+      // cache-elhető, de a dev módbeli újrafestés után magától új kulcsot kap.
+      const zst = await fs.stat(zonePng);
       entry.zonemap = {
         file: `maps/${id}/zonemap.png`,
         bounds: zoneMeta.bounds,
         texW: zoneMeta.texW ?? null,
         texH: zoneMeta.texH ?? null,
+        v: `${zst.size.toString(36)}-${Math.round(zst.mtimeMs).toString(36)}`,
       };
     }
 
