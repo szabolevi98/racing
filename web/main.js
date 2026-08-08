@@ -1763,6 +1763,7 @@ async function loadZoneRuntime(entry) {
   zoneRuntime = null;
   miniMapTrackCanvas = null;
   miniMapBounds = null;
+  miniMapStartSpans = null;
   if (!entry || !entry.zonemap) return;
 
   const img = new Image();
@@ -1914,12 +1915,16 @@ function buildMiniMapTrack(runtime) {
 let miniMapMarkers = [];
 let miniMapSelfColor = null;
 
-function drawMiniMapDot(x, z, color, radius) {
-  const w = miniMapCanvas.width;
-  const h = miniMapCanvas.height;
+function miniMapPoint(x, z) {
   const b = miniMapBounds;
-  const px = ((x - b.minX) / (b.maxX - b.minX)) * w;
-  const py = ((z - b.minZ) / (b.maxZ - b.minZ)) * h;
+  return {
+    px: ((x - b.minX) / (b.maxX - b.minX)) * miniMapCanvas.width,
+    py: ((z - b.minZ) / (b.maxZ - b.minZ)) * miniMapCanvas.height,
+  };
+}
+
+function drawMiniMapDot(x, z, color, radius) {
+  const { px, py } = miniMapPoint(x, z);
   miniMapCtx.beginPath();
   miniMapCtx.arc(px, py, radius, 0, Math.PI * 2);
   miniMapCtx.fillStyle = color;
@@ -1929,12 +1934,98 @@ function drawMiniMapDot(x, z, color, radius) {
   miniMapCtx.stroke();
 }
 
+// A rajtvonal a minitérképen, VILÁGKOORDINÁTÁS szakaszokként.
+//
+// A kapu maga szándékosan túlnyúlik az aszfalton (hogy a szélére kisodródó
+// kocsi is átlépje), a teljes szélességét kirajzolva viszont egy aránytalanul
+// hosszú zöld vonal lógna ki a pályából. Ezért végigmintázzuk a kaput, és csak
+// azokat a szakaszokat tartjuk meg, ahol tényleg aszfaltot keresztez — ez
+// egyben azt is megoldja, hogy egy boxutcán átvágó kapunál külön darabokban
+// jelenjen meg, ott ahová való.
+//
+// Egyszer számoljuk ki pályánként (a loadZoneRuntime nullázza), utána
+// képkockánként már csak két-három vonalat rajzolunk. A kapu-objektumot is
+// eltesszük: a dev zóna-szerkesztőben újrarajzolt rajtvonal új objektumot ad,
+// és arról így magától észrevesszük, hogy újra kell számolni.
+let miniMapStartSpans = null;
+let miniMapStartGate = null;
+
+function buildMiniMapStartSpans() {
+  miniMapStartSpans = [];
+  const g = currentGates?.start;
+  miniMapStartGate = g || null;
+  if (!g || !zoneRuntime) return;
+
+  const dx = g.x2 - g.x1, dz = g.z2 - g.z1;
+  const len = Math.hypot(dx, dz);
+  if (len < 1e-3) return;
+  // Fél méteres lépés: a legkeskenyebb aszfaltsávot is eltalálja, és egy
+  // 70 méteres kapunál is csak ~140 mintavétel.
+  const steps = Math.max(2, Math.ceil(len / 0.5));
+  const at = (t) => ({ x: g.x1 + dx * t, z: g.z1 + dz * t });
+
+  let from = null;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const p = at(t);
+    const onAsphalt = sampleZoneAt(p.x, p.z) === ZONE_ASPHALT;
+    if (onAsphalt && from === null) from = t;
+    if (from !== null && (!onAsphalt || i === steps)) {
+      const a = at(from);
+      const b = at(onAsphalt ? t : (i - 1) / steps);
+      // Az egy-két mintányi szemetet (pl. a maszk élsimított pereme) eldobjuk.
+      if (Math.hypot(b.x - a.x, b.z - a.z) > 1) {
+        miniMapStartSpans.push({ x1: a.x, z1: a.z, x2: b.x, z2: b.z });
+      }
+      from = null;
+    }
+  }
+}
+
+// A minitérkép a TELJES pályát mutatja: a Hungaroringen ~5 méter esik egy
+// pixelre, tehát a 23 méternyi aszfaltot keresztező rajtvonal alig 4 pixel —
+// és a rajtnál a saját kocsi pöttye (5.5 sugár) teljesen eltakarja. Ezért a
+// helyét és az irányát a valódi geometriából vesszük, de a hosszát felhúzzuk
+// erre a minimumra, hogy egyáltalán látszódjon.
+const MIN_START_LINE_PX = 12;
+
+function drawMiniMapStartLine() {
+  if (miniMapStartSpans === null || miniMapStartGate !== (currentGates?.start || null)) {
+    buildMiniMapStartSpans();
+  }
+  if (!miniMapStartSpans.length) return;
+  miniMapCtx.save();
+  miniMapCtx.strokeStyle = '#3ddc84';
+  miniMapCtx.lineWidth = 3;
+  miniMapCtx.lineCap = 'round';
+  // Sötét kontúr alá, hogy a világos pályaszalagon is elváljon.
+  miniMapCtx.shadowColor = 'rgba(0,0,0,0.75)';
+  miniMapCtx.shadowBlur = 2;
+  for (const s of miniMapStartSpans) {
+    let a = miniMapPoint(s.x1, s.z1);
+    let b = miniMapPoint(s.x2, s.z2);
+    const dx = b.px - a.px, dy = b.py - a.py;
+    const len = Math.hypot(dx, dy);
+    if (len > 0.01 && len < MIN_START_LINE_PX) {
+      const k = (MIN_START_LINE_PX - len) / 2 / len;
+      a = { px: a.px - dx * k, py: a.py - dy * k };
+      b = { px: b.px + dx * k, py: b.py + dy * k };
+    }
+    miniMapCtx.beginPath();
+    miniMapCtx.moveTo(a.px, a.py);
+    miniMapCtx.lineTo(b.px, b.py);
+    miniMapCtx.stroke();
+  }
+  miniMapCtx.restore();
+}
+
 function updateMiniMap(carX, carZ) {
   const w = miniMapCanvas.width;
   const h = miniMapCanvas.height;
   miniMapCtx.clearRect(0, 0, w, h);
   if (!miniMapBounds || !miniMapTrackCanvas) return;
   miniMapCtx.drawImage(miniMapTrackCanvas, 0, 0, w, h);
+  drawMiniMapStartLine();
 
   // A többiek ELŐBB, hogy a saját pötty mindig a legfelső legyen — egymáson
   // állva is tudni akarjuk, hol vagyunk.
