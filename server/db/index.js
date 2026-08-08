@@ -41,12 +41,10 @@ export async function initDb() {
     available = true;
     console.log(`Adatbázis: csatlakozva (${cfg.user}@${cfg.host}:${cfg.port}/${cfg.database})`);
 
-    // Karbantartás induláskor. Egyik sem kritikus: ha elhasal, a játék megy
-    // tovább, csak a takarítás marad el — ezért nem dobunk hibát.
+    // Karbantartás induláskor. Nem kritikus: ha elhasal, a játék megy tovább,
+    // csak a takarítás marad el — ezért nem dobunk hibát.
     try {
-      const rekord = await backfillRecords();
       const torolt = await purgeAbandonedRaces();
-      if (rekord) console.log(`Adatbázis: ${rekord} rekord-sor szinkronizálva a körökből.`);
       if (torolt) console.log(`Adatbázis: ${torolt} elhagyott (üres) verseny törölve.`);
     } catch (err) {
       console.warn('Adatbázis: a karbantartás nem futott le — ' + err.message);
@@ -59,25 +57,6 @@ export async function initDb() {
 }
 
 // --- Karbantartás (induláskor fut) -----------------------------------------
-
-// A map_records feltöltése a meglévő körökből. Idempotens: az ON DUPLICATE ág
-// csak LEJJEBB viheti az időt, tehát ismételt futtatás sem ronthat el rekordot.
-//
-// Kétszeresen hasznos: egyrészt a bevezetéskor átmenti a régi köröket az új
-// táblába, másrészt ha bármiért kimaradna egy írás, a következő indulás
-// magától helyrehozza.
-async function backfillRecords() {
-  const [res] = await pool.query(
-    `INSERT INTO map_records (player_id, map_id, best_ms)
-     SELECT l.player_id, r.map_id, MIN(l.time_ms)
-       FROM lap_times l
-       JOIN races r ON r.id = l.race_id
-      WHERE l.invalid = 0
-      GROUP BY l.player_id, r.map_id
-     ON DUPLICATE KEY UPDATE best_ms = LEAST(map_records.best_ms, VALUES(best_ms))`
-  );
-  return res.affectedRows;
-}
 
 // Elhagyott versenyek: a races sor a verseny INDÍTÁSAKOR születik, még mielőtt
 // bárki betöltött volna — így minden megszakadt indítás otthagy egy üres sort
@@ -161,14 +140,19 @@ export async function saveLap(raceId, playerId, lapNumber, timeMs, invalid, mapI
   // schema.sql-ben). Csak érvényes kör számít, és csak akkor írjuk felül, ha
   // tényleg gyorsabb — a feltételes UPDATE miatt ehhez nem kell külön SELECT,
   // tehát két egyszerre beérkező kör sem tud rossz sorrendben landolni.
+  //
+  // Az értékadások SORRENDJE számít: a best_ms megy utoljára. A MariaDB balról
+  // jobbra értékel, tehát ha elöl állna, a mögötte lévő IF-ek már az ÚJ értéket
+  // hasonlítanák önmagához (mindig hamis) — pontosan ettől frissült korábban
+  // csak az idő, a race_id és az achieved_at pedig a régi rekordé maradt.
   if (invalid || !mapId) return;
   await pool.query(
     `INSERT INTO map_records (player_id, map_id, best_ms, race_id)
      VALUES (?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
-       best_ms     = IF(VALUES(best_ms) < best_ms, VALUES(best_ms), best_ms),
-       race_id     = IF(VALUES(best_ms) < best_ms, VALUES(race_id), race_id),
-       achieved_at = IF(VALUES(best_ms) < best_ms, CURRENT_TIMESTAMP, achieved_at)`,
+       race_id     = IF(VALUES(best_ms) < map_records.best_ms, VALUES(race_id),  map_records.race_id),
+       achieved_at = IF(VALUES(best_ms) < map_records.best_ms, CURRENT_TIMESTAMP, map_records.achieved_at),
+       best_ms     = LEAST(map_records.best_ms, VALUES(best_ms))`,
     [playerId, mapId, ms, raceId]
   );
 }
