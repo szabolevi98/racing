@@ -15,6 +15,9 @@ const G = window.__game;
 // tesztelni (a képkocka-számláló ilyenkor csalókán nullán marad).
 window.__mp = {
   stage: 'init', frames: 0, snaps: 0,
+  // Hány ping-mintát dobtunk el főszál-akadás miatt (lásd startStallWatch).
+  // Ha ez folyamatosan nő, az nem hálózati gond, hanem akadozó kliens.
+  pingDiscarded: 0,
   step: () => frame(),
   get others() { return others.size; },
   get selfBuf() { return selfBuf.length; },
@@ -327,10 +330,46 @@ function sendPing() {
   send(C2S.PING, { t: performance.now(), clientNow: Date.now() });
 }
 
+// ---------- Főszál-akadás figyelése ----------
+// A mért ping `performance.now() - m.t`, vagyis MINDENT belemér, ami a küldés
+// és a válasz feldolgozása közt a főszálat blokkolja. Egy új meccs indításakor
+// a fizikai világ felépítése egyetlen blokkban fut: mérve 216-300 ms a
+// Hungaroringen (220 e háromszög), Shanghain (565 e) ennek a többszöröse —
+// innen a "700 ms-os ping", ami valójában semmit nem mond a hálózatról.
+//
+// Az ilyen mintát el KELL dobni, nem csak kozmetikából: a jitterbe is beszáll,
+// az pedig megemeli a bemenet-puffert (queueTarget), tehát egy hamis tüske
+// valódi, másodpercekig tartó extra késleltetést okozna a vezérlésben.
+//
+// A figyelő egy sűrű időzítő: ha két ütés között sokkal több idő telt el, mint
+// kellett volna, akkor a főszál addig blokkolt. A PONG-nál elég annyit nézni,
+// volt-e ilyen akadás a küldés ÓTA.
+const STALL_TICK_MS = 200;
+const STALL_THRESHOLD_MS = 400;
+let stallTimer = null;
+let lastHeartbeatAt = 0;
+let lastStallAt = 0;
+
+function startStallWatch() {
+  stopStallWatch();
+  lastHeartbeatAt = performance.now();
+  stallTimer = setInterval(() => {
+    const now = performance.now();
+    if (now - lastHeartbeatAt > STALL_THRESHOLD_MS) lastStallAt = now;
+    lastHeartbeatAt = now;
+  }, STALL_TICK_MS);
+}
+
+function stopStallWatch() {
+  if (stallTimer) clearInterval(stallTimer);
+  stallTimer = null;
+}
+
 function startPingLoop() {
   stopPingLoop();
   lastPingRttMs = null;
   pingJitterMs = 0;
+  startStallWatch();
   sendPing();
   pingTimer = setInterval(sendPing, PING_INTERVAL_MS);
 }
@@ -338,6 +377,7 @@ function startPingLoop() {
 function stopPingLoop() {
   if (pingTimer) clearInterval(pingTimer);
   pingTimer = null;
+  stopStallWatch();
 }
 
 function connect(name) {
@@ -466,6 +506,10 @@ function onMessage(m) {
 
     case S2C.PONG:
       {
+        // Ha a küldés óta blokkolt a főszál, a minta a blokkolás hosszát méri,
+        // nem a hálózatot — eldobjuk (lásd startStallWatch). Az órabecslést is
+        // kihagyjuk vele, mert az is az RTT felét használja.
+        if (lastStallAt > m.t) { window.__mp.pingDiscarded++; break; }
         const rtt = Math.max(0, performance.now() - m.t);
         if (lastPingRttMs !== null) {
           const delta = Math.abs(rtt - lastPingRttMs);
