@@ -181,6 +181,15 @@
   <canvas id="miniMapCanvas" width="180" height="180"></canvas>
 </div>
 
+<!-- Pályánkénti leggyorsabb körök. Csak a menüben látszik (bal felül), a
+     láthatóságát ugyanúgy az appState-ből vezetjük le, mint a minitérképét.
+     Az adat a szerver hiteles méréséből jön: egyjátékos idők NEM kerülnek
+     ide, mert azokat a böngésző méri, tehát nem lennének megbízhatóak. -->
+<div id="leaderboardWrap" class="panel hidden">
+  <span class="lbl">Leggyorsabb körök</span>
+  <div id="leaderboardBody"></div>
+</div>
+
 <div id="lapInvalidAlert" class="top-center-alert hidden">
   <div class="alert-pill warn" id="lapInvalidAlertText">Kör érvénytelen!</div>
 </div>

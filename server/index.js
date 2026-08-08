@@ -65,7 +65,11 @@ async function handleApi(req, res, url) {
 
   if (url.pathname === '/api/leaderboard' && req.method === 'GET') {
     const mapId = url.searchParams.get('mapId') || '';
-    sendJson(res, 200, { mapId, entries: await bestLaps(mapId).catch(() => []) });
+    // A kliens annyit kér, amennyi nála elfér (mobilon kevesebb). Korlátozva,
+    // hogy egy kézzel írt kérés se tudjon több ezer sort lekérdeztetni.
+    const raw = Number(url.searchParams.get('limit'));
+    const limit = Number.isFinite(raw) ? Math.max(1, Math.min(50, Math.trunc(raw))) : 20;
+    sendJson(res, 200, { mapId, entries: await bestLaps(mapId, limit).catch(() => []) });
     return true;
   }
 

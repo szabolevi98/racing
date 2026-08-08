@@ -396,6 +396,26 @@ kbd.k {
   .st-lap, .st-gap, .st-time { font-size: 9px; }
 }
 
+/* --- bal felül a MENÜBEN: pályánkénti leggyorsabb körök ---
+   Saját, három hasábos rács (hely / név / idő) — az állás-panel hét oszlopa
+   ide túl sok volna —, de a színek, méretek és a sorok kinézete onnan jön,
+   hogy a két lista egy nyelvet beszéljen. */
+#leaderboardWrap {
+  position: fixed; top: 14px; left: 14px; z-index: 11;
+  width: 232px; padding: 11px 12px 9px;
+}
+#leaderboardWrap > .lbl { display: block; margin-bottom: 8px; }
+.lb-row {
+  display: grid; grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center; column-gap: 8px;
+  min-height: 24px; padding: 3px 5px; border-radius: 6px; font-size: 12.5px;
+}
+.lb-row + .lb-row { border-top: 1px solid rgba(255, 255, 255, 0.035); }
+.lb-pos { font-size: 11px; font-weight: 800; color: var(--muted); text-align: right; }
+.lb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
+.lb-time { font-size: 11.5px; color: var(--text); }
+.lb-note { padding: 2px 5px; font-size: 11px; color: var(--muted); }
+
 /* --- bal lent: minitérkép ---
    Csak vékony keret, saját háttér NÉLKÜL: a canvas maga átlátszó (clearRect
    után csak a pályavonalat rajzoljuk rá), így a panel áttetszősége érvényesül.
@@ -616,6 +636,18 @@ kbd.k {
   #miniMapWrap.in-menu {
     bottom: max(8px, env(safe-area-inset-bottom));
   }
+
+  /* Fekvő telefonon a menü amúgy is szűkös; a lista keskenyebb és kevesebb
+     sort kér (lásd LEADERBOARD_LIMIT_MOBILE a main.js-ben). */
+  #leaderboardWrap {
+    top: max(8px, env(safe-area-inset-top));
+    left: max(8px, env(safe-area-inset-left));
+    width: 168px; padding: 6px 8px 5px;
+  }
+  .lb-row { min-height: 19px; padding: 2px 4px; font-size: 10px; }
+  .lb-pos { font-size: 9px; }
+  .lb-time { font-size: 9px; }
+  .lb-note { font-size: 9px; padding: 1px 4px; }
   /* NEM fix négyzet: a canvas belső mérete pályánként más arányú (a
      buildMiniMapTrack a pálya befoglaló dobozához igazítja), és egy hosszú,
      keskeny pálya — pl. a Nürburgring GP, ahol 83x220 — négyzetbe kényszerítve

@@ -99,6 +99,8 @@ makeSearchableSelect(mapSelect);
 makeSearchableSelect(carSelect);
 makeSearchableSelect(envSelect);
 const zoneIndicatorEl = document.getElementById('zoneIndicator');
+const leaderboardWrapEl = document.getElementById('leaderboardWrap');
+const leaderboardBodyEl = document.getElementById('leaderboardBody');
 const miniMapWrapEl = document.getElementById('miniMapWrap');
 const miniMapCanvas = document.getElementById('miniMapCanvas');
 const miniMapCtx = miniMapCanvas.getContext('2d');
@@ -2032,6 +2034,64 @@ function syncMiniMapVisibility() {
   const show = MINIMAP_VISIBLE_STATES.has(appState) && !!miniMapTrackCanvas;
   miniMapWrapEl.classList.toggle('hidden', !show);
   miniMapWrapEl.classList.toggle('in-menu', appState === 'menu');
+  // A ranglista CSAK a menüben látszik: vezetés közben a bal felső sarok a
+  // vissza gombé és az állás-panelé. Ugyanaz a levezetett elv, mint fent —
+  // így nincs olyan állapotváltás, amit ki lehetne felejteni.
+  leaderboardWrapEl.classList.toggle('hidden', appState !== 'menu' || !leaderboardHasContent);
+}
+
+// ---------- Ranglista: pályánkénti leggyorsabb körök ----------
+// Csak MULTIPLAYER körök kerülnek ide: azokat a hiteles szerver méri. Az
+// egyjátékos időket a böngésző számolja, tehát bárki felküldhetne bármit —
+// egy ranglistán az hamis adat lenne. (A szerver oldalán a lap_times tábla
+// eleve csak a raceSim.js-ből töltődik.)
+const LEADERBOARD_LIMIT_DESKTOP = 10;
+const LEADERBOARD_LIMIT_MOBILE = 5;
+// Gyors pályaváltogatásnál a korábbi kérés később is megérkezhet, mint az
+// újabb. A generációszámláló eldobja az elavult válaszokat — enélkül egy lassú
+// válasz felülírhatná a frissebbet, és más pálya ideje látszana.
+let leaderboardGeneration = 0;
+let leaderboardHasContent = false;
+
+function setLeaderboardBody(html, hasContent) {
+  leaderboardBodyEl.innerHTML = html;
+  leaderboardHasContent = hasContent;
+}
+
+async function loadLeaderboard(mapId) {
+  const generation = ++leaderboardGeneration;
+  if (!mapId) return setLeaderboardBody('', false);
+
+  setLeaderboardBody('<div class="lb-note">Betöltés…</div>', true);
+  const limit = window.matchMedia('(hover: none) and (pointer: coarse), (max-width: 900px)').matches
+    ? LEADERBOARD_LIMIT_MOBILE : LEADERBOARD_LIMIT_DESKTOP;
+
+  let entries = null;
+  try {
+    const res = await fetch(`/api/leaderboard?mapId=${encodeURIComponent(mapId)}&limit=${limit}`);
+    if (res.ok) entries = (await res.json()).entries;
+  } catch {
+    // Hálózati hiba: a panel egyszerűen eltűnik, nem hagyunk ott törött dobozt.
+  }
+  if (generation !== leaderboardGeneration) return; // közben pályát váltottak
+
+  if (!entries) return setLeaderboardBody('', false);
+  if (!entries.length) {
+    return setLeaderboardBody('<div class="lb-note">Még nincs köridő ezen a pályán</div>', true);
+  }
+  setLeaderboardBody(entries.map((e, i) =>
+    '<div class="lb-row">' +
+      `<span class="lb-pos num">${i + 1}</span>` +
+      `<span class="lb-name">${escapeHtmlText(e.name)}</span>` +
+      `<span class="lb-time num">${formatTime(e.best_ms)}</span>` +
+    '</div>'
+  ).join(''), true);
+}
+
+// A név a játékos által megadott szöveg, tehát sosem mehet nyersen HTML-be.
+function escapeHtmlText(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 // A `showCars` a menüben hamis: ott a kirakat-kocsi pöttye semmit nem mondana
@@ -3081,6 +3141,9 @@ function enterMenu() {
   resetManualOrbit();
   setTouchControlsEnabled(true);
   appState = 'menu';
+  // Újratöltjük: ha épp most futottunk egy multiplayer versenyt, a friss
+  // köridő azonnal látszódjon a listán.
+  loadLeaderboard(currentMapId);
   menuEl.classList.remove('hidden');
   hudEl.classList.add('hidden');
   devTools?.hideOverlays();
@@ -3652,6 +3715,7 @@ async function init() {
   mapSelect.value = initialMap.id;
   carSelect.value = initialCar.id;
   envSelect.value = initialEnv.id;
+  loadLeaderboard(initialMap.id);
 
   const savedViewIdx = CAMERA_VIEWS.findIndex((v) => v.id === loadLastChoice('camera', CAMERA_VIEWS[0].id));
   if (savedViewIdx >= 0) cameraViewIndex = savedViewIdx;
@@ -3685,6 +3749,9 @@ async function init() {
   mapSelect.addEventListener('change', async () => {
     const entry = findEntry(manifest.maps, mapSelect.value);
     saveLastChoice('map', entry.id);
+    // A ranglista a pálya MODELLJÉTŐL függetlenül tölthető, ezért nem várjuk
+    // meg a több tíz megabájtos betöltést — mire az kész, ez már ott lesz.
+    loadLeaderboard(entry.id);
     showLoadingOverlay(true);
     try {
       await runLoadTasks([{ bytes: entry.bytes, run: (onP) => setTrack('assets/' + entry.file, entry.id, entry.spawns, entry.gates, onP) }]);
