@@ -99,6 +99,7 @@ makeSearchableSelect(mapSelect);
 makeSearchableSelect(carSelect);
 makeSearchableSelect(envSelect);
 const zoneIndicatorEl = document.getElementById('zoneIndicator');
+const miniMapWrapEl = document.getElementById('miniMapWrap');
 const miniMapCanvas = document.getElementById('miniMapCanvas');
 const miniMapCtx = miniMapCanvas.getContext('2d');
 const speedValueEl = document.getElementById('speedValue');
@@ -2019,13 +2020,31 @@ function drawMiniMapStartLine() {
   miniMapCtx.restore();
 }
 
-function updateMiniMap(carX, carZ) {
+// Hol látszik a minitérkép. A menüben is kell (ott a HUD rejtve van), ezért a
+// #hud-on KÍVÜL él — a láthatóságát viszont NEM az állapotváltásoknál
+// kapcsolgatjuk, hanem képkockánként az appState-ből vezetjük le. Így nincs
+// olyan átmenet (dev mód, autó tesztelő, zóna szerkesztő, kilépés), amit ki
+// lehetne felejteni: bárhogy változik az állapot, a következő képkockán már
+// helyes. A menüben más a pozíciója mobilon, mert ott nincs alatta joystick.
+const MINIMAP_VISIBLE_STATES = new Set(['menu', 'driving', 'mp']);
+
+function syncMiniMapVisibility() {
+  const show = MINIMAP_VISIBLE_STATES.has(appState) && !!miniMapTrackCanvas;
+  miniMapWrapEl.classList.toggle('hidden', !show);
+  miniMapWrapEl.classList.toggle('in-menu', appState === 'menu');
+}
+
+// A `showCars` a menüben hamis: ott a kirakat-kocsi pöttye semmit nem mondana
+// (nem versenyzel, csak nézelődsz), viszont pont a rajtvonalra ülne rá, amit
+// meg akarunk mutatni. Így a menüben tiszta a pályarajz + a zöld rajtvonal.
+function updateMiniMap(carX, carZ, { showCars = true } = {}) {
   const w = miniMapCanvas.width;
   const h = miniMapCanvas.height;
   miniMapCtx.clearRect(0, 0, w, h);
   if (!miniMapBounds || !miniMapTrackCanvas) return;
   miniMapCtx.drawImage(miniMapTrackCanvas, 0, 0, w, h);
   drawMiniMapStartLine();
+  if (!showCars) return;
 
   // A többiek ELŐBB, hogy a saját pötty mindig a legfelső legyen — egymáson
   // állva is tudni akarjuk, hol vagyunk.
@@ -3734,6 +3753,9 @@ function animate() {
   // közben — az fps-doboz a #hud-on belül van, tehát csak driving/mp-ben
   // LÁTSZIK, de a számláló futása nem függ ettől.
   tickFpsCounter(performance.now());
+  // MINDEN állapotban, a zone-edit korai kilépése ELŐTT — lásd
+  // syncMiniMapVisibility: ez teszi fölöslegessé az állapotonkénti kapcsolgatást.
+  syncMiniMapVisibility();
 
   if (appState === 'driving') {
     updateControls(dt);
@@ -3797,6 +3819,10 @@ function animate() {
   } else {
     updateSunTarget(carPivot.position);
     updateShowcaseCamera(dt);
+    // A menüben csak a pályarajz és a rajtvonal — kocsi-pötty nélkül. A
+    // kirakat-kocsi helyét azért adjuk át mégis, mert így ha valaki később
+    // mégis bekapcsolná a pöttyöt, a helyes pontot kapja, nem a világ (0,0)-át.
+    updateMiniMap(carPivot.position.x, carPivot.position.z, { showCars: false });
   }
 
   recordDiagFrame();

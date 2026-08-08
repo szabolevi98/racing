@@ -61,7 +61,7 @@
   <button id="startBtn" class="btn-race btn-solo" disabled>Egyjátékos</button>
   <label class="ghost-mode-option" for="ghostModeCheckbox">
     <input id="ghostModeCheckbox" type="checkbox">
-    <span><strong>Ghost mód</strong><small>Az általad létrehozott szobában az autók nem ütköznek egymással.</small></span>
+    <span><strong>Ghost mód</strong><small>Többjátékos módban az autók nem ütköznek egymással.</small></span>
   </label>
   <div id="menuStatus" class="text-center mt-3"></div>
  </div>
@@ -118,10 +118,6 @@
     <div id="raceHud" class="panel"></div>
   </div>
 
-  <div id="miniMapWrap" class="panel">
-    <canvas id="miniMapCanvas" width="180" height="180"></canvas>
-  </div>
-
   <!-- A ping és az fps a sebesség-doboz fölé csoportosítva, közös oszlopban:
        ez tartja a jobb alsó saroknál meglévő pozíciót anélkül, hogy a
        sebesség-doboz magasságát fixen be kellene lőni CSS-ből. A ping/fps sor
@@ -176,6 +172,13 @@
       <span class="joystick-knob" aria-hidden="true"></span>
     </div>
   </div>
+</div>
+
+<!-- A minitérkép a #hud-on KÍVÜL van, mert a menüben is látszik (ott a HUD
+     rejtve van). A láthatóságát ezért külön kapcsoljuk az állapotváltásoknál,
+     nem a HUD-dal együtt. -->
+<div id="miniMapWrap" class="panel hidden">
+  <canvas id="miniMapCanvas" width="180" height="180"></canvas>
 </div>
 
 <div id="lapInvalidAlert" class="top-center-alert hidden">

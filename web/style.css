@@ -570,6 +570,11 @@ kbd.k {
     bottom: calc(max(28px, calc(env(safe-area-inset-bottom) + 18px)) + var(--touch-stick-size) + 8px);
     padding: 2px;
   }
+  /* A menüben nincs alatta joystick, ezért nem kell fölé emelni — oda kerül,
+     ahová a felhasználó várja: a bal alsó sarokba. */
+  #miniMapWrap.in-menu {
+    bottom: max(8px, env(safe-area-inset-bottom));
+  }
   #miniMapCanvas { width: 82px; height: 82px; border-radius: 8px; }
   #bottomRightStack {
     right: max(8px, env(safe-area-inset-right));
