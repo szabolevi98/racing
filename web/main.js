@@ -14,6 +14,7 @@ import { TAINT, requiredCheckpoints } from '/shared/protocol.js';
 import {
   countdownBeep, startBeep, setMuted, isMuted, primeOnFirstGesture,
   startEngine, stopEngine, updateEngine,
+  createRemoteEngine, updateRemoteEngine, stopRemoteEngine, updateAudioListener,
 } from './audio.js';
 import {
   ZONE_ASPHALT, ZONE_OFFTRACK, ZONE_WALL, decodeZoneCodes, sampleZone,
@@ -2577,6 +2578,8 @@ const CAMERA_VIEWS = [
 ];
 let cameraViewIndex = 0;
 const chaseTarget = new THREE.Vector3();
+const audioListenerForward = new THREE.Vector3();
+const audioListenerUp = new THREE.Vector3();
 
 function applyCameraViewVisibility() {
   const fpv = CAMERA_VIEWS[cameraViewIndex].fpv;
@@ -3629,6 +3632,9 @@ function stepMultiplayerFrame(dt) {
   updateSunTarget(carPivot.position);
   updateWheelVisuals(dt);
   updateChaseCamera(dt);
+  camera.getWorldDirection(audioListenerForward);
+  audioListenerUp.set(0, 1, 0).applyQuaternion(camera.quaternion);
+  updateAudioListener(camera.position, audioListenerForward, audioListenerUp, chassisBody.linvel());
   // A vezetős HUD-ot egyjátékosban az updateControls frissíti, ami
   // multiplayerben nem fut — emiatt hiányzott eddig a mini-térkép és a
   // zóna-kijelző. Mindkettő tisztán a kocsi helyéből számolható, tehát itt
@@ -3670,8 +3676,18 @@ window.__game = {
   get carLoaded() { return carLoaded; },
   keys,
   setCar, setTrack, prepareTrackPhysics, loadGLTF, centerCarModelOnWheels,
+  createRemoteEngine, updateRemoteEngine, stopRemoteEngine,
   formatTime,
   enterMenu,
+  // Multiplayer futamok között nem maradhat meg az előző utolsó sebessége,
+  // fokozata vagy beütemezett hangmagasság-simítása. A stopEngine lecsengeti
+  // és eldobja a teljes szintetizátort; a következő enterMultiplayer friss,
+  // alapjárati gear/RPM állapottal építi újra.
+  resetRaceAudio() {
+    lastReportedSpeedKmh = 0;
+    lastCountdownShown = 0;
+    stopEngine();
+  },
   // A mp.js ezzel regisztrálja a távoli kocsik eltakarítását — lásd enterMenu().
   setMultiplayerCleanupHook(hook) { multiplayerCleanupHook = hook; },
   detachMultiplayerFrame() { mpFrameHook = null; },

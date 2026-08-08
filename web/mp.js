@@ -534,6 +534,10 @@ async function beginRace(info) {
   const loadGeneration = ++raceLoadGeneration;
   raceLoadActive = true;
   closeLobby();
+  // A második futam nem örökölheti az előző célba érési sebességét/fokozatát.
+  // Enélkül a nulláról induló új autónál a hang gyorsan végigváltott lefelé,
+  // mintha felgyorsított kazettát hallanánk.
+  G.resetRaceAudio();
   window.__mp.stage = 'start';
   raceEnded = false;
   finishedDriving = false;
@@ -630,6 +634,11 @@ async function beginRace(info) {
 function clearOtherCars() {
   for (const id of [...others.keys()]) removeOtherCar(id);
   G.clearRemoteCarProxies();
+  // A modellek és fizikai proxyk mellett a minitérképes lenyomatuk is ugyanennek
+  // az állapotnak a része. A játék közbeni „Vissza a menübe” közvetlenül az
+  // enterMenu() cleanup hookján halad át, nem feltétlenül a leaveMultiplayer()-en,
+  // ezért az ottani külön nullázás ezt az útvonalat nem fedte le.
+  G.setMiniMapMarkers([], null);
   selfBuf = [];
 }
 
@@ -640,6 +649,7 @@ function clearOtherCars() {
 function removeOtherCar(playerId) {
   const entry = others.get(playerId);
   if (!entry) return;
+  G.stopRemoteEngine(entry.engineAudio);
   G.scene.remove(entry.group);
   // A scene.remove() csak a jelenetgráfból veszi ki; a GPU-oldali
   // geometria/anyag/textúra enélkül meccsről meccsre halmozódna.
@@ -724,6 +734,7 @@ async function addOtherCar(p, onProgress, loadGeneration) {
   // ami a HUD-listán és a minitérképen is jelöli őt.
   const label = makeNameSprite(p.name, p.color);
   label.position.y = 1.8;
+  label.visible = false;
   group.add(label);
 
   // A modell letöltése közben megszakadhatott a kapcsolat vagy a játékos
@@ -735,7 +746,7 @@ async function addOtherCar(p, onProgress, loadGeneration) {
   }
   G.scene.add(group);
   others.set(p.id, {
-    group, buf: [], color: p.color, name: p.name, lap: 0, cp: 0,
+    group, label, engineAudio: G.createRemoteEngine(), buf: [], color: p.color, name: p.name, lap: 0, cp: 0,
     rank: 0, gap: null, bestLap: null, lastLap: null, lastLapInvalid: false, finished: false,
   });
 }
@@ -758,7 +769,9 @@ function makeNameSprite(name, color) {
   g.fillStyle = '#fff';
   g.fillText(name.slice(0, 16), 128, 42);
   const tex = new THREE.CanvasTexture(c);
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: tex, depthTest: true, depthWrite: false, transparent: true,
+  }));
   sp.scale.set(3, 0.75, 1);
   return sp;
 }
@@ -999,7 +1012,7 @@ function onSnapshot(m) {
     const entry = c.id === me.id ? null : others.get(c.id);
     const buf = c.id === me.id ? selfBuf : entry?.buf;
     if (buf) {
-      buf.push({ t: m.t, p: c.p, q: c.q, v: c.v, w: c.w, seq: c.seq, lap: c.lap });
+      buf.push({ t: m.t, p: c.p, q: c.q, v: c.v, w: c.w, th: c.th, seq: c.seq, lap: c.lap });
       // Az adaptív puffer nagy pingnél 400 ms-ig nőhet; két másodpercnyi múlt
       // elég hozzá és a proxyk jelenre történő extrapolációjához is.
       while (buf.length > 40) buf.shift();
@@ -1088,6 +1101,7 @@ function sampleAt(buf, renderTime) {
         q: slerp(a.q, b.q, f),
         v: a.v && b.v ? [a.v[0] + (b.v[0] - a.v[0]) * f, a.v[1] + (b.v[1] - a.v[1]) * f, a.v[2] + (b.v[2] - a.v[2]) * f] : (b.v || [0, 0, 0]),
         w: a.w && b.w ? [a.w[0] + (b.w[0] - a.w[0]) * f, a.w[1] + (b.w[1] - a.w[1]) * f, a.w[2] + (b.w[2] - a.w[2]) * f] : (b.w || [0, 0, 0]),
+        th: (a.th ?? 0) + ((b.th ?? a.th ?? 0) - (a.th ?? 0)) * f,
       };
     }
   }
@@ -1098,6 +1112,13 @@ const REMOTE_PROXY_RANGE = 60;
 const REMOTE_PROXY_RANGE_SQ = REMOTE_PROXY_RANGE * REMOTE_PROXY_RANGE;
 const REMOTE_PROXY_EXIT_RANGE = 75;
 const REMOTE_PROXY_EXIT_RANGE_SQ = REMOTE_PROXY_EXIT_RANGE * REMOTE_PROXY_EXIT_RANGE;
+// A játékosnév közelről segít azonosítani az ellenfelet, távolról viszont
+// csak teleszórja a pályát és könnyen elárulna egy épület mögötti autót.
+// 38 métertől halványul, 50 méternél teljesen eltűnik; a Sprite depthTestje
+// ezen belül is gondoskodik róla, hogy falon/épületen ne rajzolódjon át.
+const PLAYER_LABEL_FADE_START = 38;
+const PLAYER_LABEL_MAX_RANGE = 50;
+const PLAYER_LABEL_MAX_RANGE_SQ = PLAYER_LABEL_MAX_RANGE * PLAYER_LABEL_MAX_RANGE;
 const REMOTE_PROXY_MAX_AGE_MS = 750;
 const REMOTE_EXTRAP_MAX_MS = 250;
 
@@ -1123,6 +1144,7 @@ function remoteStateAt(buf, targetServerTime) {
     q: integrateRotation(latest.q, w, dt),
     v,
     w,
+    th: latest.th ?? 0,
   };
 }
 
@@ -1212,6 +1234,16 @@ function frame(dt = 1 / 60) {
     const mine = G.getCarState().p;
     const dx = currentState.p[0] - mine[0], dy = currentState.p[1] - mine[1], dz = currentState.p[2] - mine[2];
     const distSq = dx * dx + dy * dy + dz * dz;
+    if (distSq >= PLAYER_LABEL_MAX_RANGE_SQ) {
+      o.label.visible = false;
+    } else {
+      const distance = Math.sqrt(distSq);
+      const opacity = distance <= PLAYER_LABEL_FADE_START
+        ? 1
+        : (PLAYER_LABEL_MAX_RANGE - distance) / (PLAYER_LABEL_MAX_RANGE - PLAYER_LABEL_FADE_START);
+      o.label.material.opacity = opacity;
+      o.label.visible = opacity > 0.01;
+    }
     o.nearVisual = o.nearVisual
       ? distSq <= REMOTE_PROXY_EXIT_RANGE_SQ
       : distSq <= REMOTE_PROXY_RANGE_SQ;
@@ -1234,6 +1266,12 @@ function frame(dt = 1 / 60) {
       const qr = slerp(q0, s.q, alpha);
       o.group.quaternion.set(qr[0], qr[1], qr[2], qr[3]);
     }
+    G.updateRemoteEngine(o.engineAudio, {
+      position: o.group.position,
+      velocity: s.v,
+      speedKmh: Math.hypot(s.v?.[0] || 0, s.v?.[2] || 0) * 3.6,
+      throttle: s.th ?? 0,
+    }, dt);
     markers.push({ x: o.group.position.x, z: o.group.position.z, color: o.color || '#ffffff' });
   }
   // A main.js a stepMultiplayerFrame-ben MIUTÁN meghívta ezt a frame()-et,
@@ -1507,6 +1545,13 @@ function showResults(results) {
   raceEnded = true;
   finishedDriving = true;
   G.setMultiplayerControlsEnabled(false);
+  // A szimuláció itt már leállt, ezért több hiteles sebesség-snapshot nem jön.
+  // Ne tartsa ki az eredménypanel alatt az utolsó, esetleg magas fordulatot.
+  G.resetRaceAudio();
+  for (const other of others.values()) {
+    G.stopRemoteEngine(other.engineAudio);
+    other.engineAudio = null;
+  }
   inputHistory.length = 0;
   predictionHistory.length = 0;
   currentRaceResults = results;

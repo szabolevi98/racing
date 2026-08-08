@@ -630,7 +630,7 @@ kbd.k {
   border-radius: var(--r-sm);
 }
 .mp-code-val {
-  font-size: 27px; font-weight: 800; letter-spacing: 0.14em; line-height: 1;
+  font-size: 23px; font-weight: 800; letter-spacing: 0.14em; line-height: 1;
 }
 .mp-meta { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 16px; }
 .mp-chip {

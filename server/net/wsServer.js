@@ -182,6 +182,10 @@ async function startRace(room) {
   // A DB-művelet alatt a tulajdonos bezárhatta a lapot. Ilyenkor a szoba már
   // nincs a nyilvántartásban; nem indítunk hozzá árva fizikai időzítőt.
   if (rooms.get(room.code) !== room || room.size === 0) return;
+  // A rajtsorrend futamonként új: csak az első N rajthelyet osztjuk ki az N
+  // résztvevő között, véletlenszerűen. Itt történik, nem belépéskor, ezért a
+  // host és a korábban érkezők sem kapnak állandó rajtpozíciót.
+  room.randomizeGridSlots();
   const manifest = await getManifest();
   if (rooms.get(room.code) !== room || room.size === 0) return;
   const map = manifest.maps.find((m) => m.id === room.mapId);

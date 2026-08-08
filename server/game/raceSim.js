@@ -634,6 +634,10 @@ export class RaceSim {
         w: [+w.x.toFixed(3), +w.y.toFixed(3), +w.z.toFixed(3)],
         st: +(car.vehicle.wheelSteering(0) ?? 0).toFixed(3),
         wr: +(car.vehicle.wheelRotation(2) ?? 0).toFixed(2),
+        // A távoli kliens motorhangjának terhelése. A pozícióból és sebességből
+        // a fordulat kiszámolható, de azt nem lehet kitalálni, hogy a játékos
+        // épp gyorsít vagy csak gurul. Célba érés után mindig gázelvételt küldünk.
+        th: car.race.finished ? 0 : +car.input.throttle.toFixed(2),
         // A FELHASZNÁLT sorszám, nem a beérkezett: a kliens ebből tudja, melyik
         // korabeli jóslatát hasonlítsa ehhez az állapothoz. (A beérkezett
         // sorszám félrevezetne: egy már megkapott, de még sorban álló

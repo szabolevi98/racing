@@ -421,6 +421,257 @@ export function updateEngine(speedKmh, throttle, dt = 1 / 60) {
   engine.gain.gain.setTargetAtTime(ENGINE_VOLUME * rpmLevel * loadLevel * speedLevel, t, 0.05);
 }
 
+// ---------------------------------------------------------------------------
+// Távoli multiplayer-autók motorhangja
+// ---------------------------------------------------------------------------
+// A saját motor részletes szintetizátora sok párhuzamos forrást használ. Ezt
+// játékosonként lemásolva egy nyolcfős szoba már feleslegesen terhelné a hang-
+// motort, ezért az ellenfelek egy könnyebb, négy harmonikusos változatot kapnak.
+// Közelről megmarad az F1-karakter, távolról pedig a térbeli csillapítás úgyis
+// elfedi azokat a finom részleteket, amelyek csak a saját autónál hallhatók.
+const REMOTE_ENGINE_VOLUME = 0.26;
+const REMOTE_SOUND_FADE_START = 90;
+const REMOTE_SOUND_MAX_RANGE = 125;
+const SPEED_OF_SOUND = 343;
+const DOPPLER_MAX_SHIFT = 0.10;
+const REMOTE_HARMONICS = [
+  { mul: 0.5, gain: 0.42 },
+  { mul: 1.0, gain: 0.76 },
+  { mul: 2.0, gain: 0.18 },
+  { mul: 3.0, gain: 0.07 },
+];
+
+let remoteNoiseBuffer = null;
+const listenerPosition = { x: 0, y: 0, z: 0, ready: false };
+const listenerVelocity = { x: 0, y: 0, z: 0 };
+
+function vector3(value) {
+  const x = Number(value?.x ?? value?.[0]);
+  const y = Number(value?.y ?? value?.[1]);
+  const z = Number(value?.z ?? value?.[2]);
+  return {
+    x: Number.isFinite(x) ? x : 0,
+    y: Number.isFinite(y) ? y : 0,
+    z: Number.isFinite(z) ? z : 0,
+  };
+}
+
+// A teljes fizikai Doppler F1-sebességnél szélsőséges lenne (akár 30–40%-os
+// hangmagasság-ugrás), ezért a relatív közeledési sebesség lineáris közelítését
+// használjuk és ±10%-ra fogjuk. Ez hallható elsuhanást ad, de nem írja felül a
+// motor saját fordulatát és a váltásokat.
+export function calculateDopplerFactor(sourcePosition, sourceVelocity, listenerPos, listenerVel) {
+  const source = vector3(sourcePosition);
+  const velocity = vector3(sourceVelocity);
+  const listener = vector3(listenerPos);
+  const listenerV = vector3(listenerVel);
+  const dx = source.x - listener.x;
+  const dy = source.y - listener.y;
+  const dz = source.z - listener.z;
+  const distance = Math.hypot(dx, dy, dz);
+  if (distance < 0.1) return 1;
+  const invDistance = 1 / distance;
+  // Pozitív, ha a két pont közti távolság csökken; negatív, ha nő.
+  const closingSpeed = -(
+    (velocity.x - listenerV.x) * dx * invDistance +
+    (velocity.y - listenerV.y) * dy * invDistance +
+    (velocity.z - listenerV.z) * dz * invDistance
+  );
+  return Math.max(
+    1 - DOPPLER_MAX_SHIFT,
+    Math.min(1 + DOPPLER_MAX_SHIFT, 1 + closingSpeed / SPEED_OF_SOUND)
+  );
+}
+
+function sharedRemoteNoise(c) {
+  if (remoteNoiseBuffer) return remoteNoiseBuffer;
+  const len = c.sampleRate * 2;
+  remoteNoiseBuffer = c.createBuffer(1, len, c.sampleRate);
+  const data = remoteNoiseBuffer.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  return remoteNoiseBuffer;
+}
+
+function setSpatialPosition(node, position, t, smoothing = 0.025) {
+  const x = Number(position?.x ?? position?.[0]) || 0;
+  const y = Number(position?.y ?? position?.[1]) || 0;
+  const z = Number(position?.z ?? position?.[2]) || 0;
+  if (node.positionX) {
+    node.positionX.setTargetAtTime(x, t, smoothing);
+    node.positionY.setTargetAtTime(y, t, smoothing);
+    node.positionZ.setTargetAtTime(z, t, smoothing);
+  } else {
+    node.setPosition(x, y, z);
+  }
+  return { x, y, z };
+}
+
+function pickRemoteGear(remote, speedMs) {
+  while (remote.gear < GEAR_RATIOS.length - 1 && rpmFor(speedMs, remote.gear) > SHIFT_UP_RPM) remote.gear++;
+  while (remote.gear > 0 && rpmFor(speedMs, remote.gear) < SHIFT_DOWN_RPM) remote.gear--;
+  return remote.gear;
+}
+
+export function createRemoteEngine() {
+  const c = ensureContext();
+  if (!c) return null;
+
+  const panner = c.createPanner();
+  panner.panningModel = 'HRTF';
+  panner.distanceModel = 'inverse';
+  // A rajtrácson és közvetlen csatában biztosan hallatszódjon a saját motor
+  // mellett: 15 méterig teljes szinten szól, utána indul a csillapítás.
+  panner.refDistance = 15;
+  panner.maxDistance = REMOTE_SOUND_MAX_RANGE;
+  panner.rolloffFactor = 0.75;
+
+  const gain = c.createGain();
+  gain.gain.value = 0;
+  const filter = c.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.Q.value = 1.2;
+  filter.connect(gain);
+  gain.connect(panner);
+  panner.connect(master);
+
+  const oscs = REMOTE_HARMONICS.map((def, i) => {
+    const osc = c.createOscillator();
+    const harmonicGain = c.createGain();
+    osc.type = 'sawtooth';
+    osc.detune.value = [-7, 5, -4, 8][i] || 0;
+    harmonicGain.gain.value = def.gain;
+    osc.connect(harmonicGain);
+    harmonicGain.connect(filter);
+    osc.start();
+    return { osc, gain: harmonicGain, def };
+  });
+
+  // Egyetlen széles zajréteg ad levegőt a könnyített harmonikusoknak. A puffer
+  // közös az összes ellenfél közt; csak az olvasó forrás külön autónként.
+  const noiseSrc = c.createBufferSource();
+  noiseSrc.buffer = sharedRemoteNoise(c);
+  noiseSrc.loop = true;
+  const noiseFilter = c.createBiquadFilter();
+  noiseFilter.type = 'bandpass';
+  noiseFilter.frequency.value = 1700;
+  noiseFilter.Q.value = 0.3;
+  const noiseGain = c.createGain();
+  noiseGain.gain.value = 0.04;
+  noiseSrc.connect(noiseFilter);
+  noiseFilter.connect(noiseGain);
+  noiseGain.connect(filter);
+  noiseSrc.start();
+
+  return {
+    oscs, filter, gain, panner, noiseSrc, noiseGain,
+    gear: 0, smoothedRpm: IDLE_RPM, doppler: 1, stopped: false,
+  };
+}
+
+export function updateRemoteEngine(remote, {
+  position, velocity, speedKmh = 0, throttle = 0,
+}, dt = 1 / 60) {
+  if (!remote || remote.stopped || !ctx) return;
+  const t = ctx.currentTime;
+  const source = setSpatialPosition(remote.panner, position, t);
+  const speedMs = Math.abs(speedKmh) / 3.6;
+  const gearIndex = pickRemoteGear(remote, speedMs);
+  const targetRpm = Math.max(IDLE_RPM, Math.min(MAX_RPM, rpmFor(speedMs, gearIndex)));
+  const smoothing = 1 - Math.exp(-Math.max(0, dt) * 18);
+  remote.smoothedRpm += (targetRpm - remote.smoothedRpm) * smoothing;
+
+  const dopplerTarget = listenerPosition.ready
+    ? calculateDopplerFactor(source, velocity, listenerPosition, listenerVelocity)
+    : 1;
+  const dopplerSmoothing = 1 - Math.exp(-Math.max(0, dt) * 10);
+  remote.doppler += (dopplerTarget - remote.doppler) * dopplerSmoothing;
+
+  const fire = (remote.smoothedRpm / 60) * (HENGER / 2);
+  const norm = (remote.smoothedRpm - IDLE_RPM) / (MAX_RPM - IDLE_RPM);
+  const load = Math.min(1, Math.abs(Number(throttle) || 0));
+  remote.oscs.forEach(({ osc, gain: harmonicGain, def }) => {
+    osc.frequency.setTargetAtTime(fire * def.mul * remote.doppler, t, 0.03);
+    const loadWeight = def.mul >= 2 ? 0.55 + 0.45 * load : 1;
+    const idleWeight = def.mul <= 1 ? 0.42 + 0.58 * norm : 1;
+    harmonicGain.gain.setTargetAtTime(def.gain * loadWeight * idleWeight, t, 0.06);
+  });
+  remote.filter.frequency.setTargetAtTime(700 + norm * 2800 + load * 1200, t, 0.05);
+  remote.noiseGain.gain.setTargetAtTime(0.035 + norm * 0.035 + load * 0.04, t, 0.06);
+
+  const rpmLevel = 0.28 + 0.72 * Math.pow(Math.max(0, norm), 0.85);
+  const loadLevel = 0.78 + 0.22 * load;
+  let rangeFade = 1;
+  if (listenerPosition.ready) {
+    const distance = Math.hypot(
+      source.x - listenerPosition.x,
+      source.y - listenerPosition.y,
+      source.z - listenerPosition.z
+    );
+    rangeFade = Math.max(0, Math.min(1,
+      (REMOTE_SOUND_MAX_RANGE - distance) / (REMOTE_SOUND_MAX_RANGE - REMOTE_SOUND_FADE_START)
+    ));
+  }
+  remote.gain.gain.setTargetAtTime(
+    REMOTE_ENGINE_VOLUME * rpmLevel * loadLevel * rangeFade,
+    t,
+    rangeFade > 0 ? 0.06 : 0.12
+  );
+}
+
+export function stopRemoteEngine(remote) {
+  if (!remote || remote.stopped || !ctx) return;
+  remote.stopped = true;
+  const t = ctx.currentTime;
+  remote.gain.gain.cancelScheduledValues(t);
+  remote.gain.gain.setTargetAtTime(0, t, 0.05);
+  setTimeout(() => {
+    try {
+      remote.oscs.forEach(({ osc }) => osc.stop());
+      remote.noiseSrc.stop();
+      remote.panner.disconnect();
+    } catch { /* már leállt */ }
+  }, 350);
+}
+
+export function updateAudioListener(position, forward, up, velocity) {
+  const c = ensureContext();
+  if (!c) return;
+  const t = c.currentTime;
+  const p = setSpatialPosition(c.listener, position, t, 0.015);
+  listenerPosition.x = p.x;
+  listenerPosition.y = p.y;
+  listenerPosition.z = p.z;
+  listenerPosition.ready = true;
+  const v = vector3(velocity);
+  listenerVelocity.x = v.x;
+  listenerVelocity.y = v.y;
+  listenerVelocity.z = v.z;
+
+  const rawFx = Number(forward?.x ?? forward?.[0]);
+  const rawFy = Number(forward?.y ?? forward?.[1]);
+  const rawFz = Number(forward?.z ?? forward?.[2]);
+  const rawUx = Number(up?.x ?? up?.[0]);
+  const rawUy = Number(up?.y ?? up?.[1]);
+  const rawUz = Number(up?.z ?? up?.[2]);
+  const fx = Number.isFinite(rawFx) ? rawFx : 0;
+  const fy = Number.isFinite(rawFy) ? rawFy : 0;
+  const fz = Number.isFinite(rawFz) ? rawFz : -1;
+  const ux = Number.isFinite(rawUx) ? rawUx : 0;
+  const uy = Number.isFinite(rawUy) ? rawUy : 1;
+  const uz = Number.isFinite(rawUz) ? rawUz : 0;
+  const listener = c.listener;
+  if (listener.forwardX) {
+    listener.forwardX.setTargetAtTime(fx, t, 0.015);
+    listener.forwardY.setTargetAtTime(fy, t, 0.015);
+    listener.forwardZ.setTargetAtTime(fz, t, 0.015);
+    listener.upX.setTargetAtTime(ux, t, 0.015);
+    listener.upY.setTargetAtTime(uy, t, 0.015);
+    listener.upZ.setTargetAtTime(uz, t, 0.015);
+  } else {
+    listener.setOrientation(fx, fy, fz, ux, uy, uz);
+  }
+}
+
 export function setMuted(value) {
   muted = !!value;
   if (master) master.gain.value = muted ? 0 : 1;

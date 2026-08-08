@@ -65,6 +65,21 @@ export class Room {
     return this.players.size;
   }
 
+  // Minden futamhoz új rajtsorrend készül. Pontosan az első N rajthelyet
+  // osztjuk ki az N játékos között Fisher–Yates keveréssel: három indulónál
+  // tehát a 0/1/2 slot mind gazdára talál, de egyik sem kötődik a hosthoz vagy
+  // a szobába érkezés sorrendjéhez. A random paraméter csak a tesztelhetőségért
+  // injektálható; élesben a Math.random az alapértelmezett.
+  randomizeGridSlots(random = Math.random) {
+    const slots = Array.from({ length: this.players.size }, (_, index) => index);
+    for (let i = slots.length - 1; i > 0; i--) {
+      const j = Math.floor(random() * (i + 1));
+      [slots[i], slots[j]] = [slots[j], slots[i]];
+    }
+    let index = 0;
+    for (const player of this.players.values()) player.slot = slots[index++];
+  }
+
   // Szín a szoba palettájából: a szabadok közül VÉLETLENÜL választ, hogy két
   // egymás utáni verseny ne mindig ugyanabban a sorrendben osztódjon ki, de
   // egy szobán belül soha ne legyen két egyforma (a paletta pont annyi elemű,
