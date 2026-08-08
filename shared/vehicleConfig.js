@@ -169,13 +169,6 @@ export const SUSPENSION = {
 export const ASPHALT_FRICTION_SLIP = REAR_FRICTION_SLIP;
 // Rajt előtt / verseny után a kocsit helyben kell tartani, akár lejtőn is.
 export const HOLD_BRAKE = 60;
-// Billentyűzettel a fék és a kormány is digitális: az S+A/D egyszerre 100%
-// hossz- és oldalirányú tapadást kérne. A Rapier kerékmodellje ettől nagy
-// sebességnél keresztbe fordítja az autót. Egyenesben érintetlen marad a teljes
-// fékerő; teljes kormánynál a normál fék ennyire csökken. A hátsó tengelyt
-// erősebben tehermentesítjük, hogy ne ő indítsa el a kifordulást.
-export const BRAKE_TURN_FRONT_FACTOR = 2 / 3;
-export const BRAKE_TURN_REAR_FACTOR = 0.35;
 // Kifutón (fű/kavics) kevesebb erő jut a talajra és csúszósabb is.
 //
 // A három közül MESSZE a DRAG a meghatározó — mérve, teljes gázzal a fűn
@@ -351,8 +344,7 @@ export function applyControls(
   vehicle.setWheelEngineForce(2, force);
   vehicle.setWheelEngineForce(3, force);
 
-  const steerDemand = frozen ? 0 : Math.max(-1, Math.min(1, input.steer || 0));
-  const steer = steerDemand * live.MAX_STEER;
+  const steer = frozen ? 0 : Math.max(-1, Math.min(1, input.steer || 0)) * live.MAX_STEER;
   vehicle.setWheelSteering(0, steer);
   vehicle.setWheelSteering(1, steer);
 
@@ -382,14 +374,10 @@ export function applyControls(
   }
 
   const braking = !!input.brake;
-  const turnDemand = Math.abs(steerDemand);
-  const frontBrakeFactor = 1 - (1 - BRAKE_TURN_FRONT_FACTOR) * turnDemand;
-  const rearBrakeFactor = 1 - (1 - BRAKE_TURN_REAR_FACTOR) * turnDemand;
-  const frontBrake = braking ? live.BRAKE_FRONT * frontBrakeFactor : 0;
-  vehicle.setWheelBrake(0, frontBrake);
-  vehicle.setWheelBrake(1, frontBrake);
+  vehicle.setWheelBrake(0, braking ? live.BRAKE_FRONT : 0);
+  vehicle.setWheelBrake(1, braking ? live.BRAKE_FRONT : 0);
 
-  let rearBrake = braking ? live.BRAKE_REAR * rearBrakeFactor : 0;
+  let rearBrake = braking ? live.BRAKE_REAR : 0;
   if (input.handbrake) {
     // Nem összeadódik a sima fékkel: egy blokkolt kerék nem tud "még jobban"
     // blokkolni — a kettő közül a nagyobb érvényesül.
