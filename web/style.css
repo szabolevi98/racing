@@ -415,6 +415,10 @@ kbd.k {
 .lb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
 .lb-time { font-size: 11.5px; color: var(--text); }
 .lb-note { padding: 2px 5px; font-size: 11px; color: var(--muted); }
+.lb-foot {
+  margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--line);
+  font-size: 9.5px; line-height: 1.3; color: var(--muted);
+}
 
 /* --- bal lent: minitérkép ---
    Csak vékony keret, saját háttér NÉLKÜL: a canvas maga átlátszó (clearRect
@@ -648,6 +652,7 @@ kbd.k {
   .lb-pos { font-size: 9px; }
   .lb-time { font-size: 9px; }
   .lb-note { font-size: 9px; padding: 1px 4px; }
+  .lb-foot { margin-top: 5px; padding-top: 4px; font-size: 8px; }
   /* NEM fix négyzet: a canvas belső mérete pályánként más arányú (a
      buildMiniMapTrack a pálya befoglaló dobozához igazítja), és egy hosszú,
      keskeny pálya — pl. a Nürburgring GP, ahol 83x220 — négyzetbe kényszerítve

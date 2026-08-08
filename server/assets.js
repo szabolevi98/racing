@@ -46,10 +46,21 @@ async function readLicenseTitle(dir) {
   }
 }
 
+// Félretett mappák: ide lehet behúzni egy pályát/égboltot anélkül, hogy törölni
+// kellene. A `not_used` és a `_`/`.` kezdetű nevek kimaradnak a pásztázásból.
+//
+// Enélkül is kimaradna az olyan mappa, amiben nincs scene fájl (lásd
+// collectMaps), de az csak véletlen: amint valaki bedob egy .glb-t a félretett
+// mappába — vagy egy komplett, működő pályát húz oda —, azonnal megjelenne a
+// választóban. Ez a szabály teszi szándékossá a kihagyást.
+const IGNORED_DIRS = /^(not_used|[_.].*)$/i;
+
 async function listDirs(dir) {
   try {
     const entries = await fs.readdir(dir, { withFileTypes: true });
-    return entries.filter((e) => e.isDirectory()).map((e) => e.name);
+    return entries
+      .filter((e) => e.isDirectory() && !IGNORED_DIRS.test(e.name))
+      .map((e) => e.name);
   } catch {
     return [];
   }
