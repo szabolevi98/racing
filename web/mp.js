@@ -6,7 +6,6 @@
 import { C2S, S2C, ROOM_STATE, TAINT, TICK_RATE, TICK_MS, sanitizeName } from '/shared/protocol.js';
 import {
   forwardSpeed, REVERSE_BRAKE_THRESHOLD, shouldBrakeFinishedVelocity,
-  moveSteeringInput,
 } from '/shared/vehicleConfig.js';
 import { normalizeQuaternion, rotateVector, rebasePredictedState } from '/shared/prediction.js';
 
@@ -80,7 +79,6 @@ let lastQueueIssueAt = 0;
 // nem csak egy igen/nem — abból a játékos nem tudja, mit rontott el.
 let lapTainted = TAINT.NONE;
 let inputTimer = null;
-let steeringInput = 0;
 // A RACE_END után true: a frame() innentől nem írja felül a HUD-ot a
 // kör/játékos szöveggel, különben a showResults() eredménylistája egyetlen
 // képkockányi ideig látszana csak, mielőtt a következő frame() lenullázná.
@@ -1442,7 +1440,6 @@ function startInputLoop() {
   // Új verseny: a sorszámozás és az előzmény is nulláról indul, különben a
   // szerver (ami szintén 0-ról kezd) a régi, magas sorszámokat látná.
   inputSeq = 0;
-  steeringInput = 0;
   ackedSeq = 0;
   inputHistory.length = 0;
   predictionHistory.length = 0;
@@ -1501,19 +1498,15 @@ function sendOneInput(scheduledAt) {
   const brake = backwardHeld && fwdSpeed > REVERSE_BRAKE_THRESHOLD;
   const finishedBraking = !controlsEnabled && shouldBrakeFinishedVelocity(v[0], v[2]);
   const shouldSend = !raceEnded;
-  const steeringTarget = controlsEnabled && (k['KeyA'] || k['ArrowLeft'])
-    ? 1
-    : controlsEnabled && (k['KeyD'] || k['ArrowRight']) ? -1 : 0;
-  steeringInput = controlsEnabled
-    ? moveSteeringInput(steeringInput, steeringTarget, 1 / TICK_RATE)
-    : 0;
   const input = {
     seq: shouldSend ? ++inputSeq : inputSeq,
     // Csak helyi metaadat: ebből tudjuk, melyik időpontra kell tenni a távoli
     // autók fizikai proxyját.
     at: serverNow(),
     frozen: isFrozen(),
-    steer: steeringInput,
+    steer: controlsEnabled && (k['KeyA'] || k['ArrowLeft'])
+      ? 1
+      : controlsEnabled && (k['KeyD'] || k['ArrowRight']) ? -1 : 0,
     throttle: controlsEnabled && (k['KeyW'] || k['ArrowUp']) ? 1 : (backwardHeld && !brake) ? -1 : 0,
     brake: controlsEnabled ? brake : finishedBraking,
     handbrake: controlsEnabled && !!k['Space'],
@@ -1546,7 +1539,6 @@ function sendOneInput(scheduledAt) {
 function stopInputLoop() {
   if (inputTimer) clearTimeout(inputTimer);
   inputTimer = null;
-  steeringInput = 0;
 }
 
 function showResults(results) {

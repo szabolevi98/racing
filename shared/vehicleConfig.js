@@ -18,8 +18,6 @@ export {
   MAX_ENGINE_FORCE, REVERSE_FACTOR, MAX_STEER,
   BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_FORCE, HANDBRAKE_REAR_SLIP,
   FRONT_FRICTION_SLIP, REAR_FRICTION_SLIP,
-  FRONT_SIDE_FRICTION_STIFFNESS, REAR_SIDE_FRICTION_STIFFNESS,
-  SUSPENSION_REST_LENGTH, AERO_DOWNFORCE_COEFFICIENT, AERO_DRAG_COEFFICIENT,
   LINEAR_DAMPING, ANGULAR_DAMPING,
 } from './vehicleTunables.js';
 // Ugyanezek importként is kellenek: az `export ... from` csak TOVÁBBADJA a
@@ -30,8 +28,6 @@ import {
   MAX_ENGINE_FORCE, REVERSE_FACTOR, MAX_STEER,
   BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_FORCE, HANDBRAKE_REAR_SLIP,
   FRONT_FRICTION_SLIP, REAR_FRICTION_SLIP,
-  FRONT_SIDE_FRICTION_STIFFNESS, REAR_SIDE_FRICTION_STIFFNESS,
-  SUSPENSION_REST_LENGTH, AERO_DOWNFORCE_COEFFICIENT, AERO_DRAG_COEFFICIENT,
   SUSPENSION_STIFFNESS, SUSPENSION_COMPRESSION, SUSPENSION_RELAXATION, SUSPENSION_MAX_TRAVEL,
   LINEAR_DAMPING, ANGULAR_DAMPING,
 } from './vehicleTunables.js';
@@ -148,6 +144,7 @@ export function applyChassisMassProperties(collider, body) {
 }
 
 export const WHEEL_RADIUS = 0.35;
+export const SUSPENSION_REST_LENGTH = 0.3;
 
 // index: 0 = első bal, 1 = első jobb, 2 = hátsó bal, 3 = hátsó jobb.
 // A +Z az autó eleje. A hajtás a hátsó (2,3), a kormányzás az első (0,1).
@@ -193,12 +190,12 @@ export const OFFTRACK_FORCE_FACTOR = 0.75;
 export const OFFTRACK_DRAG = 0.997;
 
 // ---------- Csúcssebesség-plafon ----------
-// Ez VALÓDI, aktív korlát, nem csak vészfék a szélsőségekre: a v²-es
-// aerodinamikai légellenállással együtt is ~516 km/h lenne a sík talajon mért
-// természetes végsebesség, a 378-as plafont pedig ~20 mp alatt éri el. Az aero
-// dragot szándékosan nem emeljük addig, hogy egyedül adja ki a plafont, mert az
-// a teljes 200–378 km/h gyorsulási tartományt is indokolatlanul eltompítaná.
-// A szabály szerinti plafon ezt vágja vissza, és mellékesen a
+// Ez VALÓDI, aktív korlát, nem csak vészfék a szélsőségekre: mérve, sík
+// talajon, teljes gázzal a kocsi magától ~633 km/h-ig gyorsul (a plafont
+// ~19 mp folyamatos gáz után éri el). Az ok, hogy a LINEAR_DAMPING
+// sebességARÁNYOS, a valódi légellenállás viszont a sebesség NÉGYZETÉvel nő —
+// a csillapítás ezért nagy sebességen messze alulfékez, és a végsebesség
+// irreálisan magasra szalad. A plafon ezt vágja vissza, és mellékesen a
 // hosszú lejtőn/ütközés lökésétől elszaladó kocsit is megfogja.
 //
 // Ez NEM hangolható a dev panelről (nincs hozzá csúszka), ezért nem is a
@@ -251,7 +248,6 @@ const live = {
   MAX_ENGINE_FORCE, REVERSE_FACTOR, MAX_STEER,
   BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_FORCE, HANDBRAKE_REAR_SLIP,
   FRONT_FRICTION_SLIP, REAR_FRICTION_SLIP,
-  AERO_DOWNFORCE_COEFFICIENT, AERO_DRAG_COEFFICIENT,
 };
 const LIVE_DEFAULTS = { ...live };
 
@@ -301,65 +297,9 @@ export function buildVehicle(RAPIER, world, position = { x: 0, y: 5, z: 0 }) {
     vehicle.setWheelMaxSuspensionTravel(i, SUSPENSION.maxTravel);
     vehicle.setWheelMaxSuspensionForce(i, SUSPENSION.maxForce);
     vehicle.setWheelFrictionSlip(i, i < 2 ? FRONT_FRICTION_SLIP : REAR_FRICTION_SLIP);
-    vehicle.setWheelSideFrictionStiffness(
-      i,
-      i < 2 ? FRONT_SIDE_FRICTION_STIFFNESS : REAR_SIDE_FRICTION_STIFFNESS
-    );
   });
 
   return { body, collider, vehicle };
-}
-
-// A leszorítóerő és a légellenállás valódi, v²-tel arányos erőként
-// hat. Nem forgatjuk vissza a kasztnit, nem módosítjuk közvetlenül a yaw-t,
-// és a féket sem engedjük fel a játékos helyett. Az impulzus az adott fix
-// fizikai lépés alatt integrált erő (F * dt); így nem marad felhalmozódó
-// Rapier-erő a testen a következő tickre.
-export function applyAerodynamics(body, vehicle, dt) {
-  const v = body.linvel();
-  const speedSq = v.x * v.x + v.z * v.z;
-  if (!(speedSq > 0.01) || !(dt > 0)) return;
-
-  const speed = Math.sqrt(speedSq);
-  const dragImpulse = live.AERO_DRAG_COEFFICIENT * speedSq * dt;
-  let impulseX = -(v.x / speed) * dragImpulse;
-  let impulseY = 0;
-  let impulseZ = -(v.z / speed) * dragImpulse;
-
-  // A nagy leszorítóerő jelentős része ground effect: legalább két kerék
-  // talajkapcsolata kell hozzá. Ugratásnál vagy fejjel lefelé nem szögezzük
-  // mesterségesen az autót a pályához.
-  let contacts = 0;
-  for (let i = 0; i < 4; i++) if (vehicle.wheelIsInContact(i)) contacts++;
-  if (contacts >= 2) {
-    const q = body.rotation();
-    // A kasztni lokális +Y tengelye világkoordinátában; ennek ellentéte a
-    // leszorítás iránya, ezért döntött/bankolt pályán is helyesen hat.
-    const upX = 2 * (q.x * q.y - q.w * q.z);
-    const upY = 1 - 2 * (q.x * q.x + q.z * q.z);
-    const upZ = 2 * (q.y * q.z + q.w * q.x);
-    const downforceImpulse = live.AERO_DOWNFORCE_COEFFICIENT * speedSq * dt;
-    impulseX -= upX * downforceImpulse;
-    impulseY -= upY * downforceImpulse;
-    impulseZ -= upZ * downforceImpulse;
-  }
-
-  body.applyImpulse({ x: impulseX, y: impulseY, z: impulseZ }, true);
-}
-
-// A billentyű/touch gomb nem tud analóg kormányszöget adni. A normalizált
-// bemenet ezért véges sebességgel mozog a cél felé: egy rövid koppintás kis
-// kormánymozdulat, a hosszan tartott gomb viszont továbbra is eléri a teljes
-// kormányzást. Ez inputmodell, nem stabilitássegéd.
-export const STEERING_INPUT_RATE = 2.6;
-export function moveSteeringInput(current, target, dt) {
-  const safeCurrent = Math.max(-1, Math.min(1, Number(current) || 0));
-  const safeTarget = Math.max(-1, Math.min(1, Number(target) || 0));
-  const maxDelta = STEERING_INPUT_RATE * Math.max(0, Number(dt) || 0);
-  const diff = safeTarget - safeCurrent;
-  return Math.abs(diff) <= maxDelta
-    ? safeTarget
-    : safeCurrent + Math.sign(diff) * maxDelta;
 }
 
 // Egy képkockányi vezérlés alkalmazása. A bemenet normalizált:
