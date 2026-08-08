@@ -322,10 +322,13 @@ export function applyControls(
                  + (wheelsOff[2] ? 1 : 0) + (wheelsOff[3] ? 1 : 0);
   const offFrac = offCount / 4;
 
-  // Kifutón az első/hátsó arány is ugyanúgy megmarad, csak lejjebb tolva.
-  const frontRatio = live.FRONT_FRICTION_SLIP / live.REAR_FRICTION_SLIP;
-  const slipOf = (i) =>
-    (wheelsOff[i] ? OFFTRACK_FRICTION_SLIP : live.REAR_FRICTION_SLIP) * (i < 2 ? frontRatio : 1);
+  // Aszfalton az első és hátsó gumi saját hangolt értéket kap. Kifutón
+  // viszont mindegyik kerék ugyanarra a külön OFFTRACK értékre vált: a
+  // hátsó aszfalttapadás emelése ne gyengítse mellékesen az első kereket
+  // füvön/kavicson az első-hátsó arány továbbvitelével.
+  const slipOf = (i) => wheelsOff[i]
+    ? OFFTRACK_FRICTION_SLIP
+    : (i < 2 ? live.FRONT_FRICTION_SLIP : live.REAR_FRICTION_SLIP);
   for (let i = 0; i < 4; i++) vehicle.setWheelFrictionSlip(i, slipOf(i));
   // A kézifékhez a HÁTSÓ tengely tapadása a viszonyítás (lásd lentebb).
   const slip = Math.min(slipOf(2), slipOf(3));
