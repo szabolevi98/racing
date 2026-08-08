@@ -197,7 +197,10 @@ $('mpJoin').addEventListener('click', () => {
 });
 $('mpCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('mpJoin').click(); });
 
-$('mpStart').addEventListener('click', () => send(C2S.START_RACE));
+$('mpStart').addEventListener('click', () => {
+  G.requestGameFullscreen();
+  send(C2S.START_RACE);
+});
 $('mpLeave').addEventListener('click', () => {
   send(C2S.LEAVE_ROOM);
   clearOtherCars();
@@ -1488,14 +1491,18 @@ function startInputLoop() {
 function sendOneInput(scheduledAt) {
   const k = G.keys;
   const controlsEnabled = !finishedDriving && !raceEnded;
-  const backwardHeld = controlsEnabled && !!(k['KeyS'] || k['ArrowDown']);
+  const axes = G.getDriveAxes();
+  const pedal = controlsEnabled ? axes.pedal : 0;
+  const backwardAmount = Math.max(0, -pedal);
+  const backwardHeld = backwardAmount > 0;
   // Ugyanaz a "S/le nyíl fékezzen, amíg még előre gördül" logika, mint az
   // egyjátékos updateControls()-ban (web/main.js) — különben itt, a
   // multiplayer bemenetben az S megint csak a gyenge motor-fékezést adná,
   // ugyanaz a hiba térne vissza hálózaton.
   const { q, v } = G.getCarState();
   const fwdSpeed = forwardSpeed(q[0], q[1], q[2], q[3], v[0], v[1], v[2]);
-  const brake = backwardHeld && fwdSpeed > REVERSE_BRAKE_THRESHOLD;
+  const brake = backwardHeld && fwdSpeed > REVERSE_BRAKE_THRESHOLD ? backwardAmount : 0;
+  const reverseAmount = backwardHeld && !brake ? backwardAmount : 0;
   const finishedBraking = !controlsEnabled && shouldBrakeFinishedVelocity(v[0], v[2]);
   const shouldSend = !raceEnded;
   const input = {
@@ -1504,10 +1511,8 @@ function sendOneInput(scheduledAt) {
     // autók fizikai proxyját.
     at: serverNow(),
     frozen: isFrozen(),
-    steer: controlsEnabled && (k['KeyA'] || k['ArrowLeft'])
-      ? 1
-      : controlsEnabled && (k['KeyD'] || k['ArrowRight']) ? -1 : 0,
-    throttle: controlsEnabled && (k['KeyW'] || k['ArrowUp']) ? 1 : (backwardHeld && !brake) ? -1 : 0,
+    steer: controlsEnabled ? axes.steer : 0,
+    throttle: Math.max(0, pedal) || -reverseAmount,
     brake: controlsEnabled ? brake : finishedBraking,
     handbrake: controlsEnabled && !!k['Space'],
   };
@@ -1596,6 +1601,7 @@ function hideMultiplayerResults() {
 
 $('mpResultsRestart').addEventListener('click', () => {
   if (!currentRaceResults || room?.hostId !== me.id) return;
+  G.requestGameFullscreen();
   const button = $('mpResultsRestart');
   button.disabled = true;
   button.textContent = 'Indítás…';

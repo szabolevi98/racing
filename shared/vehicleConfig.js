@@ -303,7 +303,9 @@ export function buildVehicle(RAPIER, world, position = { x: 0, y: 5, z: 0 }) {
 }
 
 // Egy képkockányi vezérlés alkalmazása. A bemenet normalizált:
-//   throttle: -1..1 (negatív = hátramenet), steer: -1..1, brake/hold: bool
+//   throttle: -1..1 (negatív = hátramenet), steer: -1..1, brake: 0..1
+// A `true` fék továbbra is 1-nek számít, így a billentyűzet és a régebbi
+// kliensek változatlanul teljes fékerőt kapnak.
 //
 // A kifutó-büntetés KEREKENKÉNT megy: az `offtrackWheels` egy 4 elemű tömb
 // (WHEEL_POSITIONS sorrend), amit a shared/zone.js wheelsOffTrack() ad. Csak
@@ -376,11 +378,11 @@ export function applyControls(
     return;
   }
 
-  const braking = !!input.brake;
-  vehicle.setWheelBrake(0, braking ? live.BRAKE_FRONT : 0);
-  vehicle.setWheelBrake(1, braking ? live.BRAKE_FRONT : 0);
+  const brakeAmount = Math.max(0, Math.min(1, Number(input.brake) || 0));
+  vehicle.setWheelBrake(0, live.BRAKE_FRONT * brakeAmount);
+  vehicle.setWheelBrake(1, live.BRAKE_FRONT * brakeAmount);
 
-  let rearBrake = braking ? live.BRAKE_REAR : 0;
+  let rearBrake = live.BRAKE_REAR * brakeAmount;
   if (input.handbrake) {
     // Nem összeadódik a sima fékkel: egy blokkolt kerék nem tud "még jobban"
     // blokkolni — a kettő közül a nagyobb érvényesül.

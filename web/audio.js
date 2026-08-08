@@ -16,6 +16,7 @@ let ctx = null;
 let master = null;
 
 let muted = false;
+let volume = 1;
 
 function ensureContext() {
   if (!ctx) {
@@ -23,7 +24,7 @@ function ensureContext() {
     if (!Ctor) return null;          // nagyon régi böngésző: némán hang nélkül megy
     ctx = new Ctor();
     master = ctx.createGain();
-    master.gain.value = muted ? 0 : 1;
+    master.gain.value = muted ? 0 : volume;
     // Biztonsági limiter a kimeneten. A motorhang hét harmonikusa és a
     // zajréteg ÖSSZEADÓDIK, és ha közben egy visszaszámláló bip is megszólal,
     // a csúcs kimehet 1.0 fölé — ott a hangkártya vágná, ami reccsen. Magas
@@ -674,12 +675,23 @@ export function updateAudioListener(position, forward, up, velocity) {
 
 export function setMuted(value) {
   muted = !!value;
-  if (master) master.gain.value = muted ? 0 : 1;
+  if (master) master.gain.value = muted ? 0 : volume;
   return muted;
 }
 
 export function isMuted() {
   return muted;
+}
+
+export function setVolume(value) {
+  const numeric = Number(value);
+  volume = Number.isFinite(numeric) ? Math.max(0, Math.min(1, numeric)) : 1;
+  if (master && !muted) master.gain.value = volume;
+  return volume;
+}
+
+export function getVolume() {
+  return volume;
 }
 
 // Az első felhasználói gesztusnál érdemes már felépíteni a hang-láncot, hogy a

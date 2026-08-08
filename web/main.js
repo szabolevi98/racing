@@ -11,8 +11,9 @@ import {
   forwardSpeed, REVERSE_BRAKE_THRESHOLD, applySpeedCap, settleFinishedBody,
 } from '/shared/vehicleConfig.js';
 import { TAINT, requiredCheckpoints } from '/shared/protocol.js';
+import { classifyPing } from '/shared/ping.js';
 import {
-  countdownBeep, startBeep, setMuted, isMuted, primeOnFirstGesture,
+  countdownBeep, startBeep, setMuted, isMuted, setVolume, getVolume, primeOnFirstGesture,
   startEngine, stopEngine, updateEngine,
   createRemoteEngine, updateRemoteEngine, stopRemoteEngine, updateAudioListener,
 } from './audio.js';
@@ -106,6 +107,8 @@ const pingValueEl = document.getElementById('pingValue');
 const fpsValueEl = document.getElementById('fpsValue');
 const rolloverAlertEl = document.getElementById('rolloverAlert');
 const rolloverAlertTextEl = document.getElementById('rolloverAlertText');
+const highPingAlertEl = document.getElementById('highPingAlert');
+const highPingAlertTextEl = document.getElementById('highPingAlertText');
 const lapInvalidAlertEl = document.getElementById('lapInvalidAlert');
 const lapInvalidAlertTextEl = document.getElementById('lapInvalidAlertText');
 const lapCountSelect = document.getElementById('lapCountSelect');
@@ -115,6 +118,8 @@ const standingsEl = document.getElementById('standings');
 const standingsWrapEl = document.getElementById('standingsWrap');
 const helpBtn = document.getElementById('helpBtn');
 const helpPanelEl = document.getElementById('helpPanel');
+const volumeSliderEl = document.getElementById('volumeSlider');
+const volumeValueEl = document.getElementById('volumeValue');
 const countdownEl = document.getElementById('countdown');
 const resultsEl = document.getElementById('results');
 const resultsBodyEl = document.getElementById('resultsBody');
@@ -2364,6 +2369,9 @@ const keys = {};
 const keyboardKeys = new Set();
 const touchKeyCounts = new Map();
 const touchPointers = new Map();
+const touchAxes = { steer: 0, pedal: 0 };
+const joystickStates = new Map();
+const JOYSTICK_DEADZONE = 0.1;
 
 function refreshControlKey(code) {
   keys[code] = keyboardKeys.has(code) || (touchKeyCounts.get(code) || 0) > 0;
@@ -2395,18 +2403,114 @@ function clearTouchInputs() {
   touchPointers.clear();
   touchKeyCounts.clear();
   for (const code of codes) refreshControlKey(code);
+
+  for (const [joystick, state] of joystickStates) {
+    state.pointerId = null;
+    state.knob.style.transform = 'translate3d(-50%, -50%, 0)';
+    joystick.classList.remove('is-active');
+    joystick.setAttribute('aria-valuenow', '0');
+  }
+  touchAxes.steer = 0;
+  touchAxes.pedal = 0;
 }
 
 function setTouchControlsEnabled(enabled) {
   touchControlsEl.classList.toggle('is-disabled', !enabled);
-  touchControlsEl.querySelectorAll('button').forEach((button) => { button.disabled = !enabled; });
+  touchControlsEl.querySelectorAll('[data-touch-joystick]').forEach((joystick) => {
+    joystick.setAttribute('aria-disabled', String(!enabled));
+  });
+  touchControlsEl.querySelectorAll('button').forEach((button) => {
+    button.disabled = !enabled && button.dataset.touchAction !== 'mute';
+  });
   if (!enabled) clearTouchInputs();
 }
 
-// Pointer Events kell a sima touch események helyett: így két külön ujj
-// egyszerre maradhat lenyomva (például GÁZ + BALRA), és mindkettő saját
-// pointer capture-t kap. A billentyűzet és az érintés ugyanabba a `keys`
-// állapotba fut össze, ezért az egy- és többjátékos vezérlése ugyanaz marad.
+function normalizeJoystickAxis(raw) {
+  const value = Math.max(-1, Math.min(1, raw));
+  const magnitude = Math.abs(value);
+  if (magnitude <= JOYSTICK_DEADZONE) return 0;
+  return Math.sign(value) * (magnitude - JOYSTICK_DEADZONE) / (1 - JOYSTICK_DEADZONE);
+}
+
+function updateJoystickFromPointer(joystick, state, event) {
+  const rect = joystick.getBoundingClientRect();
+  const radius = rect.width / 2;
+  const knobRadius = state.knob.getBoundingClientRect().width / 2;
+  const travel = Math.max(0, radius - knobRadius - 7);
+  const centerX = rect.left + radius;
+  const centerY = rect.top + radius;
+
+  // A kör alakú karok szándékosan egytengelyesek: a kormány csak vízszintesen,
+  // a pedál csak függőlegesen mozog. Így az ujj oldalirányú sodródása nem vesz
+  // el gázt, a függőleges sodródás pedig nem rángatja meg a kormányt.
+  const raw = state.axis === 'x'
+    ? (event.clientX - centerX) / radius
+    : (centerY - event.clientY) / radius;
+  const clamped = Math.max(-1, Math.min(1, raw));
+  const value = normalizeJoystickAxis(clamped);
+  touchAxes[state.output] = state.invert ? -value : value;
+
+  const offset = clamped * travel;
+  const x = state.axis === 'x' ? offset : 0;
+  const y = state.axis === 'y' ? -offset : 0;
+  state.knob.style.transform = `translate3d(calc(-50% + ${x}px), calc(-50% + ${y}px), 0)`;
+  joystick.classList.toggle('is-active', Math.abs(value) > 0);
+  joystick.setAttribute('aria-valuenow', String(Math.round(touchAxes[state.output] * 100)));
+}
+
+touchControlsEl.querySelectorAll('[data-touch-joystick]').forEach((joystick) => {
+  const kind = joystick.dataset.touchJoystick;
+  const state = {
+    pointerId: null,
+    knob: joystick.querySelector('.joystick-knob'),
+    axis: kind === 'steer' ? 'x' : 'y',
+    output: kind,
+    // A fizika előjel-konvenciója szerint +1 a balra kormányzás.
+    invert: kind === 'steer',
+  };
+  joystickStates.set(joystick, state);
+
+  joystick.addEventListener('pointerdown', (event) => {
+    if (touchControlsEl.classList.contains('is-disabled') || state.pointerId !== null) return;
+    event.preventDefault();
+    state.pointerId = event.pointerId;
+    updateJoystickFromPointer(joystick, state, event);
+    try { joystick.setPointerCapture(event.pointerId); } catch { /* pointer már megszűnt */ }
+  });
+  joystick.addEventListener('pointermove', (event) => {
+    if (state.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    updateJoystickFromPointer(joystick, state, event);
+  });
+  const release = (event) => {
+    if (state.pointerId !== event.pointerId) return;
+    state.pointerId = null;
+    touchAxes[state.output] = 0;
+    state.knob.style.transform = 'translate3d(-50%, -50%, 0)';
+    joystick.classList.remove('is-active');
+    joystick.setAttribute('aria-valuenow', '0');
+  };
+  joystick.addEventListener('pointerup', release);
+  joystick.addEventListener('pointercancel', release);
+  joystick.addEventListener('lostpointercapture', release);
+  joystick.addEventListener('contextmenu', (event) => event.preventDefault());
+});
+
+function getDriveAxes() {
+  const keyboardSteer = (keys['KeyA'] || keys['ArrowLeft'])
+    ? 1
+    : (keys['KeyD'] || keys['ArrowRight']) ? -1 : null;
+  const keyboardPedal = (keys['KeyW'] || keys['ArrowUp'])
+    ? 1
+    : (keys['KeyS'] || keys['ArrowDown']) ? -1 : null;
+  return {
+    steer: keyboardSteer ?? touchAxes.steer,
+    pedal: keyboardPedal ?? touchAxes.pedal,
+  };
+}
+
+// A megmaradt digitális touch gomb (kézifék) ugyanabba a `keys` állapotba fut,
+// mint a billentyűzet. A két analóg joystick külön tengelyértéket tart fenn.
 touchControlsEl.querySelectorAll('[data-touch-key]').forEach((button) => {
   const code = button.dataset.touchKey;
   button.addEventListener('pointerdown', (event) => {
@@ -2429,6 +2533,39 @@ touchControlsEl.querySelector('[data-touch-action="camera"]').addEventListener('
   event.preventDefault();
   if (appState === 'driving' || appState === 'mp') cycleCameraView();
 });
+const touchMuteBtn = touchControlsEl.querySelector('[data-touch-action="mute"]');
+
+function syncTouchMuteButton() {
+  const muted = isMuted();
+  touchMuteBtn.textContent = muted ? '🔇' : '🔊';
+  touchMuteBtn.classList.toggle('is-muted', muted);
+  touchMuteBtn.setAttribute('aria-label', muted ? 'Hang bekapcsolása' : 'Némítás');
+  touchMuteBtn.title = muted ? 'Hang bekapcsolása' : 'Némítás';
+}
+
+function syncVolumeControl() {
+  const percent = Math.round(getVolume() * 100);
+  volumeSliderEl.value = String(percent);
+  volumeValueEl.value = `${percent}%`;
+  volumeValueEl.textContent = `${percent}%`;
+}
+
+function toggleMuted() {
+  saveLastChoice('muted', setMuted(!isMuted()) ? '1' : '0');
+  syncTouchMuteButton();
+}
+
+touchMuteBtn.addEventListener('pointerdown', (event) => {
+  event.preventDefault();
+  toggleMuted();
+});
+volumeSliderEl.addEventListener('input', () => {
+  const volume = setVolume(Number(volumeSliderEl.value) / 100);
+  saveLastChoice('volume', String(volume));
+  saveLastChoice('muted', setMuted(volume === 0) ? '1' : '0');
+  syncVolumeControl();
+  syncTouchMuteButton();
+});
 touchControlsEl.querySelector('[data-touch-action="reset"]').addEventListener('pointerdown', (event) => {
   event.preventDefault();
   if (appState === 'driving') resetSinglePlayerCar();
@@ -2438,10 +2575,14 @@ touchControlsEl.querySelector('[data-touch-action="reset"]').addEventListener('p
 window.addEventListener('blur', () => {
   keyboardKeys.clear();
   clearTouchInputs();
+  resetManualOrbit();
   for (const code of Object.keys(keys)) refreshControlKey(code);
 });
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) clearTouchInputs();
+  if (document.hidden) {
+    clearTouchInputs();
+    resetManualOrbit();
+  }
 });
 
 // A kameranézet váltása egyszeri esemény, nem folytatólagos állapot (mint a
@@ -2462,7 +2603,7 @@ window.addEventListener('keydown', (e) => {
   // Gépelés közben (pl. a multiplayer névmezőjében) az M betű maradjon betű.
   const el = document.activeElement;
   if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
-  saveLastChoice('muted', setMuted(!isMuted()) ? '1' : '0');
+  toggleMuted();
 });
 
 // A LÁTHATÓ kerék-kormányzás simán közelít a célértékhez, nem ugrik rá
@@ -2498,10 +2639,12 @@ function updateControls(dt = 1 / 60) {
   // Visszaszámlálás alatt és a verseny után nincs gáz/kormány — a kocsi
   // a helyén marad, hogy ne lehessen elrajtolni a "rajt" előtt.
   const frozen = race.active && (race.phase === 'countdown' || race.phase === 'finished');
-  const forward = !frozen && (keys['KeyW'] || keys['ArrowUp']);
-  const backwardHeld = !frozen && (keys['KeyS'] || keys['ArrowDown']);
-  const left = !frozen && (keys['KeyA'] || keys['ArrowLeft']);
-  const right = !frozen && (keys['KeyD'] || keys['ArrowRight']);
+  const driveAxes = getDriveAxes();
+  const pedal = frozen ? 0 : driveAxes.pedal;
+  const steer = frozen ? 0 : driveAxes.steer;
+  const forwardAmount = Math.max(0, pedal);
+  const backwardAmount = Math.max(0, -pedal);
+  const backwardHeld = backwardAmount > 0;
 
   // Amíg még előre gördül a kocsi, az S/le nyíl FÉKEZZEN (a valódi wheelBrake
   // mechanikával), ne a REVERSE_FACTOR-ral szorzott, sokkal gyengébb
@@ -2512,8 +2655,8 @@ function updateControls(dt = 1 / 60) {
   const q0 = chassisBody.rotation();
   const v0 = chassisBody.linvel();
   const fwdSpeed = forwardSpeed(q0.x, q0.y, q0.z, q0.w, v0.x, v0.y, v0.z);
-  const brake = backwardHeld && fwdSpeed > REVERSE_BRAKE_THRESHOLD;
-  const backward = backwardHeld && !brake;
+  const brake = backwardHeld && fwdSpeed > REVERSE_BRAKE_THRESHOLD ? backwardAmount : 0;
+  const reverseAmount = backwardHeld && !brake ? backwardAmount : 0;
   // A Space innentől KÉZIFÉK (csak hátsó kerék + kitörő hátulja), nem a sima
   // fék — a kettő szétválasztásáról lásd shared/vehicleConfig.js applyControls.
   const handbrake = !frozen && !!keys['Space'];
@@ -2527,7 +2670,7 @@ function updateControls(dt = 1 / 60) {
   // A motorhang a sebességből és a gázállásból él. A visszaszámlálás alatt a
   // kocsi be van fagyasztva (frozen), de a motor JÁR — ezért a gázt nem a
   // befagyasztott `forward`-ból vesszük: a rajt előtti gázadás hallatszódjon.
-  updateEngine(speedKmh, (keys['KeyW'] || keys['ArrowUp']) ? 1 : 0, dt);
+  updateEngine(speedKmh, Math.max(0, driveAxes.pedal), dt);
   // A tényleges vezérlés a KÖZÖS applyControls()-ban van — ugyanaz a kód fut
   // itt és a szerveren. A billentyűket normalizált bemenetté fordítjuk, pont
   // olyanná, amilyet a mp.js is küld a hálózaton.
@@ -2535,8 +2678,8 @@ function updateControls(dt = 1 / 60) {
     vehicle,
     chassisBody,
     {
-      throttle: forward ? 1 : backward ? -1 : 0,
-      steer: left ? 1 : right ? -1 : 0,
+      throttle: forwardAmount || -reverseAmount,
+      steer,
       brake,
       handbrake,
     },
@@ -2593,13 +2736,22 @@ function cycleCameraView() {
   saveLastChoice('camera', CAMERA_VIEWS[cameraViewIndex].id);
 }
 
-// Jobb-klikkel körbenézés: csak nyomva tartás alatt forgatja el a kamerát
-// a kocsihoz képest, elengedéskor animálva (nem azonnal) áll vissza az alap nézetbe.
+// Jobb-klikkel, illetve mobilon az üres játéktéren húzva lehet körbenézni.
+// Csak nyomva tartás alatt forgatja el a kamerát; elengedéskor animálva
+// (nem egyetlen képkockán) áll vissza az alap nézetbe.
 let manualOrbitActive = false;
 let orbitYaw = 0;
 let orbitPitch = 0;
 let lastMouseX = 0;
 let lastMouseY = 0;
+let touchOrbitPointerId = null;
+
+function resetManualOrbit() {
+  manualOrbitActive = false;
+  touchOrbitPointerId = null;
+  orbitYaw = 0;
+  orbitPitch = 0;
+}
 
 renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
 renderer.domElement.addEventListener('mousedown', (e) => {
@@ -2622,11 +2774,36 @@ window.addEventListener('mousemove', (e) => {
 });
 window.addEventListener('mouseup', (e) => {
   if (e.button === 2 && manualOrbitActive) {
-    manualOrbitActive = false;
-    orbitYaw = 0;
-    orbitPitch = 0;
+    resetManualOrbit();
   }
 });
+
+renderer.domElement.addEventListener('pointerdown', (event) => {
+  if (event.pointerType !== 'touch' || touchOrbitPointerId !== null) return;
+  if (appState !== 'driving' && appState !== 'mp') return;
+  event.preventDefault();
+  touchOrbitPointerId = event.pointerId;
+  manualOrbitActive = true;
+  lastMouseX = event.clientX;
+  lastMouseY = event.clientY;
+  try { renderer.domElement.setPointerCapture(event.pointerId); } catch { /* pointer már megszűnt */ }
+});
+renderer.domElement.addEventListener('pointermove', (event) => {
+  if (event.pointerId !== touchOrbitPointerId) return;
+  event.preventDefault();
+  const dx = event.clientX - lastMouseX;
+  const dy = event.clientY - lastMouseY;
+  lastMouseX = event.clientX;
+  lastMouseY = event.clientY;
+  orbitYaw -= dx * 0.006;
+  orbitPitch = Math.max(-0.8, Math.min(0.8, orbitPitch - dy * 0.006));
+});
+const releaseTouchOrbit = (event) => {
+  if (event.pointerId === touchOrbitPointerId) resetManualOrbit();
+};
+renderer.domElement.addEventListener('pointerup', releaseTouchOrbit);
+renderer.domElement.addEventListener('pointercancel', releaseTouchOrbit);
+renderer.domElement.addEventListener('lostpointercapture', releaseTouchOrbit);
 
 function updateChaseCamera(dt = 1 / 60) {
   applyCameraViewVisibility();
@@ -2707,6 +2884,53 @@ function updateShowcaseCamera(dt) {
 // ---------- Állapotgép: 'menu' (kirakat) vagy 'driving' (vezetés) ----------
 let appState = 'menu';
 
+// A Fullscreen API csak felhasználói gesztusból garantált, ezért a verseny
+// indítógombjánál azonnal kérjük. Multiplayer vendégnél a rajt szerverüzenetre
+// történik; ott az első játékbeli érintés a tartalék aktiválási pont.
+const mobilePointerQuery = window.matchMedia('(hover: none) and (pointer: coarse)');
+let gameFullscreenWanted = false;
+
+function activeFullscreenElement() {
+  return document.fullscreenElement || document.webkitFullscreenElement || null;
+}
+
+function requestGameFullscreen() {
+  gameFullscreenWanted = true;
+  if (!mobilePointerQuery.matches || activeFullscreenElement()) return;
+
+  try {
+    let request;
+    if (document.documentElement.requestFullscreen) {
+      request = document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+    } else if (document.documentElement.webkitRequestFullscreen) {
+      request = document.documentElement.webkitRequestFullscreen();
+    }
+    request?.catch?.(() => {});
+  } catch {
+    // Néhány mobilböngésző csak a következő közvetlen érintésből engedi.
+  }
+}
+
+function leaveGameFullscreen() {
+  gameFullscreenWanted = false;
+  if (!activeFullscreenElement()) return;
+
+  try {
+    const exit = document.exitFullscreen
+      ? document.exitFullscreen()
+      : document.webkitExitFullscreen?.();
+    exit?.catch?.(() => {});
+  } catch {
+    // A böngésző saját kilépése mellett nincs további teendő.
+  }
+}
+
+window.addEventListener('pointerdown', () => {
+  if (gameFullscreenWanted && (appState === 'driving' || appState === 'mp')) {
+    requestGameFullscreen();
+  }
+}, { capture: true });
+
 // A multiplayer modul ide akasztja be a távoli kocsik eltakarítását. Azért
 // ITT, az enterMenu()-ben hívjuk, mert ez az EGYETLEN út vissza a menübe —
 // a verseny végi "Menü" gomb és a leaveMultiplayer() is ezen megy át. Ha a
@@ -2723,7 +2947,9 @@ function enterMenu() {
   // A takarítás ELŐBB fut, mint az állapotváltás: így ha bármi hibázna benne,
   // az nem hagyja félúton a menübe lépést.
   multiplayerCleanupHook?.();
+  leaveGameFullscreen();
   clearTouchInputs();
+  resetManualOrbit();
   setTouchControlsEnabled(true);
   appState = 'menu';
   menuEl.classList.remove('hidden');
@@ -2751,6 +2977,7 @@ function enterMenu() {
   // tehát ami az utolsó képkockán látszott, az fagy be.
   lapInvalidAlertEl.classList.add('hidden');
   rolloverAlertEl.classList.add('hidden');
+  highPingAlertEl.classList.add('hidden');
   // A ping csak multiplayerben értelmes (nincs mihez mérni egyjátékosban) —
   // menüben mindegy, hogy áll, mert a #hud egésze el van rejtve, de a
   // konzisztencia kedvéért itt is nullázzuk.
@@ -2798,6 +3025,7 @@ function enterMenu() {
 }
 
 function enterDriving() {
+  requestGameFullscreen();
   appState = 'driving';
   setTouchControlsEnabled(true);
   menuEl.classList.add('hidden');
@@ -2971,6 +3199,7 @@ async function prepareTrackPhysics({ strict = false } = {}) {
 
 startBtn.addEventListener('click', async () => {
   if (!currentTrack || !currentTrackBox) return;
+  requestGameFullscreen();
   startBtn.disabled = true;
   setMenuStatus('Pálya fizika előkészítése...');
 
@@ -3116,7 +3345,7 @@ const DEFAULT_MAP_ID = 'hungaroring_2020_layout';
 const DEFAULT_ENV_ID = 'day_1';
 const LS_KEYS = {
   map: 'racing.lastMapId', car: 'racing.lastCarId', env: 'racing.lastEnvId',
-  camera: 'racing.lastCameraView', muted: 'racing.muted',
+  camera: 'racing.lastCameraView', muted: 'racing.muted', volume: 'racing.volume',
 };
 
 function loadLastChoice(kind, fallback) {
@@ -3297,7 +3526,10 @@ async function init() {
   const savedViewIdx = CAMERA_VIEWS.findIndex((v) => v.id === loadLastChoice('camera', CAMERA_VIEWS[0].id));
   if (savedViewIdx >= 0) cameraViewIndex = savedViewIdx;
 
+  setVolume(Number(loadLastChoice('volume', '1')));
+  syncVolumeControl();
   setMuted(loadLastChoice('muted', '0') === '1');
+  syncTouchMuteButton();
   // A hang-láncot az első kattintásnál építjük fel, nem az első bipnél: a
   // böngésző csak felhasználói gesztus után enged hangot, és a felépítés maga
   // is eltarthat pár tized másodpercig — így a legelső "3" bipje sem késik.
@@ -3649,7 +3881,7 @@ function stepMultiplayerFrame(dt) {
   // hangja a sebességével együtt cseng le.
   updateEngine(
     lastReportedSpeedKmh,
-    multiplayerControlsEnabled && (keys['KeyW'] || keys['ArrowUp']) ? 1 : 0,
+    multiplayerControlsEnabled ? Math.max(0, getDriveAxes().pedal) : 0,
     dt
   );
 
@@ -3675,6 +3907,7 @@ window.__game = {
   get currentTrack() { return currentTrack; },
   get carLoaded() { return carLoaded; },
   keys,
+  getDriveAxes,
   setCar, setTrack, prepareTrackPhysics, loadGLTF, centerCarModelOnWheels,
   createRemoteEngine, updateRemoteEngine, stopRemoteEngine,
   formatTime,
@@ -3758,6 +3991,7 @@ window.__game = {
   // Multiplayer módba váltás: a versenylogikát a szerver végzi. A helyi
   // fizikát a hálózati modul lépteti, ha a jóslás be van kapcsolva.
   enterMultiplayer(frameHook) {
+    requestGameFullscreen();
     mpFrameHook = frameHook;
     multiplayerControlsEnabled = true;
     setTouchControlsEnabled(true);
@@ -3772,11 +4006,20 @@ window.__game = {
     // Induláskor "–" (mérés alatt): az első PONG a mp.js periodikus
     // ping-küldése után érkezik, nem azonnal.
     pingValueEl.textContent = '–';
+    pingBoxEl.removeAttribute('data-quality');
+    highPingAlertEl.classList.add('hidden');
     pingBoxEl.classList.remove('hidden');
     document.activeElement?.blur();
   },
   // A mp.js hívja a periodikus PING/PONG körút mérése után.
-  setPingMs(ms) { pingValueEl.textContent = Math.round(ms); },
+  setPingMs(ms) {
+    const { value: ping, quality } = classifyPing(ms);
+    pingValueEl.textContent = ping;
+    pingBoxEl.dataset.quality = quality;
+    if (quality === 'bad') highPingAlertTextEl.textContent = `Magas ping: ${ping} ms — a kapcsolat akadozhat.`;
+    highPingAlertEl.classList.toggle('hidden', quality !== 'bad');
+  },
+  requestGameFullscreen,
   leaveMultiplayer() {
     mpFrameHook = null;
     multiplayerControlsEnabled = true;

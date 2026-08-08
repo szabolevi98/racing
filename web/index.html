@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Böngészőben játszható F1-es körverseny egy- és többjátékos móddal, több autóval és versenypályával." />
 <title>Levente Racing</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg" />
 <link href="vendor/bootstrap.min.css" rel="stylesheet">
@@ -18,6 +19,11 @@
     </div>
     <div id="loadingPct" class="small text-secondary mt-2">0%</div>
   </div>
+</div>
+
+<div id="orientationPrompt" role="status" aria-live="polite">
+  <div class="orientation-phone" aria-hidden="true">📱</div>
+  <div>Fordítsd el a készüléket fekvő nézetbe a megfelelő élményhez!</div>
 </div>
 
 <div id="menu">
@@ -66,6 +72,7 @@
 
     <div id="helpPanel" class="panel hidden">
       <h6>Irányítás</h6>
+      <div class="help-desktop">
       <div class="help-row"><span>Gyorsítás</span>
         <span class="help-keys"><kbd class="k">W</kbd><span class="sep">/</span><kbd class="k">↑</kbd></span></div>
       <div class="help-row"><span>Fék / tolatás</span>
@@ -83,6 +90,19 @@
         <span class="help-keys"><kbd class="k">jobb egér</kbd></span></div>
       <div class="help-row"><span>Némítás</span>
         <span class="help-keys"><kbd class="k">M</kbd></span></div>
+      </div>
+      <div class="help-mobile">
+        <div class="help-row"><span>Bal joystick</span><span>Kormányzás</span></div>
+        <div class="help-row"><span>Jobb joystick</span><span>Gáz / fék</span></div>
+        <div class="help-row"><span>Üres játéktér</span><span>Körbenézés</span></div>
+        <div class="help-row"><span>Kamera / 🔊 / ↻</span><span>Nézet / hang / reset</span></div>
+        <div class="help-row"><span>Kézifék</span><span>Csúsztatás</span></div>
+      </div>
+      <div class="volume-control">
+        <label for="volumeSlider">Hangerő</label>
+        <output id="volumeValue" for="volumeSlider">100%</output>
+        <input id="volumeSlider" type="range" min="0" max="100" step="1" value="100" aria-label="Játék hangereje">
+      </div>
     </div>
 
     <div id="standingsWrap" class="hidden">
@@ -126,30 +146,30 @@
   </div>
 
   <div id="touchControls" aria-label="Mobilos irányítás">
-    <div class="touch-steer" aria-label="Kormányzás">
-      <button class="touch-btn touch-drive" type="button" data-touch-key="KeyA" aria-label="Balra">
-        <span class="touch-icon">←</span><span class="touch-label">Balra</span>
-      </button>
-      <button class="touch-btn touch-drive" type="button" data-touch-key="KeyD" aria-label="Jobbra">
-        <span class="touch-icon">→</span><span class="touch-label">Jobbra</span>
-      </button>
+    <div class="touch-joystick touch-steering" data-touch-joystick="steer"
+         role="slider" aria-label="Kormányzás" aria-orientation="horizontal"
+         aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0">
+      <span class="joystick-axis joystick-axis-horizontal" aria-hidden="true"></span>
+      <span class="joystick-side joystick-side-left" aria-hidden="true">Bal</span>
+      <span class="joystick-side joystick-side-right" aria-hidden="true">Jobb</span>
+      <span class="joystick-knob" aria-hidden="true"></span>
     </div>
 
     <div class="touch-utility" aria-label="Kiegészítő vezérlés">
       <button class="touch-btn touch-small" type="button" data-touch-action="camera" aria-label="Kameranézet váltása">Kamera</button>
+      <button class="touch-btn touch-small touch-mute" type="button" data-touch-action="mute" aria-label="Némítás">🔊</button>
       <button class="touch-btn touch-small" type="button" data-touch-action="reset" aria-label="Visszaállítás a pályára">↻</button>
     </div>
 
-    <div class="touch-pedals" aria-label="Pedálok">
-      <button class="touch-btn touch-handbrake" type="button" data-touch-key="Space">Kézifék</button>
-      <div class="touch-pedal-row">
-        <button class="touch-btn touch-drive touch-brake" type="button" data-touch-key="KeyS">
-          <span class="touch-icon">▼</span><span class="touch-label">Fék</span>
-        </button>
-        <button class="touch-btn touch-drive touch-gas" type="button" data-touch-key="KeyW">
-          <span class="touch-icon">▲</span><span class="touch-label">Gáz</span>
-        </button>
-      </div>
+    <button class="touch-btn touch-handbrake" type="button" data-touch-key="Space">Kézifék</button>
+
+    <div class="touch-joystick touch-pedal" data-touch-joystick="pedal"
+         role="slider" aria-label="Gáz és fék" aria-orientation="vertical"
+         aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0">
+      <span class="joystick-axis joystick-axis-vertical" aria-hidden="true"></span>
+      <span class="joystick-side joystick-side-top" aria-hidden="true">Gáz</span>
+      <span class="joystick-side joystick-side-bottom" aria-hidden="true">Fék</span>
+      <span class="joystick-knob" aria-hidden="true"></span>
     </div>
   </div>
 </div>
@@ -160,6 +180,10 @@
 
 <div id="rolloverAlert" class="top-center-alert hidden">
   <div class="alert-pill danger" id="rolloverAlertText"></div>
+</div>
+
+<div id="highPingAlert" class="top-center-alert hidden">
+  <div class="alert-pill danger" id="highPingAlertText"></div>
 </div>
 
 <div id="countdown" class="hidden">3</div>

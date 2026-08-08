@@ -29,6 +29,10 @@
   --r:             14px;
   --r-sm:          9px;
   --shadow:        0 10px 34px rgba(0, 0, 0, 0.5);
+  --touch-stick-size: clamp(104px, 16vw, 124px);
+  --touch-steer-inline: clamp(88px, 16vw, 160px);
+  --touch-pedal-inline: clamp(90px, 16.5vw, 165px);
+  --touch-stick-bottom: clamp(72px, 23vh, 112px);
 }
 
 /* A natív űrlapelemeket (a <select> LEGÖRDÜLŐ LISTÁJÁT, a görgetősávot) a
@@ -38,7 +42,7 @@
 :root { color-scheme: dark; }
 
 html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); }
-canvas { display: block; }
+canvas { display: block; touch-action: none; }
 body {
   font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial, sans-serif;
   color: var(--text);
@@ -85,6 +89,34 @@ kbd.k {
 }
 #loading.overlay-translucent { background: rgba(11, 13, 18, .72); }
 #loadingText { font-size: 15px; color: var(--text); }
+
+/* Álló telefonon a játék kezelőfelülete nem fér el használhatóan. A teljes
+   képernyős jelzés fekvő helyzetben automatikusan eltűnik. */
+#orientationPrompt {
+  display: none; position: fixed; inset: 0; z-index: 80;
+  align-items: center; justify-content: center; flex-direction: column; gap: 24px;
+  padding: max(28px, env(safe-area-inset-top)) max(28px, env(safe-area-inset-right))
+    max(28px, env(safe-area-inset-bottom)) max(28px, env(safe-area-inset-left));
+  color: var(--text); background: rgba(11, 13, 18, .96);
+  text-align: center; font-size: clamp(18px, 5vw, 24px); font-weight: 750;
+  line-height: 1.35; touch-action: none;
+}
+.orientation-phone {
+  font-size: clamp(64px, 20vw, 96px); line-height: 1;
+  transform-origin: center; animation: turn-phone-landscape 2.4s ease-in-out infinite;
+}
+@keyframes turn-phone-landscape {
+  0%, 18% { transform: rotate(0deg); }
+  48%, 72% { transform: rotate(90deg); }
+  100% { transform: rotate(0deg); }
+}
+@media (orientation: portrait) and (hover: none) and (pointer: coarse),
+       (orientation: portrait) and (max-width: 600px) {
+  #orientationPrompt { display: flex; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .orientation-phone { animation: none; transform: rotate(90deg); }
+}
 
 /* ============================================================
    Főmenü (oldalsáv)
@@ -257,6 +289,17 @@ kbd.k {
 .help-row + .help-row { border-top: 1px solid var(--line); }
 .help-keys { display: flex; align-items: center; gap: 4px; flex: none; }
 .help-keys .sep { color: var(--muted); font-size: 11px; }
+.help-mobile { display: none; }
+.volume-control {
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 7px 10px;
+  margin-top: 9px; padding-top: 10px; border-top: 1px solid var(--line);
+  color: var(--muted); font-size: 11px; font-weight: 650;
+}
+.volume-control output { color: var(--text); font-variant-numeric: tabular-nums; }
+.volume-control input[type="range"] {
+  grid-column: 1 / -1; width: 100%; height: 4px; margin: 0;
+  accent-color: var(--accent); cursor: pointer;
+}
 
 #standings { padding: 12px 13px 10px; }
 .st-title {
@@ -335,6 +378,10 @@ kbd.k {
 }
 .perf-val { font-size: 13px; font-weight: 700; }
 .perf-unit { font-size: 10px; font-weight: 600; color: var(--muted); }
+#pingBox .perf-val { transition: color .15s ease; }
+#pingBox[data-quality="good"] .perf-val { color: var(--ok); }
+#pingBox[data-quality="warning"] .perf-val { color: var(--warn); }
+#pingBox[data-quality="bad"] .perf-val { color: var(--danger); }
 
 #speedPanel {
   padding: 14px 20px 13px; min-width: 172px; text-align: right;
@@ -370,31 +417,66 @@ kbd.k {
 #zoneIndicator[data-zone="wall"]     { --zone-c: var(--danger); }
 
 /* --- mobilos érintésvezérlés ---
-   Alapból nincs jelen az asztali felületen. Telefonon/tableten a két oldal
-   külön pointer-zónát kap, ezért kormányzás és gáz/fék egyszerre is tartható. */
+   Két valódi analóg kar: balra a kormány, jobbra a gáz/fék. A gombhalmaz
+   helyett mindkét hüvelykujj egy nagy, stabil célfelületet kap. */
 #touchControls {
   display: none; position: fixed; inset: 0; z-index: 18;
   pointer-events: none; touch-action: none;
   -webkit-user-select: none; user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
-.touch-steer, .touch-pedals, .touch-utility {
-  position: absolute; pointer-events: auto;
+.touch-joystick {
+  position: absolute;
+  bottom: var(--touch-stick-bottom);
+  width: var(--touch-stick-size); aspect-ratio: 1; border-radius: 50%;
+  pointer-events: auto; touch-action: none; overflow: visible;
+  border: 1px solid var(--line-strong); background: var(--panel);
+  box-shadow: var(--shadow);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3); backdrop-filter: blur(16px) saturate(1.3);
+  transition: opacity .15s ease, border-color .12s ease, background-color .12s ease;
 }
-.touch-steer {
-  left: max(12px, env(safe-area-inset-left));
-  bottom: max(12px, env(safe-area-inset-bottom));
-  display: flex; gap: 10px;
+.touch-steering {
+  left: max(var(--touch-steer-inline), calc(env(safe-area-inset-left) + 18px));
 }
-.touch-pedals {
-  right: max(12px, env(safe-area-inset-right));
-  bottom: max(12px, env(safe-area-inset-bottom));
-  display: flex; flex-direction: column; align-items: stretch; gap: 6px;
+.touch-pedal {
+  right: max(var(--touch-pedal-inline), calc(env(safe-area-inset-right) + 18px));
 }
-.touch-pedal-row { display: flex; gap: 10px; }
+.joystick-axis {
+  position: absolute; left: 50%; top: 50%; pointer-events: none;
+  background: rgba(255, 255, 255, .15); transform: translate(-50%, -50%);
+}
+.joystick-axis-horizontal { width: 72%; height: 1px; }
+.joystick-axis-vertical { width: 1px; height: 72%; }
+.joystick-axis::before, .joystick-axis::after {
+  content: ''; position: absolute; width: 5px; height: 5px; border-radius: 50%;
+  background: rgba(255, 255, 255, .28);
+}
+.joystick-axis-horizontal::before { left: 0; top: -2px; }
+.joystick-axis-horizontal::after { right: 0; top: -2px; }
+.joystick-axis-vertical::before { left: -2px; top: 0; }
+.joystick-axis-vertical::after { left: -2px; bottom: 0; }
+.joystick-knob {
+  position: absolute; left: 50%; top: 50%; width: 38%; aspect-ratio: 1;
+  border-radius: 50%; transform: translate3d(-50%, -50%, 0);
+  border: 1px solid rgba(255, 255, 255, .38);
+  background: rgba(255, 255, 255, .15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .32);
+  pointer-events: none; will-change: transform;
+}
+.touch-joystick.is-active { border-color: rgba(77, 141, 255, .65); background: rgba(13, 16, 23, .68); }
+.touch-joystick.is-active .joystick-knob { background: rgba(77, 141, 255, .28); }
+.joystick-side {
+  position: absolute; pointer-events: none; text-transform: uppercase;
+  font-size: 8px; font-weight: 800; letter-spacing: .12em;
+  color: rgba(255, 255, 255, .62);
+}
+.joystick-side-left { left: 7px; top: 50%; transform: translateY(-50%); }
+.joystick-side-right { right: 5px; top: 50%; transform: translateY(-50%); }
+.joystick-side-top { left: 50%; top: 7px; transform: translateX(-50%); }
+.joystick-side-bottom { left: 50%; bottom: 6px; transform: translateX(-50%); }
 .touch-utility {
-  left: 50%; bottom: calc(max(12px, env(safe-area-inset-bottom)) + 82px);
-  transform: translateX(-50%); display: flex; gap: 8px;
+  position: absolute; left: 50%; bottom: max(28px, calc(env(safe-area-inset-bottom) + 18px));
+  transform: translateX(-50%); display: flex; gap: 8px; pointer-events: auto;
 }
 .touch-btn {
   appearance: none; border: 1px solid rgba(255, 255, 255, 0.26);
@@ -406,81 +488,103 @@ kbd.k {
   transition: transform .06s ease, background-color .06s ease, border-color .06s ease;
 }
 .touch-btn:disabled { opacity: 0.35; }
-.touch-drive {
-  width: clamp(60px, 8.4vw, 74px); height: clamp(60px, 8.4vw, 74px);
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 2px; border-radius: 50%;
-}
-.touch-icon { font-size: 25px; line-height: 1; }
-.touch-label { font-size: 8px; letter-spacing: .09em; opacity: .78; }
 .touch-small {
   min-width: 54px; height: 34px; padding: 0 10px;
   border-radius: 17px; font-size: 9px; letter-spacing: .06em;
 }
+.touch-mute { min-width: 38px; padding-inline: 8px; font-size: 14px; }
+.touch-mute.is-muted { border-color: rgba(255, 95, 95, .5); background: rgba(91, 29, 34, .58); }
 .touch-handbrake {
-  height: 29px; border-radius: 15px; font-size: 8px; letter-spacing: .08em;
+  position: absolute;
+  right: calc(var(--touch-pedal-inline) + (var(--touch-stick-size) - 78px) / 2);
+  bottom: max(28px, calc(env(safe-area-inset-bottom) + 18px)); pointer-events: auto;
+  min-width: 78px; height: 34px; padding: 0 12px;
+  border-radius: 17px; font-size: 8px; letter-spacing: .08em;
+  border-color: rgba(255, 194, 71, .5); background: rgba(93, 64, 16, .55);
 }
-.touch-gas { border-color: rgba(61, 220, 132, 0.5); background: rgba(17, 75, 48, 0.56); }
-.touch-brake { border-color: rgba(255, 95, 95, 0.5); background: rgba(91, 29, 34, 0.56); }
 .touch-btn.is-pressed {
   transform: scale(0.93); border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(77, 141, 255, 0.56);
 }
-.touch-gas.is-pressed { background-color: rgba(38, 177, 99, 0.7); }
-.touch-brake.is-pressed { background-color: rgba(218, 61, 67, 0.7); }
+#touchControls.is-disabled .touch-joystick { opacity: .35; pointer-events: none; }
 
 @media (hover: none) and (pointer: coarse), (max-width: 900px) {
   #touchControls { display: block; }
+  #topLeft { top: 8px; left: 8px; width: min(315px, calc(100vw - 16px)); }
+  .tl-bar { gap: 5px; margin-bottom: 6px; }
+  #backToMenuLink, #helpBtn { font-size: 10px; }
+  #backToMenuLink { padding: 5px 9px; }
+  #helpBtn { width: 27px; font-size: 12px; }
+  #helpPanel { width: 180px; padding: 6px 8px; }
+  #helpPanel h6 { margin-bottom: 4px; font-size: 10px; }
+  .help-row { gap: 7px; padding: 2px 0; font-size: 9px; }
+  .help-keys { gap: 2px; }
+  #helpPanel kbd.k { min-width: 16px; padding: 1px 4px; font-size: 8px; }
+  .help-keys .sep { font-size: 8px; }
+  .help-desktop { display: none; }
+  .help-mobile { display: block; }
+  .help-mobile .help-row { padding: 1px 0; line-height: 1.15; }
+  .help-mobile .help-row span:last-child { color: var(--text); font-size: 8px; text-align: right; }
+  .volume-control { gap: 4px 8px; margin-top: 5px; padding-top: 5px; font-size: 8px; }
+  .volume-control input[type="range"] { height: 3px; }
+
+  #raceHudWrap { top: 8px; right: 8px; }
+  #raceHud { min-width: 148px; padding: 7px 9px; }
+  .lap-head { gap: 8px; padding-bottom: 5px; margin-bottom: 5px; }
+  .lap-now { font-size: 20px; }
+  .lap-total { font-size: 11px; }
+  .t-row { gap: 8px; }
+  .t-row + .t-row { margin-top: 3px; }
+  .t-val { font-size: 10px; }
+  .t-row .lbl { font-size: 7px; }
+  .t-warn, .hud-note { font-size: 9px; }
+
+  #standings { padding: 7px 8px 6px; }
+  .st-title { margin-bottom: 5px; font-size: 8px; }
+  .st-title span:last-child { font-size: 7px; }
+  .st-cols, .st-row {
+    grid-template-columns: 14px 6px minmax(50px, 1fr) 28px 42px 48px 48px;
+    column-gap: 3px;
+  }
+  .st-cols { padding: 0 4px 3px; font-size: 7px; }
+  .st-row { min-height: 23px; padding: 3px 4px; font-size: 10px; }
+  .st-pos { font-size: 9px; }
+  .st-dot { width: 6px; height: 6px; }
+  .st-lap, .st-gap, .st-time { font-size: 8px; }
+  .st-event { margin-top: 6px; padding-top: 5px; font-size: 9px; }
+
   #miniMapWrap {
-    left: max(9px, env(safe-area-inset-left));
-    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 92px);
-    padding: 3px;
+    left: max(8px, env(safe-area-inset-left));
+    bottom: calc(max(28px, calc(env(safe-area-inset-bottom) + 18px)) + var(--touch-stick-size) + 8px);
+    padding: 2px;
   }
-  #miniMapCanvas { width: 108px; height: 108px; }
+  #miniMapCanvas { width: 82px; height: 82px; border-radius: 8px; }
   #bottomRightStack {
-    right: max(9px, env(safe-area-inset-right));
-    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 106px);
-    gap: 5px;
+    right: max(8px, env(safe-area-inset-right));
+    bottom: calc(max(28px, calc(env(safe-area-inset-bottom) + 18px)) + var(--touch-stick-size) + 8px);
+    gap: 4px;
   }
-  #perfRow { gap: 5px; }
-  .perf-box { padding: 4px 7px; gap: 3px; }
-  .perf-lbl { font-size: 7px; }
-  .perf-val { font-size: 10px; }
-  .perf-unit { font-size: 8px; }
-  #speedPanel { min-width: 120px; padding: 9px 12px 8px; }
-  #speedValue { font-size: 42px; }
-  .sp-unit { font-size: 10px; }
-  .sp-zone { margin-top: 6px; padding-top: 6px; }
-  #zoneIndicator { font-size: 8px; }
+  #perfRow { gap: 4px; }
+  .perf-box { padding: 3px 6px; gap: 2px; }
+  .perf-lbl { font-size: 6px; }
+  .perf-val { font-size: 9px; }
+  .perf-unit { font-size: 7px; }
+  #speedPanel { min-width: 102px; padding: 7px 9px 6px; }
+  #speedValue { font-size: 35px; }
+  .sp-unit { font-size: 8px; }
+  .sp-zone { margin-top: 5px; padding-top: 5px; }
+  #zoneIndicator { gap: 5px; font-size: 7px; }
+  #zoneIndicator::before { width: 5px; height: 5px; }
 }
 
 @media (max-width: 600px) {
-  #topLeft { top: 8px; left: 8px; width: calc(100vw - 16px); }
-  #raceHudWrap { top: 8px; right: 8px; }
-  #raceHud { min-width: 154px; padding: 9px 10px; }
-  .lap-head { padding-bottom: 6px; margin-bottom: 6px; }
-  .lap-now { font-size: 21px; }
-  .lap-total { font-size: 12px; }
-  .t-val { font-size: 11px; }
-  .t-row .lbl { font-size: 8px; }
-  #standingsWrap:not(.hidden) { margin-top: 104px; }
-  #standings { padding-inline: 8px; }
-  .touch-drive { width: 62px; height: 62px; }
-  .touch-steer, .touch-pedal-row { gap: 7px; }
-  .touch-utility { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 72px); }
-  #miniMapCanvas { width: 94px; height: 94px; }
-  #miniMapWrap { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 82px); }
-  #bottomRightStack { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 94px); }
+  #topLeft { width: calc(100vw - 16px); }
+  #standingsWrap:not(.hidden) { margin-top: 82px; }
 }
 
-/* Fekvő telefonon több a vízszintes hely, viszont kevés a magasság: a két
-   kis segédgomb elfér középen a pedálokkal egy vonalban. */
+/* Fekvő telefonon kevés a magasság: a joystickok és a HUD is kompaktabb. */
 @media (max-height: 520px) and (min-width: 601px) {
-  .touch-drive { width: 62px; height: 62px; }
-  .touch-utility { bottom: max(12px, env(safe-area-inset-bottom)); }
-  #miniMapCanvas { width: 92px; height: 92px; }
-  #miniMapWrap { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 74px); }
-  #bottomRightStack { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 86px); }
+  :root { --touch-stick-size: clamp(96px, 15vw, 112px); }
 }
 
 /* ============================================================
@@ -491,6 +595,7 @@ kbd.k {
 }
 #lapInvalidAlert { top: 16px; }
 #rolloverAlert { top: 74px; }
+#highPingAlert { top: 132px; }
 .alert-pill {
   padding: 9px 20px; border-radius: 30px;
   font-size: 13px; font-weight: 700; letter-spacing: 0.01em;
@@ -501,6 +606,18 @@ kbd.k {
 }
 .alert-pill.danger {
   color: #fff; background: rgba(214, 48, 48, 0.92); border: 1px solid rgba(255, 120, 120, 0.55);
+}
+
+@media (hover: none) and (pointer: coarse), (max-width: 900px) {
+  .top-center-alert { width: min(360px, calc(100vw - 16px)); }
+  #lapInvalidAlert { top: 8px; }
+  #rolloverAlert { top: 46px; }
+  #highPingAlert { top: 84px; }
+  .alert-pill {
+    width: fit-content; max-width: 100%; margin-inline: auto;
+    padding: 6px 11px; border-radius: 18px;
+    font-size: 10px; line-height: 1.25; text-align: center;
+  }
 }
 
 #countdown {

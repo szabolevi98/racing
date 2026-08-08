@@ -377,7 +377,7 @@ export class RaceSim {
       seq,
       steer: Math.max(-1, Math.min(1, Number(msg.steer) || 0)),
       throttle: Math.max(-1, Math.min(1, Number(msg.throttle) || 0)),
-      brake: !!msg.brake,
+      brake: Math.max(0, Math.min(1, Number(msg.brake) || 0)),
       handbrake: !!msg.handbrake,
     });
     // A sor nem nőhet korlátlanul: ha a kliens gyorsabban küld, mint ahogy mi
