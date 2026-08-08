@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
+  "yawDegrees": 0,
+  "_wheelPattern": "tools/propose.mjs automatikus javaslata. A 'gravel' anyagnév elsőre gyanús (tereptárgynak hangzik), de a mérés igazolja, hogy a kerekekhez tartozik: 4 tökéletesen szimmetrikus sarok (4/4/4/4 alkatrész), nyomtáv 1.36, tengelytáv 2.31, max kilengés 180 fokos forgatásnál 0.18 — ez egy Pikes Peak terepversenyautó terepgumijának anyagneve, nem a talaj.",
+  "wheelPattern": "gravel|discs"
+}
