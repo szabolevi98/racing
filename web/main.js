@@ -1119,6 +1119,20 @@ function findWheelCentreOffset(carRoot, wheelPattern) {
   };
 }
 
+// A saját és a távoli autó ugyanazon a normalizáláson menjen át.
+// Különösen az F2004-nél fontos: a GLB origója nincs a tengelytáv
+// közepén, ezért wheelPattern nélkül a látható modell előrébb kerülne a
+// hiteles fizikai kasztninál. A függvény a már elforgatott és skálázott
+// modellt igazítja, így mindkét kirajzolási út pontosan ugyanazt kapja.
+function centerCarModelOnWheels(carRoot, wheelPattern) {
+  const wheelCentre = findWheelCentreOffset(carRoot, wheelPattern);
+  if (!wheelCentre) return false;
+  carRoot.position.x -= wheelCentre.x;
+  carRoot.position.z -= wheelCentre.z;
+  carRoot.updateMatrixWorld(true);
+  return true;
+}
+
 // A kerék-alkatrészeket pozíció szerint osztjuk 4 sarokba, mert a nevek
 // gyakran NEM árulják el, melyik melyik (a BMW M3-nál például a hátsó
 // kerekek is "FRONT_TIRE" néven szerepelnek, csak sorszámmal).
@@ -1369,12 +1383,7 @@ async function setCar(carUrl, carId, config, onProgress) {
   // kellene. Ha van wheelPattern, megmérjük, hol van a LÁTHATÓ kerekek
   // középpontja, és eltoljuk a modellt, hogy az pontosan a fizikai
   // kerekek középpontjára (X=0, Z=0) essen.
-  const wheelCentre = findWheelCentreOffset(carRoot, config && config.wheelPattern);
-  if (wheelCentre) {
-    carRoot.position.x -= wheelCentre.x;
-    carRoot.position.z -= wheelCentre.z;
-    carRoot.updateMatrixWorld(true);
-  }
+  centerCarModelOnWheels(carRoot, config && config.wheelPattern);
 
   // Végül a modellt úgy toljuk el, hogy a gumik alja pontosan a talajon legyen
   // (a groundOffset a kasztni közepétől a talajig mért távolság).
@@ -3566,7 +3575,7 @@ window.__game = {
   get currentTrack() { return currentTrack; },
   get carLoaded() { return carLoaded; },
   keys,
-  setCar, setTrack, prepareTrackPhysics, loadGLTF,
+  setCar, setTrack, prepareTrackPhysics, loadGLTF, centerCarModelOnWheels,
   enterMenu,
   // A mp.js ezzel regisztrálja a távoli kocsik eltakarítását — lásd enterMenu().
   setMultiplayerCleanupHook(hook) { multiplayerCleanupHook = hook; },

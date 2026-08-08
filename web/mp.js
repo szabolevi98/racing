@@ -638,6 +638,10 @@ async function addOtherCar(p, onProgress, loadGeneration) {
     const scale = size2.z > 0 ? 4.4 / size2.z : 1;
     model.scale.setScalar(scale);
     model.updateMatrixWorld(true);
+    // Ugyanaz a kerékközép-korrekció, mint a saját autónál. Egyes
+    // GLB-k (pl. F2004) origója nincs a tengelytáv közepén; enélkül csak
+    // távoli autóként látszanának előrébb a fizikai pozíciójuknál.
+    G.centerCarModelOnWheels(model, car.config?.wheelPattern);
     const box3 = new THREE.Box3().setFromObject(model);
     model.position.y = -box3.min.y - 0.85;
     group.add(model);
