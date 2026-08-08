@@ -1505,12 +1505,7 @@ function sendOneInput(scheduledAt) {
     ? 1
     : controlsEnabled && (k['KeyD'] || k['ArrowRight']) ? -1 : 0;
   steeringInput = controlsEnabled
-    ? moveSteeringInput(
-      steeringInput,
-      steeringTarget,
-      1 / TICK_RATE,
-      Math.hypot(v[0], v[2]) * 3.6
-    )
+    ? moveSteeringInput(steeringInput, steeringTarget, 1 / TICK_RATE)
     : 0;
   const input = {
     seq: shouldSend ? ++inputSeq : inputSeq,
