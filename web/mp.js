@@ -537,6 +537,17 @@ async function beginRace(info) {
   const loadGeneration = ++raceLoadGeneration;
   raceLoadActive = true;
   closeLobby();
+  // Az eredménypanel alatt az előző inputciklus szándékosan tovább lépteti a
+  // helyi fizikát, hogy a célba ért autó fékezve meg tudjon állni. Új futamnál
+  // viszont ezt MÉG a raceEnded visszaállítása előtt le kell állítani.
+  // Különben a régi, magas sorszámú inputok a betöltés alatt már az új futamba
+  // mennek, és a régi ciklus a nullázott sebességet is újra felülírja. Ettől
+  // kapkodott végig a motorhang a fokozatokon a második verseny elején.
+  stopInputLoop();
+  awaitingFirstSnapshot = false;
+  inputHistory.length = 0;
+  predictionHistory.length = 0;
+  predBuf.length = 0;
   // A második futam nem örökölheti az előző célba érési sebességét/fokozatát.
   // Enélkül a nulláról induló új autónál a hang gyorsan végigváltott lefelé,
   // mintha felgyorsított kazettát hallanánk.
@@ -794,9 +805,13 @@ function resetNetworkRaceState() {
   snapshotTransitMs = 0;
   snapshotJitterMs = 0;
   lastSnapshotTransitMs = null;
+  queueDepth = 0;
+  queueDrops = 0;
+  queueUnderflows = 0;
   queueTarget = 1;
   queueTargetBoost = 0;
   lastQueueIssueAt = 0;
+  sendPeriod = TICK_MS;
 }
 
 // ---------- Client-side prediction ----------

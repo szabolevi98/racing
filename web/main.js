@@ -120,6 +120,7 @@ const helpBtn = document.getElementById('helpBtn');
 const helpPanelEl = document.getElementById('helpPanel');
 const volumeSliderEl = document.getElementById('volumeSlider');
 const volumeValueEl = document.getElementById('volumeValue');
+const fullscreenHintEl = document.getElementById('fullscreenHint');
 const countdownEl = document.getElementById('countdown');
 const resultsEl = document.getElementById('results');
 const resultsBodyEl = document.getElementById('resultsBody');
@@ -2889,6 +2890,7 @@ let appState = 'menu';
 // történik; ott az első játékbeli érintés a tartalék aktiválási pont.
 const mobilePointerQuery = window.matchMedia('(hover: none) and (pointer: coarse)');
 let gameFullscreenWanted = false;
+let fullscreenHintTimer = null;
 
 function activeFullscreenElement() {
   return document.fullscreenElement || document.webkitFullscreenElement || null;
@@ -2909,6 +2911,22 @@ function requestGameFullscreen() {
   } catch {
     // Néhány mobilböngésző csak a következő közvetlen érintésből engedi.
   }
+}
+
+function hideFullscreenHint() {
+  if (fullscreenHintTimer) clearTimeout(fullscreenHintTimer);
+  fullscreenHintTimer = null;
+  fullscreenHintEl.classList.add('hidden');
+}
+
+function showFullscreenHint() {
+  if (mobilePointerQuery.matches) return;
+  hideFullscreenHint();
+  // Az animáció minden új meccsnél induljon elölről akkor is, ha két futam
+  // gyorsan követi egymást.
+  void fullscreenHintEl.offsetWidth;
+  fullscreenHintEl.classList.remove('hidden');
+  fullscreenHintTimer = setTimeout(hideFullscreenHint, 4000);
 }
 
 function leaveGameFullscreen() {
@@ -2948,6 +2966,7 @@ function enterMenu() {
   // az nem hagyja félúton a menübe lépést.
   multiplayerCleanupHook?.();
   leaveGameFullscreen();
+  hideFullscreenHint();
   clearTouchInputs();
   resetManualOrbit();
   setTouchControlsEnabled(true);
@@ -3026,6 +3045,7 @@ function enterMenu() {
 
 function enterDriving() {
   requestGameFullscreen();
+  showFullscreenHint();
   appState = 'driving';
   setTouchControlsEnabled(true);
   menuEl.classList.add('hidden');
@@ -3992,6 +4012,7 @@ window.__game = {
   // fizikát a hálózati modul lépteti, ha a jóslás be van kapcsolva.
   enterMultiplayer(frameHook) {
     requestGameFullscreen();
+    showFullscreenHint();
     mpFrameHook = frameHook;
     multiplayerControlsEnabled = true;
     setTouchControlsEnabled(true);
