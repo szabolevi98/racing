@@ -12,7 +12,7 @@ import {
 } from '../../shared/protocol.js';
 import {
   GRAVITY, buildVehicle, applyControls, CHASSIS_SIZE, applySpeedCap,
-  FLOOR_COLLIDER_GROUPS, WALL_COLLIDER_GROUPS, WHEEL_RAY_FILTER_GROUPS,
+  FLOOR_COLLIDER_GROUPS, WALL_COLLIDER_GROUPS, WHEEL_RAY_FILTER_GROUPS, TRACK_FRICTION,
 } from '../../shared/vehicleConfig.js';
 import {
   decodeZoneCodes,
@@ -106,17 +106,17 @@ function crossedGate(gate, fromX, fromZ, toX, toZ) {
 const SPAWN_HEIGHT = 1.0;
 // Innen lövünk lefelé a talajért. Bőven a legmagasabb pályamodell fölött.
 const RAY_FROM_Y = 5000;
-// Mennyi bemenet állhat sorban egy játékosnál. A sor CSAK a jitter elnyelésére
-// való, tartaléknak nem: minden benne álló elem egy tick (~17 ms) plusz
-// késleltetés, mielőtt a játékos bemenete hatna. Ezért rövid.
+// Mennyi bemenet állhat sorban egy játékosnál. A sor a jitter elnyelésére való:
+// minden benne álló elem egy tick (~17 ms) plusz késleltetés, ezért normálisan
+// csak az adaptív klienscél (1–6 elem) körül mozog. A 12-es plafon vészpuffer.
 //
 // Ha tartósan tele van, az nem jitter, hanem óra-sodródás (a kliens gyorsabban
 // küld, mint ahogy mi tickelünk). Olyankor a legrégebbit dobjuk el — az
 // AKTUÁLIS szándék a fontos —, de ez a kliens újrajátszását elrontja, mert
 // olyan bemenetet játszana vissza, amit sosem használtunk fel. A végleges
-// megoldás egy visszacsatolás lesz (a szerver megmondja a sorhosszt, a kliens
-// ehhez igazítja az ütemét); addig ez a korlát csak biztonsági háló.
-const MAX_INPUT_QUEUE = 3;
+// megoldás a lent snapshotba tett sorhossz és az ahhoz igazodó kliensütem;
+// ez a magasabb korlát csak a rövid, nagy jittertüskéket fogja meg.
+const MAX_INPUT_QUEUE = 12;
 // A kocsi alaprajzának mintavételi pontjai — ugyanazok, amiket a kliens is
 // használ (shared/zone.js), különben másképp döntenénk a falról.
 const WALL_PROBES = wallProbes(CHASSIS_SIZE);
@@ -133,6 +133,7 @@ export class RaceSim {
     this.timer = null;
     this.snapshotEvery = Math.max(1, Math.round(TICK_RATE / SNAPSHOT_RATE));
     this.stopped = false;
+    this.simTimeMs = 0;
   }
 
   async start() {
@@ -151,14 +152,18 @@ export class RaceSim {
     });
     const trackBody = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
     this.world.createCollider(
-      RAPIER.ColliderDesc.trimesh(floor.vertices, floor.indices).setCollisionGroups(FLOOR_COLLIDER_GROUPS),
+      RAPIER.ColliderDesc.trimesh(floor.vertices, floor.indices)
+        .setFriction(TRACK_FRICTION)
+        .setCollisionGroups(FLOOR_COLLIDER_GROUPS),
       trackBody
     );
     // A fal-háló csak a kasztnival ütközik — a kerék-sugarat a
     // WHEEL_RAY_FILTER_GROUPS zárja ki belőle (lásd updateVehicle hívás lent).
     if (wall.indices.length > 0) {
       this.world.createCollider(
-        RAPIER.ColliderDesc.trimesh(wall.vertices, wall.indices).setCollisionGroups(WALL_COLLIDER_GROUPS),
+        RAPIER.ColliderDesc.trimesh(wall.vertices, wall.indices)
+          .setFriction(TRACK_FRICTION)
+          .setCollisionGroups(WALL_COLLIDER_GROUPS),
         trackBody
       );
     }
@@ -210,6 +215,8 @@ export class RaceSim {
         input: { steer: 0, throttle: 0, brake: false, handbrake: false, seq: 0 },
         lastSeq: 0,        // a legutóbb BEÉRKEZETT sorszám
         appliedSeq: 0,     // a legutóbb FELHASZNÁLT sorszám — ezt kapja a kliens
+        queueDrops: 0,
+        queueUnderflows: 0,
         // A falkezeléshez: hol volt a kocsi utoljára érvényes helyen.
         lastSafe: { x: pos.x, y: pos.y, z: pos.z },
         // Az "R" ide tesz vissza: az utolsó SIKERESEN érintett checkpont.
@@ -246,6 +253,7 @@ export class RaceSim {
     // Infinity-nél minden "most" korábbi, tehát a frozen ág érvényes.
     this.startAt = Infinity;
     this.lastPump = Date.now();
+    this.simTimeMs = this.lastPump;
     this.accumulator = 0;
     this.timer = setInterval(() => this.pump(), TICK_MS);
   }
@@ -254,6 +262,12 @@ export class RaceSim {
   // és a megadott pillanatban oldódik a fagyasztás.
   releaseAt(startAt) {
     this.startAt = startAt;
+    // A betöltés alatt még nem fut a kliens bemenet-hurka, ezért az ottani
+    // üres sor nem hálózati hiba. A diagnosztika csak az éles rajttól számít.
+    for (const car of this.cars.values()) {
+      car.queueDrops = 0;
+      car.queueUnderflows = 0;
+    }
   }
 
   // Megkeresi a pálya felszínét egy x/z pont fölött, felülről lefelé lőtt
@@ -305,6 +319,21 @@ export class RaceSim {
     car.race.prevZ = z;
   }
 
+  // A szobából kilépő játékos nem maradhat a szerver fizikai világában.
+  // A kliensmodell eltüntetése önmagában csak láthatatlan akadályt csinálna
+  // belőle, és a verseny végét is örökre blokkolná a finished-vizsgálatban.
+  removeCar(playerId) {
+    const car = this.cars.get(playerId);
+    if (!car || !this.world) return false;
+    try { this.world.removeVehicleController(car.vehicle); } catch { /* már törölve */ }
+    try { this.world.removeRigidBody(car.body); } catch { /* már törölve */ }
+    this.cars.delete(playerId);
+    if (this.cars.size && [...this.cars.values()].every((c) => c.race.finished)) {
+      void this.endRace();
+    }
+    return true;
+  }
+
   queueInput(playerId, msg) {
     const car = this.cars.get(playerId);
     if (!car) return;
@@ -323,7 +352,10 @@ export class RaceSim {
     // fogyasztunk (órák elcsúszása), a bemenet egyre késve érvényesülne — a
     // játékos ezt késleltetésként érezné. A legrégebbieket dobjuk el, mert az
     // AKTUÁLIS szándék a fontos.
-    while (car.queue.length > MAX_INPUT_QUEUE) car.queue.shift();
+    while (car.queue.length > MAX_INPUT_QUEUE) {
+      car.queue.shift();
+      car.queueDrops++;
+    }
   }
 
   // A setInterval NEM ad pontos ütemet: a Node egész ezredmásodpercre kerekít,
@@ -346,16 +378,21 @@ export class RaceSim {
     // kimaradt időt — az a játékosoknak ugrásként látszana. Inkább elengedjük.
     if (this.accumulator > TICK_MS * 8) this.accumulator = TICK_MS * 8;
 
+    // A szimulációs idő a feldolgozandó tartomány eleje. Így egy catch-upban
+    // lefutó több step külön, egyenletes időbélyeget kap, nem ugyanazt a
+    // Date.now()-t, amitől a klienshez csomókban érkeztek a snapshotok.
+    this.simTimeMs = now - this.accumulator;
+
     while (this.accumulator >= TICK_MS) {
       this.accumulator -= TICK_MS;
-      this.step();
+      this.simTimeMs += TICK_MS;
+      this.step(this.simTimeMs);
       if (this.stopped) return;
     }
   }
 
-  step() {
+  step(now = (this.simTimeMs += TICK_MS)) {
     if (this.stopped) return;
-    const now = Date.now();
     const frozen = now < this.startAt;
 
     if (!frozen && this.room.state === ROOM_STATE.COUNTDOWN) {
@@ -373,6 +410,8 @@ export class RaceSim {
       if (next) {
         car.input = next;
         car.appliedSeq = next.seq;
+      } else if (!frozen && car.lastSeq > 0) {
+        car.queueUnderflows++;
       }
       // A kifutó lassít, KEREKENKÉNT. A kliens ugyanezt a maszkot ugyanezzel a
       // képlettel mintázza a jóslásához (shared/zone.js), különben a pálya
@@ -520,6 +559,8 @@ export class RaceSim {
         // ütemét: a két óra sosem jár pontosan egyformán, e visszacsatolás
         // nélkül a sor percek alatt vagy kiürülne, vagy eldobásba fordulna.
         qd: car.queue.length,
+        qdrop: car.queueDrops,
+        qunder: car.queueUnderflows,
         // Elromlott-e MÁR az aktuális kör, és ha igen, MIÉRT (TAINT kódja) —
         // a kliens ebből írja ki a konkrét okot, hogy ne csak a kör végén
         // derüljön ki, és hogy tudja, mit csinált másképp legközelebb.

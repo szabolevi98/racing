@@ -7,6 +7,7 @@ import {
   CHASSIS_SIZE, WHEEL_RADIUS, SUSPENSION_REST_LENGTH, WHEEL_POSITIONS,
   STEER_VISUAL_SPEED, buildVehicle, applyControls, resetLiveVehicleTunables,
   FLOOR_COLLIDER_GROUPS, WALL_COLLIDER_GROUPS, WHEEL_RAY_FILTER_GROUPS,
+  CAR_PROXY_COLLIDER_GROUPS, TRACK_FRICTION, applyChassisMassProperties,
   forwardSpeed, REVERSE_BRAKE_THRESHOLD, applySpeedCap,
 } from '/shared/vehicleConfig.js';
 import { TAINT, requiredCheckpoints } from '/shared/protocol.js';
@@ -300,6 +301,57 @@ let trackCollider = null;
 const chassisSize = CHASSIS_SIZE;
 const { body: chassisBody, collider: chassisCollider, vehicle } =
   buildVehicle(RAPIER, world, { x: 0, y: 5, z: 0 });
+
+// Közeli ellenfelek dinamikus ütközőtestei a helyi jósláshoz. A szerver
+// marad a hiteles forrás; ezek csak azt akadályozzák meg, hogy a kliens olyan
+// akadálytalan mozgást jósoljon, miközben a szerver már autó–autó kontaktot lát.
+const remoteCarProxies = new Map();
+
+function setRemoteCarProxy(id, state) {
+  let proxy = remoteCarProxies.get(id);
+  if (!state) {
+    if (proxy) {
+      proxy.collider.setEnabled(false);
+      proxy.body.setEnabled(false);
+    }
+    return;
+  }
+  const { p, q, v = [0, 0, 0], w = [0, 0, 0] } = state;
+  if (!proxy) {
+    const body = world.createRigidBody(
+      RAPIER.RigidBodyDesc.dynamic()
+        .setTranslation(p[0], p[1], p[2])
+        .setGravityScale(0)
+        .setCanSleep(false)
+        .setCcdEnabled(true)
+    );
+    const collider = world.createCollider(
+      RAPIER.ColliderDesc.cuboid(CHASSIS_SIZE.x, CHASSIS_SIZE.y, CHASSIS_SIZE.z)
+        .setCollisionGroups(CAR_PROXY_COLLIDER_GROUPS),
+      body
+    );
+    applyChassisMassProperties(collider, body);
+    proxy = { body, collider };
+    remoteCarProxies.set(id, proxy);
+  }
+  proxy.body.setEnabled(true);
+  proxy.collider.setEnabled(true);
+  proxy.body.setTranslation({ x: p[0], y: p[1], z: p[2] }, true);
+  proxy.body.setRotation({ x: q[0], y: q[1], z: q[2], w: q[3] }, true);
+  proxy.body.setLinvel({ x: v[0], y: v[1], z: v[2] }, true);
+  proxy.body.setAngvel({ x: w[0], y: w[1], z: w[2] }, true);
+}
+
+function removeRemoteCarProxy(id) {
+  const proxy = remoteCarProxies.get(id);
+  if (!proxy) return;
+  try { world.removeRigidBody(proxy.body); } catch { /* már törölve */ }
+  remoteCarProxies.delete(id);
+}
+
+function clearRemoteCarProxies() {
+  for (const id of [...remoteCarProxies.keys()]) removeRemoteCarProxy(id);
+}
 
 // Milyen mélyen van a talaj a kasztni KÖZEPE alatt, ha az autó nyugalomban áll?
 // A látható modellt ehhez igazítjuk, nem a kasztni-doboz aljához: a kerék a
@@ -1645,7 +1697,7 @@ function applyTrackCollider(floor, wall) {
   trackColliderBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
   trackCollider = world.createCollider(
     RAPIER.ColliderDesc.trimesh(floor.positions, floor.indices)
-      .setFriction(1.0)
+      .setFriction(TRACK_FRICTION)
       .setCollisionGroups(FLOOR_COLLIDER_GROUPS),
     trackColliderBody
   );
@@ -1654,7 +1706,7 @@ function applyTrackCollider(floor, wall) {
   if (wall && wall.indices.length > 0) {
     world.createCollider(
       RAPIER.ColliderDesc.trimesh(wall.positions, wall.indices)
-        .setFriction(1.0)
+        .setFriction(TRACK_FRICTION)
         .setCollisionGroups(WALL_COLLIDER_GROUPS),
       trackColliderBody
     );
@@ -3514,6 +3566,10 @@ window.__game = {
   enterMenu,
   // A mp.js ezzel regisztrálja a távoli kocsik eltakarítását — lásd enterMenu().
   setMultiplayerCleanupHook(hook) { multiplayerCleanupHook = hook; },
+  detachMultiplayerFrame() { mpFrameHook = null; },
+  setRemoteCarProxy,
+  removeRemoteCarProxy,
+  clearRemoteCarProxies,
   // A mp.js maga hozza létre a többiek modelljeit, tehát neki is kell tudnia
   // felszabadítani őket: a scene.remove() csak a jelenetgráfból veszi ki, a
   // GPU-oldali geometria/textúra ott maradna meccsről meccsre halmozódva.

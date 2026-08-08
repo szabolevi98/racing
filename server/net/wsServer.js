@@ -13,6 +13,7 @@ import { getManifest } from '../assets.js';
 
 const rooms = new Map();    // kód -> Room
 const players = new Map();  // playerId -> player
+const MAX_BUFFERED_SNAPSHOTS = 3;
 
 // Összetéveszthető karakterek (0/O, 1/I) nélkül — a kódot élőszóban is
 // szokták diktálni.
@@ -38,7 +39,17 @@ function fail(socket, message) {
 }
 
 function broadcastRoom(room, type, data = {}) {
-  for (const p of room.players.values()) send(p.socket, type, data);
+  // Egy snapshot minden címzettnél azonos. Korábban játékosonként újra
+  // JSON.stringify-oltuk, és lassú kapcsolatnál korlátlanul sorba állítottuk a
+  // már elavult állapotokat. Az állapotcsomag eldobható: hamarosan jön frissebb.
+  const payload = JSON.stringify({ type, ...data });
+  const snapshotBacklogLimit = Math.max(4096, payload.length * MAX_BUFFERED_SNAPSHOTS);
+  for (const p of room.players.values()) {
+    const socket = p.socket;
+    if (socket?.readyState !== 1) continue;
+    if (type === S2C.SNAPSHOT && socket.bufferedAmount > snapshotBacklogLimit) continue;
+    socket.send(payload);
+  }
 }
 
 function pushRoomState(room) {
@@ -47,7 +58,11 @@ function pushRoomState(room) {
 
 function leaveRoom(player, reason) {
   const room = rooms.get(player.roomCode);
-  if (!room) return;
+  if (!room) {
+    player.roomCode = null;
+    return;
+  }
+  room.sim?.removeCar(player.id);
   const remaining = room.remove(player.id);
   if (remaining === 0) {
     room.sim?.stop();
@@ -153,7 +168,7 @@ async function handleMessage(player, msg) {
     }
 
     case C2S.PING: {
-      send(socket, S2C.PONG, { t: msg.t });
+      send(socket, S2C.PONG, { t: msg.t, serverNow: Date.now() });
       return;
     }
 
@@ -164,7 +179,11 @@ async function handleMessage(player, msg) {
 
 async function startRace(room) {
   await room.beginLoading();
+  // A DB-művelet alatt a tulajdonos bezárhatta a lapot. Ilyenkor a szoba már
+  // nincs a nyilvántartásban; nem indítunk hozzá árva fizikai időzítőt.
+  if (rooms.get(room.code) !== room || room.size === 0) return;
   const manifest = await getManifest();
+  if (rooms.get(room.code) !== room || room.size === 0) return;
   const map = manifest.maps.find((m) => m.id === room.mapId);
 
   // A rajtrács-pontok a pálya spawn.json-jából jönnek; ha kevesebb van, mint
@@ -196,6 +215,16 @@ async function startRace(room) {
     broadcastRoom(room, S2C.ERROR, { message: 'A verseny nem indítható: ' + err.message });
     pushRoomState(room);
     return;
+  }
+  // A collision/zonemap beolvasása közben is kiléphetett valaki. Az üres vagy
+  // már lecserélt szobát teljesen leállítjuk; többjátékos szobánál pedig az
+  // időközben távozott autókat eltávolítjuk, mielőtt egyetlen snapshot kimenne.
+  if (rooms.get(room.code) !== room || room.size === 0) {
+    sim.stop();
+    return;
+  }
+  for (const playerId of [...sim.cars.keys()]) {
+    if (!room.players.has(playerId)) sim.removeCar(playerId);
   }
   room.sim = sim;
 

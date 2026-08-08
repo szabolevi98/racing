@@ -11,7 +11,7 @@ export const C2S = {
   SET_CAR: 'setCar',           // { carId }
   SET_READY: 'setReady',       // { ready }
   START_RACE: 'startRace',     // csak a szoba tulajdonosa
-  INPUT: 'input',              // { seq, t, steer, throttle, brake, handbrake }
+  INPUT: 'input',              // { seq, steer, throttle, brake, handbrake }
   RESET: 'reset',              // az "R": vissza az utolsó érintett checkpontra
   PING: 'ping',                // { t }
 };
@@ -26,7 +26,7 @@ export const S2C = {
   RACE_EVENT: 'raceEvent',     // { kind, playerId, ... } — kör, érvénytelenítés, célba érés
   RACE_END: 'raceEnd',         // { results[] }
   ERROR: 'error',              // { message }
-  PONG: 'pong',                // { t }
+  PONG: 'pong',                // { t, serverNow }
 };
 
 // Mi rontotta el a folyamatban lévő kört. A snapshot `ti` mezője ezt küldi,

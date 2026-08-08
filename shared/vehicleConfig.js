@@ -38,22 +38,39 @@ export const GRAVITY = { x: 0, y: -9.81, z: 0 };
 // A kerék-sugár (updateVehicle raycast) csak a talajt "látja" — a felfüggesztés
 // magasságát méri, sosem oldalra. Ha a falat is látná, a majdnem-vízszintes
 // fal-tetőkbe/párkányokba akadna bele a felfüggesztés-számítás. A kasztni
-// dobozának normál ütközője viszont MINDKÉT csoporttal ütközik (nincs rajta
-// szűrés), így a fal ellen a kasztni test fizikailag megáll, a kerék-sugár
-// pedig zavartalanul a talajt méri alatta.
+// dobozának normál ütközője viszont a talajjal, fallal és másik autóval is
+// ütközik, így a fal ellen fizikailag megáll, a kerék-sugár pedig zavartalanul
+// a talajt méri alatta.
 //
 // InteractionGroups egy 32 bites szám: a felső 16 bit a tagság (groups), az
 // alsó 16 bit a szűrő (mask). Két fél ütközik, ha A tagsága metszi B szűrőjét
 // ÉS B tagsága metszi A szűrőjét — lásd a Rapier interaction_groups.d.ts-ét.
 export const COLLISION_GROUP_FLOOR = 0x0001;
 export const COLLISION_GROUP_WALL = 0x0002;
+export const COLLISION_GROUP_CAR = 0x0004;
+export const COLLISION_GROUP_CAR_PROXY = 0x0008;
 const GROUPS_ALL_MASK = 0xffff;
 export const FLOOR_COLLIDER_GROUPS = (COLLISION_GROUP_FLOOR << 16) | GROUPS_ALL_MASK;
 export const WALL_COLLIDER_GROUPS = (COLLISION_GROUP_WALL << 16) | GROUPS_ALL_MASK;
-// A kerék-sugár lekérdezés "önmaga" groups/mask párja: tagság = minden (hogy
-// bármelyik collider szűrőjén átjusson), szűrő = csak a talaj csoportja (hogy
-// csak a talaj colliderek tagsága illeszkedjen rá).
-export const WHEEL_RAY_FILTER_GROUPS = (GROUPS_ALL_MASK << 16) | COLLISION_GROUP_FLOOR;
+// Az autók külön tagságot kapnak. A korábbi alapértelmezett 0xffff tagság miatt
+// a kizárólag TALAJRA szűrt keréksugár egy másik autó kasztniját is talajként
+// találhatta el. Ez főleg szoros csatában adott kiszámíthatatlan rugóerőket.
+export const CAR_COLLIDER_GROUPS =
+  (COLLISION_GROUP_CAR << 16) |
+  (COLLISION_GROUP_FLOOR | COLLISION_GROUP_WALL | COLLISION_GROUP_CAR | COLLISION_GROUP_CAR_PROXY);
+// A helyi jóslás távoli autó-proxyja csak a saját valódi kasztnival ütközik.
+// Így nem akad bele a talajba/falba, és a proxyk sem lökdösik egymást egy
+// olyan kliensen, amely csak a saját autó fizikáját jósolja.
+export const CAR_PROXY_COLLIDER_GROUPS =
+  (COLLISION_GROUP_CAR_PROXY << 16) | COLLISION_GROUP_CAR;
+// A kerék-sugár lekérdezés tagsága = autó, szűrője = csak talaj. A Rapier
+// mindkét collider tagságát és szűrőjét ellenőrzi, ezért a fal és a többi
+// autó kasztnija biztosan kimarad a felfüggesztés talajkereséséből.
+export const WHEEL_RAY_FILTER_GROUPS = (COLLISION_GROUP_CAR << 16) | COLLISION_GROUP_FLOOR;
+
+// A háromszögháló anyaga mindkét oldalon ugyanaz legyen. Korábban a kliens
+// explicit 1.0-t állított, a szerver viszont a Rapier alapértékén maradt.
+export const TRACK_FRICTION = 1.0;
 
 // Fél-méretek: szélesség/2, magasság/2, hossz/2.
 export const CHASSIS_SIZE = { x: 1.0, y: 0.4, z: 2.2 };
@@ -92,6 +109,21 @@ export function forwardSpeed(qx, qy, qz, qw, vx, vy, vz) {
 // alacsonyabb súlyponttal kevesebb a bólintás/dőlés, ami elviszi az energiát).
 // A fék azóta reálisra csökkent (32/27, ~3 G), tehát ez most bőven tartalék.
 export const COM_DROP = 0.55;
+
+// A helyi távoli-autó proxy ugyanilyen tömeg/inercia-adatokat kap. Ha csak a
+// tömeg egyezne, egy oldalirányú koccanásra máshogy fordulna el, mint a
+// szerver valódi autója, és a következő snapshot ezt láthatóan korrigálná.
+export function applyChassisMassProperties(collider, body) {
+  const m = CHASSIS_MASS;
+  const w = CHASSIS_SIZE.x * 2, h = CHASSIS_SIZE.y * 2, d = CHASSIS_SIZE.z * 2;
+  collider.setMassProperties(
+    m,
+    { x: 0, y: -COM_DROP, z: 0 },
+    { x: (m / 12) * (h * h + d * d), y: (m / 12) * (w * w + d * d), z: (m / 12) * (w * w + h * h) },
+    { x: 0, y: 0, z: 0, w: 1 }
+  );
+  body.recomputeMassPropertiesFromColliders();
+}
 
 export const WHEEL_RADIUS = 0.35;
 export const SUSPENSION_REST_LENGTH = 0.3;
@@ -227,20 +259,13 @@ export function buildVehicle(RAPIER, world, position = { x: 0, y: 5, z: 0 }) {
   );
 
   const collider = world.createCollider(
-    RAPIER.ColliderDesc.cuboid(CHASSIS_SIZE.x, CHASSIS_SIZE.y, CHASSIS_SIZE.z).setMass(CHASSIS_MASS),
+    RAPIER.ColliderDesc.cuboid(CHASSIS_SIZE.x, CHASSIS_SIZE.y, CHASSIS_SIZE.z)
+      .setMass(CHASSIS_MASS)
+      .setCollisionGroups(CAR_COLLIDER_GROUPS),
     body
   );
 
-  const m = CHASSIS_MASS;
-  const w = CHASSIS_SIZE.x * 2, h = CHASSIS_SIZE.y * 2, d = CHASSIS_SIZE.z * 2;
-  collider.setMassProperties(
-    m,
-    { x: 0, y: -COM_DROP, z: 0 },
-    { x: (m / 12) * (h * h + d * d), y: (m / 12) * (w * w + d * d), z: (m / 12) * (w * w + h * h) },
-    { x: 0, y: 0, z: 0, w: 1 }
-  );
-  // A collider tömegadatainak átírása magától nem frissíti a merev testét.
-  body.recomputeMassPropertiesFromColliders();
+  applyChassisMassProperties(collider, body);
 
   const vehicle = world.createVehicleController(body);
   vehicle.indexUpAxis = 1;
