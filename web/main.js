@@ -3538,6 +3538,7 @@ const DEFAULT_MAP_ID = 'hungaroring_2020_layout';
 const DEFAULT_ENV_ID = 'day_1';
 const LS_KEYS = {
   map: 'racing.lastMapId', car: 'racing.lastCarId', env: 'racing.lastEnvId',
+  laps: 'racing.lastLapCount',
   camera: 'racing.lastCameraView', muted: 'racing.muted', volume: 'racing.volume',
 };
 
@@ -3715,6 +3716,13 @@ async function init() {
   mapSelect.value = initialMap.id;
   carSelect.value = initialCar.id;
   envSelect.value = initialEnv.id;
+  // Csak akkor állítjuk vissza, ha a mentett érték tényleg szerepel a
+  // listában — egy régi mentés (pl. időközben kivett körszám) különben üresen
+  // hagyná a választót.
+  const savedLaps = loadLastChoice('laps', '');
+  if ([...lapCountSelect.options].some((o) => o.value === savedLaps)) {
+    lapCountSelect.value = savedLaps;
+  }
   loadLeaderboard(initialMap.id);
 
   const savedViewIdx = CAMERA_VIEWS.findIndex((v) => v.id === loadLastChoice('camera', CAMERA_VIEWS[0].id));
@@ -3768,6 +3776,11 @@ async function init() {
     } finally {
       hideLoadingOverlay();
     }
+  });
+  // A körszám a többi választáshoz hasonlóan megjegyződik. Nincs mit betölteni
+  // hozzá, ezért nem kell async — csak eltesszük az értéket.
+  lapCountSelect.addEventListener('change', () => {
+    saveLastChoice('laps', lapCountSelect.value);
   });
   envSelect.addEventListener('change', async () => {
     const entry = findEntry(manifest.skyboxes, envSelect.value);
@@ -4221,8 +4234,19 @@ window.__game = {
     const { value: ping, quality } = classifyPing(ms);
     pingValueEl.textContent = ping;
     pingBoxEl.dataset.quality = quality;
-    if (quality === 'bad') highPingAlertTextEl.textContent = `Magas ping: ${ping} ms — a kapcsolat akadozhat.`;
-    highPingAlertEl.classList.toggle('hidden', quality !== 'bad');
+    // A figyelmeztető sáv CSAK verseny közben jelenhet meg. A ping-hurok a
+    // WebSocket megnyitásakor indul, nem a rajtnál, és a kapcsolat a
+    // lobbyban és a menüben is él — a PONG-ok tehát ott is jönnek. Állapot-
+    // ellenőrzés nélkül egy rossz ping a menü vagy a szoba fölé úsztatná a
+    // piros sávot; az enterMenu() ugyan elrejti, de a következő PONG
+    // azonnal visszahozná.
+    //
+    // A fenti két sor (érték + minőség) marad feltétel nélkül: a ping-doboz
+    // a #hud-on belül van, tehát magától csak vezetés közben látszik.
+    const racing = appState === 'mp';
+    const show = racing && quality === 'bad';
+    if (show) highPingAlertTextEl.textContent = `Magas ping: ${ping} ms — a kapcsolat akadozhat.`;
+    highPingAlertEl.classList.toggle('hidden', !show);
   },
   requestGameFullscreen,
   leaveMultiplayer() {
