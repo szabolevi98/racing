@@ -352,10 +352,23 @@ export function applyAerodynamics(body, vehicle, dt) {
 // kormánymozdulat, a hosszan tartott gomb viszont továbbra is eléri a teljes
 // kormányzást. Ez inputmodell, nem stabilitássegéd.
 export const STEERING_INPUT_RATE = 2.6;
-export function moveSteeringInput(current, target, dt) {
+export const LOW_SPEED_STEERING_INPUT_RATE = 8;
+export const STEERING_RATE_LOW_SPEED_KMH = 80;
+export const STEERING_RATE_HIGH_SPEED_KMH = 180;
+export function moveSteeringInput(current, target, dt, speedKmh = Infinity) {
   const safeCurrent = Math.max(-1, Math.min(1, Number(current) || 0));
   const safeTarget = Math.max(-1, Math.min(1, Number(target) || 0));
-  const maxDelta = STEERING_INPUT_RATE * Math.max(0, Number(dt) || 0);
+  // Kis tempón gyorsan kell elérni a nagy kormányszöget (sikán, visszafordító,
+  // parkolósebesség), nagy tempón viszont ugyanaz a bináris gomb csak
+  // fokozatosan fordítson. A két tartomány között smoothstep átmenet van,
+  // ezért 80/180 km/h körül sincs hirtelen reakcióváltás.
+  const speedBlendRaw = (Math.abs(Number(speedKmh)) - STEERING_RATE_LOW_SPEED_KMH)
+    / (STEERING_RATE_HIGH_SPEED_KMH - STEERING_RATE_LOW_SPEED_KMH);
+  const speedBlend = Math.max(0, Math.min(1, Number.isFinite(speedBlendRaw) ? speedBlendRaw : 1));
+  const smoothBlend = speedBlend * speedBlend * (3 - 2 * speedBlend);
+  const rate = LOW_SPEED_STEERING_INPUT_RATE
+    + (STEERING_INPUT_RATE - LOW_SPEED_STEERING_INPUT_RATE) * smoothBlend;
+  const maxDelta = rate * Math.max(0, Number(dt) || 0);
   const diff = safeTarget - safeCurrent;
   return Math.abs(diff) <= maxDelta
     ? safeTarget

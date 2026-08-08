@@ -9,6 +9,7 @@ import {
   FLOOR_COLLIDER_GROUPS,
   FRONT_SIDE_FRICTION_STIFFNESS,
   GRAVITY,
+  LOW_SPEED_STEERING_INPUT_RATE,
   REAR_SIDE_FRICTION_STIFFNESS,
   STEERING_INPUT_RATE,
   SUSPENSION_REST_LENGTH,
@@ -123,12 +124,16 @@ test('normal brake remains driver-controlled instead of applying stability assis
 });
 
 test('digital steering has finite travel instead of snapping to full lock', () => {
-  const oneTick = moveSteeringInput(0, 1, 1 / 60);
-  assert.equal(oneTick, STEERING_INPUT_RATE / 60);
+  const oneTick = moveSteeringInput(0, 1, 1 / 60, 300);
+  assert.ok(Math.abs(oneTick - STEERING_INPUT_RATE / 60) < 1e-12);
   assert.ok(oneTick > 0 && oneTick < 1);
 
+  const lowSpeedTick = moveSteeringInput(0, 1, 1 / 60, 20);
+  assert.ok(Math.abs(lowSpeedTick - LOW_SPEED_STEERING_INPUT_RATE / 60) < 1e-12);
+  assert.ok(lowSpeedTick > oneTick, 'low-speed steering should react faster');
+
   let steering = 0;
-  for (let i = 0; i < 60; i++) steering = moveSteeringInput(steering, 1, 1 / 60);
+  for (let i = 0; i < 60; i++) steering = moveSteeringInput(steering, 1, 1 / 60, 300);
   assert.equal(steering, 1, 'holding the key must still reach full steering');
 });
 

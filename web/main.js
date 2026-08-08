@@ -2506,7 +2506,6 @@ function updateControls(dt = 1 / 60) {
   const left = !frozen && (keys['KeyA'] || keys['ArrowLeft']);
   const right = !frozen && (keys['KeyD'] || keys['ArrowRight']);
   const steeringTarget = left ? 1 : right ? -1 : 0;
-  steeringInput = moveSteeringInput(steeringInput, steeringTarget, dt);
 
   // Amíg még előre gördül a kocsi, az S/le nyíl FÉKEZZEN (a valódi wheelBrake
   // mechanikával), ne a REVERSE_FACTOR-ral szorzott, sokkal gyengébb
@@ -2527,6 +2526,7 @@ function updateControls(dt = 1 / 60) {
   updateMiniMap(pos.x, pos.z);
   const linvel = chassisBody.linvel();
   const speedKmh = Math.hypot(linvel.x, linvel.z) * 3.6;
+  steeringInput = moveSteeringInput(steeringInput, steeringTarget, dt, speedKmh);
   speedValueEl.textContent = Math.round(speedKmh);
   updateZoneIndicator(pos.x, pos.z);
   // A motorhang a sebességből és a gázállásból él. A visszaszámlálás alatt a
