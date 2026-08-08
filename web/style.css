@@ -621,7 +621,7 @@ kbd.k {
 }
 
 #fullscreenHint {
-  position: fixed; left: 50%; bottom: 26px; z-index: 24;
+  position: fixed; left: 50%; top: 26px; z-index: 24;
   transform: translateX(-50%); pointer-events: none;
   padding: 9px 15px; border: 1px solid var(--line-strong); border-radius: 22px;
   color: var(--text); background: rgba(13, 16, 23, .78);
@@ -635,7 +635,7 @@ kbd.k {
   font: inherit; font-weight: 800;
 }
 @keyframes fullscreen-hint {
-  0% { opacity: 0; transform: translate(-50%, 8px); }
+  0% { opacity: 0; transform: translate(-50%, -8px); }
   12%, 78% { opacity: 1; transform: translate(-50%, 0); }
   100% { opacity: 0; transform: translate(-50%, 0); }
 }
