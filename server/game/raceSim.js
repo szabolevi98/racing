@@ -16,11 +16,12 @@ import {
   FLOOR_COLLIDER_GROUPS, WALL_COLLIDER_GROUPS, WHEEL_RAY_FILTER_GROUPS, TRACK_FRICTION,
 } from '../../shared/vehicleConfig.js';
 import {
-  decodeZoneCodes,
+  zoneCodesFromRow,
   wallProbes, wheelProbes, allWheelsOffTrack, wheelsOffTrack, applyWallConstraint,
 } from '../../shared/zone.js';
 import { WHEEL_POSITIONS } from '../../shared/vehicleConfig.js';
-import { decodePng } from './pngDecode.js';
+import { restHeightAboveGround } from '../../shared/spawnRest.js';
+import { decodePngRows } from './pngDecode.js';
 import { ASSETS_DIR } from '../paths.js';
 
 let rapierReady = null;
@@ -47,6 +48,11 @@ function readMesh(buf, offset) {
   return { vertices, indices, nextOffset: o };
 }
 
+// Egy pillanatra visszaadja a szót az eseményhuroknak. A verseny indítása
+// hosszú, összefüggő munkából áll (háló, zóna-térkép, rajtrács), a Node viszont
+// egyszálú: e nélkül a rajt a TÖBBI szoba versenyét is megállítaná.
+const yieldToLoop = () => new Promise((resolve) => setImmediate(resolve));
+
 async function loadCollision(mapId) {
   const file = path.join(ASSETS_DIR, 'maps', mapId, 'collision.bin');
   const buf = await fs.readFile(file);
@@ -54,6 +60,7 @@ async function loadCollision(mapId) {
     throw new Error('érvénytelen vagy régi formátumú collision.bin — süsd be újra a Fejlesztői eszközökből');
   }
   const floor = readMesh(buf, 4);
+  await yieldToLoop();
   const wall = readMesh(buf, floor.nextOffset);
   return { floor, wall };
 }
@@ -64,13 +71,16 @@ async function loadCollision(mapId) {
 async function loadZoneMap(map) {
   if (!map?.zonemap?.bounds) throw new Error('nincs zonemap a manifestben');
   const file = path.join(ASSETS_DIR, 'maps', map.id, 'zonemap.png');
-  const { width, height, rgba } = decodePng(await fs.readFile(file));
-  return {
-    codes: decodeZoneCodes(rgba, width, height),
-    w: width,
-    h: height,
-    bounds: map.zonemap.bounds,
-  };
+  // Soronként fordítjuk kóddá, ahogy a dekóder kibontja: így nincs 80 MB-os
+  // köztes RGBA puffer, és a dekóder közben vissza tudja adni a szót az
+  // eseményhuroknak. A képpont->kód szabály a közös zone.js-ben marad, mert a
+  // kliensnek bitre ugyanazt kell látnia.
+  let codes = null;
+  const { width, height } = await decodePngRows(await fs.readFile(file), (line, y, w, h, channels) => {
+    if (codes === null) codes = new Uint8Array(w * h);
+    zoneCodesFromRow(codes, y * w, line, 0, w, channels);
+  });
+  return { codes, w: width, h: height, bounds: map.zonemap.bounds };
 }
 
 // Merre nézett a kocsi, amikor áthaladt egy kapun? A mozgás irányából, mert
@@ -102,10 +112,24 @@ function crossedGate(gate, fromX, fromZ, toX, toZ) {
   return t >= 0 && t <= 1 && u >= 0 && u <= 1;
 }
 
-// Épp csak a nyugalmi magasság fölé tesszük a kocsit (kerék + felfüggesztés +
-// fél kasztni ~0.9), hogy egy nagy zuhanás ne verje bele a vékony hálóba.
-const SPAWN_HEIGHT = 1.0;
-const SPAWN_SETTLE_TICKS = 120;
+// A kocsit PONTOSAN a nyugalmi magasságába tesszük (lásd shared/spawnRest.js),
+// tehát nincs mit leültetni. Korábban itt 1.0 m állt, ami 22 cm-es esést
+// jelentett, azt pedig 120 fizikai lépéssel kellett előre lefuttatni.
+//
+// Ez csak akkor kell, ha a talajkeresés NEM talált semmit: olyankor a háló
+// teteje fölé ejtjük a kocsit, és ott a zuhanás a szándék.
+const SPAWN_FALLBACK_HEIGHT = 1.0;
+// Marad egy rövid leültetés: a rajtkocka lejt vagy domború lehet, tehát a kocsi
+// billen egy keveset. Mérve, 8 pályán: 40 lépés után a magasság képkockánként
+// 0,00-0,01 mm-t mozdul — ugyanaz, mint a régi 120 lépés után —, és a kocsi
+// 0,9 mm-en belül ugyanoda áll meg.
+const SPAWN_SETTLE_TICKS = 40;
+// Meddig futhat a leültetés EGYHUZAMBAN, mielőtt visszaadjuk a szót az
+// eseményhuroknak. A Node egyszálú: e nélkül a rajt a többi szoba versenyét is
+// megállítaná (mérve: egy másik szobában versenyző játékos 767 ms-ig nem kapott
+// snapshotot). A fizika lépéseinek SORRENDJE nem változik tőle, csak közben
+// más is szóhoz jut.
+const SETTLE_YIELD_MS = 8;
 const NEUTRAL_INPUT = Object.freeze({ steer: 0, throttle: 0, brake: false, handbrake: false, seq: 0 });
 const FINISHED_BRAKE_INPUT = Object.freeze({ steer: 0, throttle: 0, brake: true, handbrake: false, seq: 0 });
 // Innen lövünk lefelé a talajért. Bőven a legmagasabb pályamodell fölött.
@@ -161,6 +185,10 @@ export class RaceSim {
         .setCollisionGroups(FLOOR_COLLIDER_GROUPS),
       trackBody
     );
+    // A két háló felépítése a rajt leghosszabb, egyben nem darabolható munkája
+    // (a Rapier egyetlen hívásban építi a térbeli indexet). Mérve, Shanghain:
+    // talaj 188 ms, fal 164 ms — külön-külön feleakkora akadás, mint egyben.
+    await yieldToLoop();
     // A fal-háló csak a kasztnival ütközik — a kerék-sugarat a
     // WHEEL_RAY_FILTER_GROUPS zárja ki belőle (lásd updateVehicle hívás lent).
     if (wall.indices.length > 0) {
@@ -259,11 +287,15 @@ export class RaceSim {
       i++;
     }
 
-    // A +1 méteres biztonsági magasság megakadályozza, hogy lejtőn vagy egy
-    // domború rajtrácson a kasztni a pályába szülessen. Ezt az esést viszont a
-    // játékosnak nem kell végignéznie: még az első snapshot és a timer előtt
-    // rugóra ültetjük az összes autót. Így a rajt már nyugodt, talajon álló
-    // állapotból indul, nem egy 20–25 cm-es becsapódás közben.
+    // A kocsi már a nyugalmi magasságában van, tehát itt nincs zuhanás — csak a
+    // rajtkocka lejtését/domborulatát engedjük leülepedni. Az első snapshot és a
+    // timer előtt fut le, hogy a rajt nyugodt, talajon álló állapotból induljon.
+    //
+    // Nyolc ezredmásodpercenként visszaadjuk a szót az eseményhuroknak. Ilyenkor
+    // sem a szoba, sem a `this.cars` nem változhat a hátunk mögött: erre a
+    // szimulációra még senkinek nincs hivatkozása (a hívó csak a start() után
+    // teszi be `room.sim`-be), a közben kilépőket pedig ott takarítja el.
+    let chunkStart = performance.now();
     for (let tick = 0; tick < SPAWN_SETTLE_TICKS; tick++) {
       for (const car of this.cars.values()) {
         const offtrackWheels = wheelsOffTrack(this.zone, car.body, WHEEL_PROBES);
@@ -271,6 +303,10 @@ export class RaceSim {
         car.vehicle.updateVehicle(this.world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
       }
       this.world.step();
+      if (performance.now() - chunkStart >= SETTLE_YIELD_MS) {
+        await yieldToLoop();
+        chunkStart = performance.now();
+      }
     }
     for (const car of this.cars.values()) {
       car.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
@@ -324,12 +360,15 @@ export class RaceSim {
   // pályára, nem beléje.
   spawnYAt(x, z) {
     const ground = this.groundAt(x, z);
-    if (ground !== null) return ground + SPAWN_HEIGHT;
+    // Pontosan oda, ahol a kocsi magától megállna. Ezt a magasságot a
+    // felfüggesztés hangolásából MÉRJÜK (shared/spawnRest.js), nem beégetett
+    // szám — különben a következő hangolás után némán visszajönne az esés.
+    if (ground !== null) return ground + restHeightAboveGround(RAPIER);
     console.warn(
       `[${this.room.code}] A rajtpont (${x.toFixed(1)}, ${z.toFixed(1)}) alatt nincs pálya ` +
       `(${this.map.id}) — a háló teteje fölé ejtjük a kocsit.`
     );
-    return this.trackTopY + SPAWN_HEIGHT;
+    return this.trackTopY + SPAWN_FALLBACK_HEIGHT;
   }
 
   // Az "R" multiplayerben: a kliens nem teleportálhatja magát (a szerver a

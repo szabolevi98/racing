@@ -12,19 +12,35 @@ export const ZONE_ASPHALT = 0;
 export const ZONE_OFFTRACK = 1;
 export const ZONE_WALL = 2;
 
+// EGYETLEN képsor átfordítása zóna-kódokká. Ez az egyetlen hely, ahol a festék
+// színéből kód lesz.
+//
+// Miért soronként, és nem csak egy teljes pufferre: a kliens a canvas kész
+// RGBA tömbjét kapja egyben, a szerver viszont a PNG-t soronként bontja ki
+// (nem áll meg közben a teljes eseményhurok, és nem foglal 80 MB köztes
+// puffert). A szabálynak viszont bitre azonosnak kell lennie a két oldalon,
+// különben a pálya szélén a kliens jóslata folyamatosan eltérne a szervertől.
+//
+// `channels`: 4 (RGBA) vagy 3 (RGB — ilyenkor minden képpont átlátszatlan).
+export function zoneCodesFromRow(codes, outOffset, pixels, pixelOffset, width, channels) {
+  for (let x = 0; x < width; x++) {
+    const s = pixelOffset + x * channels;
+    // Az ecsetvonás pereme élsimított (halvány) — alacsony küszöb kell, hogy
+    // a látható folt SZÉLE is beleszámítson, különben a fal/kifutó egy
+    // képpontnyival kisebb lenne, mint amit a szerkesztőben látsz.
+    if (channels === 4 && pixels[s + 3] < 16) continue; // festetlen = aszfalt (0)
+    // A két festék jól elkülönül a zöld csatornán:
+    // kifutó = rgb(255,165,0) -> g=165, fal = rgb(220,20,60) -> g=20.
+    codes[outOffset + x] = pixels[s + 1] > 100 ? ZONE_OFFTRACK : ZONE_WALL;
+  }
+}
+
 // RGBA képpontokból zóna-kódok. A bemenet bármi lehet, ami indexelhető
 // (böngészőben ImageData.data, szerveren a kicsomagolt PNG bájtjai).
 export function decodeZoneCodes(rgba, width, height) {
   const codes = new Uint8Array(width * height);
-  for (let i = 0; i < codes.length; i++) {
-    const alpha = rgba[i * 4 + 3];
-    // Az ecsetvonás pereme élsimított (halvány) — alacsony küszöb kell, hogy
-    // a látható folt SZÉLE is beleszámítson, különben a fal/kifutó egy
-    // képpontnyival kisebb lenne, mint amit a szerkesztőben látsz.
-    if (alpha < 16) continue; // festetlen = aszfalt (0)
-    // A két festék jól elkülönül a zöld csatornán:
-    // kifutó = rgb(255,165,0) -> g=165, fal = rgb(220,20,60) -> g=20.
-    codes[i] = rgba[i * 4 + 1] > 100 ? ZONE_OFFTRACK : ZONE_WALL;
+  for (let y = 0; y < height; y++) {
+    zoneCodesFromRow(codes, y * width, rgba, y * width * 4, width, 4);
   }
   return codes;
 }

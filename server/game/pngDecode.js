@@ -7,9 +7,23 @@
 //
 // Ha valaha más alakú PNG kerülne ide, inkább hangosan elhasal, mint hogy
 // csendben rossz képpontokat adjon.
+//
+// Miért SORONKÉNT ad vissza, és miért async? A zóna-térképek nagyok (mérve:
+// 2432x4968 – 4394x4551, azaz 12–20 millió képpont). Egyben kibontva ez
+// egyrészt 0,35–0,79 másodpercig egyhuzamban megállította a szervert — a Node
+// egyszálú, tehát a többi szoba versenyét is —, másrészt egy 80 MB-os köztes
+// RGBA puffert foglalt, amit a hívó úgyis rögtön eldobott. Soronként átadva
+// nincs köztes puffer, és néhány ezredmásodpercenként visszaadjuk a szót az
+// eseményhuroknak.
 import zlib from 'node:zlib';
+import { promisify } from 'node:util';
+
+const inflate = promisify(zlib.inflate);
 
 const SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
+// Ennyi ideig dolgozhatunk egyhuzamban, mielőtt visszaadjuk a szót.
+const YIELD_MS = 8;
 
 // A Paeth-előrejelző a PNG szabvány szerint: a bal, a fenti és az átlós
 // szomszéd közül azt választja, amelyik a becsléshez legközelebb van.
@@ -20,11 +34,41 @@ function paeth(a, b, c) {
   return pb <= pc ? b : c;
 }
 
-export function decodePng(buf) {
+// Egy sor szűrésének visszafejtése, HELYBEN. Szűrőnként külön ciklus: a régi
+// változat képpontonként ágazott el egy switch-csel, ami 60 millió bájtnál
+// önmagában is számottevő.
+function unfilterRow(filter, line, prev, channels, stride) {
+  switch (filter) {
+    case 0:                                   // None
+      return;
+    case 1:                                   // Sub
+      for (let i = channels; i < stride; i++) line[i] = (line[i] + line[i - channels]) & 0xff;
+      return;
+    case 2:                                   // Up
+      for (let i = 0; i < stride; i++) line[i] = (line[i] + prev[i]) & 0xff;
+      return;
+    case 3:                                   // Average
+      for (let i = 0; i < channels; i++) line[i] = (line[i] + (prev[i] >> 1)) & 0xff;
+      for (let i = channels; i < stride; i++) {
+        line[i] = (line[i] + ((line[i - channels] + prev[i]) >> 1)) & 0xff;
+      }
+      return;
+    case 4:                                   // Paeth
+      for (let i = 0; i < channels; i++) line[i] = (line[i] + prev[i]) & 0xff;
+      for (let i = channels; i < stride; i++) {
+        line[i] = (line[i] + paeth(line[i - channels], prev[i], prev[i - channels])) & 0xff;
+      }
+      return;
+    default:
+      throw new Error('ismeretlen PNG sor-szűrő: ' + filter);
+  }
+}
+
+// A fejléc és az IDAT darabok kiszedése. Tisztán bájtolvasás, gyors.
+function readChunks(buf) {
   for (let i = 0; i < SIGNATURE.length; i++) {
     if (buf[i] !== SIGNATURE[i]) throw new Error('nem PNG fájl');
   }
-
   let width = 0, height = 0, bitDepth = 0, colorType = 0;
   const idat = [];
   let o = 8;
@@ -46,48 +90,45 @@ export function decodePng(buf) {
       break;
     }
   }
-
   if (bitDepth !== 8) throw new Error(`csak 8 bites PNG támogatott (kapott: ${bitDepth})`);
   const channels = colorType === 6 ? 4 : colorType === 2 ? 3 : 0;
   if (!channels) throw new Error(`csak RGB/RGBA PNG támogatott (colorType: ${colorType})`);
+  return { width, height, channels, idat };
+}
 
-  const raw = zlib.inflateSync(Buffer.concat(idat));
+// Soronkénti dekódolás. Az `onRow(line, y, width, height, channels)` a
+// KIBONTOTT sort kapja; a puffer a következő sorra újrahasznosul, tehát a
+// hívónak azonnal fel kell dolgoznia (nem tárolhatja el a hivatkozást). A teljes
+// méretet is megkapja, hogy már az első sornál akkora tárolót foglalhasson,
+// amekkora kell.
+//
+// Visszatér: { width, height, channels }.
+export async function decodePngRows(buf, onRow) {
+  const { width, height, channels, idat } = readChunks(buf);
+  // A kicsomagolás a Node szálkészletén fut, nem a fő szálon — ez önmagában
+  // 73–132 ms blokkolást vesz le a rajtról.
+  const raw = await inflate(Buffer.concat(idat));
+
   const stride = width * channels;
-  const out = Buffer.alloc(width * height * 4);
-
-  let prev = Buffer.alloc(stride);       // az előző sor, SZŰRÉS UTÁN
+  let line = Buffer.alloc(stride);
+  let prev = Buffer.alloc(stride);          // az előző sor, SZŰRÉS UTÁN
   let p = 0;
+  let chunkStart = performance.now();
+
   for (let y = 0; y < height; y++) {
     const filter = raw[p++];
-    const line = Buffer.from(raw.subarray(p, p + stride));
+    raw.copy(line, 0, p, p + stride);
     p += stride;
+    unfilterRow(filter, line, prev, channels, stride);
+    onRow(line, y, width, height, channels);
+    // A most kész sor lesz a következő "fent" szomszédja; a régi prev puffert
+    // pedig újrahasznosítjuk, hogy soronként ne foglaljunk.
+    const swap = prev; prev = line; line = swap;
 
-    // A szűrők visszafejtése. A "bal" szomszéd a saját sorban van, ezért
-    // helyben, balról jobbra kell dolgozni.
-    for (let i = 0; i < stride; i++) {
-      const a = i >= channels ? line[i - channels] : 0;   // bal
-      const b = prev[i];                                  // fent
-      const c = i >= channels ? prev[i - channels] : 0;   // átlós
-      switch (filter) {
-        case 0: break;                                     // None
-        case 1: line[i] = (line[i] + a) & 0xff; break;     // Sub
-        case 2: line[i] = (line[i] + b) & 0xff; break;     // Up
-        case 3: line[i] = (line[i] + ((a + b) >> 1)) & 0xff; break;  // Average
-        case 4: line[i] = (line[i] + paeth(a, b, c)) & 0xff; break;  // Paeth
-        default: throw new Error('ismeretlen PNG sor-szűrő: ' + filter);
-      }
+    if (performance.now() - chunkStart >= YIELD_MS) {
+      await new Promise((resolve) => setImmediate(resolve));
+      chunkStart = performance.now();
     }
-
-    // Egységesen RGBA-ra hozzuk, hogy a hívó ne foglalkozzon a csatornaszámmal.
-    for (let x = 0; x < width; x++) {
-      const s = x * channels, d = (y * width + x) * 4;
-      out[d] = line[s];
-      out[d + 1] = line[s + 1];
-      out[d + 2] = line[s + 2];
-      out[d + 3] = channels === 4 ? line[s + 3] : 255;
-    }
-    prev = line;
   }
-
-  return { width, height, rgba: out };
+  return { width, height, channels };
 }

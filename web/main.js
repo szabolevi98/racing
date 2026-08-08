@@ -11,6 +11,7 @@ import {
   forwardSpeed, REVERSE_BRAKE_THRESHOLD, applySpeedCap, settleFinishedBody,
 } from '/shared/vehicleConfig.js';
 import { TAINT, requiredCheckpoints } from '/shared/protocol.js';
+import { restHeightAboveGround } from '/shared/spawnRest.js';
 import { classifyPing } from '/shared/ping.js';
 import {
   countdownBeep, startBeep, setMuted, isMuted, setVolume, getVolume, primeOnFirstGesture,
@@ -2792,8 +2793,16 @@ function resetSinglePlayerCar() {
   const pos = chassisBody.translation();
   if (race.active && lastCheckpointSpawn) {
     const groundY = findGroundAt(currentTrack, currentTrackBox, lastCheckpointSpawn.x, lastCheckpointSpawn.z);
+    // Az "R" is a nyugalmi magasságba tesz vissza, nem fölé: eddig minden
+    // visszaállás egy pottyanással kezdődött.
     resetCarTo(
-      { x: lastCheckpointSpawn.x, y: (groundY ?? pos.y) + 1, z: lastCheckpointSpawn.z },
+      {
+        x: lastCheckpointSpawn.x,
+        y: groundY !== null && groundY !== undefined
+          ? groundY + restHeightAboveGround(RAPIER)
+          : pos.y + 1,
+        z: lastCheckpointSpawn.z,
+      },
       lastCheckpointSpawn.heading
     );
   } else {
@@ -3402,18 +3411,26 @@ startBtn.addEventListener('click', async () => {
     // kapja. Ha nincs, futásidőben nyerjük ki a modellből (ez is gyors).
     await prepareTrackPhysics();
 
-    // Épp csak a nyugalmi magasság fölé tesszük a kocsit (kerék sugara +
-    // felfüggesztés + fél kasztni ~0.9), hogy egy nagy zuhanás ne verje bele
-    // a dobozt a vékony háromszöghálóba.
-    const SPAWN_HEIGHT = 1.0;
+    // PONTOSAN a nyugalmi magasságba tesszük a kocsit, tehát nincs mit
+    // leültetni: a verseny már talajon álló autóval indul. Korábban itt 1.0 m
+    // volt, ami 22 cm-es esést jelentett — azt a játékos a visszaszámlálás
+    // alatt látta lepottyanni. A számot nem égetjük be, mert a felfüggesztés
+    // hangolásától függ (lásd shared/spawnRest.js).
+    const restHeight = restHeightAboveGround(RAPIER);
     const slot = pickSpawnSlot(currentSpawnPoints);
     if (slot) {
       const y = findGroundAt(currentTrack, currentTrackBox, slot.x, slot.z);
-      spawnPoint.set(slot.x, (y ?? currentTrackBox.max.y) + SPAWN_HEIGHT, slot.z);
+      // Ha nincs találat a talajra, a pálya teteje fölé ejtjük — ott a zuhanás
+      // a szándék, mert az a hibaág.
+      spawnPoint.set(
+        slot.x,
+        y !== null && y !== undefined ? y + restHeight : currentTrackBox.max.y + 1.0,
+        slot.z
+      );
       spawnHeading = slot.heading || 0;
     } else {
       const spot = findShowcaseSpot(currentTrack, currentTrackBox, null);
-      spawnPoint.copy(spot).add(new THREE.Vector3(0, SPAWN_HEIGHT, 0));
+      spawnPoint.copy(spot).add(new THREE.Vector3(0, restHeight, 0));
       spawnHeading = 0;
     }
     resetCarTo(spawnPoint);
