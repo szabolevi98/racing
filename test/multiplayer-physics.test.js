@@ -6,7 +6,8 @@ import { RaceSim } from '../server/game/raceSim.js';
 import { ROOM_STATE } from '../shared/protocol.js';
 import {
   GRAVITY, CHASSIS_SIZE, buildVehicle, applyChassisMassProperties,
-  FLOOR_COLLIDER_GROUPS, CAR_PROXY_COLLIDER_GROUPS, WHEEL_RAY_FILTER_GROUPS,
+  FLOOR_COLLIDER_GROUPS, CAR_COLLIDER_GROUPS, GHOST_CAR_COLLIDER_GROUPS,
+  CAR_PROXY_COLLIDER_GROUPS, WHEEL_RAY_FILTER_GROUPS,
 } from '../shared/vehicleConfig.js';
 import {
   conjugateQuaternion, multiplyQuaternions, normalizeQuaternion, rebasePredictedState,
@@ -103,6 +104,62 @@ test('a nearby dynamic proxy can physically push the predicted car', () => {
     assert.ok(after.y < 1.5, 'the proxy must not launch the car vertically');
   } finally {
     world.free();
+  }
+});
+
+test('ghost vehicles keep track collision groups but cannot contact each other', () => {
+  const normalWorld = new RAPIER.World({ x: 0, y: 0, z: 0 });
+  const ghostWorld = new RAPIER.World({ x: 0, y: 0, z: 0 });
+  try {
+    const normalA = buildVehicle(RAPIER, normalWorld, { x: 0, y: 1, z: 0 });
+    const normalB = buildVehicle(RAPIER, normalWorld, { x: 0, y: 1, z: 3 });
+    const ghostA = buildVehicle(
+      RAPIER, ghostWorld, { x: 0, y: 1, z: 0 }, { collideWithCars: false }
+    );
+    const ghostB = buildVehicle(
+      RAPIER, ghostWorld, { x: 0, y: 1, z: 3 }, { collideWithCars: false }
+    );
+
+    normalWorld.step();
+    ghostWorld.step();
+    let normalContact = false;
+    let ghostContact = false;
+    normalWorld.contactPair(normalA.collider, normalB.collider, () => { normalContact = true; });
+    ghostWorld.contactPair(ghostA.collider, ghostB.collider, () => { ghostContact = true; });
+
+    assert.equal(normalA.collider.collisionGroups(), CAR_COLLIDER_GROUPS);
+    assert.equal(ghostA.collider.collisionGroups(), GHOST_CAR_COLLIDER_GROUPS);
+    assert.equal(normalContact, true);
+    assert.equal(ghostContact, false);
+  } finally {
+    normalWorld.free();
+    ghostWorld.free();
+  }
+});
+
+test('the authoritative race simulation builds ghost cars without car contact', async () => {
+  const map = (await getManifest()).maps.find((entry) => entry.collision);
+  assert.ok(map, 'at least one baked map is required');
+  const players = new Map([
+    ['one', { id: 'one', slot: 0, carId: 'car' }],
+    ['two', { id: 'two', slot: 1, carId: 'car' }],
+  ]);
+  const room = {
+    code: 'GHOST', players, state: ROOM_STATE.LOADING, laps: 1, ghostMode: true,
+    recordLap: async () => {}, recordResults: async () => {}, toJSON: () => ({}),
+  };
+  const sim = new RaceSim(room, { map, broadcast: () => {} });
+  room.sim = sim;
+  await sim.start();
+  clearInterval(sim.timer);
+  sim.timer = null;
+  try {
+    assert.equal(sim.cars.size, 2);
+    for (const car of sim.cars.values()) {
+      assert.equal(car.collider.collisionGroups(), GHOST_CAR_COLLIDER_GROUPS);
+    }
+  } finally {
+    sim.stop();
   }
 });
 

@@ -227,6 +227,15 @@ kbd.k {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--line-strong); color: var(--text);
 }
+.ghost-mode-option {
+  display: flex; align-items: flex-start; gap: 9px; margin-top: 10px;
+  padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--r-sm);
+  color: var(--muted); background: rgba(255, 255, 255, .025); cursor: pointer;
+}
+.ghost-mode-option input { margin-top: 2px; accent-color: var(--accent); cursor: pointer; }
+.ghost-mode-option span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ghost-mode-option strong { color: var(--text); font-size: 12px; font-weight: 700; }
+.ghost-mode-option small { font-size: 10px; line-height: 1.3; }
 
 /* ============================================================
    Vezetés közbeni HUD
@@ -509,6 +518,9 @@ kbd.k {
 #touchControls.is-disabled .touch-joystick { opacity: .35; pointer-events: none; }
 
 @media (hover: none) and (pointer: coarse), (max-width: 900px) {
+  .ghost-mode-option { gap: 7px; margin-top: 7px; padding: 6px 8px; }
+  .ghost-mode-option strong { font-size: 10px; }
+  .ghost-mode-option small { font-size: 8px; }
   #touchControls { display: block; }
   #topLeft { top: 8px; left: 8px; width: min(315px, calc(100vw - 16px)); }
   .tl-bar { gap: 5px; margin-bottom: 6px; }

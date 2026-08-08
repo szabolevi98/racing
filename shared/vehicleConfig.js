@@ -58,6 +58,11 @@ export const WALL_COLLIDER_GROUPS = (COLLISION_GROUP_WALL << 16) | GROUPS_ALL_MA
 export const CAR_COLLIDER_GROUPS =
   (COLLISION_GROUP_CAR << 16) |
   (COLLISION_GROUP_FLOOR | COLLISION_GROUP_WALL | COLLISION_GROUP_CAR | COLLISION_GROUP_CAR_PROXY);
+// Ghost módban a kasztni ugyanúgy a CAR csoport tagja marad (a keréksugarak és
+// a pálya szűrői így változatlanok), de a saját maszkjából hiányzik a CAR és a
+// CAR_PROXY. Emiatt a talaj/fal továbbra is fizikai akadály, másik autó nem.
+export const GHOST_CAR_COLLIDER_GROUPS =
+  (COLLISION_GROUP_CAR << 16) | (COLLISION_GROUP_FLOOR | COLLISION_GROUP_WALL);
 // A helyi jóslás távoli autó-proxyja csak a saját valódi kasztnival ütközik.
 // Így nem akad bele a talajba/falba, és a proxyk sem lökdösik egymást egy
 // olyan kliensen, amely csak a saját autó fizikáját jósolja.
@@ -265,7 +270,12 @@ export function getLiveVehicleTunables() {
 
 // Egy kocsi felépítése a Rapier világban. Ugyanaz a kód fut a kliensen és a
 // szerveren, hogy a két szimuláció egyforma legyen.
-export function buildVehicle(RAPIER, world, position = { x: 0, y: 5, z: 0 }) {
+export function buildVehicle(
+  RAPIER,
+  world,
+  position = { x: 0, y: 5, z: 0 },
+  { collideWithCars = true } = {}
+) {
   const body = world.createRigidBody(
     RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(position.x, position.y, position.z)
@@ -279,7 +289,7 @@ export function buildVehicle(RAPIER, world, position = { x: 0, y: 5, z: 0 }) {
   const collider = world.createCollider(
     RAPIER.ColliderDesc.cuboid(CHASSIS_SIZE.x, CHASSIS_SIZE.y, CHASSIS_SIZE.z)
       .setMass(CHASSIS_MASS)
-      .setCollisionGroups(CAR_COLLIDER_GROUPS),
+      .setCollisionGroups(collideWithCars ? CAR_COLLIDER_GROUPS : GHOST_CAR_COLLIDER_GROUPS),
     body
   );
 

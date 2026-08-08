@@ -20,3 +20,14 @@ test('each race randomly assigns exactly the first N grid slots', () => {
   const secondAssignment = [...room.players.values()].map((player) => player.slot);
   assert.deepEqual(secondAssignment, [0, 1, 2]);
 });
+
+test('ghost mode is a room-wide setting included in room state', () => {
+  const host = { id: 'host' };
+  const ghostRoom = new Room('GHOST', host, { mapId: 'map', laps: 3, ghostMode: true });
+  const normalRoom = new Room('NORMAL', host, { mapId: 'map', laps: 3 });
+
+  assert.equal(ghostRoom.ghostMode, true);
+  assert.equal(ghostRoom.toJSON().ghostMode, true);
+  assert.equal(normalRoom.ghostMode, false);
+  assert.equal(normalRoom.toJSON().ghostMode, false);
+});

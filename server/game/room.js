@@ -9,11 +9,14 @@ import {
 import { createRace, finishRace, saveResult, saveLap } from '../db/index.js';
 
 export class Room {
-  constructor(code, host, { mapId, laps }) {
+  constructor(code, host, { mapId, laps, ghostMode = false }) {
     this.code = code;
     this.hostId = host.id;
     this.mapId = mapId;
     this.laps = Math.max(1, Math.min(20, Number(laps) || 3));
+    // Szobaszintű és futam közben nem változtatható: minden kliensnek és a
+    // hiteles szerverfizikának ugyanazt kell használnia.
+    this.ghostMode = ghostMode === true;
     this.state = ROOM_STATE.LOBBY;
     this.players = new Map(); // playerId -> player
     this.raceId = null;       // adatbázis-beli verseny azonosító
@@ -107,6 +110,7 @@ export class Room {
       hostId: this.hostId,
       mapId: this.mapId,
       laps: this.laps,
+      ghostMode: this.ghostMode,
       state: this.state,
       countdownEndsAt: this.countdownEndsAt || null,
       players: [...this.players.values()].map((p) => ({

@@ -205,7 +205,9 @@ export class RaceSim {
       // egyik alatta, a másik 100 méterrel a nulla fölött van), így egy fix
       // érték az egyik pályán a föld alatt születne, és a kocsi zuhanna.
       const pos = { x, y: this.spawnYAt(x, z), z };
-      const car = buildVehicle(RAPIER, this.world, pos);
+      const car = buildVehicle(RAPIER, this.world, pos, {
+        collideWithCars: !this.room.ghostMode,
+      });
       const half = (s.heading || 0) / 2;
       car.body.setRotation({ x: 0, y: Math.sin(half), z: 0, w: Math.cos(half) }, true);
 

@@ -127,6 +127,7 @@ el.innerHTML = `
       <div class="mp-meta">
         <span class="mp-chip">Pálya: <b id="mpRoomMap"></b></span>
         <span class="mp-chip"><b id="mpRoomLaps"></b> kör</span>
+        <span class="mp-chip">Mód: <b id="mpRoomMode"></b></span>
       </div>
       <span class="lbl d-block mb-2">Játékosok</span>
       <div id="mpPlayers"></div>
@@ -163,6 +164,11 @@ document.body.appendChild(mpResultsEl);
 const $ = (id) => document.getElementById(id);
 const show = (id, on) => $(id).classList.toggle('hidden', !on);
 const setErr = (m) => { $('mpError').textContent = m || ''; };
+const ghostModeCheckbox = $('ghostModeCheckbox');
+ghostModeCheckbox.checked = localStorage.getItem('racing.ghostMode') === '1';
+ghostModeCheckbox.addEventListener('change', () => {
+  localStorage.setItem('racing.ghostMode', ghostModeCheckbox.checked ? '1' : '0');
+});
 
 export function openLobby() {
   el.classList.remove('hidden');
@@ -187,7 +193,12 @@ $('mpCreate').addEventListener('click', () => {
   const mapId = document.getElementById('mapSelect')?.value;
   const carId = document.getElementById('carSelect')?.value;
   if (!mapId || !carId) return setErr('Előbb válassz pályát és kocsit a menüben.');
-  send(C2S.CREATE_ROOM, { mapId, carId, laps: Number(document.getElementById('lapCountSelect')?.value) || 3 });
+  send(C2S.CREATE_ROOM, {
+    mapId,
+    carId,
+    laps: Number(document.getElementById('lapCountSelect')?.value) || 3,
+    ghostMode: ghostModeCheckbox.checked,
+  });
 });
 
 $('mpJoin').addEventListener('click', () => {
@@ -396,6 +407,7 @@ function onMessage(m) {
     case S2C.RACE_STARTING:
       // Ez a "töltsd be" jel: rajtidő még NINCS benne, azt a RACE_COUNTDOWN adja.
       starting = m;
+      if (room) room.ghostMode = m.ghostMode === true;
       hideMultiplayerResults();
       beginRace(m).catch((err) => {
         // A játékos vagy a kapcsolat közben kilépett, és már másik életciklus
@@ -500,6 +512,7 @@ function renderRoom() {
   const map = G.manifest?.maps.find((x) => x.id === room.mapId);
   $('mpRoomMap').textContent = map?.label || room.mapId;
   $('mpRoomLaps').textContent = room.laps;
+  $('mpRoomMode').textContent = room.ghostMode ? 'Ghost' : 'Normál';
   $('mpPlayers').innerHTML = room.players.map((p) => {
     const car = G.manifest?.cars.find((c) => c.id === p.carId);
     const self = p.id === me.id;
@@ -1170,6 +1183,10 @@ function remoteStateAt(buf, targetServerTime) {
 // ideje. Reconciliationkor így nem a jelenlegi ellenfélpozíciót használjuk az
 // összes történeti inputhoz, hanem lépésenként a hozzá tartozó becslést.
 function syncRemoteProxies(targetServerTime) {
+  // Ghost módban a szerver sem számol autó–autó kontaktot. Ha a kliens mégis
+  // létrehozná a távoli dinamikus proxykat, a helyi jóslat lökést kapna, amit a
+  // hiteles snapshot rögtön visszakorrigálna — vagyis látszólag rángatna.
+  if (starting?.ghostMode === true || room?.ghostMode === true) return;
   const mine = G.getCarState().p;
   const now = serverNow();
   for (const [id, o] of others) {

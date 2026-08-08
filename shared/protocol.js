@@ -5,7 +5,7 @@
 
 export const C2S = {
   HELLO: 'hello',              // { name, token? }        — belépés névvel
-  CREATE_ROOM: 'createRoom',   // { mapId, carId, laps }
+  CREATE_ROOM: 'createRoom',   // { mapId, carId, laps, ghostMode }
   JOIN_ROOM: 'joinRoom',       // { code, carId }
   LEAVE_ROOM: 'leaveRoom',
   SET_CAR: 'setCar',           // { carId }
@@ -18,9 +18,9 @@ export const C2S = {
 
 export const S2C = {
   WELCOME: 'welcome',          // { playerId, token, name }
-  ROOM_STATE: 'roomState',     // { code, hostId, mapId, laps, state, players[] }
+  ROOM_STATE: 'roomState',     // { code, hostId, mapId, laps, ghostMode, state, players[] }
   ROOM_CLOSED: 'roomClosed',   // { reason }
-  RACE_STARTING: 'raceStarting', // { spawns, mapId, laps, players } — TÖLTS BE
+  RACE_STARTING: 'raceStarting', // { spawns, mapId, laps, ghostMode, players } — TÖLTS BE
   RACE_COUNTDOWN: 'raceCountdown', // { startsAt, countdownMs } — mindenki kész, indul a 3-2-1
   SNAPSHOT: 'snapshot',        // { tick, cars[] }  — a szerver hiteles állapota
   RACE_EVENT: 'raceEvent',     // { kind, playerId, ... } — kör, érvénytelenítés, célba érés

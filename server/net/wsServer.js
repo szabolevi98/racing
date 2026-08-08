@@ -98,7 +98,11 @@ async function handleMessage(player, msg) {
       if (!manifest.maps.some((m) => m.id === msg.mapId)) return fail(socket, 'Nincs ilyen pálya.');
       const code = makeRoomCode();
       if (!code) return fail(socket, 'Nem sikerült szobakódot foglalni, próbáld újra.');
-      const room = new Room(code, player, { mapId: msg.mapId, laps: msg.laps });
+      const room = new Room(code, player, {
+        mapId: msg.mapId,
+        laps: msg.laps,
+        ghostMode: msg.ghostMode === true,
+      });
       room.add(player, msg.carId);
       rooms.set(code, room);
       pushRoomState(room);
@@ -198,6 +202,7 @@ async function startRace(room) {
   broadcastRoom(room, S2C.RACE_STARTING, {
     mapId: room.mapId,
     laps: room.laps,
+    ghostMode: room.ghostMode,
     spawns,
     players: room.toJSON().players,
   });
