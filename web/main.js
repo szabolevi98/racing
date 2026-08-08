@@ -371,11 +371,21 @@ function clearRemoteCarProxies() {
 // doboz aljához igazított modell a levegőben lóg.
 //
 // A nyugalmi rugóhosszt nem számoljuk ki képletből (a Bullet-féle rugóerő
-// pontos alakja motor-belső), hanem az első olyan képkockán MÉRJÜK, amikor
-// mind a négy kerék a talajon van és a kocsi már nem mozog függőlegesen.
-// Addig a teljesen kinyúlt rugóval számolunk.
+// pontos alakja motor-belső), hanem MÉRJÜK — de nem élő képkockán várunk rá,
+// hanem előre, egy üres világban (shared/spawnRest.js). A mért nyugalmi
+// kasztni-magasság definíció szerint UGYANEZ a mennyiség: rácsatlakozás +
+// összenyomott rugóhossz + keréksugár.
+//
+// Korábban a teljesen kinyúlt rugóval indultunk (0,85 m), és a modell csak a
+// menet közbeni kalibrálás után csúszott le a helyére. A kettő ~7 cm-re van
+// egymástól, a lecsúszás 0,25 m/s — vagyis a rajt után 0,3 másodpercig LÁTHATÓAN
+// magasabban állt a kocsi, aztán leereszkedett. Pont ezt látni a verseny
+// kezdetén.
+//
+// Az élő kalibrálás megmarad: ez csak a KIINDULÓ becslés, amit onnantól már
+// nincs mit korrigálni.
 const WHEEL_CONNECTION_DROP = -WHEEL_POSITIONS[0].y;
-let groundOffset = WHEEL_CONNECTION_DROP + SUSPENSION_REST_LENGTH + WHEEL_RADIUS;
+let groundOffset = restHeightAboveGround(RAPIER);
 let groundOffsetCalibrated = false;
 
 // A kalibrált értékre nem ugrunk át, hanem odacsúszunk.
@@ -1350,8 +1360,10 @@ async function setCar(carUrl, carId, config, onProgress) {
   // kocsinál a felfüggesztés/kerék-agy magasabban ül, mint a kerék közepe: a
   // vizuális modell a SAJÁT (helyes) méretéhez igazodik, de vezetés közben a
   // kasztni egy IDEGEN kocsi kalibrált magasságában állt meg fizikailag.
-  // Kocsiváltáskor ezért újra kalibrálni kell.
-  groundOffset = WHEEL_CONNECTION_DROP + SUSPENSION_REST_LENGTH + WHEEL_RADIUS;
+  // Kocsiváltáskor ezért újra kalibrálni kell. A kiindulás itt is a mért
+  // nyugalmi magasság, nem a kinyúlt rugó — különben a kocsiváltás után megint
+  // egy látható lecsúszással kezdődne a menet.
+  groundOffset = restHeightAboveGround(RAPIER);
   resetGroundOffsetCalibration();
   // Csak a korábbi karosszéria-modellt dobjuk el — a fényszórók (és a
   // célpontjaik) szintén a carPivot gyerekei, azokat meg kell tartani.
