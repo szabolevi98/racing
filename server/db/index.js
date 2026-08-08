@@ -40,11 +40,61 @@ export async function initDb() {
     conn.release();
     available = true;
     console.log(`Adatbázis: csatlakozva (${cfg.user}@${cfg.host}:${cfg.port}/${cfg.database})`);
+
+    // Karbantartás induláskor. Egyik sem kritikus: ha elhasal, a játék megy
+    // tovább, csak a takarítás marad el — ezért nem dobunk hibát.
+    try {
+      const rekord = await backfillRecords();
+      const torolt = await purgeAbandonedRaces();
+      if (rekord) console.log(`Adatbázis: ${rekord} rekord-sor szinkronizálva a körökből.`);
+      if (torolt) console.log(`Adatbázis: ${torolt} elhagyott (üres) verseny törölve.`);
+    } catch (err) {
+      console.warn('Adatbázis: a karbantartás nem futott le — ' + err.message);
+    }
   } catch (err) {
     available = false;
     console.warn('Adatbázis: NEM elérhető — az eredmények nem lesznek elmentve.');
     console.warn('  ' + err.message);
   }
+}
+
+// --- Karbantartás (induláskor fut) -----------------------------------------
+
+// A map_records feltöltése a meglévő körökből. Idempotens: az ON DUPLICATE ág
+// csak LEJJEBB viheti az időt, tehát ismételt futtatás sem ronthat el rekordot.
+//
+// Kétszeresen hasznos: egyrészt a bevezetéskor átmenti a régi köröket az új
+// táblába, másrészt ha bármiért kimaradna egy írás, a következő indulás
+// magától helyrehozza.
+async function backfillRecords() {
+  const [res] = await pool.query(
+    `INSERT INTO map_records (player_id, map_id, best_ms)
+     SELECT l.player_id, r.map_id, MIN(l.time_ms)
+       FROM lap_times l
+       JOIN races r ON r.id = l.race_id
+      WHERE l.invalid = 0
+      GROUP BY l.player_id, r.map_id
+     ON DUPLICATE KEY UPDATE best_ms = LEAST(map_records.best_ms, VALUES(best_ms))`
+  );
+  return res.affectedRows;
+}
+
+// Elhagyott versenyek: a races sor a verseny INDÍTÁSAKOR születik, még mielőtt
+// bárki betöltött volna — így minden megszakadt indítás otthagy egy üres sort
+// (mérve: 39-ből 27 ilyen volt). Ezek bármilyen korban értéktelenek, tehát nem
+// időalapú retenció, hanem egyszerű szemét-eltakarítás.
+//
+// A "se köre, se eredménye" feltétel miatt rekordot nem érinthet: ahhoz kör
+// kellene. A folyamatban lévő versenyt a NOW() - 1 óra védi.
+export async function purgeAbandonedRaces() {
+  if (!available) return 0;
+  const [res] = await pool.query(
+    `DELETE r FROM races r
+      WHERE r.started_at < (NOW() - INTERVAL 1 HOUR)
+        AND NOT EXISTS (SELECT 1 FROM lap_times    l WHERE l.race_id = r.id)
+        AND NOT EXISTS (SELECT 1 FROM race_results x WHERE x.race_id = r.id)`
+  );
+  return res.affectedRows;
 }
 
 // --- Játékosok -------------------------------------------------------------
@@ -100,25 +150,39 @@ export async function saveResult(raceId, playerId, data) {
   );
 }
 
-export async function saveLap(raceId, playerId, lapNumber, timeMs, invalid) {
+export async function saveLap(raceId, playerId, lapNumber, timeMs, invalid, mapId) {
   if (!available || !raceId || !playerId) return;
+  const ms = Math.round(timeMs);
   await pool.query(
     'INSERT INTO lap_times (race_id, player_id, lap_number, time_ms, invalid) VALUES (?, ?, ?, ?, ?)',
-    [raceId, playerId, lapNumber, Math.round(timeMs), invalid ? 1 : 0]
+    [raceId, playerId, lapNumber, ms, invalid ? 1 : 0]
+  );
+  // A rekord a NYERS előzménytől függetlenül él (lásd map_records a
+  // schema.sql-ben). Csak érvényes kör számít, és csak akkor írjuk felül, ha
+  // tényleg gyorsabb — a feltételes UPDATE miatt ehhez nem kell külön SELECT,
+  // tehát két egyszerre beérkező kör sem tud rossz sorrendben landolni.
+  if (invalid || !mapId) return;
+  await pool.query(
+    `INSERT INTO map_records (player_id, map_id, best_ms, race_id)
+     VALUES (?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+       best_ms     = IF(VALUES(best_ms) < best_ms, VALUES(best_ms), best_ms),
+       race_id     = IF(VALUES(best_ms) < best_ms, VALUES(race_id), race_id),
+       achieved_at = IF(VALUES(best_ms) < best_ms, CURRENT_TIMESTAMP, achieved_at)`,
+    [playerId, mapId, ms, raceId]
   );
 }
 
-// Pályánkénti leggyorsabb ÉRVÉNYES körök — ranglistához.
+// Pályánkénti leggyorsabb körök — ranglistához. A map_records-ból olvas, tehát
+// a rekordok akkor is megmaradnak, ha a mögöttük lévő versenyt kitakarítottuk.
 export async function bestLaps(mapId, limit = 20) {
   if (!available) return [];
   const [rows] = await pool.query(
-    `SELECT p.name, MIN(l.time_ms) AS best_ms, r.map_id
-       FROM lap_times l
-       JOIN races r  ON r.id = l.race_id
-       JOIN players p ON p.id = l.player_id
-      WHERE l.invalid = 0 AND r.map_id = ?
-      GROUP BY p.id, r.map_id
-      ORDER BY best_ms ASC
+    `SELECT p.name, m.best_ms, m.map_id, m.achieved_at
+       FROM map_records m
+       JOIN players p ON p.id = m.player_id
+      WHERE m.map_id = ?
+      ORDER BY m.best_ms ASC
       LIMIT ?`,
     [mapId, limit]
   );

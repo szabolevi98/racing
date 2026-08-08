@@ -159,7 +159,10 @@ export class Room {
   }
 
   async recordLap(player, lapNumber, timeMs, invalid) {
-    await saveLap(this.raceId, player.dbId, lapNumber, timeMs, invalid).catch(() => {});
+    // A mapId azért kell, mert az érvényes kör a pályánkénti rekordot is
+    // frissíti (map_records) — az a ranglista forrása, és túléli a versenyek
+    // későbbi takarítását.
+    await saveLap(this.raceId, player.dbId, lapNumber, timeMs, invalid, this.mapId).catch(() => {});
   }
 
   async recordResults(results) {

@@ -68,3 +68,27 @@ CREATE TABLE IF NOT EXISTS lap_times (
   CONSTRAINT fk_lap_race   FOREIGN KEY (race_id)   REFERENCES races(id)   ON DELETE CASCADE,
   CONSTRAINT fk_lap_player FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+-- Pályánkénti egyéni rekord: játékosonként és pályánként EGY sor, a valaha
+-- futott leggyorsabb ÉRVÉNYES kör.
+--
+-- Miért külön tábla, és nem a lap_times-ból számoljuk (ahogy korábban)?
+-- Mert a lap_times ON DELETE CASCADE-del lóg a races-en: bármilyen
+-- verseny-takarítás NÉMÁN megsemmisítené a ranglistát. Így a rekord az
+-- előzménytől függetlenül él tovább — a nyers körök szabadon törölhetők —,
+-- és a ranglista is olcsóbb lesz: egy kis táblát olvas, nem GROUP BY-oz
+-- végig az egész előzményen.
+--
+-- A race_id szándékosan SET NULL-ozódik, nem törli a sort: ha a verseny
+-- eltűnik, a rekord marad, csak a hivatkozás vész el.
+CREATE TABLE IF NOT EXISTS map_records (
+  player_id   BIGINT UNSIGNED NOT NULL,
+  map_id      VARCHAR(128)    NOT NULL,
+  best_ms     INT UNSIGNED    NOT NULL,
+  race_id     BIGINT UNSIGNED NULL,
+  achieved_at TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (player_id, map_id),
+  KEY idx_map_best (map_id, best_ms),
+  CONSTRAINT fk_record_player FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE,
+  CONSTRAINT fk_record_race   FOREIGN KEY (race_id)   REFERENCES races(id)   ON DELETE SET NULL
+) ENGINE=InnoDB;
