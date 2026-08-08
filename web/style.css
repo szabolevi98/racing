@@ -146,18 +146,6 @@ kbd.k {
   min-height: 100%; display: flex; flex-direction: column; justify-content: center;
 }
 
-/* Alacsony ablak (fekvő telefon): mindent összehúzunk, hogy lehetőleg
-   görgetés nélkül is kiférjen. */
-@media (max-height: 640px) {
-  .menu-inner { padding: 1.5rem !important; }
-  #menu h1 { font-size: 1.6rem; }
-  .menu-sub { font-size: 11px; margin-bottom: 1rem; }
-  #menu .form-select, #menu .form-control { padding: 0.42rem 0.7rem; font-size: 0.9rem; }
-  #menu .mb-3 { margin-bottom: 0.6rem !important; }
-  #menu .row.mb-4 { margin-bottom: 0.9rem !important; }
-  .btn-race { padding: 0.6rem 1rem; font-size: 0.94rem; }
-  #menuStatus { margin-top: 0.6rem !important; }
-}
 #menu h1 {
   font-size: 2.25rem; font-weight: 800; letter-spacing: -0.02em;
   background: linear-gradient(100deg, #8fb4ff, #ffffff 60%);
@@ -236,6 +224,59 @@ kbd.k {
 .ghost-mode-option span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ghost-mode-option strong { color: var(--text); font-size: 12px; font-weight: 700; }
 .ghost-mode-option small { font-size: 10px; line-height: 1.3; }
+
+/* Alacsony ablak (fekvő telefon, ~375 px magas).
+ *
+ * FONTOS, hogy ez a blokk a fenti bázis-szabályok UTÁN álljon: a média-lekérdezés
+ * nem növeli a specifikusságot, tehát azonos erősségű szabályoknál a KÉSŐBBI nyer.
+ * Korábban ez a blokk feljebb volt, és az alatta lévő bázis-szabályok némán
+ * felülírták — a kompakt méretek egyáltalán nem érvényesültek.
+ *
+ * Két baj volt fekvő telefonon: a sáv a képernyő 53%-át vitte el, a tartalom
+ * pedig 567 px magas volt egy 375 px-es ablakban, tehát görgetni kellett a
+ * Többjátékos gombhoz. Ezért itt keskenyebb a sáv, ÉS a mezők/gombok két
+ * oszlopba rendeződnek — így a magasság is elfér görgetés nélkül.
+ */
+@media (max-height: 640px) {
+  #menu { width: min(360px, 46vw); }
+  .menu-inner { padding: 0.9rem 1rem !important; }
+  #menu h1 { font-size: 1.35rem; margin-bottom: 0; }
+  .menu-sub { font-size: 9px; letter-spacing: 0.14em; margin-bottom: 0.55rem; }
+  #menu .form-label { margin-bottom: 0.15rem; font-size: 9px; }
+  #menu .form-select, #menu .form-control { padding: 0.35rem 0.6rem; font-size: 0.85rem; }
+  #menu .mb-3 { margin-bottom: 0.45rem !important; }
+  #menu .row.g-3 { --bs-gutter-y: 0.45rem; }
+  #menu .row.mb-4 { margin-bottom: 0.5rem !important; }
+  .btn-race { padding: 0.45rem 0.8rem; font-size: 0.88rem; border-radius: 8px; }
+  #menuStatus { margin-top: 0.35rem !important; font-size: 10px; }
+  .ghost-mode-option { margin-top: 0.4rem; padding: 5px 8px; gap: 6px; }
+  .ghost-mode-option strong { font-size: 10px; }
+  .ghost-mode-option small { font-size: 8px; }
+
+  /* Kétoszlopos elrendezés. A .menu-inner eddig oszlop-flex volt; ráccsá
+     alakítva a gyerekek MARKUP-VÁLTOZÁS NÉLKÜL kerülnek két hasábba, tehát
+     az asztali nézet érintetlen marad. A címsor, a körök/környezet sora és a
+     ghost mód a teljes szélességet kapja, a két nagy legördülő és a két
+     indítógomb viszont egymás mellé. */
+  .menu-inner {
+    display: grid; grid-template-columns: 1fr 1fr;
+    column-gap: 0.6rem; align-content: center;
+  }
+  .menu-inner > h1,
+  .menu-inner > .menu-sub,
+  .menu-inner > .row,
+  .menu-inner > .ghost-mode-option,
+  .menu-inner > #menuStatus { grid-column: 1 / -1; }
+  /* A Többjátékos gombot a mp.js szúrja be `mt-2`-vel: egymás ALATT ez a
+     térköz, egymás MELLETT viszont 8 képponttal lejjebb csúsztatná. A
+     Bootstrap segédosztályai `!important`-ok, ezért itt is kell. */
+  #mpOpenBtn { margin-top: 0 !important; }
+
+  /* A Környezet (col-7) és a Körök (col-5) itt fele-fele: két oszlopban a
+     7/5-ös bootstrap-arány felesleges, egyenlő hasábokkal rendezettebb. */
+  #menu .row > .col-7,
+  #menu .row > .col-5 { flex: 0 0 50%; width: 50%; max-width: 50%; }
+}
 
 /* ============================================================
    Vezetés közbeni HUD
@@ -575,7 +616,16 @@ kbd.k {
   #miniMapWrap.in-menu {
     bottom: max(8px, env(safe-area-inset-bottom));
   }
-  #miniMapCanvas { width: 82px; height: 82px; border-radius: 8px; }
+  /* NEM fix négyzet: a canvas belső mérete pályánként más arányú (a
+     buildMiniMapTrack a pálya befoglaló dobozához igazítja), és egy hosszú,
+     keskeny pálya — pl. a Nürburgring GP, ahol 83x220 — négyzetbe kényszerítve
+     165%-ot torzul. A max-* párral a böngésző arányosan kicsinyíti bele
+     ugyanebbe a 82 képpontos dobozba. */
+  #miniMapCanvas {
+    width: auto; height: auto;
+    max-width: 82px; max-height: 82px;
+    border-radius: 8px;
+  }
   #bottomRightStack {
     right: max(8px, env(safe-area-inset-right));
     bottom: calc(max(28px, calc(env(safe-area-inset-bottom) + 18px)) + var(--touch-stick-size) + 8px);
