@@ -231,12 +231,37 @@ function send(type, data = {}) {
   delayed('up', () => { if (ws?.readyState === 1) ws.send(payload); });
 }
 
+// ---------- Ping mérés ----------
+// A szerver a C2S.PING-et változatlanul visszaküldi C2S.PONG-ként (lásd
+// wsServer.js) — a kliens feladata csak a küldés és a körút-idő számolása.
+// A send()/onMessage() már átmegy a netsim mesterséges késleltetésén is
+// (delayed 'up' / 'down'), tehát __mp.setPing(150) hatása itt is látszik —
+// ez egyben a ping-kijelző saját ellenőrzése is.
+let pingTimer = null;
+const PING_INTERVAL_MS = 1000;
+
+function sendPing() {
+  send(C2S.PING, { t: performance.now() });
+}
+
+function startPingLoop() {
+  stopPingLoop();
+  sendPing();
+  pingTimer = setInterval(sendPing, PING_INTERVAL_MS);
+}
+
+function stopPingLoop() {
+  if (pingTimer) clearInterval(pingTimer);
+  pingTimer = null;
+}
+
 function connect(name) {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/ws`);
   ws.addEventListener('open', () => {
     setErr('');
     send(C2S.HELLO, { name, token: me.token });
+    startPingLoop();
   });
   ws.addEventListener('message', (ev) => {
     // A feldolgozást késleltetjük, nem a JSON-elemzést — így a szimulátor
@@ -251,6 +276,7 @@ function connect(name) {
     clearOtherCars();
     show('mpLogin', true); show('mpRooms', false); show('mpRoom', false);
     stopInputLoop();
+    stopPingLoop();
   });
   ws.addEventListener('error', () => setErr('Nem sikerült csatlakozni a szerverhez.'));
 }
@@ -313,6 +339,12 @@ function onMessage(m) {
 
     case S2C.RACE_END:
       showResults(m.results);
+      break;
+
+    case S2C.PONG:
+      // A körút-idő a saját órán mérve: a szerver csak visszhangozza a
+      // kapott időbélyeget, nem a saját órájával számol vele.
+      G.setPingMs(performance.now() - m.t);
       break;
 
     case S2C.ERROR:

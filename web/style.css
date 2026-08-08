@@ -282,9 +282,32 @@ kbd.k {
 #miniMapWrap { position: fixed; bottom: 14px; left: 14px; z-index: 11; padding: 5px; line-height: 0; }
 #miniMapCanvas { display: block; border-radius: 10px; }
 
-/* --- jobb lent: sebesség --- */
-#speedPanel {
+/* --- jobb lent: ping+fps sor / sebesség, egy oszlopban ---
+   A wrapper van fixen a sarokban; a ping/fps sor és a sebesség-doboz egymás
+   alá kerül benne — így a ping doboz megjelenése-eltűnése (csak multi-
+   playerben látszik) nem mozdítja el a sebesség-dobozt, mert az wrapper-
+   relatív, nem saját fixpozíció. */
+#bottomRightStack {
   position: fixed; bottom: 14px; right: 14px; z-index: 11;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+}
+/* A ping és az fps EGYMÁS MELLETT, nem egymás alatt — két apró doboz. */
+#perfRow { display: flex; gap: 8px; }
+.perf-box {
+  /* Tartalomhoz igazodó szélesség (nincs min-width): a "172px" a
+     sebesség-dobozhoz volt méretezve, de egy "1 ms"-nyi tartalom mellett ez
+     üres teret hagyott a felirat és az érték között. */
+  padding: 6px 11px;
+  display: flex; align-items: baseline; gap: 5px;
+}
+.perf-lbl {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--muted);
+}
+.perf-val { font-size: 13px; font-weight: 700; }
+.perf-unit { font-size: 10px; font-weight: 600; color: var(--muted); }
+
+#speedPanel {
   padding: 14px 20px 13px; min-width: 172px; text-align: right;
 }
 .sp-value { display: flex; align-items: baseline; justify-content: flex-end; gap: 7px; }

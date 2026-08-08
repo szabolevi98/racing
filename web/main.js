@@ -99,6 +99,9 @@ const zoneIndicatorEl = document.getElementById('zoneIndicator');
 const miniMapCanvas = document.getElementById('miniMapCanvas');
 const miniMapCtx = miniMapCanvas.getContext('2d');
 const speedValueEl = document.getElementById('speedValue');
+const pingBoxEl = document.getElementById('pingBox');
+const pingValueEl = document.getElementById('pingValue');
+const fpsValueEl = document.getElementById('fpsValue');
 const rolloverAlertEl = document.getElementById('rolloverAlert');
 const rolloverAlertTextEl = document.getElementById('rolloverAlertText');
 const lapInvalidAlertEl = document.getElementById('lapInvalidAlert');
@@ -2591,6 +2594,10 @@ function enterMenu() {
   // tehát ami az utolsó képkockán látszott, az fagy be.
   lapInvalidAlertEl.classList.add('hidden');
   rolloverAlertEl.classList.add('hidden');
+  // A ping csak multiplayerben értelmes (nincs mihez mérni egyjátékosban) —
+  // menüben mindegy, hogy áll, mert a #hud egésze el van rejtve, de a
+  // konzisztencia kedvéért itt is nullázzuk.
+  pingBoxEl.classList.add('hidden');
   // A kocsi vissza a rajthelyre. A menü ugyanazt a kocsit mutatja, amit az
   // előbb vezettünk: ott hagyva a pálya közepén — esetleg felborulva vagy a
   // falnak nyomódva — a kirakat-nézet romosan néz ki, és a következő "Indítás"
@@ -2641,6 +2648,8 @@ function enterDriving() {
   raceHudWrapEl.classList.remove('hidden');
   // Az állás-panel a multiplayeré; egyjátékosban nincs kihez viszonyítani.
   standingsWrapEl.classList.add('hidden');
+  // A ping ugyanígy: egyjátékosban nincs szerver-körút, amit mérni lehetne.
+  pingBoxEl.classList.add('hidden');
   setHelpOpen(false);
   scene.fog.density = NORMAL_FOG_DENSITY;
   // Alapjárattal indul, még a visszaszámlálás alatt — ahogy a rajtrácson is
@@ -3196,10 +3205,34 @@ const clock = new THREE.Clock();
 // Az egyjátékos fizika fix lépésközének maradéka két képkocka között.
 let physicsAccum = 0;
 
+// ---------- FPS-kijelző ----------
+// Nem képkockánként íratjuk ki: a szám maga is ugrálna képkockánként (16.1 ms
+// vs 16.9 ms simán 60/62 FPS-nek olvasható ki egyetlen mintából), és a
+// szöveges DOM-írás felesleges munka minden egyes képkockán. Egy fix ablakon
+// (kb. fél másodperc) átlagolva a szám stabil, mégis eléggé friss.
+let fpsFrames = 0;
+let fpsWindowStart = 0;
+const FPS_UPDATE_INTERVAL_MS = 500;
+
+function tickFpsCounter(nowMs) {
+  fpsFrames++;
+  if (fpsWindowStart === 0) { fpsWindowStart = nowMs; return; }
+  const elapsed = nowMs - fpsWindowStart;
+  if (elapsed >= FPS_UPDATE_INTERVAL_MS) {
+    fpsValueEl.textContent = Math.round((fpsFrames * 1000) / elapsed);
+    fpsFrames = 0;
+    fpsWindowStart = nowMs;
+  }
+}
+
 
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.1);
+  // Minden állapotban mérünk (menü, vezetés, mp, dev), nem csak vezetés
+  // közben — az fps-doboz a #hud-on belül van, tehát csak driving/mp-ben
+  // LÁTSZIK, de a számláló futása nem függ ettől.
+  tickFpsCounter(performance.now());
 
   if (appState === 'driving') {
     updateControls(dt);
@@ -3549,8 +3582,14 @@ window.__game = {
     devTools?.hideOverlays();
     scene.fog.density = NORMAL_FOG_DENSITY;
     startEngine();
+    // Induláskor "–" (mérés alatt): az első PONG a mp.js periodikus
+    // ping-küldése után érkezik, nem azonnal.
+    pingValueEl.textContent = '–';
+    pingBoxEl.classList.remove('hidden');
     document.activeElement?.blur();
   },
+  // A mp.js hívja a periodikus PING/PONG körút mérése után.
+  setPingMs(ms) { pingValueEl.textContent = Math.round(ms); },
   leaveMultiplayer() {
     mpFrameHook = null;
     // Enélkül a legutóbbi verseny pöttyei az egyjátékos térképen is ott

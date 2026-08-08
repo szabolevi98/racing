@@ -98,12 +98,31 @@
     <canvas id="miniMapCanvas" width="180" height="180"></canvas>
   </div>
 
-  <div id="speedPanel" class="panel">
-    <div class="sp-value">
-      <span id="speedValue" class="num">0</span>
-      <span class="sp-unit">km/h</span>
+  <!-- A ping és az fps a sebesség-doboz fölé csoportosítva, közös oszlopban:
+       ez tartja a jobb alsó saroknál meglévő pozíciót anélkül, hogy a
+       sebesség-doboz magasságát fixen be kellene lőni CSS-ből. A ping/fps sor
+       maga egy külön, egymás melletti páros — kicsi dobozok, mert a tartalmuk
+       (pl. "1 ms") alig pár karakter, a korábbi 172px-es szélesség sok
+       üres helyet hagyott középen. -->
+  <div id="bottomRightStack">
+    <div id="perfRow">
+      <div id="pingBox" class="panel perf-box hidden">
+        <span class="perf-lbl">Ping</span>
+        <span id="pingValue" class="num perf-val">–</span>
+        <span class="perf-unit">ms</span>
+      </div>
+      <div id="fpsBox" class="panel perf-box">
+        <span class="perf-lbl">FPS</span>
+        <span id="fpsValue" class="num perf-val">–</span>
+      </div>
     </div>
-    <div class="sp-zone"><span id="zoneIndicator" data-zone="asphalt">aszfalt</span></div>
+    <div id="speedPanel" class="panel">
+      <div class="sp-value">
+        <span id="speedValue" class="num">0</span>
+        <span class="sp-unit">km/h</span>
+      </div>
+      <div class="sp-zone"><span id="zoneIndicator" data-zone="asphalt">aszfalt</span></div>
+    </div>
   </div>
 </div>
 
