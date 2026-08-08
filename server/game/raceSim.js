@@ -104,6 +104,8 @@ function crossedGate(gate, fromX, fromZ, toX, toZ) {
 // Épp csak a nyugalmi magasság fölé tesszük a kocsit (kerék + felfüggesztés +
 // fél kasztni ~0.9), hogy egy nagy zuhanás ne verje bele a vékony hálóba.
 const SPAWN_HEIGHT = 1.0;
+const SPAWN_SETTLE_TICKS = 120;
+const NEUTRAL_INPUT = Object.freeze({ steer: 0, throttle: 0, brake: false, handbrake: false, seq: 0 });
 // Innen lövünk lefelé a talajért. Bőven a legmagasabb pályamodell fölött.
 const RAY_FROM_Y = 5000;
 // Mennyi bemenet állhat sorban egy játékosnál. A sor a jitter elnyelésére való:
@@ -112,8 +114,8 @@ const RAY_FROM_Y = 5000;
 //
 // Ha tartósan tele van, az nem jitter, hanem óra-sodródás (a kliens gyorsabban
 // küld, mint ahogy mi tickelünk). Olyankor a legrégebbit dobjuk el — az
-// AKTUÁLIS szándék a fontos —, de ez a kliens újrajátszását elrontja, mert
-// olyan bemenetet játszana vissza, amit sosem használtunk fel. A végleges
+// AKTUÁLIS szándék a fontos —, de ez eltérést okoz a kliens jóslatában, mert
+// ő helyben már lefuttatta azt a bemenetet, amit mi sosem használunk fel. A
 // megoldás a lent snapshotba tett sorhossz és az ahhoz igazodó kliensütem;
 // ez a magasabb korlát csak a rövid, nagy jittertüskéket fogja meg.
 const MAX_INPUT_QUEUE = 12;
@@ -209,8 +211,8 @@ export class RaceSim {
         ...car,
         playerId: player.id,
         // A beérkező bemenetek SORA. A szimuláció tickenként pontosan egyet
-        // fogyaszt el belőle — enélkül a kliens nem tudná újrajátszani, amit
-        // a szerver csinált, és a client-side prediction sosem konvergálna.
+        // fogyaszt el belőle — így ugyanaz a sorszám ugyanazt a logikai
+        // fizikai lépést jelenti a kliensen és a szerveren.
         queue: [],
         input: { steer: 0, throttle: 0, brake: false, handbrake: false, seq: 0 },
         lastSeq: 0,        // a legutóbb BEÉRKEZETT sorszám
@@ -247,9 +249,31 @@ export class RaceSim {
       i++;
     }
 
+    // A +1 méteres biztonsági magasság megakadályozza, hogy lejtőn vagy egy
+    // domború rajtrácson a kasztni a pályába szülessen. Ezt az esést viszont a
+    // játékosnak nem kell végignéznie: még az első snapshot és a timer előtt
+    // rugóra ültetjük az összes autót. Így a rajt már nyugodt, talajon álló
+    // állapotból indul, nem egy 20–25 cm-es becsapódás közben.
+    for (let tick = 0; tick < SPAWN_SETTLE_TICKS; tick++) {
+      for (const car of this.cars.values()) {
+        const offtrackWheels = wheelsOffTrack(this.zone, car.body, WHEEL_PROBES);
+        applyControls(car.vehicle, car.body, NEUTRAL_INPUT, { frozen: true, offtrackWheels });
+        car.vehicle.updateVehicle(this.world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
+      }
+      this.world.step();
+    }
+    for (const car of this.cars.values()) {
+      car.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      car.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      const p = car.body.translation();
+      car.lastSafe = { x: p.x, y: p.y, z: p.z };
+      car.race.prevX = p.x;
+      car.race.prevZ = p.z;
+    }
+
     // A rajt ideje még NEM ismert: előbb megvárjuk, hogy a kliensek betöltsenek
-    // (ld. ROOM_STATE.LOADING). Addig a szimuláció fut — a kocsik leülnek a
-    // rugóikra, és a kliensek megkapják a helyüket —, de befagyasztva:
+    // (ld. ROOM_STATE.LOADING). Addig a már előre leültetett kocsikat a
+    // szimuláció befagyasztva tartja, miközben a kliensek betöltik a pályát:
     // Infinity-nél minden "most" korábbi, tehát a frozen ág érvényes.
     this.startAt = Infinity;
     this.lastPump = Date.now();
@@ -404,8 +428,8 @@ export class RaceSim {
     for (const car of this.cars.values()) {
       // Tickenként PONTOSAN egy bemenetet fogyasztunk. Ha épp nem érkezett
       // (csomagvesztés vagy jitter), az előzőt ismételjük — a kliens ezt nem
-      // tudja előre, de nem is kell: az újrajátszást mindig a nyugtázott
-      // állapotból kezdi, amiben az ismétlés hatása már benne van.
+      // tudja előre; a következő nyugtázott állapot korrekciója tartalmazza az
+      // ismétlés fizikai hatását.
       const next = car.queue.shift();
       if (next) {
         car.input = next;
@@ -417,7 +441,11 @@ export class RaceSim {
       // képlettel mintázza a jóslásához (shared/zone.js), különben a pálya
       // szélén folyamatosan elcsúsznának egymástól.
       const offtrackWheels = wheelsOffTrack(this.zone, car.body, WHEEL_PROBES);
-      applyControls(car.vehicle, car.body, car.input, { frozen, offtrackWheels });
+      // A célba ért autó nem fagy meg és nem satufékez: egyszerűen elveszít
+      // minden vezetői bemenetet, majd a saját lendületéből kigurul. Így
+      // elhagyja a célvonalat, és nem lesz álló akadály a mögötte befutóknak.
+      const effectiveInput = car.race.finished ? NEUTRAL_INPUT : car.input;
+      applyControls(car.vehicle, car.body, effectiveInput, { frozen, offtrackWheels });
       car.vehicle.updateVehicle(this.world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
     }
     this.world.step();
@@ -432,6 +460,11 @@ export class RaceSim {
     this.tick++;
 
     if (!frozen) this.updateRaceProgress(now);
+
+    // Az utolsó célba érő az updateRaceProgressban lezárhatta a versenyt és
+    // felszabadíthatta a Rapier világot. Utána már nem készíthetünk snapshotot
+    // az érvénytelenné vált body/controller referenciákból.
+    if (this.stopped) return;
 
     if (this.tick % this.snapshotEvery === 0) this.sendSnapshot(now);
   }
@@ -544,16 +577,15 @@ export class RaceSim {
         p: [+t.x.toFixed(3), +t.y.toFixed(3), +t.z.toFixed(3)],
         q: [+q.x.toFixed(4), +q.y.toFixed(4), +q.z.toFixed(4), +q.w.toFixed(4)],
         v: [+v.x.toFixed(2), +v.y.toFixed(2), +v.z.toFixed(2)],
-        // A SZÖGSEBESSÉG a jósláshoz kell: a kliens innen indítja újra a
-        // szimulációt, és pörgés/billenés közben enélkül más állapotból
-        // számolna tovább, mint a szerver — a korrekció sosem konvergálna.
+        // A SZÖGSEBESSÉG a jóslás korrekciójához kell: pörgés/billenés közben
+        // enélkül nem tudnánk a szerver teljes mozgásállapotát összehasonlítani.
         w: [+w.x.toFixed(3), +w.y.toFixed(3), +w.z.toFixed(3)],
         st: +(car.vehicle.wheelSteering(0) ?? 0).toFixed(3),
         wr: +(car.vehicle.wheelRotation(2) ?? 0).toFixed(2),
         // A FELHASZNÁLT sorszám, nem a beérkezett: a kliens ebből tudja, melyik
-        // bemenetéig van benne a hatás ebben az állapotban — innen kell
-        // újrajátszania a többit. (A beérkezett sorszám félrevezetne: egy már
-        // megkapott, de még sorban álló bemenet hatása még NINCS benne.)
+        // korabeli jóslatát hasonlítsa ehhez az állapothoz. (A beérkezett
+        // sorszám félrevezetne: egy már megkapott, de még sorban álló
+        // bemenet hatása még NINCS benne.)
         seq: car.appliedSeq,
         // Hány bemenete áll még sorban. A kliens ebből szabályozza a küldési
         // ütemét: a két óra sosem jár pontosan egyformán, e visszacsatolás

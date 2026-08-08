@@ -4,7 +4,7 @@ import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import RAPIER from 'rapier';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import {
-  CHASSIS_SIZE, WHEEL_RADIUS, SUSPENSION_REST_LENGTH, WHEEL_POSITIONS,
+  GRAVITY, CHASSIS_SIZE, WHEEL_RADIUS, SUSPENSION_REST_LENGTH, WHEEL_POSITIONS,
   STEER_VISUAL_SPEED, buildVehicle, applyControls, resetLiveVehicleTunables,
   FLOOR_COLLIDER_GROUPS, WALL_COLLIDER_GROUPS, WHEEL_RAY_FILTER_GROUPS,
   CAR_PROXY_COLLIDER_GROUPS, TRACK_FRICTION, applyChassisMassProperties,
@@ -284,7 +284,7 @@ function updateSunTarget(targetPos) {
 // cannon-es erre alkalmatlan volt: raycastje trimesh ellen ~2 ms/sugár (a
 // négy kerékkel ~8 ms/képkocka a 16.6-ból), és Box↔Trimesh ütközése nincs is.
 // A Rapier ugyanezt ~0.0066 ms/sugárral hozza.
-const world = new RAPIER.World({ x: 0, y: -9.82, z: 0 });
+const world = new RAPIER.World(GRAVITY);
 world.timestep = 1 / 60;
 
 let spawnPoint = new THREE.Vector3(0, 5, 0);
@@ -2612,8 +2612,8 @@ let appState = 'menu';
 // az egyjátékos menetben is (pontosan ez volt a "ghost kocsi" hiba).
 let multiplayerCleanupHook = null;
 
-// A legutóbb kijelzett sebesség (km/h). Multiplayerben a szerver snapshotjából
-// jön a setSpeed()-en át, és a motorhang ezt követi — lásd ott az indoklást.
+// A legutóbb kijelzett sebesség (km/h). Multiplayerben a szerver snapshotja
+// és a helyi jóslás is frissíti; a motorhang ugyanezt az értéket követi.
 let lastReportedSpeedKmh = 0;
 
 function enterMenu() {
@@ -3506,12 +3506,13 @@ animate();
 
 // A multiplayer modul minden képkockán meghívandó függvénye (mp.js állítja be).
 let mpFrameHook = null;
+let multiplayerControlsEnabled = true;
 
 // Egy multiplayer képkocka. Külön függvény, hogy teszteléskor kézzel is
 // léptethető legyen: a requestAnimationFrame megáll, ha a lap háttérbe kerül.
-// Multiplayerben a SZERVER a hiteles forrás — a helyi fizikát nem léptetjük,
-// a kocsikat a beérkező állapot mozgatja. A hálózati modul minden képkockán
-// megkapja a szót, hogy interpolálhasson két állapot között.
+// Multiplayerben a SZERVER a hiteles forrás, de a saját kocsit a hálózati
+// modul helyben is lépteti a késleltetésmentes irányításhoz. A frame hook a
+// jóslat kirajzolását, korrekcióját és a távoli autók interpolációját végzi.
 function stepMultiplayerFrame(dt) {
   mpFrameHook?.(dt);
   // Ugyanaz, mint az egyjátékos animate()-ben: a modell magasságát a VALÓDI,
@@ -3534,11 +3535,14 @@ function stepMultiplayerFrame(dt) {
   updateMiniMap(p.x, p.z);
   updateZoneIndicator(p.x, p.z);
 
-  // Motorhang. A sebesség a szerver snapshotjából jön (setSpeed), nem a helyi
-  // fizikából: multiplayerben az csak jóslat, a hiteles forrás a szerver.
-  // A gáz a saját billentyűzetről, ugyanabból a térképből, amit a mp.js is a
-  // hálózatra küld.
-  updateEngine(lastReportedSpeedKmh, (keys['KeyW'] || keys['ArrowUp']) ? 1 : 0, dt);
+  // Motorhang. A kijelzett sebességet a snapshotok között a helyi jóslás
+  // frissíti. Célba éréskor a gázt itt is letiltjuk, így a kiguruló autó
+  // hangja a sebességével együtt cseng le.
+  updateEngine(
+    lastReportedSpeedKmh,
+    multiplayerControlsEnabled && (keys['KeyW'] || keys['ArrowUp']) ? 1 : 0,
+    dt
+  );
 
   // Felborulás. A visszahelyezést multiplayerben nem mi végezzük — a szerver
   // a hiteles forrás —, ezért csak jelezzük; az R-t a hálózati modul küldi el.
@@ -3567,6 +3571,7 @@ window.__game = {
   // A mp.js ezzel regisztrálja a távoli kocsik eltakarítását — lásd enterMenu().
   setMultiplayerCleanupHook(hook) { multiplayerCleanupHook = hook; },
   detachMultiplayerFrame() { mpFrameHook = null; },
+  setMultiplayerControlsEnabled(enabled) { multiplayerControlsEnabled = !!enabled; },
   setRemoteCarProxy,
   removeRemoteCarProxy,
   clearRemoteCarProxies,
@@ -3630,6 +3635,7 @@ window.__game = {
   // fizikát a hálózati modul lépteti, ha a jóslás be van kapcsolva.
   enterMultiplayer(frameHook) {
     mpFrameHook = frameHook;
+    multiplayerControlsEnabled = true;
     appState = 'mp';
     menuEl.classList.add('hidden');
     hudEl.classList.remove('hidden');
@@ -3648,6 +3654,7 @@ window.__game = {
   setPingMs(ms) { pingValueEl.textContent = Math.round(ms); },
   leaveMultiplayer() {
     mpFrameHook = null;
+    multiplayerControlsEnabled = true;
     // Enélkül a legutóbbi verseny pöttyei az egyjátékos térképen is ott
     // maradnának, mozdulatlanul.
     miniMapMarkers = [];
@@ -3669,10 +3676,9 @@ window.__game = {
     standingsWrapEl.classList.toggle('hidden', !html);
   },
   setSpeed(kmh) {
-    // Multiplayerben ez a SZERVER által küldött sebesség — a hiteles érték.
-    // A motorhang is ezt használja (lásd stepMultiplayerFrame), nem a helyi
-    // fizikát: az ott csak jóslat, és a hangnak azt kell követnie, amit a
-    // játékos ténylegesen lát.
+    // Menet közben ezt a szerver-snapshot és a helyi jóslás is frissíti. A
+    // célba érés után már nem jön snapshot, ezért a kiguruló helyi fizika kell
+    // ahhoz, hogy a sebesség és a motorhang ténylegesen nullára csengjen.
     lastReportedSpeedKmh = kmh;
     speedValueEl.textContent = Math.round(kmh);
   },

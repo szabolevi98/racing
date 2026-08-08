@@ -8,8 +8,30 @@ import {
   GRAVITY, CHASSIS_SIZE, buildVehicle, applyChassisMassProperties,
   FLOOR_COLLIDER_GROUPS, CAR_PROXY_COLLIDER_GROUPS, WHEEL_RAY_FILTER_GROUPS,
 } from '../shared/vehicleConfig.js';
+import {
+  conjugateQuaternion, multiplyQuaternions, normalizeQuaternion, rebasePredictedState,
+} from '../shared/prediction.js';
 
 await RAPIER.init();
+
+test('prediction correction maps the acknowledged past onto the present without rollback', () => {
+  const half = Math.PI / 4;
+  const predicted = { p: [10, 2, 20], q: [0, 0, 0, 1], v: [0, 0, 8], w: [0, 0.2, 0] };
+  const authoritative = { p: [12, 2, 18], q: [0, Math.sin(half), 0, Math.cos(half)], v: [8, 0, 0], w: [0, 0.2, 0] };
+  const current = { p: [10, 2, 25], q: [0, 0, 0, 1], v: [0, 0, 10], w: [0, 0.3, 0] };
+  const dq = normalizeQuaternion(multiplyQuaternions(
+    authoritative.q,
+    conjugateQuaternion(predicted.q)
+  ));
+  const correctedAnchor = rebasePredictedState(predicted, predicted, authoritative, dq);
+  assert.deepEqual(correctedAnchor.p.map((n) => +n.toFixed(6)), authoritative.p);
+  assert.deepEqual(correctedAnchor.q.map((n) => +n.toFixed(6)), authoritative.q.map((n) => +n.toFixed(6)));
+  assert.deepEqual(correctedAnchor.v.map((n) => +n.toFixed(6)), authoritative.v);
+
+  const correctedCurrent = rebasePredictedState(current, predicted, authoritative, dq);
+  assert.deepEqual(correctedCurrent.p.map((n) => +n.toFixed(6)), [17, 2, 18]);
+  assert.ok(Math.abs(Math.hypot(...correctedCurrent.q) - 1) < 1e-9);
+});
 
 test('the suspension ray sees the floor, not another car proxy', () => {
   const world = new RAPIER.World(GRAVITY);
@@ -112,6 +134,27 @@ test('leaving a running race removes the server body, collider and controller', 
     };
     sim.step();
     assert.equal(sim.cars.get('one').queueUnderflows, 0, 'loading is not a network underflow');
+    const settledY = sim.cars.get('one').body.translation().y;
+    sim.step();
+    assert.ok(
+      Math.abs(sim.cars.get('one').body.translation().y - settledY) < 0.01,
+      'the first visible frozen ticks must start on settled suspension'
+    );
+
+    // A célba ért autó kapjon nulla motor-, kormány- és fékbemenetet, de a
+    // merev teste maradjon dinamikus, hogy a célvonalról továbbgurulhasson.
+    const finishedCar = sim.cars.get('two');
+    finishedCar.race.finished = true;
+    finishedCar.input = { seq: 1, throttle: 1, steer: 1, brake: true, handbrake: true };
+    finishedCar.body.setLinvel({ x: 0, y: 0, z: 10 }, true);
+    sim.releaseAt(0);
+    sim.step();
+    assert.equal(finishedCar.vehicle.wheelEngineForce(2), 0);
+    assert.equal(finishedCar.vehicle.wheelSteering(0), 0);
+    assert.equal(finishedCar.vehicle.wheelBrake(0), 0);
+    assert.ok(finishedCar.body.linvel().z > 1, 'the finished car must keep coasting');
+    finishedCar.race.finished = false;
+
     assert.equal(sim.removeCar('two'), true);
     assert.equal(sim.cars.size, 1);
     assert.equal(sim.world.bodies.len(), before.bodies - 1);
@@ -131,6 +174,13 @@ test('leaving a running race removes the server body, collider and controller', 
     const times = snapshots.map((snapshot) => snapshot.t);
     assert.ok(times.length >= 3);
     assert.ok(times.every((time, i) => i === 0 || time > times[i - 1]));
+
+    // Az utolsó bent maradt autó célba érése a fizikai lépés közepén
+    // felszabadítja a világot. A step ezután nem próbálhat snapshotot
+    // készíteni a már érvénytelen Rapier referenciákból.
+    sim.cars.get('one').race.finished = true;
+    assert.doesNotThrow(() => sim.step());
+    assert.equal(sim.world, null);
   } finally {
     sim.stop();
   }
