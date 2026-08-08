@@ -84,6 +84,24 @@ export const CHASSIS_MASS = 250;
 // okozta az "S alig fékez" élményt.
 export const REVERSE_BRAKE_THRESHOLD = 1.5;
 
+// Célba érés után eddig teljesen szabadon gurult tovább az autó. A
+// normál féket addig tartjuk rajta, amíg nagyjából 1,25 km/h alá lassul;
+// ott pontosan lenullázzuk a vízszintes mozgást. Ez a külön nyugalmi küszöb
+// akadályozza meg, hogy a fizikai lépés egy pillanatra hátrafelé billentse.
+export const FINISH_STOP_SPEED = 0.35;
+
+export function shouldBrakeFinishedVelocity(vx, vz) {
+  return Math.hypot(vx, vz) > FINISH_STOP_SPEED;
+}
+
+export function settleFinishedBody(body) {
+  const v = body.linvel();
+  if (shouldBrakeFinishedVelocity(v.x, v.z)) return false;
+  body.setLinvel({ x: 0, y: v.y, z: 0 }, true);
+  body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+  return true;
+}
+
 // A kocsi haladási sebessége a SAJÁT előre-tengelye (+Z) mentén (pozitív =
 // előre) — kézzel forgatva a kvaternióval, mert ez a szerveren (Node) is fut,
 // ahol nincs three.js. A (0,0,1) vektor kvaternióval forgatott alakja a

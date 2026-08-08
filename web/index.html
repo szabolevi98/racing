@@ -124,6 +124,34 @@
       <div class="sp-zone"><span id="zoneIndicator" data-zone="asphalt">aszfalt</span></div>
     </div>
   </div>
+
+  <div id="touchControls" aria-label="Mobilos irányítás">
+    <div class="touch-steer" aria-label="Kormányzás">
+      <button class="touch-btn touch-drive" type="button" data-touch-key="KeyA" aria-label="Balra">
+        <span class="touch-icon">←</span><span class="touch-label">Balra</span>
+      </button>
+      <button class="touch-btn touch-drive" type="button" data-touch-key="KeyD" aria-label="Jobbra">
+        <span class="touch-icon">→</span><span class="touch-label">Jobbra</span>
+      </button>
+    </div>
+
+    <div class="touch-utility" aria-label="Kiegészítő vezérlés">
+      <button class="touch-btn touch-small" type="button" data-touch-action="camera" aria-label="Kameranézet váltása">Kamera</button>
+      <button class="touch-btn touch-small" type="button" data-touch-action="reset" aria-label="Visszaállítás a pályára">↻</button>
+    </div>
+
+    <div class="touch-pedals" aria-label="Pedálok">
+      <button class="touch-btn touch-handbrake" type="button" data-touch-key="Space">Kézifék</button>
+      <div class="touch-pedal-row">
+        <button class="touch-btn touch-drive touch-brake" type="button" data-touch-key="KeyS">
+          <span class="touch-icon">▼</span><span class="touch-label">Fék</span>
+        </button>
+        <button class="touch-btn touch-drive touch-gas" type="button" data-touch-key="KeyW">
+          <span class="touch-icon">▲</span><span class="touch-label">Gáz</span>
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div id="lapInvalidAlert" class="top-center-alert hidden">

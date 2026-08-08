@@ -8,7 +8,7 @@ import {
   STEER_VISUAL_SPEED, buildVehicle, applyControls, resetLiveVehicleTunables,
   FLOOR_COLLIDER_GROUPS, WALL_COLLIDER_GROUPS, WHEEL_RAY_FILTER_GROUPS,
   CAR_PROXY_COLLIDER_GROUPS, TRACK_FRICTION, applyChassisMassProperties,
-  forwardSpeed, REVERSE_BRAKE_THRESHOLD, applySpeedCap,
+  forwardSpeed, REVERSE_BRAKE_THRESHOLD, applySpeedCap, settleFinishedBody,
 } from '/shared/vehicleConfig.js';
 import { TAINT, requiredCheckpoints } from '/shared/protocol.js';
 import {
@@ -119,6 +119,7 @@ const resultsEl = document.getElementById('results');
 const resultsBodyEl = document.getElementById('resultsBody');
 const resultsRestartBtn = document.getElementById('resultsRestartBtn');
 const resultsMenuBtn = document.getElementById('resultsMenuBtn');
+const touchControlsEl = document.getElementById('touchControls');
 
 // Dev mód: /dev útvonalon VAGY ?dev=1 lekérdezés-paraméterrel — szabad
 // kamerával be lehet járni a pályát és kijelölni a rajtrács-pontokat
@@ -920,8 +921,15 @@ async function setTrack(trackUrl, mapId, spawnPoints, gates, onProgress) {
   // a kocsi mindig az alapértelmezett (0 fokos) irányba nézne, játékban viszont
   // már a helyes irányba fordulva indul.
   spawnHeading = slot ? slot.heading : 0;
-  carPivot.rotation.y = spawnHeading;
   resetCarTo(spawnPoint);
+  // Nem elég csak rotation.y-t írni: az Euler setter megtarthatja a korábbi
+  // vezetésből származó X/Z dőlést és más Euler-feloldást. A kirakat
+  // pontosan ugyanazt a tiszta quaterniont kapja, amelyet a fizikai autó és
+  // később a játék rajtja is használ.
+  const spawnRotation = chassisBody.rotation();
+  carPivot.quaternion.set(
+    spawnRotation.x, spawnRotation.y, spawnRotation.z, spawnRotation.w
+  );
 
   // A pályához tartozó zóna-térkép (ha van) betöltése a vezetéshez.
   await loadZoneRuntime(manifest && findEntry(manifest.maps, mapId));
@@ -2352,8 +2360,88 @@ function updateRace(dt) {
 
 // ---------- Irányítás (csak vezetés közben aktív) ----------
 const keys = {};
-window.addEventListener('keydown', (e) => { keys[e.code] = true; });
-window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+const keyboardKeys = new Set();
+const touchKeyCounts = new Map();
+const touchPointers = new Map();
+
+function refreshControlKey(code) {
+  keys[code] = keyboardKeys.has(code) || (touchKeyCounts.get(code) || 0) > 0;
+}
+
+window.addEventListener('keydown', (e) => {
+  keyboardKeys.add(e.code);
+  refreshControlKey(e.code);
+});
+window.addEventListener('keyup', (e) => {
+  keyboardKeys.delete(e.code);
+  refreshControlKey(e.code);
+});
+
+function releaseTouchPointer(pointerId) {
+  const held = touchPointers.get(pointerId);
+  if (!held) return;
+  touchPointers.delete(pointerId);
+  const remaining = Math.max(0, (touchKeyCounts.get(held.code) || 1) - 1);
+  if (remaining) touchKeyCounts.set(held.code, remaining);
+  else touchKeyCounts.delete(held.code);
+  held.button.classList.remove('is-pressed');
+  refreshControlKey(held.code);
+}
+
+function clearTouchInputs() {
+  const codes = new Set([...touchPointers.values()].map((held) => held.code));
+  for (const held of touchPointers.values()) held.button.classList.remove('is-pressed');
+  touchPointers.clear();
+  touchKeyCounts.clear();
+  for (const code of codes) refreshControlKey(code);
+}
+
+function setTouchControlsEnabled(enabled) {
+  touchControlsEl.classList.toggle('is-disabled', !enabled);
+  touchControlsEl.querySelectorAll('button').forEach((button) => { button.disabled = !enabled; });
+  if (!enabled) clearTouchInputs();
+}
+
+// Pointer Events kell a sima touch események helyett: így két külön ujj
+// egyszerre maradhat lenyomva (például GÁZ + BALRA), és mindkettő saját
+// pointer capture-t kap. A billentyűzet és az érintés ugyanabba a `keys`
+// állapotba fut össze, ezért az egy- és többjátékos vezérlése ugyanaz marad.
+touchControlsEl.querySelectorAll('[data-touch-key]').forEach((button) => {
+  const code = button.dataset.touchKey;
+  button.addEventListener('pointerdown', (event) => {
+    if (button.disabled || touchPointers.has(event.pointerId)) return;
+    event.preventDefault();
+    touchPointers.set(event.pointerId, { code, button });
+    touchKeyCounts.set(code, (touchKeyCounts.get(code) || 0) + 1);
+    button.classList.add('is-pressed');
+    refreshControlKey(code);
+    try { button.setPointerCapture(event.pointerId); } catch { /* pointer már megszűnt */ }
+  });
+  const release = (event) => releaseTouchPointer(event.pointerId);
+  button.addEventListener('pointerup', release);
+  button.addEventListener('pointercancel', release);
+  button.addEventListener('lostpointercapture', release);
+  button.addEventListener('contextmenu', (event) => event.preventDefault());
+});
+
+touchControlsEl.querySelector('[data-touch-action="camera"]').addEventListener('pointerdown', (event) => {
+  event.preventDefault();
+  if (appState === 'driving' || appState === 'mp') cycleCameraView();
+});
+touchControlsEl.querySelector('[data-touch-action="reset"]').addEventListener('pointerdown', (event) => {
+  event.preventDefault();
+  if (appState === 'driving') resetSinglePlayerCar();
+  else if (appState === 'mp') window.dispatchEvent(new Event('racing:reset-request'));
+});
+
+window.addEventListener('blur', () => {
+  keyboardKeys.clear();
+  clearTouchInputs();
+  for (const code of Object.keys(keys)) refreshControlKey(code);
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) clearTouchInputs();
+});
 
 // A kameranézet váltása egyszeri esemény, nem folytatólagos állapot (mint a
 // mozgásgombok) — ezért NEM a `keys` térképen, hanem egy külön 'keydown'
@@ -2385,6 +2473,19 @@ function moveTowardsAngle(current, target, maxDelta) {
   const diff = target - current;
   if (Math.abs(diff) <= maxDelta) return target;
   return current + Math.sign(diff) * maxDelta;
+}
+
+function resetSinglePlayerCar() {
+  const pos = chassisBody.translation();
+  if (race.active && lastCheckpointSpawn) {
+    const groundY = findGroundAt(currentTrack, currentTrackBox, lastCheckpointSpawn.x, lastCheckpointSpawn.z);
+    resetCarTo(
+      { x: lastCheckpointSpawn.x, y: (groundY ?? pos.y) + 1, z: lastCheckpointSpawn.z },
+      lastCheckpointSpawn.heading
+    );
+  } else {
+    resetCarTo(spawnPoint);
+  }
 }
 
 // A motorerő, a fékerők, a kézifék-csúszás és a kifutó-szorzók a
@@ -2453,17 +2554,7 @@ function updateControls(dt = 1 / 60) {
   }
   rolloverAlertEl.classList.toggle('hidden', !flipped);
 
-  if (keys['KeyR']) {
-    if (race.active && lastCheckpointSpawn) {
-      const groundY = findGroundAt(currentTrack, currentTrackBox, lastCheckpointSpawn.x, lastCheckpointSpawn.z);
-      resetCarTo(
-        { x: lastCheckpointSpawn.x, y: (groundY ?? pos.y) + 1, z: lastCheckpointSpawn.z },
-        lastCheckpointSpawn.heading
-      );
-    } else {
-      resetCarTo(spawnPoint);
-    }
-  }
+  if (keys['KeyR']) resetSinglePlayerCar();
 }
 
 // ---------- Kamera: vezetős nézetek, C-vel váltva ----------
@@ -2629,6 +2720,8 @@ function enterMenu() {
   // A takarítás ELŐBB fut, mint az állapotváltás: így ha bármi hibázna benne,
   // az nem hagyja félúton a menübe lépést.
   multiplayerCleanupHook?.();
+  clearTouchInputs();
+  setTouchControlsEnabled(true);
   appState = 'menu';
   menuEl.classList.remove('hidden');
   hudEl.classList.add('hidden');
@@ -2703,6 +2796,7 @@ function enterMenu() {
 
 function enterDriving() {
   appState = 'driving';
+  setTouchControlsEnabled(true);
   menuEl.classList.add('hidden');
   hudEl.classList.remove('hidden');
   devTools?.hideOverlays();
@@ -3576,11 +3670,15 @@ window.__game = {
   get carLoaded() { return carLoaded; },
   keys,
   setCar, setTrack, prepareTrackPhysics, loadGLTF, centerCarModelOnWheels,
+  formatTime,
   enterMenu,
   // A mp.js ezzel regisztrálja a távoli kocsik eltakarítását — lásd enterMenu().
   setMultiplayerCleanupHook(hook) { multiplayerCleanupHook = hook; },
   detachMultiplayerFrame() { mpFrameHook = null; },
-  setMultiplayerControlsEnabled(enabled) { multiplayerControlsEnabled = !!enabled; },
+  setMultiplayerControlsEnabled(enabled) {
+    multiplayerControlsEnabled = !!enabled;
+    setTouchControlsEnabled(enabled);
+  },
   setRemoteCarProxy,
   removeRemoteCarProxy,
   clearRemoteCarProxies,
@@ -3623,7 +3721,7 @@ window.__game = {
   // ugyanabból a maszkból, ugyanazzal a képlettel megy mindkét oldalon
   // (shared/zone.js), különben a pálya szélén a jóslat folyamatosan
   // eltérne a szervertől.
-  stepLocalPhysics(input, frozen = false) {
+  stepLocalPhysics(input, frozen = false, finished = false) {
     applyControls(vehicle, chassisBody, input, { frozen, offtrackWheels: wheelsOffTrack() });
     vehicle.updateVehicle(world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
     world.step();
@@ -3631,6 +3729,7 @@ window.__game = {
     // sorrendben, mint a szerveren és mint az egyjátékos animate()-ben.
     applySpeedCap(chassisBody);
     applyWallConstraint();
+    if (finished) settleFinishedBody(chassisBody);
   },
   // A "kör érvénytelen" figyelmeztetés. Multiplayerben a szerver dönti el
   // (a snapshot `ti` mezője), egyjátékosban a helyi versenylogika.
@@ -3645,6 +3744,7 @@ window.__game = {
   enterMultiplayer(frameHook) {
     mpFrameHook = frameHook;
     multiplayerControlsEnabled = true;
+    setTouchControlsEnabled(true);
     appState = 'mp';
     menuEl.classList.add('hidden');
     hudEl.classList.remove('hidden');
@@ -3664,6 +3764,7 @@ window.__game = {
   leaveMultiplayer() {
     mpFrameHook = null;
     multiplayerControlsEnabled = true;
+    clearTouchInputs();
     // Enélkül a legutóbbi verseny pöttyei az egyjátékos térképen is ott
     // maradnának, mozdulatlanul.
     miniMapMarkers = [];

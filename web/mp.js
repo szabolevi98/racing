@@ -4,7 +4,9 @@
 // modul a bemenetet küldi, és a beérkező állapotot jeleníti meg; a köztes
 // időt interpolálja, hogy a 20/mp állapot is folyamatos mozgásnak látsszon.
 import { C2S, S2C, ROOM_STATE, TAINT, TICK_RATE, TICK_MS, sanitizeName } from '/shared/protocol.js';
-import { forwardSpeed, REVERSE_BRAKE_THRESHOLD } from '/shared/vehicleConfig.js';
+import {
+  forwardSpeed, REVERSE_BRAKE_THRESHOLD, shouldBrakeFinishedVelocity,
+} from '/shared/vehicleConfig.js';
 import { normalizeQuaternion, rotateVector, rebasePredictedState } from '/shared/prediction.js';
 
 const G = window.__game;
@@ -61,11 +63,7 @@ let starting = null;
 const others = new Map();
 // A saját kocsi állapot-puffere is kell: a szerver mozgat minket is.
 let selfBuf = [];
-// A verseny végi visszaszámláló (eredményhirdetés -> lobby). Azért tároljuk,
-// mert le KELL tudni lőni: ha a játékos a 8 mp letelte előtt a "Menü" gombbal
-// lép ki, a később elsülő időzítő visszarántaná a lobbyba az egyjátékos
-// menetből.
-let resultsTimer = null;
+let currentRaceResults = null;
 let inputSeq = 0;
 let awaitingFirstSnapshot = false;
 let raceLoadGeneration = 0;
@@ -124,7 +122,7 @@ el.innerHTML = `
           <span class="lbl d-block mb-2">Szobakód</span>
           <span id="mpRoomCode" class="mp-code-val num"></span>
         </div>
-        <button id="mpCopy" class="mp-btn ghost" style="flex:none;">Másol</button>
+        <button id="mpCopy" class="mp-btn ghost" style="flex:none;" aria-live="polite">Másol</button>
       </div>
       <div class="mp-meta">
         <span class="mp-chip">Pálya: <b id="mpRoomMap"></b></span>
@@ -143,6 +141,24 @@ el.innerHTML = `
   </div>
 </div>`;
 document.body.appendChild(el);
+
+// A multiplayer eredmény nem tűnik el automatikusan: mindenki nyugodtan
+// megnézheti, majd kiléphet; a szoba tulajdonosa ugyanebből a panelből
+// indíthatja a következő futamot ugyanazzal a társasággal.
+const mpResultsEl = document.createElement('div');
+mpResultsEl.id = 'mpResults';
+mpResultsEl.className = 'hidden';
+mpResultsEl.innerHTML = `
+  <div class="panel mp-results-card">
+    <div class="results-title">Verseny vége</div>
+    <div id="mpResultsBody"></div>
+    <div id="mpResultsHint" class="mp-results-hint"></div>
+    <div class="d-flex gap-2 mt-4">
+      <button id="mpResultsRestart" class="mp-btn primary flex-grow-1">Új játék</button>
+      <button id="mpResultsLeave" class="mp-btn ghost">Kilépés</button>
+    </div>
+  </div>`;
+document.body.appendChild(mpResultsEl);
 
 const $ = (id) => document.getElementById(id);
 const show = (id, on) => $(id).classList.toggle('hidden', !on);
@@ -188,14 +204,39 @@ $('mpLeave').addEventListener('click', () => {
   room = null;
   show('mpRoom', false); show('mpRooms', true);
 });
-$('mpCopy').addEventListener('click', () => navigator.clipboard?.writeText(room?.code || ''));
+let copyFeedbackTimer = null;
+$('mpCopy').addEventListener('click', async () => {
+  const code = room?.code || '';
+  if (!code) return;
+  const button = $('mpCopy');
+  try {
+    await navigator.clipboard.writeText(code);
+    if (copyFeedbackTimer) clearTimeout(copyFeedbackTimer);
+    button.textContent = 'Másolva ✓';
+    button.classList.add('is-copied');
+    copyFeedbackTimer = setTimeout(() => {
+      button.textContent = 'Másol';
+      button.classList.remove('is-copied');
+      copyFeedbackTimer = null;
+    }, 1400);
+  } catch {
+    setErr('A szobakódot nem sikerült a vágólapra másolni.');
+  }
+});
 
 // Az "R" multiplayerben KÉRÉS a szerver felé, nem helyi teleport — a kocsi
 // helyét a szerver birtokolja. Élre figyelünk (e.repeat nélkül), nem a
 // lenyomva tartásra: különben képkockánként küldenénk egy kérést.
+function requestMultiplayerReset() {
+  if (G.appState === 'mp') send(C2S.RESET);
+}
+
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'KeyR' && !e.repeat && G.appState === 'mp') send(C2S.RESET);
+  if (e.code === 'KeyR' && !e.repeat) requestMultiplayerReset();
 });
+// A mobilos visszaállítás-gomb ugyanazt a szerveroldali kérést használja,
+// mint az R; a kliens sosem teleportálja önhatalmúlag a multiplayer autót.
+window.addEventListener('racing:reset-request', requestMultiplayerReset);
 
 // ---------- Kapcsolat ----------
 
@@ -304,6 +345,7 @@ function connect(name) {
     // Verseny közbeni szakadásnál a többiek kocsija ott ragadna a pályán —
     // örökre mozdulatlanul, hiszen több snapshot nem jön hozzájuk.
     clearOtherCars();
+    hideMultiplayerResults();
     cancelRaceLoad();
     show('mpLogin', true); show('mpRooms', false); show('mpRoom', false);
     stopInputLoop();
@@ -329,12 +371,14 @@ function onMessage(m) {
     case S2C.ROOM_STATE:
       room = m.room;
       renderRoom();
+      updateResultsActions();
       break;
 
     case S2C.ROOM_CLOSED:
       // Ez verseny KÖZBEN is jöhet (pl. a szoba gazdája kilép) — ilyenkor a
       // lobby jön elő, nem a menü, tehát az enterMenu()-s takarítás nem sülne el.
       clearOtherCars();
+      hideMultiplayerResults();
       cancelRaceLoad();
       room = null;
       starting = null;
@@ -349,6 +393,7 @@ function onMessage(m) {
     case S2C.RACE_STARTING:
       // Ez a "töltsd be" jel: rajtidő még NINCS benne, azt a RACE_COUNTDOWN adja.
       starting = m;
+      hideMultiplayerResults();
       beginRace(m).catch((err) => {
         // A játékos vagy a kapcsolat közben kilépett, és már másik életciklus
         // az aktuális. Az elkéső régi betöltés nem nyithatja vissza a lobbyt.
@@ -373,6 +418,7 @@ function onMessage(m) {
     case S2C.RACE_COUNTDOWN:
       // Mindenki betöltött (vagy lejárt a türelmi idő): innen számol a 3-2-1.
       if (starting) starting.startsAt = m.startsAt;
+      myLapStartedAt = m.startsAt;
       break;
 
     case S2C.SNAPSHOT:
@@ -384,6 +430,13 @@ function onMessage(m) {
       // pályáról. Ő nem kap több snapshotot, tehát az utolsó pozícióján
       // megfagyva ott maradna a verseny végéig.
       if (m.kind === 'left') removeOtherCar(m.playerId);
+      if (m.kind === 'lap' && m.playerId === me.id) {
+        myLapTimes.push({ time: m.timeMs, invalid: !!m.invalid });
+        // A következő kör kezdete nem a csomag megérkezési ideje: nagy
+        // pingnél az késő lenne. Az előző hiteles rajtponthoz adjuk hozzá a
+        // szerver által mért köridőt, így az Aktuális óra nem ugrik.
+        myLapStartedAt = (myLapStartedAt || starting?.startsAt || serverNow()) + m.timeMs;
+      }
       if (m.kind === 'finished' && m.playerId === me.id) {
         finishedDriving = true;
         G.setMultiplayerControlsEnabled(false);
@@ -432,6 +485,7 @@ function onMessage(m) {
 
     case S2C.ERROR:
       setErr(m.message);
+      updateResultsActions();
       break;
   }
 }
@@ -483,6 +537,17 @@ async function beginRace(info) {
   window.__mp.stage = 'start';
   raceEnded = false;
   finishedDriving = false;
+  myLap = 0;
+  myCp = 0;
+  myRank = 1;
+  myGap = 0;
+  myBestLap = null;
+  myLastLap = null;
+  myLastLapInvalid = false;
+  myFinished = false;
+  myLapTimes.length = 0;
+  myLapStartedAt = 0;
+  lastEvents = [];
   G.setMultiplayerControlsEnabled(true);
   // Tiszta lappal indulunk, FÜGGETLENÜL attól, hogyan ért véget az előző
   // meccs. Ez az utolsó védvonal: ha bármelyik kilépési ág mégis kihagyná a
@@ -563,7 +628,6 @@ async function beginRace(info) {
 //     (kapcsolatvesztés, szoba bezárása, kilépés a szobából) — ilyenkor a
 //     lobby jön elő, a menü nem, tehát az 1-es nem sülne el.
 function clearOtherCars() {
-  if (resultsTimer) { clearTimeout(resultsTimer); resultsTimer = null; }
   for (const id of [...others.keys()]) removeOtherCar(id);
   G.clearRemoteCarProxies();
   selfBuf = [];
@@ -596,6 +660,7 @@ function cleanupMultiplayerForMenu() {
   smooth.q = [0, 0, 0, 1];
   smooth.active = false;
   G.detachMultiplayerFrame();
+  hideMultiplayerResults();
   clearOtherCars();
   resetNetworkRaceState();
 
@@ -669,7 +734,10 @@ async function addOtherCar(p, onProgress, loadGeneration) {
     return;
   }
   G.scene.add(group);
-  others.set(p.id, { group, buf: [], color: p.color, name: p.name, lap: 0, cp: 0 });
+  others.set(p.id, {
+    group, buf: [], color: p.color, name: p.name, lap: 0, cp: 0,
+    rank: 0, gap: null, bestLap: null, lastLap: null, lastLapInvalid: false, finished: false,
+  });
 }
 
 function makeNameSprite(name, color) {
@@ -942,11 +1010,23 @@ function onSnapshot(m) {
       // LEGFRISSEBB állás — a sorrendet nem akarjuk 100 ms-mal késleltetni.
       entry.lap = c.lap ?? 0;
       entry.cp = c.cp ?? 0;
+      entry.rank = c.rk ?? 0;
+      entry.gap = c.gap ?? null;
+      entry.bestLap = c.best ?? null;
+      entry.lastLap = c.last ?? null;
+      entry.lastLapInvalid = !!c.li;
+      entry.finished = !!c.fin;
     }
     if (c.id === me.id) {
       G.setSpeed(Math.hypot(c.v[0], c.v[2]) * 3.6);
       myLap = c.lap;
       myCp = c.cp ?? 0;
+      myRank = c.rk ?? 1;
+      myGap = c.gap ?? 0;
+      myBestLap = c.best ?? null;
+      myLastLap = c.last ?? null;
+      myLastLapInvalid = !!c.li;
+      myFinished = !!c.fin;
       ackedSeq = c.seq || 0;
       lapTainted = c.ti || TAINT.NONE;
       const predictedAtAck = predictionHistory.find((entry) => entry.seq === ackedSeq);
@@ -984,6 +1064,16 @@ let myLap = 0;
 // Melyik checkpointot várja a saját kocsi — a HUD-lista sorrendjéhez, körön
 // belüli másodlagos rendezési kulcsként.
 let myCp = 0;
+let myRank = 1;
+let myGap = 0;
+let myBestLap = null;
+let myLastLap = null;
+let myLastLapInvalid = false;
+let myFinished = false;
+// A köridőket a szerver RACE_EVENT üzeneteiből őrizzük. A kliens csak az
+// élően futó Aktuális/Összes órát rajzolja a szinkronizált szerveridőből.
+const myLapTimes = [];
+let myLapStartedAt = 0;
 
 function sampleAt(buf, renderTime) {
   if (!buf.length) return null;
@@ -1174,18 +1264,33 @@ function frame(dt = 1 / 60) {
   // A kör-kijelző (jobb fent) ugyanaz a panel, mint egyjátékosban; a mezőny
   // állása KÜLÖN panelbe megy (bal fent). Korábban a kettő egy dobozban volt,
   // és pont ettől lett belőle olvashatatlan szövegfal.
+  const completedTotal = myLapTimes.reduce((sum, lap) => sum + lap.time, 0);
+  const currentTime = finishedDriving
+    ? 0
+    : Math.max(0, nowServer - (myLapStartedAt || starting.startsAt));
+  const totalTime = finishedDriving
+    ? completedTotal
+    : Math.max(0, nowServer - starting.startsAt);
+  const validTimes = myLapTimes.filter((lap) => !lap.invalid).map((lap) => lap.time);
+  const bestTime = validTimes.length ? Math.min(...validTimes) : NaN;
   G.setHud(
     '<div class="lap-head">' +
       '<span class="lbl">Kör</span>' +
-      `<span><span class="lap-now num">${myLap + 1}</span>` +
+      `<span><span class="lap-now num">${Math.min(myLap + 1, room?.laps ?? myLap + 1)}</span>` +
       `<span class="lap-total num"> / ${room?.laps ?? '?'}</span></span>` +
     '</div>' +
-    (lapTainted ? '<div class="t-warn">⚠ Ez a kör érvénytelen</div>' : '')
+    (lapTainted ? '<div class="t-warn mb-2">⚠ Ez a kör érvénytelen</div>' : '') +
+    `<div class="t-row"><span class="lbl">Aktuális</span>` +
+      `<span class="t-val num">${G.formatTime(currentTime)}</span></div>` +
+    `<div class="t-row${Number.isFinite(bestTime) ? ' is-best' : ''}">` +
+      `<span class="lbl">Legjobb</span>` +
+      `<span class="t-val num">${G.formatTime(bestTime)}</span></div>` +
+    `<div class="t-row"><span class="lbl">Összes</span>` +
+      `<span class="t-val num">${G.formatTime(totalTime)}</span></div>`
   );
 
   const evt = lastEvents[0];
   G.setStandings(
-    '<span class="lbl">Állás</span>' +
     standingsHtml() +
     (evt ? `<div class="st-event">${escapeHtml(eventText(evt))}</div>` : '')
   );
@@ -1203,20 +1308,51 @@ function myColor() {
 // kulcs — enélkül a célba érő visszacsúszna a lista aljára.
 function standingsHtml() {
   const rows = [
-    { id: me.id, name: me.name || 'Te', color: myColor(), lap: myLap, cp: myCp, self: true },
+    {
+      id: me.id, name: me.name || 'Te', color: myColor(), lap: myLap, cp: myCp,
+      rank: myRank, gap: myGap, bestLap: myBestLap, lastLap: myLastLap,
+      lastLapInvalid: myLastLapInvalid, finished: myFinished, self: true,
+    },
     ...[...others.entries()].map(([id, o]) => ({
-      id, name: o.name || '?', color: o.color, lap: o.lap || 0, cp: o.cp || 0, self: false,
+      id, name: o.name || '?', color: o.color, lap: o.lap || 0, cp: o.cp || 0,
+      rank: o.rank, gap: o.gap, bestLap: o.bestLap, lastLap: o.lastLap,
+      lastLapInvalid: o.lastLapInvalid, finished: o.finished, self: false,
     })),
-  ].sort((a, b) => (b.lap - a.lap) || (b.cp - a.cp));
+  ].sort((a, b) => (a.rank || Infinity) - (b.rank || Infinity)
+    || (b.lap - a.lap) || (b.cp - a.cp));
 
-  return rows.map((r, i) => {
+  const totalLaps = room?.laps ?? 0;
+  const body = rows.map((r, i) => {
     const name = escapeHtml(r.name.slice(0, 14));
-    return `<div class="st-row${r.self ? ' is-self' : ''}">` +
-      `<span class="st-pos num">${i + 1}</span>${colorDot(r.color)}` +
+    const lap = totalLaps ? Math.min(r.lap + 1, totalLaps) : r.lap + 1;
+    const gap = r.rank === 1 || i === 0
+      ? '—'
+      : Number.isFinite(r.gap) ? `+${(r.gap / 1000).toFixed(2)} s` : '…';
+    const lastClass = r.lastLapInvalid ? ' is-invalid' : '';
+    return `<div class="st-row${r.self ? ' is-self' : ''}${r.finished ? ' is-finished' : ''}">` +
+      `<span class="st-pos num">${r.rank || i + 1}</span>${colorDot(r.color)}` +
       `<span class="st-name">${name}</span>` +
-      `<span class="st-lap num">${r.lap + 1}. kör</span>` +
+      `<span class="st-lap num">${lap}/${totalLaps || '?'}</span>` +
+      `<span class="st-gap num">${gap}</span>` +
+      `<span class="st-time num">${formatStandingTime(r.bestLap)}</span>` +
+      `<span class="st-time num${lastClass}">${formatStandingTime(r.lastLap)}</span>` +
     '</div>';
   }).join('');
+
+  return '<div class="st-title">' +
+      '<span>Versenyállás</span>' +
+      `<span>${rows.length} induló</span>` +
+    '</div>' +
+    '<div class="st-cols">' +
+      '<span>#</span><span></span><span>Név</span><span>Kör</span>' +
+      '<span>Rés</span><span>Legj.</span><span>Utolsó</span>' +
+    '</div>' + body;
+}
+
+function formatStandingTime(ms) {
+  if (!Number.isFinite(ms)) return '—';
+  if (ms < 60_000) return `${(ms / 1000).toFixed(2)} s`;
+  return G.formatTime(ms).replace(/^0:/, '');
 }
 
 function eventText(e) {
@@ -1322,6 +1458,7 @@ function sendOneInput(scheduledAt) {
   const { q, v } = G.getCarState();
   const fwdSpeed = forwardSpeed(q[0], q[1], q[2], q[3], v[0], v[1], v[2]);
   const brake = backwardHeld && fwdSpeed > REVERSE_BRAKE_THRESHOLD;
+  const finishedBraking = !controlsEnabled && shouldBrakeFinishedVelocity(v[0], v[2]);
   const shouldSend = !raceEnded;
   const input = {
     seq: shouldSend ? ++inputSeq : inputSeq,
@@ -1333,7 +1470,7 @@ function sendOneInput(scheduledAt) {
       ? 1
       : controlsEnabled && (k['KeyD'] || k['ArrowRight']) ? -1 : 0,
     throttle: controlsEnabled && (k['KeyW'] || k['ArrowUp']) ? 1 : (backwardHeld && !brake) ? -1 : 0,
-    brake: controlsEnabled && brake,
+    brake: controlsEnabled ? brake : finishedBraking,
     handbrake: controlsEnabled && !!k['Space'],
   };
   if (shouldSend) inputHistory.push(input);
@@ -1350,7 +1487,7 @@ function sendOneInput(scheduledAt) {
   // késleltetés nélkül a billentyűkre.
   if (predict || raceEnded) {
     syncRemoteProxies(input.at);
-    G.stepLocalPhysics(input, input.frozen);
+    G.stepLocalPhysics(input, input.frozen, !controlsEnabled);
     const predictedState = G.getCarState();
     if (predict && shouldSend) {
       predictionHistory.push({ seq: input.seq, state: cloneState(predictedState) });
@@ -1372,29 +1509,64 @@ function showResults(results) {
   G.setMultiplayerControlsEnabled(false);
   inputHistory.length = 0;
   predictionHistory.length = 0;
+  currentRaceResults = results;
   const rows = results.map((r) => {
     const player = room?.players.find((p) => p.id === r.playerId);
     const name = escapeHtml(player?.name || '?');
-    const best = r.bestLapMs ? (r.bestLapMs / 1000).toFixed(2) + 's' : '—';
-    return `<div class="st-row${r.playerId === me.id ? ' is-self' : ''}">` +
-      `<span class="st-pos num">${r.position}</span>${colorDot(player?.color)}` +
-      `<span class="st-name">${name}</span>` +
-      `<span class="st-lap num">${(r.totalMs / 1000).toFixed(2)}s · ${best}</span>` +
+    return `<div class="mp-res-row${r.playerId === me.id ? ' is-self' : ''}">` +
+      `<span class="mp-res-pos num">${r.position}</span>${colorDot(player?.color)}` +
+      `<span class="mp-res-name">${name}</span>` +
+      `<span class="mp-res-laps num">${r.lapsCompleted}/${room?.laps ?? '?'}</span>` +
+      `<span class="mp-res-time num">${G.formatTime(r.totalMs)}</span>` +
+      `<span class="mp-res-time num">${Number.isFinite(r.bestLapMs) ? G.formatTime(r.bestLapMs) : '—'}</span>` +
     '</div>';
   }).join('');
   G.setHud('<div class="lap-head"><span class="lbl">Verseny vége</span></div>');
-  G.setStandings('<span class="lbl">Végeredmény</span>' + rows);
-  // A leaveMultiplayer() az enterMenu()-n át amúgy is meghívja a
-  // clearOtherCars()-t (setMultiplayerCleanupHook) — a takarítás tehát akkor
-  // is megtörténik, ha a játékos a 8 mp letelte előtt lép ki a "Menü" gombbal.
-  // Olyankor viszont ez az időzítő már le is lett lőve, épp a clearOtherCars()
-  // által: enélkül utólag rántaná vissza a lobbyba az egyjátékos menetből.
-  resultsTimer = setTimeout(() => {
-    resultsTimer = null;
-    G.leaveMultiplayer();
-    openLobby();
-  }, 8000);
+  G.setStandings('');
+  $('mpResultsBody').innerHTML =
+    '<div class="mp-res-cols">' +
+      '<span>#</span><span></span><span>Név</span><span>Kör</span>' +
+      '<span>Összes</span><span>Legjobb</span>' +
+    '</div>' + rows;
+  mpResultsEl.classList.remove('hidden');
+  updateResultsActions();
 }
+
+function updateResultsActions() {
+  if (mpResultsEl.classList.contains('hidden')) return;
+  const isHost = room?.hostId === me.id;
+  const restart = $('mpResultsRestart');
+  restart.classList.toggle('hidden', !isHost);
+  restart.disabled = false;
+  restart.textContent = 'Új játék';
+  $('mpResultsHint').textContent = isHost
+    ? 'Te vagy a szoba tulajdonosa — ugyanebben a szobában indíthatsz új futamot.'
+    : 'Várakozás a szoba tulajdonosára, vagy kiléphetsz a szobából.';
+}
+
+function hideMultiplayerResults() {
+  mpResultsEl.classList.add('hidden');
+  currentRaceResults = null;
+}
+
+$('mpResultsRestart').addEventListener('click', () => {
+  if (!currentRaceResults || room?.hostId !== me.id) return;
+  const button = $('mpResultsRestart');
+  button.disabled = true;
+  button.textContent = 'Indítás…';
+  send(C2S.START_RACE);
+});
+
+$('mpResultsLeave').addEventListener('click', () => {
+  hideMultiplayerResults();
+  if (room) send(C2S.LEAVE_ROOM);
+  room = null;
+  starting = null;
+  G.leaveMultiplayer();
+  show('mpRoom', false);
+  show('mpRooms', true);
+  openLobby();
+});
 
 // A menübe egy gomb, ami megnyitja a lobbyt.
 const btn = document.createElement('button');

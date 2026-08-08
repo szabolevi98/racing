@@ -225,7 +225,7 @@ kbd.k {
 .hud-note { font-size: 12px; color: var(--muted); }
 
 /* --- bal fent: vissza gomb, súgó, állás (az állás csak multiplayerben) --- */
-#topLeft { position: fixed; top: 14px; left: 14px; z-index: 11; width: 212px; }
+#topLeft { position: fixed; top: 14px; left: 14px; z-index: 11; width: min(430px, calc(100vw - 28px)); }
 .tl-bar { display: flex; align-items: stretch; gap: 6px; margin-bottom: 8px; }
 #backToMenuLink, #helpBtn {
   display: inline-flex; align-items: center; justify-content: center;
@@ -258,20 +258,49 @@ kbd.k {
 .help-keys { display: flex; align-items: center; gap: 4px; flex: none; }
 .help-keys .sep { color: var(--muted); font-size: 11px; }
 
-#standings { padding: 11px 12px; }
-#standings .lbl { display: block; margin-bottom: 8px; }
-.st-row {
-  display: flex; align-items: center; gap: 8px;
-  padding: 4px 6px; margin: 0 -6px; border-radius: 7px; font-size: 13px;
+#standings { padding: 12px 13px 10px; }
+.st-title {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-bottom: 8px; color: var(--accent); font-size: 10px; font-weight: 800;
+  letter-spacing: 0.12em; text-transform: uppercase;
 }
+.st-title span:last-child { color: var(--muted); font-size: 9px; }
+.st-cols, .st-row {
+  display: grid; grid-template-columns: 18px 8px minmax(76px, 1fr) 38px 62px 66px 66px;
+  align-items: center; column-gap: 6px;
+}
+.st-cols {
+  padding: 0 6px 5px; border-bottom: 1px solid var(--line);
+  color: var(--muted); font-size: 8.5px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase;
+}
+.st-cols span:nth-child(n + 4) { text-align: right; }
+.st-row {
+  min-height: 29px; padding: 4px 6px; border-radius: 7px; font-size: 12px;
+}
+.st-row + .st-row { border-top: 1px solid rgba(255, 255, 255, 0.035); }
 .st-row.is-self { background: var(--accent-soft); }
-.st-pos { width: 15px; font-size: 11px; font-weight: 700; color: var(--muted); text-align: right; }
+.st-row.is-finished { opacity: 0.82; }
+.st-pos { font-size: 11px; font-weight: 800; color: var(--muted); text-align: right; }
 .st-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
-.st-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.st-lap { font-size: 11px; color: var(--muted); }
+.st-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
+.st-lap, .st-gap, .st-time { font-size: 10px; text-align: right; white-space: nowrap; }
+.st-lap { color: var(--muted); }
+.st-gap { color: #69d4dc; }
+.st-time { color: var(--text); }
+.st-time.is-invalid { color: var(--warn); text-decoration: line-through; opacity: 0.8; }
 .st-event {
   margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--line);
   font-size: 11.5px; color: var(--warn);
+}
+
+@media (max-width: 430px) {
+  .st-cols, .st-row {
+    grid-template-columns: 16px 7px minmax(62px, 1fr) 34px 55px 58px 58px;
+    column-gap: 4px;
+  }
+  .st-row { font-size: 11px; padding-inline: 4px; }
+  .st-lap, .st-gap, .st-time { font-size: 9px; }
 }
 
 /* --- bal lent: minitérkép ---
@@ -340,6 +369,120 @@ kbd.k {
 #zoneIndicator[data-zone="offtrack"] { --zone-c: var(--warn); }
 #zoneIndicator[data-zone="wall"]     { --zone-c: var(--danger); }
 
+/* --- mobilos érintésvezérlés ---
+   Alapból nincs jelen az asztali felületen. Telefonon/tableten a két oldal
+   külön pointer-zónát kap, ezért kormányzás és gáz/fék egyszerre is tartható. */
+#touchControls {
+  display: none; position: fixed; inset: 0; z-index: 18;
+  pointer-events: none; touch-action: none;
+  -webkit-user-select: none; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.touch-steer, .touch-pedals, .touch-utility {
+  position: absolute; pointer-events: auto;
+}
+.touch-steer {
+  left: max(12px, env(safe-area-inset-left));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  display: flex; gap: 10px;
+}
+.touch-pedals {
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; align-items: stretch; gap: 6px;
+}
+.touch-pedal-row { display: flex; gap: 10px; }
+.touch-utility {
+  left: 50%; bottom: calc(max(12px, env(safe-area-inset-bottom)) + 82px);
+  transform: translateX(-50%); display: flex; gap: 8px;
+}
+.touch-btn {
+  appearance: none; border: 1px solid rgba(255, 255, 255, 0.26);
+  color: #fff; background: rgba(12, 16, 24, 0.58);
+  -webkit-backdrop-filter: blur(10px) saturate(1.2); backdrop-filter: blur(10px) saturate(1.2);
+  box-shadow: 0 5px 22px rgba(0, 0, 0, 0.38), inset 0 1px rgba(255, 255, 255, 0.08);
+  font: inherit; font-weight: 800; text-transform: uppercase;
+  touch-action: none; cursor: pointer;
+  transition: transform .06s ease, background-color .06s ease, border-color .06s ease;
+}
+.touch-btn:disabled { opacity: 0.35; }
+.touch-drive {
+  width: clamp(60px, 8.4vw, 74px); height: clamp(60px, 8.4vw, 74px);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; border-radius: 50%;
+}
+.touch-icon { font-size: 25px; line-height: 1; }
+.touch-label { font-size: 8px; letter-spacing: .09em; opacity: .78; }
+.touch-small {
+  min-width: 54px; height: 34px; padding: 0 10px;
+  border-radius: 17px; font-size: 9px; letter-spacing: .06em;
+}
+.touch-handbrake {
+  height: 29px; border-radius: 15px; font-size: 8px; letter-spacing: .08em;
+}
+.touch-gas { border-color: rgba(61, 220, 132, 0.5); background: rgba(17, 75, 48, 0.56); }
+.touch-brake { border-color: rgba(255, 95, 95, 0.5); background: rgba(91, 29, 34, 0.56); }
+.touch-btn.is-pressed {
+  transform: scale(0.93); border-color: rgba(255, 255, 255, 0.72);
+  background-color: rgba(77, 141, 255, 0.56);
+}
+.touch-gas.is-pressed { background-color: rgba(38, 177, 99, 0.7); }
+.touch-brake.is-pressed { background-color: rgba(218, 61, 67, 0.7); }
+
+@media (hover: none) and (pointer: coarse), (max-width: 900px) {
+  #touchControls { display: block; }
+  #miniMapWrap {
+    left: max(9px, env(safe-area-inset-left));
+    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 92px);
+    padding: 3px;
+  }
+  #miniMapCanvas { width: 108px; height: 108px; }
+  #bottomRightStack {
+    right: max(9px, env(safe-area-inset-right));
+    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 106px);
+    gap: 5px;
+  }
+  #perfRow { gap: 5px; }
+  .perf-box { padding: 4px 7px; gap: 3px; }
+  .perf-lbl { font-size: 7px; }
+  .perf-val { font-size: 10px; }
+  .perf-unit { font-size: 8px; }
+  #speedPanel { min-width: 120px; padding: 9px 12px 8px; }
+  #speedValue { font-size: 42px; }
+  .sp-unit { font-size: 10px; }
+  .sp-zone { margin-top: 6px; padding-top: 6px; }
+  #zoneIndicator { font-size: 8px; }
+}
+
+@media (max-width: 600px) {
+  #topLeft { top: 8px; left: 8px; width: calc(100vw - 16px); }
+  #raceHudWrap { top: 8px; right: 8px; }
+  #raceHud { min-width: 154px; padding: 9px 10px; }
+  .lap-head { padding-bottom: 6px; margin-bottom: 6px; }
+  .lap-now { font-size: 21px; }
+  .lap-total { font-size: 12px; }
+  .t-val { font-size: 11px; }
+  .t-row .lbl { font-size: 8px; }
+  #standingsWrap:not(.hidden) { margin-top: 104px; }
+  #standings { padding-inline: 8px; }
+  .touch-drive { width: 62px; height: 62px; }
+  .touch-steer, .touch-pedal-row { gap: 7px; }
+  .touch-utility { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 72px); }
+  #miniMapCanvas { width: 94px; height: 94px; }
+  #miniMapWrap { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 82px); }
+  #bottomRightStack { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 94px); }
+}
+
+/* Fekvő telefonon több a vízszintes hely, viszont kevés a magasság: a két
+   kis segédgomb elfér középen a pedálokkal egy vonalban. */
+@media (max-height: 520px) and (min-width: 601px) {
+  .touch-drive { width: 62px; height: 62px; }
+  .touch-utility { bottom: max(12px, env(safe-area-inset-bottom)); }
+  #miniMapCanvas { width: 92px; height: 92px; }
+  #miniMapWrap { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 74px); }
+  #bottomRightStack { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 86px); }
+}
+
 /* ============================================================
    Figyelmeztetések, visszaszámlálás, eredmény
    ============================================================ */
@@ -368,7 +511,7 @@ kbd.k {
   pointer-events: none;
 }
 
-#results {
+#results, #mpResults {
   position: fixed; inset: 0; z-index: 26;
   display: flex; align-items: center; justify-content: center;
   background: rgba(6, 8, 12, 0.7);
@@ -390,6 +533,39 @@ kbd.k {
 .res-tag { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
 .res-tag.best { color: var(--ok); }
 .res-tag.bad { color: var(--warn); }
+
+.mp-results-card { width: min(650px, 94vw); padding: 25px 27px; }
+.mp-res-cols, .mp-res-row {
+  display: grid;
+  grid-template-columns: 20px 8px minmax(100px, 1fr) 48px 94px 94px;
+  align-items: center; column-gap: 8px;
+}
+.mp-res-cols {
+  padding: 0 8px 6px; border-bottom: 1px solid var(--line);
+  color: var(--muted); font-size: 9px; font-weight: 700;
+  letter-spacing: 0.07em; text-transform: uppercase;
+}
+.mp-res-cols span:nth-child(n + 4) { text-align: right; }
+.mp-res-row { min-height: 38px; padding: 6px 8px; border-radius: 8px; font-size: 13px; }
+.mp-res-row + .mp-res-row { border-top: 1px solid rgba(255, 255, 255, 0.04); }
+.mp-res-row.is-self { background: var(--accent-soft); }
+.mp-res-pos { color: var(--muted); font-weight: 800; text-align: right; }
+.mp-res-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.mp-res-laps, .mp-res-time { text-align: right; white-space: nowrap; }
+.mp-res-laps { color: var(--muted); }
+.mp-results-hint {
+  min-height: 18px; margin-top: 14px; color: var(--muted); font-size: 11.5px;
+}
+
+@media (max-width: 560px) {
+  .mp-results-card { padding: 20px 16px; }
+  .mp-res-cols, .mp-res-row {
+    grid-template-columns: 18px 7px minmax(70px, 1fr) 38px 76px 76px;
+    column-gap: 5px;
+  }
+  .mp-res-row { font-size: 11px; padding-inline: 5px; }
+  .mp-res-cols { padding-inline: 5px; font-size: 8px; }
+}
 
 /* ============================================================
    Többjátékos lobby
@@ -428,14 +604,21 @@ kbd.k {
 .mp-btn {
   border-radius: var(--r-sm); padding: 0.55rem 1rem;
   font-size: 0.9rem; font-weight: 650; border: 1px solid transparent;
-  transition: filter .15s ease;
+  cursor: pointer;
+  transition: transform .08s ease, filter .15s ease, background-color .15s ease,
+              border-color .15s ease, color .15s ease;
 }
 .mp-btn:hover:not(:disabled) { filter: brightness(1.12); }
+.mp-btn:active:not(:disabled) { transform: translateY(1px) scale(0.97); }
 .mp-btn:disabled { opacity: 0.4; }
 .mp-btn.primary { background: linear-gradient(180deg, #4d8dff, #2f6de0); color: #fff; }
 .mp-btn.ghost {
   background: rgba(255, 255, 255, 0.05); border-color: var(--line-strong); color: var(--text);
 }
+.mp-btn.ghost.is-copied {
+  background: rgba(75, 210, 138, 0.14); border-color: rgba(75, 210, 138, 0.55); color: #79e6aa;
+}
+#mpCopy { min-width: 98px; }
 .mp-btn.danger { background: rgba(255, 95, 95, 0.12); border-color: rgba(255, 95, 95, 0.4); color: #ff8a8a; }
 
 /* A szobakód a lobby legfontosabb adata — ezt kell felolvasni/átküldeni a

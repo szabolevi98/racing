@@ -141,8 +141,8 @@ test('leaving a running race removes the server body, collider and controller', 
       'the first visible frozen ticks must start on settled suspension'
     );
 
-    // A célba ért autó kapjon nulla motor-, kormány- és fékbemenetet, de a
-    // merev teste maradjon dinamikus, hogy a célvonalról továbbgurulhasson.
+    // A célba ért autó kapjon nulla motort és kormányt, viszont fékezzen,
+    // majd pontosan nullán álljon meg — ne billenjen át hátramenetbe.
     const finishedCar = sim.cars.get('two');
     finishedCar.race.finished = true;
     finishedCar.input = { seq: 1, throttle: 1, steer: 1, brake: true, handbrake: true };
@@ -151,9 +151,27 @@ test('leaving a running race removes the server body, collider and controller', 
     sim.step();
     assert.equal(finishedCar.vehicle.wheelEngineForce(2), 0);
     assert.equal(finishedCar.vehicle.wheelSteering(0), 0);
-    assert.equal(finishedCar.vehicle.wheelBrake(0), 0);
-    assert.ok(finishedCar.body.linvel().z > 1, 'the finished car must keep coasting');
+    assert.ok(finishedCar.vehicle.wheelBrake(0) > 0);
+    assert.ok(finishedCar.body.linvel().z > 1, 'the finished car must clear the finish line first');
+    for (let i = 0; i < 180; i++) sim.step();
+    const stoppedAt = finishedCar.body.translation().z;
+    assert.ok(Math.hypot(finishedCar.body.linvel().x, finishedCar.body.linvel().z) < 0.01);
+    for (let i = 0; i < 30; i++) sim.step();
+    assert.ok(Math.abs(finishedCar.body.translation().z - stoppedAt) < 0.01, 'must not roll backwards');
     finishedCar.race.finished = false;
+
+    // A HUD rése ugyanazon hiteles checkpoint szerveridejének különbsége.
+    // Ne a pillanatnyi métertávolságból becsüljünk időt.
+    const leader = sim.cars.get('one');
+    const splitBase = sim.simTimeMs - 2000;
+    leader.race.progressKey = 1;
+    leader.race.splits.set(1, splitBase);
+    finishedCar.race.progressKey = 1;
+    finishedCar.race.splits.set(1, splitBase + 750);
+    sim.sendSnapshot(sim.simTimeMs + 0.001);
+    const timedCars = snapshots.at(-1).cars;
+    assert.equal(timedCars.find((car) => car.id === 'one').gap, 0);
+    assert.equal(timedCars.find((car) => car.id === 'two').gap, 750);
 
     assert.equal(sim.removeCar('two'), true);
     assert.equal(sim.cars.size, 1);

@@ -12,6 +12,7 @@ import {
 } from '../../shared/protocol.js';
 import {
   GRAVITY, buildVehicle, applyControls, CHASSIS_SIZE, applySpeedCap,
+  shouldBrakeFinishedVelocity, settleFinishedBody,
   FLOOR_COLLIDER_GROUPS, WALL_COLLIDER_GROUPS, WHEEL_RAY_FILTER_GROUPS, TRACK_FRICTION,
 } from '../../shared/vehicleConfig.js';
 import {
@@ -106,6 +107,7 @@ function crossedGate(gate, fromX, fromZ, toX, toZ) {
 const SPAWN_HEIGHT = 1.0;
 const SPAWN_SETTLE_TICKS = 120;
 const NEUTRAL_INPUT = Object.freeze({ steer: 0, throttle: 0, brake: false, handbrake: false, seq: 0 });
+const FINISHED_BRAKE_INPUT = Object.freeze({ steer: 0, throttle: 0, brake: true, handbrake: false, seq: 0 });
 // Innen lövünk lefelé a talajért. Bőven a legmagasabb pályamodell fölött.
 const RAY_FROM_Y = 5000;
 // Mennyi bemenet állhat sorban egy játékosnál. A sor a jitter elnyelésére való:
@@ -241,6 +243,12 @@ export class RaceSim {
           hasCrossedStart: false,
           lapStart: 0,
           lapTimes: [],
+          // Abszolút verseny-előrehaladási kulcs és az egyes időmérő
+          // vonalak szerverideje. A kliensek ebből kapnak valódi időrést:
+          // nem a két autó térbeli távolságát próbáljuk másodperccé
+          // hazudni, hanem ugyanazon checkpoint áthaladási idejét hasonlítjuk.
+          progressKey: -1,
+          splits: new Map(),
           finished: false,
           prevX: pos.x,
           prevZ: pos.z,
@@ -441,10 +449,14 @@ export class RaceSim {
       // képlettel mintázza a jóslásához (shared/zone.js), különben a pálya
       // szélén folyamatosan elcsúsznának egymástól.
       const offtrackWheels = wheelsOffTrack(this.zone, car.body, WHEEL_PROBES);
-      // A célba ért autó nem fagy meg és nem satufékez: egyszerűen elveszít
-      // minden vezetői bemenetet, majd a saját lendületéből kigurul. Így
-      // elhagyja a célvonalat, és nem lesz álló akadály a mögötte befutóknak.
-      const effectiveInput = car.race.finished ? NEUTRAL_INPUT : car.input;
+      // A célba ért autó elveszíti a gázt és a kormányt, majd a normál
+      // fékkel megáll. Előbb még elhagyja a célvonalat, de nem gurul el
+      // korlátlanul; a nyugalmi küszöb alatt már a féket is levesszük.
+      const speed = car.body.linvel();
+      const finishedInput = shouldBrakeFinishedVelocity(speed.x, speed.z)
+        ? FINISHED_BRAKE_INPUT
+        : NEUTRAL_INPUT;
+      const effectiveInput = car.race.finished ? finishedInput : car.input;
       applyControls(car.vehicle, car.body, effectiveInput, { frozen, offtrackWheels });
       car.vehicle.updateVehicle(this.world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
     }
@@ -456,6 +468,7 @@ export class RaceSim {
     for (const car of this.cars.values()) {
       applySpeedCap(car.body);
       applyWallConstraint(car.body, this.zone, car.lastSafe, WALL_PROBES);
+      if (car.race.finished) settleFinishedBody(car.body);
     }
     this.tick++;
 
@@ -488,6 +501,9 @@ export class RaceSim {
           r.passed.add(i);
           if (i === r.nextCheckpoint) {
             r.nextCheckpoint++;
+            const splitKey = r.lap * (checkpoints.length + 1) + i + 1;
+            r.progressKey = splitKey;
+            r.splits.set(splitKey, now);
             // Csak SIKERES átlépéskor jegyezzük meg — így az R sosem tesz
             // vissza egy olyan pontra, ahol már rossz úton járt.
             car.respawn = {
@@ -521,6 +537,8 @@ export class RaceSim {
           // A rajtpont a rajtvonal ELŐTT van: az első átlépés a kört KEZDI.
           r.hasCrossedStart = true;
           r.lapStart = now;
+          r.progressKey = r.lap * (checkpoints.length + 1);
+          r.splits.set(r.progressKey, now);
           car.respawn = {
             ...gateMidpoint(gates.start),
             heading: headingFrom(fromX, fromZ, p.x, p.z, car.respawn.heading),
@@ -541,6 +559,9 @@ export class RaceSim {
           if (r.passed.size < checkpoints.length) r.taintReason = TAINT.CHECKPOINT;
           const invalid = !!r.taintReason;
           const time = now - r.lapStart;
+          const splitKey = (r.lap + 1) * (checkpoints.length + 1);
+          r.progressKey = splitKey;
+          r.splits.set(splitKey, now);
           r.lapTimes.push({ time, invalid });
           r.lap++;
           r.nextCheckpoint = 0;
@@ -564,12 +585,43 @@ export class RaceSim {
   }
 
   sendSnapshot(now) {
+    const ordered = [...this.cars.values()].sort((a, b) => {
+      if (a.race.finished && b.race.finished) {
+        return (a.race.finishedAt || Infinity) - (b.race.finishedAt || Infinity);
+      }
+      if (a.race.finished !== b.race.finished) return a.race.finished ? -1 : 1;
+      if (a.race.progressKey !== b.race.progressKey) return b.race.progressKey - a.race.progressKey;
+      const aAt = a.race.splits.get(a.race.progressKey) ?? Infinity;
+      const bAt = b.race.splits.get(b.race.progressKey) ?? Infinity;
+      return aAt - bAt;
+    });
+    const rankById = new Map(ordered.map((car, index) => [car.playerId, index + 1]));
+    const leader = ordered[0] || null;
+
     const cars = [];
     for (const car of this.cars.values()) {
       const t = car.body.translation();
       const q = car.body.rotation();
       const v = car.body.linvel();
       const w = car.body.angvel();
+      const validLaps = car.race.lapTimes.filter((lap) => !lap.invalid);
+      const bestLap = validLaps.length ? Math.min(...validLaps.map((lap) => lap.time)) : null;
+      const lastLap = car.race.lapTimes.at(-1) || null;
+      let gapMs = null;
+      if (leader === car) {
+        gapMs = 0;
+      } else if (leader && car.race.progressKey >= 0) {
+        // A lemaradó legfrissebb időmérő pontja az a legújabb vonal,
+        // amelyet biztosan mindketten teljesítettek. Ha azóta előzés történt,
+        // a régi split negatív lenne; olyankor a következő közös pontig
+        // inkább nem mutatunk félrevezető számot.
+        const commonKey = Math.min(car.race.progressKey, leader.race.progressKey);
+        const carAt = car.race.splits.get(commonKey);
+        const leaderAt = leader.race.splits.get(commonKey);
+        if (Number.isFinite(carAt) && Number.isFinite(leaderAt) && carAt >= leaderAt) {
+          gapMs = carAt - leaderAt;
+        }
+      }
       cars.push({
         id: car.playerId,
         // A tizedesek vágása érdemben csökkenti a csomagméretet, és a
@@ -601,6 +653,12 @@ export class RaceSim {
         ti: car.race.taintReason,
         lap: car.race.lap,
         cp: car.race.nextCheckpoint,
+        rk: rankById.get(car.playerId) || 0,
+        gap: gapMs === null ? null : Math.round(gapMs),
+        best: bestLap === null ? null : Math.round(bestLap),
+        last: lastLap ? Math.round(lastLap.time) : null,
+        li: !!lastLap?.invalid,
+        fin: !!car.race.finished,
       });
     }
     this.broadcast(S2C.SNAPSHOT, { tick: this.tick, t: now, cars });
