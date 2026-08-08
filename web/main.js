@@ -6,6 +6,7 @@ import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-
 import {
   GRAVITY, CHASSIS_SIZE, WHEEL_RADIUS, SUSPENSION_REST_LENGTH, WHEEL_POSITIONS,
   STEER_VISUAL_SPEED, buildVehicle, applyControls, resetLiveVehicleTunables,
+  applyAerodynamics, moveSteeringInput,
   FLOOR_COLLIDER_GROUPS, WALL_COLLIDER_GROUPS, WHEEL_RAY_FILTER_GROUPS,
   CAR_PROXY_COLLIDER_GROUPS, TRACK_FRICTION, applyChassisMassProperties,
   forwardSpeed, REVERSE_BRAKE_THRESHOLD, applySpeedCap, settleFinishedBody,
@@ -497,6 +498,7 @@ function resetCarInterpolation() {
 }
 
 function resetCarTo(pos, heading = spawnHeading) {
+  steeringInput = 0;
   const half = heading / 2;
   chassisBody.setTranslation({ x: pos.x, y: pos.y, z: pos.z }, true);
   chassisBody.setRotation({ x: 0, y: Math.sin(half), z: 0, w: Math.cos(half) }, true);
@@ -1983,8 +1985,8 @@ function updateWheelVisuals(dt) {
     // ---- A kerék MAGASSÁGA: a fizikai érintkezési pontra illesztve ----
     // Korábban a látható kerék mereven a kasztnihoz volt szögezve, ami egy
     // felfüggesztéses járműnél alapból hibás: a kerék a talajon gördül, és a
-    // kasztni mozog HOZZÁ képest, nem fordítva. A kocsi súlya alatt a rugó
-    // 30 cm-ről ~23-ra nyomódik, és a gumi ennyivel az aszfalt alá került.
+    // kasztni mozog HOZZÁ képest, nem fordítva. A kocsi súlya alatt a mostani
+    // 25 cm-es rugó ~22,8 cm-re nyomódik; ezt a vizuális keréknek követnie kell.
     //
     // Itt nem becslünk és nem korrigálunk: mindkét oldal MÉRT adat.
     //  - a fizikából tudjuk, hol ér földet ez a kerék a kasztnihoz képest:
@@ -2361,6 +2363,7 @@ function updateRace(dt) {
 
 // ---------- Irányítás (csak vezetés közben aktív) ----------
 const keys = {};
+let steeringInput = 0;
 const keyboardKeys = new Set();
 const touchKeyCounts = new Map();
 const touchPointers = new Map();
@@ -2502,6 +2505,8 @@ function updateControls(dt = 1 / 60) {
   const backwardHeld = !frozen && (keys['KeyS'] || keys['ArrowDown']);
   const left = !frozen && (keys['KeyA'] || keys['ArrowLeft']);
   const right = !frozen && (keys['KeyD'] || keys['ArrowRight']);
+  const steeringTarget = left ? 1 : right ? -1 : 0;
+  steeringInput = moveSteeringInput(steeringInput, steeringTarget, dt);
 
   // Amíg még előre gördül a kocsi, az S/le nyíl FÉKEZZEN (a valódi wheelBrake
   // mechanikával), ne a REVERSE_FACTOR-ral szorzott, sokkal gyengébb
@@ -2536,7 +2541,7 @@ function updateControls(dt = 1 / 60) {
     chassisBody,
     {
       throttle: forward ? 1 : backward ? -1 : 0,
-      steer: left ? 1 : right ? -1 : 0,
+      steer: steeringInput,
       brake,
       handbrake,
     },
@@ -3410,6 +3415,7 @@ function animate() {
       // A Rapiernél a jármű-vezérlőt a világ léptetése ELŐTT kell frissíteni:
       // ez lövi ki a kerék-sugarakat és számolja a felfüggesztés/tapadás erőket.
       vehicle.updateVehicle(world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
+      applyAerodynamics(chassisBody, vehicle, world.timestep);
       world.step();
       applySpeedCap(chassisBody);
       applyWallConstraint();
@@ -3740,6 +3746,7 @@ window.__game = {
   stepLocalPhysics(input, frozen = false, finished = false) {
     applyControls(vehicle, chassisBody, input, { frozen, offtrackWheels: wheelsOffTrack() });
     vehicle.updateVehicle(world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
+    applyAerodynamics(chassisBody, vehicle, world.timestep);
     world.step();
     // A sebességplafon és a láthatatlan fal a lépés UTÁN, ugyanabban a
     // sorrendben, mint a szerveren és mint az egyjátékos animate()-ben.

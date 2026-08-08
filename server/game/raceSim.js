@@ -11,7 +11,7 @@ import {
   S2C, ROOM_STATE, TAINT, TICK_RATE, TICK_MS, SNAPSHOT_RATE, requiredCheckpoints,
 } from '../../shared/protocol.js';
 import {
-  GRAVITY, buildVehicle, applyControls, CHASSIS_SIZE, applySpeedCap,
+  GRAVITY, buildVehicle, applyControls, applyAerodynamics, CHASSIS_SIZE, applySpeedCap,
   shouldBrakeFinishedVelocity, settleFinishedBody,
   FLOOR_COLLIDER_GROUPS, WALL_COLLIDER_GROUPS, WHEEL_RAY_FILTER_GROUPS, TRACK_FRICTION,
 } from '../../shared/vehicleConfig.js';
@@ -459,6 +459,7 @@ export class RaceSim {
       const effectiveInput = car.race.finished ? finishedInput : car.input;
       applyControls(car.vehicle, car.body, effectiveInput, { frozen, offtrackWheels });
       car.vehicle.updateVehicle(this.world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
+      applyAerodynamics(car.body, car.vehicle, this.world.timestep);
     }
     this.world.step();
 

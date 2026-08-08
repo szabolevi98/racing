@@ -17,7 +17,10 @@ import * as THREE from 'three';
 import {
   MAX_STEER, STEER_VISUAL_SPEED,
   MAX_ENGINE_FORCE, REVERSE_FACTOR, BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_FORCE, HANDBRAKE_REAR_SLIP,
-  FRONT_FRICTION_SLIP, REAR_FRICTION_SLIP, SUSPENSION, LINEAR_DAMPING, ANGULAR_DAMPING,
+  FRONT_FRICTION_SLIP, REAR_FRICTION_SLIP,
+  FRONT_SIDE_FRICTION_STIFFNESS, REAR_SIDE_FRICTION_STIFFNESS,
+  SUSPENSION_REST_LENGTH, AERO_DOWNFORCE_COEFFICIENT, AERO_DRAG_COEFFICIENT,
+  SUSPENSION, LINEAR_DAMPING, ANGULAR_DAMPING,
   setLiveVehicleTunables, resetLiveVehicleTunables,
 } from '/shared/vehicleConfig.js';
 
@@ -267,10 +270,15 @@ const VEHICLE_TUNABLES = [
   ['HANDBRAKE_REAR_SLIP', 'Kézifék — hátsó tapadás', 0.1, 3, 0.05],
   ['FRONT_FRICTION_SLIP', 'Tapadás — elöl', 0.5, 8, 0.05],
   ['REAR_FRICTION_SLIP', 'Tapadás — hátul', 0.5, 8, 0.05],
-  ['SUSPENSION_STIFFNESS', 'Felfüggesztés — merevség', 5, 100, 1],
+  ['FRONT_SIDE_FRICTION_STIFFNESS', 'Oldaltartás — elöl', 0.1, 5, 0.05],
+  ['REAR_SIDE_FRICTION_STIFFNESS', 'Oldaltartás — hátul', 0.1, 5, 0.05],
+  ['SUSPENSION_REST_LENGTH', 'Felfüggesztés — nyugalmi hossz', 0.1, 0.5, 0.01],
+  ['SUSPENSION_STIFFNESS', 'Felfüggesztés — merevség', 5, 500, 1],
   ['SUSPENSION_COMPRESSION', 'Felfüggesztés — kompresszió', 0.5, 10, 0.1],
   ['SUSPENSION_RELAXATION', 'Felfüggesztés — relaxáció', 0.5, 10, 0.1],
   ['SUSPENSION_MAX_TRAVEL', 'Felfüggesztés — max. löket', 0.05, 1, 0.01],
+  ['AERO_DOWNFORCE_COEFFICIENT', 'Aero — leszorítóerő', 0, 2, 0.01],
+  ['AERO_DRAG_COEFFICIENT', 'Aero — légellenállás', 0, 0.2, 0.005],
   ['LINEAR_DAMPING', 'Lineáris csillapítás', 0, 1, 0.01],
   ['ANGULAR_DAMPING', 'Szögsebesség-csillapítás', 0, 2, 0.01],
 ];
@@ -281,6 +289,8 @@ const CANONICAL_TUNABLES = {
   MAX_ENGINE_FORCE, REVERSE_FACTOR, MAX_STEER,
   BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_FORCE, HANDBRAKE_REAR_SLIP,
   FRONT_FRICTION_SLIP, REAR_FRICTION_SLIP,
+  FRONT_SIDE_FRICTION_STIFFNESS, REAR_SIDE_FRICTION_STIFFNESS,
+  SUSPENSION_REST_LENGTH, AERO_DOWNFORCE_COEFFICIENT, AERO_DRAG_COEFFICIENT,
   SUSPENSION_STIFFNESS: SUSPENSION.stiffness,
   SUSPENSION_COMPRESSION: SUSPENSION.compression,
   SUSPENSION_RELAXATION: SUSPENSION.relaxation,
@@ -295,6 +305,17 @@ function applyTunable(key, value) {
   switch (key) {
     case 'SUSPENSION_STIFFNESS':
       for (let i = 0; i < 4; i++) vehicle.setWheelSuspensionStiffness(i, value);
+      break;
+    case 'SUSPENSION_REST_LENGTH':
+      for (let i = 0; i < 4; i++) vehicle.setWheelSuspensionRestLength(i, value);
+      break;
+    case 'FRONT_SIDE_FRICTION_STIFFNESS':
+      vehicle.setWheelSideFrictionStiffness(0, value);
+      vehicle.setWheelSideFrictionStiffness(1, value);
+      break;
+    case 'REAR_SIDE_FRICTION_STIFFNESS':
+      vehicle.setWheelSideFrictionStiffness(2, value);
+      vehicle.setWheelSideFrictionStiffness(3, value);
       break;
     case 'SUSPENSION_COMPRESSION':
       for (let i = 0; i < 4; i++) vehicle.setWheelSuspensionCompression(i, value);
