@@ -10,6 +10,7 @@ import {
 import { Room } from '../game/room.js';
 import { upsertPlayer } from '../db/index.js';
 import { getManifest } from '../assets.js';
+import { recentBlockMs } from '../loopLag.js';
 
 const rooms = new Map();    // kód -> Room
 const players = new Map();  // playerId -> player
@@ -172,7 +173,9 @@ async function handleMessage(player, msg) {
     }
 
     case C2S.PING: {
-      send(socket, S2C.PONG, { t: msg.t, serverNow: Date.now() });
+      // Ha az imént ért véget egy akadás nálunk, akkor ez a PING a mi sorunkban
+      // várakozott — a kliens ezért eldobja a mintát (lásd loopLag.js).
+      send(socket, S2C.PONG, { t: msg.t, serverNow: Date.now(), blockedMs: recentBlockMs() });
       return;
     }
 

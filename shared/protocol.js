@@ -26,7 +26,7 @@ export const S2C = {
   RACE_EVENT: 'raceEvent',     // { kind, playerId, ... } — kör, érvénytelenítés, célba érés
   RACE_END: 'raceEnd',         // { results[] }
   ERROR: 'error',              // { message }
-  PONG: 'pong',                // { t, serverNow }
+  PONG: 'pong',                // { t, serverNow, blockedMs } — blockedMs: a szerver saját akadása
 };
 
 // Mi rontotta el a folyamatban lévő kört. A snapshot `ti` mezője ezt küldi,

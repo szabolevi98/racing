@@ -346,6 +346,10 @@ function sendPing() {
 // volt-e ilyen akadás a küldés ÓTA.
 const STALL_TICK_MS = 200;
 const STALL_THRESHOLD_MS = 400;
+// A szerver által jelentett saját akadás, ami fölött a mintát eldobjuk. Bőven
+// a hurok normális ingadozása fölött van, de jóval a rajtnál mért blokkok
+// (több száz ms) alatt.
+const SERVER_BLOCK_IGNORE_MS = 50;
 let stallTimer = null;
 let lastHeartbeatAt = 0;
 let lastStallAt = 0;
@@ -509,7 +513,23 @@ function onMessage(m) {
         // Ha a küldés óta blokkolt a főszál, a minta a blokkolás hosszát méri,
         // nem a hálózatot — eldobjuk (lásd startStallWatch). Az órabecslést is
         // kihagyjuk vele, mert az is az RTT felét használja.
-        if (lastStallAt > m.t) { window.__mp.pingDiscarded++; break; }
+        //
+        // Három ok van, és mind ugyanoda vezet:
+        //  - lastStallAt: a figyelő ütése már észlelte az akadást;
+        //  - a heartbeat régen járt: ez az üzenet fut ELSŐKÉNT a blokk után,
+        //    tehát a figyelő ütése még nem került sorra (böngészőben nem
+        //    garantált, melyik előbb) — enélkül pont a legnagyobb tüske
+        //    csúszna át;
+        //  - m.blockedMs: nem mi akadtunk, hanem a SZERVER eseményhurka, és a
+        //    PING nála állt sorban (lásd server/loopLag.js). Erre a saját
+        //    figyelőnk vak, mert a mi szálunk közben szabad volt — ez az, ami
+        //    verseny indításakor a több száz milliszekundumos pinget okozta.
+        const stalledHere = lastStallAt > m.t
+          || performance.now() - lastHeartbeatAt > STALL_THRESHOLD_MS;
+        if (stalledHere || m.blockedMs > SERVER_BLOCK_IGNORE_MS) {
+          window.__mp.pingDiscarded++;
+          break;
+        }
         const rtt = Math.max(0, performance.now() - m.t);
         if (lastPingRttMs !== null) {
           const delta = Math.abs(rtt - lastPingRttMs);
