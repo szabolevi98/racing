@@ -89,6 +89,7 @@ async function runLoadTasks(tasks) {
 }
 const hudEl = document.getElementById('hud');
 const menuStatusEl = document.getElementById('menuStatus');
+const trackAlertEl = document.getElementById('trackAlert');
 const mapSelect = document.getElementById('mapSelect');
 const carSelect = document.getElementById('carSelect');
 const envSelect = document.getElementById('envSelect');
@@ -144,6 +145,19 @@ const DEV_MODE =
 
 function setMenuStatus(text) {
   menuStatusEl.textContent = text;
+}
+
+function updateTrackAlert(entry) {
+  const alert = entry?.alert;
+  if (!alert) {
+    trackAlertEl.textContent = '';
+    delete trackAlertEl.dataset.type;
+    trackAlertEl.classList.add('hidden');
+    return;
+  }
+  trackAlertEl.dataset.type = alert.type;
+  trackAlertEl.textContent = alert.message;
+  trackAlertEl.classList.remove('hidden');
 }
 
 // ---------- Three.js alapok ----------
@@ -4089,6 +4103,7 @@ async function init() {
     lapCountSelect.value = savedLaps;
   }
   loadLeaderboard(initialMap.id);
+  updateTrackAlert(initialMap);
 
   const savedViewIdx = CAMERA_VIEWS.findIndex((v) => v.id === loadLastChoice('camera', CAMERA_VIEWS[0].id));
   if (savedViewIdx >= 0) cameraViewIndex = savedViewIdx;
@@ -4122,6 +4137,7 @@ async function init() {
   mapSelect.addEventListener('change', async () => {
     const entry = findEntry(manifest.maps, mapSelect.value);
     saveLastChoice('map', entry.id);
+    updateTrackAlert(entry);
     // A ranglista a pálya MODELLJÉTŐL függetlenül tölthető, ezért nem várjuk
     // meg a több tíz megabájtos betöltést — mire az kész, ez már ott lesz.
     loadLeaderboard(entry.id);

@@ -3,7 +3,7 @@
   "debrisFilter": true,
   "kerbSmoothing": true,
   "canopy": {
-    "enabled": true,
+    "enabled": false,
     "minHeight": 10
   },
   "asphaltSmoothing": {

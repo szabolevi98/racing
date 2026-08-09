@@ -127,6 +127,17 @@ async function collectMaps() {
       entry.bytes = (await fs.stat(path.join(mapDir, sceneFile))).size;
     } catch { /* nem kritikus */ }
 
+    // Opcionális, pályánkénti menüfigyelmeztetés. Szándékosan a manifestbe
+    // kerül, így a kliensnek nem kell minden pályához külön HTTP-kérést indítani.
+    // Csak a három ismert megjelenési típus mehet át; hibás fájlnál inkább ne
+    // mutassunk félreformázott üzenetet.
+    const alertData = await readJson(path.join(mapDir, 'alert.json'));
+    const alertType = String(alertData?.type || '').toLowerCase();
+    const alertMessage = typeof alertData?.message === 'string' ? alertData.message.trim() : '';
+    if (['success', 'warning', 'danger'].includes(alertType) && alertMessage) {
+      entry.alert = { type: alertType, message: alertMessage };
+    }
+
     // Kézi rajtrács (spawn.json). Egyetlen {x,z} objektum is elfogadott a
     // korábbi formátum miatt. A heading radiánban adja meg, merre nézzen az
     // autó; ha hiányzik, 0 (a világ +Z iránya).
