@@ -3,7 +3,10 @@
 // Multiplayerben a SZERVER a hiteles forrás — a helyi fizika nem fut. Ez a
 // modul a bemenetet küldi, és a beérkező állapotot jeleníti meg; a köztes
 // időt interpolálja, hogy a 20/mp állapot is folyamatos mozgásnak látsszon.
-import { C2S, S2C, ROOM_STATE, TAINT, TICK_RATE, TICK_MS, sanitizeName } from '/shared/protocol.js';
+import {
+  C2S, S2C, ROOM_STATE, TAINT, TICK_RATE, TICK_MS,
+  PLAYER_TOKEN_LENGTH, sanitizeName, sanitizePlayerToken,
+} from '/shared/protocol.js';
 import {
   forwardSpeed, REVERSE_BRAKE_THRESHOLD, shouldBrakeFinishedVelocity,
 } from '/shared/vehicleConfig.js';
@@ -114,10 +117,34 @@ el.innerHTML = `
       <label for="mpName" class="lbl d-block mb-2">Játékosnév</label>
       <input id="mpName" class="form-control mb-3" maxlength="20" placeholder="A neved">
       <button id="mpConnect" class="mp-btn primary w-100">Csatlakozás a szerverhez</button>
+      <div class="mp-sep">vagy meglévő profil</div>
+      <label for="mpToken" class="lbl d-block mb-2">Belépési token</label>
+      <div class="d-flex gap-2">
+        <input id="mpToken" class="form-control mp-token-input" type="password"
+               maxlength="${PLAYER_TOKEN_LENGTH}" autocomplete="off" spellcheck="false"
+               placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+        <button id="mpRestore" class="mp-btn ghost mp-btn-fixed">Visszalépés</button>
+      </div>
+      <div class="mp-token-note">A token a profilod kulcsa. Akinél megvan, beléphet a profilodba.</div>
     </div>
 
     <div id="mpRooms" class="hidden">
-      <div class="mp-chip mb-3">Bejelentkezve: <b id="mpWho"></b></div>
+      <div class="mp-account mb-3">
+        <div class="mp-account-status">Bejelentkezve: <b id="mpWho"></b></div>
+        <div class="mp-account-panel">
+          <div class="mp-account-actions">
+            <button id="mpRenameToggle" class="mp-btn ghost compact">Név átírása</button>
+            <button id="mpCopyToken" class="mp-btn ghost compact" aria-live="polite">Token másolása</button>
+            <button id="mpLogout" class="mp-btn danger compact">Kijelentkezés</button>
+          </div>
+          <div id="mpRename" class="d-flex gap-2 mt-2 hidden">
+            <input id="mpRenameName" class="form-control" maxlength="20" placeholder="Új játékosnév">
+            <button id="mpRenameSave" class="mp-btn primary mp-btn-fixed">Mentés</button>
+            <button id="mpRenameCancel" class="mp-btn ghost mp-btn-fixed">Mégse</button>
+          </div>
+          <div class="mp-token-note">A tokennel másik gépen is visszaléphetsz ebbe a profilba.</div>
+        </div>
+      </div>
       <button id="mpCreate" class="mp-btn primary w-100">Új szoba létrehozása</button>
       <div class="mp-sep">vagy</div>
       <label for="mpCode" class="lbl d-block mb-2">Csatlakozás kóddal</label>
@@ -197,9 +224,49 @@ $('mpClose').addEventListener('click', closeLobby);
 $('mpConnect').addEventListener('click', () => {
   const name = sanitizeName($('mpName').value);
   localStorage.setItem('racing.name', name);
-  connect(name);
+  authenticate(C2S.HELLO, { name, token: me.token });
 });
 $('mpName').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('mpConnect').click(); });
+
+$('mpRestore').addEventListener('click', () => {
+  const token = sanitizePlayerToken($('mpToken').value);
+  if (!token) return setErr('Illessz be egy érvényes belépési tokent.');
+  authenticate(C2S.RESTORE_PROFILE, { token });
+});
+$('mpToken').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('mpRestore').click(); });
+
+$('mpRenameToggle').addEventListener('click', () => {
+  $('mpRenameName').value = me.name || '';
+  show('mpRename', true);
+  $('mpRenameName').focus();
+});
+$('mpRenameCancel').addEventListener('click', () => show('mpRename', false));
+$('mpRenameSave').addEventListener('click', () => {
+  send(C2S.RENAME_PLAYER, { name: sanitizeName($('mpRenameName').value) });
+});
+$('mpRenameName').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('mpRenameSave').click(); });
+
+let loggingOut = false;
+$('mpLogout').addEventListener('click', () => {
+  loggingOut = true;
+  pendingAuthentication = null;
+  localStorage.removeItem('racing.token');
+  localStorage.removeItem('racing.name');
+  me = { id: null, name: null, token: null };
+  $('mpName').value = '';
+  $('mpToken').value = '';
+  show('mpRename', false);
+  show('mpLogin', true);
+  show('mpRooms', false);
+  show('mpRoom', false);
+  setErr('');
+  stopPingLoop();
+  if (ws && ws.readyState <= WebSocket.OPEN) ws.close();
+  else {
+    ws = null;
+    loggingOut = false;
+  }
+});
 
 $('mpCreate').addEventListener('click', () => {
   const mapId = document.getElementById('mapSelect')?.value;
@@ -247,6 +314,25 @@ $('mpCopy').addEventListener('click', async () => {
     }, 1400);
   } catch {
     setErr('A szobakódot nem sikerült a vágólapra másolni.');
+  }
+});
+
+let tokenCopyFeedbackTimer = null;
+$('mpCopyToken').addEventListener('click', async () => {
+  if (!me.token) return setErr('Ehhez a profilhoz nincs másolható token.');
+  const button = $('mpCopyToken');
+  try {
+    await navigator.clipboard.writeText(me.token);
+    if (tokenCopyFeedbackTimer) clearTimeout(tokenCopyFeedbackTimer);
+    button.textContent = 'Token másolva ✓';
+    button.classList.add('is-copied');
+    tokenCopyFeedbackTimer = setTimeout(() => {
+      button.textContent = 'Token másolása';
+      button.classList.remove('is-copied');
+      tokenCopyFeedbackTimer = null;
+    }, 1800);
+  } catch {
+    setErr('A belépési tokent nem sikerült a vágólapra másolni.');
   }
 });
 
@@ -393,22 +479,39 @@ function stopPingLoop() {
   stopStallWatch();
 }
 
-function connect(name) {
+let pendingAuthentication = null;
+
+function authenticate(type, data) {
+  pendingAuthentication = { type, data };
+  if (ws?.readyState === WebSocket.OPEN) {
+    send(type, data);
+    return;
+  }
+  if (ws?.readyState === WebSocket.CONNECTING) return;
+
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(`${proto}://${location.host}/ws`);
-  ws.addEventListener('open', () => {
+  const socket = new WebSocket(`${proto}://${location.host}/ws`);
+  ws = socket;
+  socket.addEventListener('open', () => {
+    if (ws !== socket) return;
     setErr('');
-    send(C2S.HELLO, { name, token: me.token });
+    const auth = pendingAuthentication;
+    if (auth) send(auth.type, auth.data);
     startPingLoop();
   });
-  ws.addEventListener('message', (ev) => {
+  socket.addEventListener('message', (ev) => {
+    if (ws !== socket) return;
     // A feldolgozást késleltetjük, nem a JSON-elemzést — így a szimulátor
     // költsége nem torzítja a mért időt.
     const m = JSON.parse(ev.data);
     delayed('down', () => onMessage(m));
   });
-  ws.addEventListener('close', () => {
-    setErr('A kapcsolat megszakadt.');
+  socket.addEventListener('close', () => {
+    if (ws !== socket) return;
+    const wasLoggingOut = loggingOut;
+    loggingOut = false;
+    ws = null;
+    setErr(wasLoggingOut ? '' : 'A kapcsolat megszakadt.');
     // Verseny közbeni szakadásnál a többiek kocsija ott ragadna a pályán —
     // örökre mozdulatlanul, hiszen több snapshot nem jön hozzájuk.
     clearOtherCars();
@@ -423,7 +526,9 @@ function connect(name) {
     G.detachMultiplayerFrame();
     if (G.appState === 'mp') G.leaveMultiplayer();
   });
-  ws.addEventListener('error', () => setErr('Nem sikerült csatlakozni a szerverhez.'));
+  socket.addEventListener('error', () => {
+    if (ws === socket) setErr('Nem sikerült csatlakozni a szerverhez.');
+  });
 }
 
 function onMessage(m) {
@@ -431,8 +536,18 @@ function onMessage(m) {
     case S2C.WELCOME:
       me = { id: m.playerId, name: m.name, token: m.token };
       localStorage.setItem('racing.token', m.token);
+      localStorage.setItem('racing.name', m.name);
+      $('mpToken').value = '';
       $('mpWho').textContent = m.name;
       show('mpLogin', false); show('mpRooms', true);
+      break;
+
+    case S2C.PROFILE_UPDATED:
+      me.name = m.name;
+      localStorage.setItem('racing.name', m.name);
+      $('mpWho').textContent = m.name;
+      show('mpRename', false);
+      setErr('');
       break;
 
     case S2C.ROOM_STATE:

@@ -900,6 +900,8 @@ kbd.k {
 .mp-btn.ghost.is-copied {
   background: rgba(75, 210, 138, 0.14); border-color: rgba(75, 210, 138, 0.55); color: #79e6aa;
 }
+.mp-btn.compact { padding: 0.35rem 0.58rem; font-size: 0.72rem; white-space: nowrap; }
+.mp-btn-fixed { flex: none; }
 #mpCopy { min-width: 98px; }
 .mp-btn.danger { background: rgba(255, 95, 95, 0.12); border-color: rgba(255, 95, 95, 0.4); color: #ff8a8a; }
 
@@ -921,6 +923,23 @@ kbd.k {
   border-radius: 20px;
 }
 .mp-chip b { color: var(--text); font-weight: 650; }
+.mp-account-status {
+  margin: 0 2px 8px; color: var(--muted); font-size: 11.5px;
+}
+.mp-account-status b { color: var(--text); font-weight: 700; }
+.mp-account-panel {
+  padding: 10px; border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.025);
+}
+.mp-account-actions {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
+}
+.mp-account-actions .mp-btn { width: 100%; min-height: 32px; }
+.mp-token-input { min-width: 0; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.mp-account .mp-token-note {
+  margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line);
+}
+.mp-token-note { margin-top: 7px; color: var(--muted); font-size: 10px; line-height: 1.35; }
 
 .mp-player {
   display: flex; align-items: center; gap: 10px;

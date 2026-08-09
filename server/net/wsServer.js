@@ -5,10 +5,11 @@
 import { WebSocketServer } from 'ws';
 import { randomUUID } from 'node:crypto';
 import {
-  C2S, S2C, ROOM_STATE, ROOM_CODE_LENGTH, sanitizeName, COUNTDOWN_MS, RACE_LOAD_TIMEOUT_MS,
+  C2S, S2C, ROOM_STATE, ROOM_CODE_LENGTH, sanitizeName, sanitizePlayerToken,
+  COUNTDOWN_MS, RACE_LOAD_TIMEOUT_MS,
 } from '../../shared/protocol.js';
 import { Room } from '../game/room.js';
-import { upsertPlayer } from '../db/index.js';
+import { dbAvailable, findPlayerByToken, renamePlayer, upsertPlayer } from '../db/index.js';
 import { getManifest } from '../assets.js';
 import { recentBlockMs } from '../loopLag.js';
 
@@ -57,6 +58,17 @@ function pushRoomState(room) {
   broadcastRoom(room, S2C.ROOM_STATE, { room: room.toJSON() });
 }
 
+function welcomePlayer(player, record) {
+  player.name = record.name;
+  player.dbId = record.id;
+  player.token = record.token;
+  send(player.socket, S2C.WELCOME, {
+    playerId: player.id,
+    token: record.token,
+    name: record.name,
+  });
+}
+
 function leaveRoom(player, reason) {
   const room = rooms.get(player.roomCode);
   if (!room) {
@@ -83,12 +95,35 @@ async function handleMessage(player, msg) {
 
   switch (msg.type) {
     case C2S.HELLO: {
+      if (player.roomCode) return fail(socket, 'Szobában nem válthatsz profilt.');
       const name = sanitizeName(msg.name);
-      const rec = await upsertPlayer(name, msg.token).catch(() => ({ id: null, name, token: msg.token || randomUUID() }));
+      const token = sanitizePlayerToken(msg.token);
+      const rec = await upsertPlayer(name, token)
+        .catch(() => ({ id: null, name, token: token || randomUUID() }));
+      welcomePlayer(player, rec);
+      return;
+    }
+
+    case C2S.RESTORE_PROFILE: {
+      if (player.roomCode) return fail(socket, 'Szobában nem válthatsz profilt.');
+      const token = sanitizePlayerToken(msg.token);
+      if (!token) return fail(socket, 'A megadott belépési token formátuma hibás.');
+      if (!dbAvailable()) return fail(socket, 'A profil-visszaállítás jelenleg nem elérhető.');
+      const rec = await findPlayerByToken(token);
+      if (!rec) return fail(socket, 'Nincs profil ezzel a belépési tokennel.');
+      welcomePlayer(player, rec);
+      return;
+    }
+
+    case C2S.RENAME_PLAYER: {
+      if (!player.name) return fail(socket, 'Előbb jelentkezz be.');
+      if (player.roomCode) return fail(socket, 'A nevet a szobába belépés előtt módosítsd.');
+      const name = sanitizeName(msg.name);
+      if (!(await renamePlayer(player.dbId, name))) {
+        return fail(socket, 'A név módosítása nem sikerült.');
+      }
       player.name = name;
-      player.dbId = rec.id;
-      player.token = rec.token;
-      send(socket, S2C.WELCOME, { playerId: player.id, token: rec.token, name });
+      send(socket, S2C.PROFILE_UPDATED, { name });
       return;
     }
 

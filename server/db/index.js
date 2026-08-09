@@ -78,27 +78,41 @@ export async function purgeAbandonedRaces() {
 
 // --- Játékosok -------------------------------------------------------------
 
-// Névvel lépünk be; a visszakapott token teszi lehetővé, hogy újratöltés után
-// ugyanaz a játékos legyünk. Ha érvényes tokent küldenek, azt frissítjük.
+// Az érvényes token mindig a már eltárolt profilt — és annak nevét — adja
+// vissza. Az átnevezés külön művelet: egy másik gépen beillesztett token mellett
+// álló régi név így nem írhatja át véletlenül a profilt.
 export async function upsertPlayer(name, token) {
   if (!available) {
     // Adatbázis nélkül is működjön a játék: adunk egy ideiglenes azonosítót.
     return { id: null, name, token: token || randomUUID() };
   }
   if (token) {
-    const [rows] = await pool.query('SELECT id, name FROM players WHERE token = ? LIMIT 1', [token]);
-    if (rows.length) {
-      if (rows[0].name !== name) {
-        await pool.query('UPDATE players SET name = ? WHERE id = ?', [name, rows[0].id]);
-      } else {
-        await pool.query('UPDATE players SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?', [rows[0].id]);
-      }
-      return { id: rows[0].id, name, token };
-    }
+    const existing = await findPlayerByToken(token);
+    if (existing) return existing;
   }
   const fresh = randomUUID();
   const [res] = await pool.query('INSERT INTO players (name, token) VALUES (?, ?)', [name, fresh]);
   return { id: res.insertId, name, token: fresh };
+}
+
+export async function findPlayerByToken(token) {
+  if (!available || !token) return null;
+  const [rows] = await pool.query('SELECT id, name, token FROM players WHERE token = ? LIMIT 1', [token]);
+  if (!rows.length) return null;
+  await pool.query('UPDATE players SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?', [rows[0].id]);
+  return { id: rows[0].id, name: rows[0].name, token: rows[0].token };
+}
+
+export async function renamePlayer(playerId, name) {
+  // Adatbázis nélkül a profil csak erre a futó szerverfolyamatra él, de a név
+  // módosítása attól még működjön a lobbyban.
+  if (!available) return true;
+  if (!playerId) return false;
+  const [res] = await pool.query(
+    'UPDATE players SET name = ?, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?',
+    [name, playerId]
+  );
+  return res.affectedRows > 0;
 }
 
 // --- Versenyek -------------------------------------------------------------

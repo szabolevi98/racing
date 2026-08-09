@@ -5,6 +5,8 @@
 
 export const C2S = {
   HELLO: 'hello',              // { name, token? }        — belépés névvel
+  RESTORE_PROFILE: 'restoreProfile', // { token }         — meglévő profil visszaállítása
+  RENAME_PLAYER: 'renamePlayer',     // { name }          — bejelentkezett profil átnevezése
   CREATE_ROOM: 'createRoom',   // { mapId, carId, laps, ghostMode }
   JOIN_ROOM: 'joinRoom',       // { code, carId }
   LEAVE_ROOM: 'leaveRoom',
@@ -18,6 +20,7 @@ export const C2S = {
 
 export const S2C = {
   WELCOME: 'welcome',          // { playerId, token, name }
+  PROFILE_UPDATED: 'profileUpdated', // { name }
   ROOM_STATE: 'roomState',     // { code, hostId, mapId, laps, ghostMode, state, players[] }
   ROOM_CLOSED: 'roomClosed',   // { reason }
   RACE_STARTING: 'raceStarting', // { spawns, mapId, laps, ghostMode, players } — TÖLTS BE
@@ -114,6 +117,14 @@ export const COUNTDOWN_MS = 5000;
 export const RACE_LOAD_TIMEOUT_MS = 30000;
 
 export const MAX_NAME_LENGTH = 20;
+export const PLAYER_TOKEN_LENGTH = 36;
+
+export function sanitizePlayerToken(raw) {
+  const token = String(raw ?? '').trim().toLowerCase();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(token)
+    ? token
+    : '';
+}
 
 export function sanitizeName(raw) {
   const name = String(raw ?? '').replace(/\s+/g, ' ').trim().slice(0, MAX_NAME_LENGTH);
