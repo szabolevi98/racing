@@ -4573,6 +4573,11 @@ window.__game = {
     const v = chassisBody.linvel(), w = chassisBody.angvel();
     return { p: [p.x, p.y, p.z], q: [q.x, q.y, q.z, q.w], v: [v.x, v.y, v.z], w: [w.x, w.y, w.z] };
   },
+  getWheelContactCount() {
+    let count = 0;
+    for (let i = 0; i < 4; i++) if (vehicle.wheelIsInContact(i)) count++;
+    return count;
+  },
   setCarState({ p, q, v, w }) {
     chassisBody.setTranslation({ x: p[0], y: p[1], z: p[2] }, true);
     chassisBody.setRotation({ x: q[0], y: q[1], z: q[2], w: q[3] }, true);

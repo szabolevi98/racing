@@ -11,6 +11,7 @@ import {
 } from '../shared/vehicleConfig.js';
 import {
   conjugateQuaternion, multiplyQuaternions, normalizeQuaternion, rebasePredictedState,
+  samplePredictionStateAt, yawTwist,
 } from '../shared/prediction.js';
 
 await RAPIER.init();
@@ -32,6 +33,32 @@ test('prediction correction maps the acknowledged past onto the present without 
   const correctedCurrent = rebasePredictedState(current, predicted, authoritative, dq);
   assert.deepEqual(correctedCurrent.p.map((n) => +n.toFixed(6)), [17, 2, 18]);
   assert.ok(Math.abs(Math.hypot(...correctedCurrent.q) - 1) < 1e-9);
+});
+
+test('prediction history is sampled at the authoritative snapshot time', () => {
+  const state = (x, yaw) => ({
+    p: [x, 2, 0], q: [0, Math.sin(yaw / 2), 0, Math.cos(yaw / 2)],
+    v: [x, 0, 0], w: [0, yaw, 0],
+  });
+  const sampled = samplePredictionStateAt([
+    { t: 1000, state: state(0, 0) },
+    { t: 1020, state: state(10, Math.PI / 2) },
+  ], 1010);
+  assert.deepEqual(sampled.p, [5, 2, 0]);
+  assert.deepEqual(sampled.v, [5, 0, 0]);
+  assert.ok(Math.abs(sampled.q[1] - Math.sin(Math.PI / 8)) < 1e-9);
+  assert.ok(Math.abs(sampled.q[3] - Math.cos(Math.PI / 8)) < 1e-9);
+});
+
+test('grounded correction twist removes suspension pitch and roll', () => {
+  const pitchAndYaw = normalizeQuaternion(multiplyQuaternions(
+    [0, Math.sin(Math.PI / 8), 0, Math.cos(Math.PI / 8)],
+    [Math.sin(Math.PI / 12), 0, 0, Math.cos(Math.PI / 12)]
+  ));
+  const twist = yawTwist(pitchAndYaw);
+  assert.equal(twist[0], 0);
+  assert.equal(twist[2], 0);
+  assert.ok(Math.abs(Math.hypot(...twist) - 1) < 1e-9);
 });
 
 test('the suspension ray sees the floor, not another car proxy', () => {

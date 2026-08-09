@@ -7,7 +7,10 @@ import { C2S, S2C, ROOM_STATE, TAINT, TICK_RATE, TICK_MS, sanitizeName } from '/
 import {
   forwardSpeed, REVERSE_BRAKE_THRESHOLD, shouldBrakeFinishedVelocity,
 } from '/shared/vehicleConfig.js';
-import { normalizeQuaternion, rotateVector, rebasePredictedState } from '/shared/prediction.js';
+import {
+  normalizeQuaternion, rotateVector, rebasePredictedState,
+  samplePredictionStateAt, yawTwist,
+} from '/shared/prediction.js';
 
 const G = window.__game;
 // Diagnosztika. A step() azért kell, mert a requestAnimationFrame megáll, ha
@@ -976,7 +979,28 @@ function reconcile(state, predictedState) {
   const authoritativeAnchor = cloneState(state);
   predictedAnchor.q = normalizeQuaternion(predictedAnchor.q);
   authoritativeAnchor.q = normalizeQuaternion(authoritativeAnchor.q);
-  const dq = normalizeQuaternion(mulQuat(authoritativeAnchor.q, invQuat(predictedAnchor.q)));
+  let dq = normalizeQuaternion(mulQuat(authoritativeAnchor.q, invQuat(predictedAnchor.q)));
+  const grounded = G.getWheelContactCount?.() === 4
+    && Math.abs(authoritativeAnchor.p[1] - predictedAnchor.p[1]) < 0.4
+    && Math.abs(authoritativeAnchor.v[1]) < 3
+    && Math.abs(predictedAnchor.v[1]) < 3;
+
+  if (grounded) {
+    // A Rapier raycast vehicle rugóállapota nem része a body snapshotjának.
+    // Ha talajkontaktus közben átírnánk a kasztni Y/pitch/roll állapotát, a
+    // kerekek a következő ticken a régi rugóhosszból új erőt számolnának, és
+    // periodikusan visszalöknék az autót. Talajon ezért csak a vízszintes hely,
+    // irány és mozgás szerverhibáját korrigáljuk. Levegőben/borulva továbbra is
+    // a teljes hiteles állapot érvényesül.
+    dq = yawTwist(dq);
+    const predictedV = rotateVector(dq, predictedAnchor.v);
+    const predictedW = rotateVector(dq, predictedAnchor.w);
+    authoritativeAnchor.p[1] = predictedAnchor.p[1];
+    authoritativeAnchor.q = normalizeQuaternion(mulQuat(dq, predictedAnchor.q));
+    authoritativeAnchor.v[1] = predictedV[1];
+    authoritativeAnchor.w[0] = predictedW[0];
+    authoritativeAnchor.w[2] = predictedW[2];
+  }
   const before = G.getCarState();
   // Ahol a kocsi LÁTSZIK most — a jóslat PLUSZ a még le nem csengett korábbi
   // korrekció. Ez a fontos: ha csak a nyers jóslatból számolnánk az új
@@ -1152,7 +1176,10 @@ function onSnapshot(m) {
       myFinished = !!c.fin;
       ackedSeq = c.seq || 0;
       lapTainted = c.ti || TAINT.NONE;
-      const predictedAtAck = predictionHistory.find((entry) => entry.seq === ackedSeq);
+      // Ugyanazt a fizikai időpontot hasonlítjuk össze. Magas pingnél az
+      // ackelt sorszám helyi állapota egy fél hálózati úttal korábbi lenne,
+      // ezért a régi seq-alapú horgony önmagában gyártott többméteres hibát.
+      const predictedAtSnapshot = samplePredictionStateAt(predictionHistory, m.t);
       // A nyugtázott bemenetek hatása már benne van a kapott állapotban,
       // őket nem kell tovább őrizni.
       while (inputHistory.length && inputHistory[0].seq <= ackedSeq) inputHistory.shift();
@@ -1160,8 +1187,8 @@ function onSnapshot(m) {
       // azt a JELENRE visszük át. A járművet nem tekerjük vissza és nem
       // szimuláljuk újra, mert a kerékvezérlő belső rugóállapota nem állítható
       // vissza ugyanarra a múltbeli értékre.
-      if (predict && inputTimer && predictedAtAck) {
-        reconcile({ p: c.p, q: c.q, v: c.v, w: c.w }, predictedAtAck.state);
+      if (predict && inputTimer && predictedAtSnapshot) {
+        reconcile({ p: c.p, q: c.q, v: c.v, w: c.w }, predictedAtSnapshot);
       }
       else if (predict && startAfterSnapshot) G.setCarState({ p: c.p, q: c.q, v: c.v, w: c.w });
       while (predictionHistory.length && predictionHistory[0].seq <= ackedSeq) predictionHistory.shift();
@@ -1644,7 +1671,11 @@ function sendOneInput(scheduledAt) {
     G.stepLocalPhysics(input, input.frozen, !controlsEnabled);
     const predictedState = G.getCarState();
     if (predict && shouldSend) {
-      predictionHistory.push({ seq: input.seq, state: cloneState(predictedState) });
+      // A fizikai lépés ütemezett szerverideje kell, nem a setTimeout tényleges
+      // (esetenként későbbi) lefutása. Így egy catch-upban lefutó két tick sem
+      // kap azonos időbélyeget.
+      const predictionAt = serverNow() + (scheduledAt - performance.now());
+      predictionHistory.push({ seq: input.seq, t: predictionAt, state: cloneState(predictedState) });
       while (predictionHistory.length > MAX_INPUT_HISTORY) predictionHistory.shift();
     }
     recordPhysState(scheduledAt, predictedState);
