@@ -223,6 +223,15 @@ function applyEnvLighting(analysis) {
 
   const isNight = analysis.luminance < NIGHT_LUMINANCE_THRESHOLD;
   setHeadlights(isNight);
+  // A lombozat fény nélküli árnyékolása CSAK nappal jó (lásd applyFoliageShading):
+  // ott a kártyák véletlenszerű dőlése okozza a foltos sötétedést, amit a fény
+  // kihagyása megszüntet. Éjszaka viszont épp az kell, hogy a lomb elsötétedjen
+  // — fény nélkül ugyanolyan világos maradna, mint délben.
+  //
+  // A döntés a HDRI MÉRT fényességén alapul, nem a mappanéven: egy új égbolt
+  // magától a helyes ágra kerül.
+  unlitFoliage = !isNight;
+  refreshFoliageShading();
   // Éjszaka a szórt fényt még a nappalinál is jobban visszavesszük: a
   // tone mapping magától felhozná a sötét részeket (ettől nézett ki a
   // "night" inkább alkonyatnak), a látást pedig a fényszórók biztosítják.
@@ -849,6 +858,63 @@ function isMaskLikeTexture(tex) {
   return result;
 }
 
+// ---------- Lombozat: fény nélküli árnyékolás ----------
+// A pályamodellek fái nem térbeli fák, hanem néhány nagy, függőleges KÁRTYA.
+// Egy ilyen lapnak nincs értelmes normálisa: a megvilágítás aszerint sötétíti,
+// merre néz épp a kártya, nem aszerint, hogy a levél merre áll. Ettől lesz a
+// lomb foltokban sötét, és ezt tetézi az önárnyékolás is (a lapok egymásra és
+// magukra vetnek árnyékot).
+//
+// Fény nélküli anyaggal a lomb a saját textúrájának színét mutatja, egyenletesen.
+// Amit NEM veszítünk el: a fa továbbra is VET árnyékot a pályára (az a mélységből
+// számolódik, nem a megvilágításból) — csak nem KAP, tehát az önárnyékolás
+// megszűnik.
+//
+// A felismerés ugyanaz a mérésen alapuló szabály, mint az ütközés-sütésé:
+// átlátszó anyag + nagy függőleges kiterjedés. Mérve: a kerítések és korlátok
+// 2,5-5,2 m magasak, a fák 26,9-50,7 m — a két csoport között nincs átfedés.
+// Nappal fény nélkül, éjszaka megvilágítva — a váltást az applyEnvLighting
+// végzi a HDRI mért fényessége alapján.
+const FOLIAGE_MIN_HEIGHT = 10;
+let unlitFoliage = true;
+const foliageMeshes = [];          // { mesh, lit, unlit }
+
+function applyFoliageShading(track) {
+  foliageMeshes.length = 0;
+  track.updateMatrixWorld(true);
+  track.traverse((obj) => {
+    if (!isFoliageMesh(obj)) return;
+    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+
+    // A fény nélküli párt egyszer építjük fel, és megtartjuk mindkettőt: így a
+    // kapcsoló oda-vissza működik, és nem kell újratölteni a pályát.
+    const unlit = mats.map((m) => {
+      if (!m) return m;
+      const b = new THREE.MeshBasicMaterial({
+        map: m.map || null,
+        color: m.map ? 0xffffff : (m.color ? m.color.clone() : 0xffffff),
+        transparent: m.transparent,
+        alphaTest: m.alphaTest,
+        depthWrite: m.depthWrite,
+        side: m.side,
+        fog: true,
+      });
+      b.name = (m.name || '') + ' (fény nélkül)';
+      return b;
+    });
+    foliageMeshes.push({ mesh: obj, lit: obj.material, unlit: Array.isArray(obj.material) ? unlit : unlit[0] });
+  });
+  refreshFoliageShading();
+}
+
+function refreshFoliageShading() {
+  for (const f of foliageMeshes) {
+    f.mesh.material = unlitFoliage ? f.unlit : f.lit;
+    // Vetni továbbra is vet; kapni viszont nincs mit, ha nincs megvilágítás.
+    f.mesh.receiveShadow = !unlitFoliage;
+  }
+}
+
 async function setTrack(trackUrl, mapId, spawnPoints, gates, onProgress) {
   setMenuStatus('Pálya betöltése...');
   currentMapId = mapId || null;
@@ -931,6 +997,7 @@ async function setTrack(trackUrl, mapId, spawnPoints, gates, onProgress) {
   scene.add(track);
   currentTrack = track;
   currentTrackBox = new THREE.Box3().setFromObject(track);
+  applyFoliageShading(track);
 
   const slot = pickSpawnSlot(currentSpawnPoints);
   const spot = findShowcaseSpot(track, currentTrackBox, slot);
@@ -1487,11 +1554,51 @@ function extractDrivableTriangles(track, pruneDebris = true) {
 //
 // A `pruneDebris` kikapcsolható (dev bake felület, ellenőrzés célból) —
 // normál játékmenetben (fallback kinyerés) mindig bekapcsolva marad.
-// Átlátszó anyag? A növényzetet és a kerítést ez fogja meg — a kettőt utána a
-// MAGASSÁG választja szét.
-function hasTransparentMaterial(obj) {
+// Lombozat-e ez a mesh? EGY helyen eldöntve, mert két különböző dolog múlik
+// rajta: az ütközés-sütés kihagyja (a fa ne lógjon be a pálya fölé), a
+// megjelenítés pedig fény nélkül rajzolja (a kártyáknak nincs értelmes
+// normálisa, a megvilágítás foltokban sötétíti őket). Ha a két szabály
+// elcsúszna, a játékos átmenne olyasmin, ami látszik — vagy fordítva.
+//
+// Három feltétel EGYÜTT, mindegyik egy-egy téves találatot zár ki:
+//
+//  1. átlátszó anyag — a tömör épületek, falak, korlátok így kimaradnak;
+//  2. nincs nagyjából vízszintes lapja — ez zárja ki az összevont
+//     mega-mesh-eket, amikben a növényzet mellett lelátó vagy épület is van
+//     (Suzukán a modell egyetlen "Merged_materials" objektumba olvasztott
+//     mindent; a lelátónak lépcsői vannak, tehát vízszintes lapjai);
+//  3. nagy függőleges kiterjedés — a kerítés és a szalagkorlát 2-5 méter,
+//     a fák 27-51 (mérve Hockenheimen; a két csoport között nincs átfedés).
+//
+// A vizsgálat egyetlen menetben megy: az első vízszintes lapnál kilép.
+function isFoliageMesh(obj, minHeight = FOLIAGE_MIN_HEIGHT) {
+  if (!obj.isMesh || !obj.geometry || !obj.material) return false;
   const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-  return mats.some((m) => m && (m.transparent === true || m.alphaTest > 0));
+  if (!mats.some((m) => m && (m.transparent === true || m.alphaTest > 0))) return false;
+
+  const pos = obj.geometry.attributes.position;
+  if (!pos) return false;
+  const idx = obj.geometry.index;
+  const count = idx ? idx.count : pos.count;
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  const ab = new THREE.Vector3(), ac = new THREE.Vector3(), n = new THREE.Vector3();
+  let minY = Infinity, maxY = -Infinity;
+
+  for (let i = 0; i < count; i += 3) {
+    const i0 = idx ? idx.getX(i) : i;
+    const i1 = idx ? idx.getX(i + 1) : i + 1;
+    const i2 = idx ? idx.getX(i + 2) : i + 2;
+    a.fromBufferAttribute(pos, i0).applyMatrix4(obj.matrixWorld);
+    b.fromBufferAttribute(pos, i1).applyMatrix4(obj.matrixWorld);
+    c.fromBufferAttribute(pos, i2).applyMatrix4(obj.matrixWorld);
+    ab.subVectors(b, a);
+    ac.subVectors(c, a);
+    n.crossVectors(ab, ac).normalize();
+    if (Math.abs(n.y) > COLLISION_NORMAL_MIN_Y) return false;   // vízszintes lap
+    minY = Math.min(minY, a.y, b.y, c.y);
+    maxY = Math.max(maxY, a.y, b.y, c.y);
+  }
+  return maxY - minY > minHeight;
 }
 
 // `vegetation`: { minHeight } — a magas növényzet kihagyása az ütközésből.
@@ -1503,13 +1610,9 @@ function hasTransparentMaterial(obj) {
 // fölötte lebeg — háromszögenkénti magasság-vizsgálattal tehát egyetlen fa sem
 // akadt fenn (mérve: 0 találat).
 //
-// A kihagyás három feltétele együtt:
-//   1. átlátszó anyag — a tömör épületek, falak így kimaradnak;
-//   2. nagy függőleges kiterjedés — a kerítés és a szalagkorlát 2-5 méter,
-//      a fák 20-50 (mérve Hockenheimen: a meghagyottak 2,5-5,2 m, a
-//      kivettek 26,9-50,7 m — a két csoport között nincs átfedés);
-//   3. nem ad menetfelületet — ami padló-háromszöget is tartalmaz (lelátó,
-//      híd), az semmiképp nem eshet ki.
+// Mit hagyunk ki: a lombozatot (lásd isFoliageMesh). A döntés a mesh
+// háromszögei ELŐTT megszületik, tehát itt nincs félretevés — vagy az egész
+// objektum kimarad, vagy egyben bekerül.
 function extractWallTriangles(track, pruneDebris = true, vegetation = null) {
   track.updateMatrixWorld(true);
   const positions = [];
@@ -1521,16 +1624,17 @@ function extractWallTriangles(track, pruneDebris = true, vegetation = null) {
 
   track.traverse((obj) => {
     if (!obj.isMesh || !obj.geometry) return;
-    const canDrop = vegetation && hasTransparentMaterial(obj);
     const pos = obj.geometry.attributes.position;
     const idx = obj.geometry.index;
     const count = idx ? idx.count : pos.count;
 
-    // Az objektum háromszögeit előbb FÉLRETESSZÜK, mert a döntés csak a mesh
-    // végigjárása után hozható meg: addigra tudjuk a függőleges kiterjedését és
-    // azt, hogy ad-e menetfelületet.
-    const staged = [];
-    let minY = Infinity, maxY = -Infinity, hasFloor = false;
+    if (vegetation && isFoliageMesh(obj, vegetation.minHeight)) {
+      // A lombozatnak nincs vízszintes lapja (az isFoliageMesh feltétele),
+      // tehát minden háromszöge fal lett volna.
+      dropped += count / 3;
+      droppedObjects++;
+      return;
+    }
 
     for (let i = 0; i < count; i += 3) {
       const i0 = idx ? idx.getX(i) : i;
@@ -1542,23 +1646,9 @@ function extractWallTriangles(track, pruneDebris = true, vegetation = null) {
       ab.subVectors(b, a);
       ac.subVectors(c, a);
       n.crossVectors(ab, ac).normalize();
-      if (Math.abs(n.y) > COLLISION_NORMAL_MIN_Y) { hasFloor = true; continue; }
-
-      if (canDrop) {
-        minY = Math.min(minY, a.y, b.y, c.y);
-        maxY = Math.max(maxY, a.y, b.y, c.y);
-      }
-      staged.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
-    }
-
-    if (canDrop && !hasFloor && maxY - minY > vegetation.minHeight) {
-      dropped += staged.length / 9;
-      droppedObjects++;
-      return;
-    }
-    for (let i = 0; i < staged.length; i += 9) {
+      if (Math.abs(n.y) > COLLISION_NORMAL_MIN_Y) continue;
       const base = positions.length / 3;
-      for (let k = 0; k < 9; k++) positions.push(staged[i + k]);
+      positions.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
       indices.push(base, base + 1, base + 2);
     }
   });
@@ -4234,6 +4324,13 @@ window.__game = {
   disposeObject3D,
   setMenuStatus,
   findGroundAt,
+  // Kísérlethez: __game.setUnlitFoliage(false/true) — élőben, pálya
+  // újratöltése nélkül váltja a lombozat árnyékolását.
+  setUnlitFoliage(on) {
+    unlitFoliage = !!on;
+    refreshFoliageShading();
+    return { fenyNelkul: unlitFoliage, erintettMeshek: foliageMeshes.length };
+  },
   // A kocsi a rajthelyére, MIELŐTT a multiplayer első képkockája kirajzolódna.
   //
   // A hiteles pozíciót a szerver első snapshotja adja, de az csak a betöltés
