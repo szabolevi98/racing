@@ -27,7 +27,8 @@ import {
 // Ezért ezek `let`-ek, és csak az injektálás UTÁN kapnak értéket.
 let devHudEl, devSpawnCountEl, devSpawnStatusEl, devMapSelectEl;
 let bakeCollisionBtn, bakeStatusEl, bakeDebrisFilterCheck, bakeSmoothCheck, openZoneEditorBtn;
-let bakeCanopyCheck, bakeCanopyHeight;
+let bakeCanopyCheck, bakeCanopyHeight, bakeAsphaltCheck, bakeAsphaltIterations, bakeAsphaltRadius;
+let roughnessStatusEl;
 let carTesterBtn, carTesterHudEl, carTesterBackBtn, carTesterCarSelectEl;
 let devDriveBtn, devDriveHudEl, devDriveBackBtn, devDriveResetBtn, devDriveSaveBtn, devDriveSlidersEl;
 let openMaterialPickerBtn, generateCheckpointsBtn, autoCheckpointCountEl;
@@ -70,6 +71,10 @@ function queryElements() {
   bakeSmoothCheck = $('bakeSmoothCheck');
   bakeCanopyCheck = $('bakeCanopyCheck');
   bakeCanopyHeight = $('bakeCanopyHeight');
+  bakeAsphaltCheck = $('bakeAsphaltCheck');
+  bakeAsphaltIterations = $('bakeAsphaltIterations');
+  bakeAsphaltRadius = $('bakeAsphaltRadius');
+  roughnessStatusEl = $('roughnessStatus');
   openZoneEditorBtn = $('openZoneEditorBtn');
   carTesterBtn = $('carTesterBtn');
   carTesterHudEl = $('carTesterHud');
@@ -139,7 +144,7 @@ let scene, camera, renderer, carPivot, keys, hudEl, menuEl, carSelect;
 let NORMAL_FOG_DENSITY;
 let moveTowardsAngle, updateSunTarget, updateShowcaseCamera;
 let findEntry, fillSelect, setTrack, loadZoneRuntime, extractDrivableTriangles, extractWallTriangles,
-  smoothFloorHeights, makeSearchableSelect;
+  smoothFloorHeights, smoothAsphaltToPlane, measureAsphaltRoughness, makeSearchableSelect;
 
 const maxSteerVal = MAX_STEER;
 
@@ -1419,6 +1424,26 @@ const COLLISION_MAGIC = 0xc0111505;
 // helyett. Két külön hálót mentünk (lásd shared/vehicleConfig.js:
 // COLLISION_GROUP_FLOOR/WALL) — a kerék-sugár csak a talajjal, a kasztni
 // mindkettővel ütközik.
+// A pálya sütési beállításainak visszatöltése a jelölőnégyzetekbe. Enélkül
+// minden újrasütésnél fejből kellene visszaállítani, melyik pályán mi kellett —
+// és pont az aszfalt-simítás az, ami csak néhány pályán helyes.
+async function loadBakeConfig(mapId) {
+  let cfg = null;
+  try {
+    const res = await fetch(`assets/maps/${mapId}/bake.json?t=` + Date.now());
+    if (res.ok) cfg = await res.json();
+  } catch {
+    // Nincs bake.json (a legtöbb pályán még nincs) — maradnak az alapértékek.
+  }
+  bakeDebrisFilterCheck.checked = cfg ? cfg.debrisFilter !== false : true;
+  bakeSmoothCheck.checked = cfg ? cfg.kerbSmoothing !== false : true;
+  bakeCanopyCheck.checked = cfg?.canopy?.enabled === true;
+  bakeCanopyHeight.value = cfg?.canopy?.minHeight ?? 10;
+  bakeAsphaltCheck.checked = cfg?.asphaltSmoothing?.enabled === true;
+  bakeAsphaltIterations.value = cfg?.asphaltSmoothing?.iterations ?? 4;
+  bakeAsphaltRadius.value = cfg?.asphaltSmoothing?.radius ?? 3;
+}
+
 async function bakeCollisionToFile() {
   const track = api.currentTrack;
   const mapId = api.currentMapId;
@@ -1429,6 +1454,12 @@ async function bakeCollisionToFile() {
   const pruneDebris = bakeDebrisFilterCheck.checked;
   const rawFloor = extractDrivableTriangles(track, pruneDebris);
   let floor = dedupeVertices(rawFloor.positions, rawFloor.indices);
+
+  // Érdesség a simítások ELŐTT — hogy a végén legyen mihez hasonlítani, és
+  // egy pillantással látszódjon, hozott-e bármit az adott beállítás.
+  const erdesElotte = api.hasZoneRuntime()
+    ? measureAsphaltRoughness(floor.positions, floor.indices, api.isAsphaltAt)
+    : null;
 
   const vegetation = bakeCanopyCheck.checked
     ? { minHeight: Math.max(1, Number(bakeCanopyHeight.value) || 10) }
@@ -1448,6 +1479,34 @@ async function bakeCollisionToFile() {
     const s = smoothFloorHeights(floor.positions, floor.indices);
     floor = { positions: s.positions, indices: s.indices };
     simStat = { jelolt: s.jelolt, mozdult: s.mozdult, osszes: s.osszes, ms: Math.round(performance.now() - t0) };
+  }
+
+  // Az ASZFALT külön, erősebb simítása — a rázókő-simítás UTÁN, hogy arra
+  // épüljön rá. Csak ott hat, ahol a zóna-térkép aszfaltot mond, tehát a
+  // rázókő és a kavicságy karaktere megmarad.
+  let aszfaltStat = null;
+  const asphaltIterations = Math.max(1, Math.min(10, Number(bakeAsphaltIterations.value) || 4));
+  const asphaltRadius = Math.max(0.5, Math.min(8, Number(bakeAsphaltRadius.value) || 3));
+  if (bakeAsphaltCheck.checked) {
+    if (!api.hasZoneRuntime()) {
+      // Zóna-térkép nélkül nem tudnánk megmondani, hol az aszfalt — a
+      // "mindenhol" pedig pont a rázóköveket lapítaná ki.
+      bakeStatusEl.textContent = 'Az aszfalt-simításhoz zóna-térkép kell (előbb fesd meg és mentsd a zóna-szerkesztőben).';
+      return;
+    }
+    bakeStatusEl.textContent = 'Aszfalt simítása...';
+    await new Promise((r) => setTimeout(r, 0));
+    const t0 = performance.now();
+    const s = smoothAsphaltToPlane(floor.positions, floor.indices, api.isAsphaltAt, {
+      iterations: asphaltIterations,
+      radius: asphaltRadius,
+      // 5 cm helyett 20: a korlát a valódi lépcsőket (hidak, pályaszél) védi,
+      // de 5 cm-nél a simított felület jó részét is levágta, és maga a levágás
+      // is törést csinált. Mérve 0.2 a jó érték; ennél nagyobb már nem javít.
+      maxShift: 0.2,
+    });
+    floor = { positions: s.positions, indices: s.indices };
+    aszfaltStat = { jelolt: s.jelolt, mozdult: s.mozdult, ms: Math.round(performance.now() - t0) };
   }
 
   const floorVertexCount = floor.positions.length / 3;
@@ -1478,10 +1537,45 @@ async function bakeCollisionToFile() {
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'ismeretlen hiba');
 
+    // A beállítások a háló MELLÉ mennek: így később kiderül, mivel készült ez
+    // a collision.bin, és egy újrasütés ugyanazt adja.
+    await fetch('/api/dev/bakeconfig', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mapId,
+        config: {
+          debrisFilter: pruneDebris,
+          kerbSmoothing: bakeSmoothCheck.checked,
+          canopy: { enabled: !!vegetation, minHeight: vegetation ? vegetation.minHeight : Number(bakeCanopyHeight.value) || 10 },
+          asphaltSmoothing: { enabled: bakeAsphaltCheck.checked, iterations: asphaltIterations, radius: asphaltRadius },
+        },
+      }),
+    }).catch(() => {});   // a beállítás elvesztése ne bukatassa el a kész sütést
+
     // A manifestet is frissítjük, hogy azonnal a fájl legyen érvényben.
+    //
+    // Az ÚJ `v` cache-kulcs nem elhagyható. A collision.bin `.bin`, tehát a
+    // static.js egy évre "immutable" cache-t ad rá, a letöltés pedig a
+    // manifestből veszi a kulcsot ('?v=' + entry.collision.v). Ha ez hiányzik,
+    // a kérés kulcs nélkül megy — és a böngésző a RÉGI, cache-elt hálót adja
+    // vissza. Enélkül a sütés után se a vezetés, se az érdesség-mérés nem az
+    // imént készült hálót látja, hanem a korábbit: a beállítások változtatása
+    // ilyenkor betűre azonos eredményt ad, ami azt a látszatot kelti, hogy a
+    // sütési kapcsolók nem csinálnak semmit.
+    //
+    // A szerver a fájl méret+mtime lenyomatát adja kulcsnak; itt azt nem
+    // ismerjük, de az időbélyeg ugyanúgy jó: ez az a pont, ahol BIZTOSAN
+    // tudjuk, hogy a tartalom épp megváltozott.
     const manifest = api.manifest;
     const entry = manifest && findEntry(manifest.maps, mapId);
-    if (entry) entry.collision = { file: `maps/${mapId}/collision.bin`, bytes: data.bytes };
+    if (entry) {
+      entry.collision = {
+        file: `maps/${mapId}/collision.bin`,
+        bytes: data.bytes,
+        v: Date.now().toString(36),
+      };
+    }
 
     bakeStatusEl.textContent =
       `Kész: talaj ${floor.indices.length / 3} (${rawFloor.positions.length / 3}→${floorVertexCount} csúcs), ` +
@@ -1493,10 +1587,44 @@ async function bakeCollisionToFile() {
       (simStat
         ? ` · simítás: ${simStat.mozdult} csúcs mozdult a ${simStat.osszes}-ből ` +
           `(${(simStat.mozdult / simStat.osszes * 100).toFixed(1)}%, ${simStat.ms} ms)`
-        : ' · simítás KI');
+        : ' · simítás KI') +
+      (aszfaltStat
+        ? ` · aszfalt: ${aszfaltStat.mozdult} csúcs mozdult a ${aszfaltStat.jelolt} aszfalt-csúcsból ` +
+          `(${asphaltIterations} kör, ${asphaltRadius} m sugár, ${aszfaltStat.ms} ms)`
+        : ' · aszfalt-simítás KI');
+
+    // A sütés érdemi eredménye: változott-e az, amit a kerék tényleg érez.
+    const erdesUtana = api.hasZoneRuntime()
+      ? measureAsphaltRoughness(floor.positions, floor.indices, api.isAsphaltAt)
+      : null;
+    showRoughness(erdesUtana, erdesElotte);
   } catch (err) {
     bakeStatusEl.textContent = 'Hiba: ' + err.message;
   }
+}
+
+// Az érdesség-számok kiírása, szükség esetén az előtte-utána különbséggel.
+//
+// A törésszög MEDIÁNJA a legmegbízhatóbb szám (a szélsőértékeket hidak és
+// pályaszélek uralják), a "2 fok fölött" arány pedig a legbeszédesebb:
+// mérve a jó pályákon 3-7%, a panaszolt kettőn 10-17%.
+function showRoughness(most, elotte) {
+  if (!most) {
+    roughnessStatusEl.textContent = 'Az érdesség-méréshez zóna-térkép kell (előbb fesd meg a zóna-szerkesztőben).';
+    return;
+  }
+  const nyil = (a, b) => {
+    if (a === undefined || a === null) return '';
+    const jel = b < a ? '▼' : b > a ? '▲' : '=';
+    return ` (${a.toFixed(3)} ${jel} ${b.toFixed(3)})`;
+  };
+  roughnessStatusEl.innerHTML =
+    `Törésszög — <b>median ${most.median.toFixed(3)}°</b>${elotte ? nyil(elotte.median, most.median) : ''}` +
+    ` · p90 ${most.p90.toFixed(2)}°` +
+    ` · <b>2° fölött ${most.felett2fok.toFixed(1)}%</b>` +
+    (elotte ? ` (${elotte.felett2fok.toFixed(1)}% → ${most.felett2fok.toFixed(1)}%)` : '') +
+    ` · ${most.elek} él` +
+    '<br><span class="text-secondary">Kisebb = simább. Suzuka 0.118° / 3.4%, Hungaroring 0.070° / 7.1%.</span>';
 }
 
 // ---------- Egy zóna-szerkesztős képkocka ----------
@@ -1727,6 +1855,9 @@ function wireEvents() {
   if (manifest) {
     fillSelect(devMapSelectEl, manifest.maps);
     devMapSelectEl.value = api.currentMapId;
+    // Az épp betöltött pálya beállításai — hogy a jelölőnégyzetek már az első
+    // belépéskor is azt mutassák, amivel ez a collision.bin készült.
+    loadBakeConfig(api.currentMapId);
   }
   devMapSelectEl.addEventListener('change', async () => {
     const entry = findEntry(api.manifest.maps, devMapSelectEl.value);
@@ -1743,6 +1874,7 @@ function wireEvents() {
     } finally {
       api.hideLoadingOverlay();
     }
+    await loadBakeConfig(entry.id);
     enterDevMode();
   });
 
@@ -1775,7 +1907,7 @@ export async function initDevTools(gameApi) {
     NORMAL_FOG_DENSITY,
     moveTowardsAngle, updateSunTarget, updateShowcaseCamera,
     findEntry, fillSelect, setTrack, loadZoneRuntime, extractDrivableTriangles, extractWallTriangles,
-    smoothFloorHeights, makeSearchableSelect,
+    smoothFloorHeights, smoothAsphaltToPlane, measureAsphaltRoughness, makeSearchableSelect,
   } = api);
 
   // THREE-objektumok csak most jönnek létre — a modul betöltésekor még nem

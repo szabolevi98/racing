@@ -143,3 +143,44 @@ export async function saveCollision(mapId, buf) {
     bytes: buf.length,
   };
 }
+
+// A sütés beállításainak megőrzése a pálya mappájában (bake.json).
+//
+// Miért fájlba: a sütés kapcsolói eddig csak jelölőnégyzetek voltak, az
+// állapotuk a sütés után elveszett — egy meglévő collision.bin-ről senki nem
+// tudta megmondani, milyen beállításokkal készült, és újrasütéskor fejből
+// kellett visszaállítani. Így viszont a döntés a pályával együtt utazik és
+// bekerül a gitbe (a collision.bin maga gitignore-olt).
+//
+// Az aszfalt-simítás ezért pályánként külön kapcsolható: csak néhány modellnél
+// hullámos maga az aszfalt, a többit szándékosan érintetlenül hagyjuk.
+export async function saveBakeConfig(body) {
+  const dir = await mapDirOf(body?.mapId);
+  const b = body?.config || {};
+  const num = (v, min, max, def) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : def;
+  };
+  const out = {
+    _megjegyzes:
+      'Az ütközési háló sütésének beállításai. A dev mód "Ütközés bekészítése" gombja írja, ' +
+      'és pálya kiválasztásakor vissza is tölti — így egy újrasütés ugyanazt adja.',
+    debrisFilter: b.debrisFilter !== false,
+    kerbSmoothing: b.kerbSmoothing !== false,
+    canopy: {
+      enabled: b.canopy?.enabled === true,
+      minHeight: num(b.canopy?.minHeight, 1, 60, 10),
+    },
+    asphaltSmoothing: {
+      // Alapból KI: csak azokon a pályákon kell, ahol maga az aszfalt hullámos.
+      enabled: b.asphaltSmoothing?.enabled === true,
+      iterations: num(b.asphaltSmoothing?.iterations, 1, 10, 4),
+      // A sugár a legerősebb paraméter — az ennél rövidebb hullámot veszi ki.
+      // Mérve (Red Bull Ring, törésszög mediánja): 1.5 m → 0.44°, 3 m → 0.17°,
+      // 5 m → 0.16°. Az 5 m már nem javít, viszont többet mozgat, ezért 3 az alap.
+      radius: num(b.asphaltSmoothing?.radius, 0.5, 8, 3),
+    },
+  };
+  await fs.writeFile(path.join(dir, 'bake.json'), JSON.stringify(out, null, 2) + '\n');
+  return { ok: true, config: out };
+}

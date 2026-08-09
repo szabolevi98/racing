@@ -1873,6 +1873,197 @@ function smoothFloorHeights(positions, indices) {
   return { positions: out, indices, jelolt: idxs.length, mozdult: moved, osszes: n };
 }
 
+// ---------- Hullámos ASZFALT kisimítása (bake-időben, zóna-térkép alapján) ----------
+// Néhány pályamodellnél maga az aszfalt hullámos — ez modell-hiba, nem
+// pályajellemző. Mérve (síkillesztés maradéka, ugyanaz a mérőszám, mint fent):
+// a jó aszfalt 0.5-1.0 mm, Suzuka 3.6, Hungaroring 2.5 — a Red Bull Ring
+// viszont 11.9, Bahrain 17.3, tehát 12-17-szerese a jónak.
+//
+// Miért KÜLÖN függvény, és miért csak aszfalton?
+//
+// 1) A fenti smoothFloorHeights ÁTLAGOL, ami a felületet a VÍZSZINTES felé
+//    húzza. Lejtőn/dőlt szakaszon ez a valódi geometria ellen dolgozik: mérve
+//    nem is konvergál, több iterációtól ROMLIK (6.6 -> 7.5 mm), és végig a
+//    mozgás-korlátnak feszül. Itt ezért a csúcsot a HELYI SÍKRA vetítjük — a
+//    sík magában hordozza a lejtést és a dőlést, tehát azokat nem bántja,
+//    csak a síktól való eltérést (a hullámot) veszi el. Mérve, 3 körrel és a
+//    változatlan 5 cm-es korláttal: Red Bull Ring 11.9 -> 3.4 mm (a Suzuka
+//    szintjére), Bahrain 17.3 -> 5.9 mm.
+//
+// 2) Csak aszfalton, mert ott TUDJUK, hogy a felületnek síknak kell lennie —
+//    ez engedi meg ezt az agresszívebb műveletet. A rázókő, a kavicságy és a
+//    fű maradjon egyenetlen: azokat a fenti, óvatosabb szűrő kezeli.
+//
+// A síkot minden körben ÚJRASZÁMOLJUK a már mozgatott állapotból (nem az
+// eredetiből), különben egyetlen lépés után megállna a folyamat.
+function smoothAsphaltToPlane(positions, indices, isAsphaltAt, { iterations, maxShift, radius }) {
+  const n = positions.length / 3;
+  // A SUGÁR a legerősebb paraméter, messze a kör-szám és a korlát előtt: egy
+  // R sugarú síkillesztés az R-nél RÖVIDEBB hullámot veszi ki, a hosszabbat
+  // érintetlenül hagyja. A hibás modellek hullámossága több méteres, ezért a
+  // rázókőhöz méretezett 1.5 m alig fogott rajta.
+  //
+  // Mérve, Red Bull Ringen (törésszög mediánja / 2 fok fölötti élek):
+  //   1.5 m -> 0.44° / 17.5%      3 m -> 0.17° / 9.3%      5 m -> 0.16° / 10.2%
+  // Viszonyításul a sosem panaszolt pályák: Hungaroring 0.07° / 7.1%.
+  // Az 5 m már nem javít tovább, viszont többet mozgat — ezért 3 m az alap.
+  const cell = radius || SMOOTH_RADIUS;
+  // Az X/Z-ben közeli pont nem feltétlenül ugyanannak az útfelületnek a része:
+  // egy kapu, zászló vagy felüljáró vízszintes lapja pontosan az aszfalt
+  // fölött is lehet. Ha ezeket bevesszük a helyi síkba, az aszfaltot a
+  // maxShift határáig felfelé húzzák, vagyis mesterséges ugrató keletkezik.
+  // A sugár negyede 3 m-es környezetben 75 cm magasságkülönbséget enged:
+  // ez a pálya valódi lejtéséhez/bankolásához bőven elég, a külön
+  // felső vagy alsó geometriai rétegeket viszont kizárja.
+  const maxLayerGap = Math.max(0.35, cell * 0.25);
+  const grid = new Map();
+  const key = (ix, iz) => ix + ',' + iz;
+  for (let i = 0; i < n; i++) {
+    const k = key(Math.floor(positions[i * 3] / cell), Math.floor(positions[i * 3 + 2] / cell));
+    let a = grid.get(k);
+    if (!a) grid.set(k, a = []);
+    a.push(i);
+  }
+
+  // A szomszédság a KIINDULÓ vízszintes helyzetből épül, és végig az marad:
+  // csak az Y-t mozgatjuk, tehát X/Z szerint úgysem változna.
+  const idxs = [];
+  const nbList = [];
+  for (let i = 0; i < n; i++) {
+    if (!isAsphaltAt(positions[i * 3], positions[i * 3 + 2])) continue;
+    const x = positions[i * 3], y = positions[i * 3 + 1], z = positions[i * 3 + 2];
+    const ix = Math.floor(x / cell), iz = Math.floor(z / cell);
+    const nb = [];
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        const a = grid.get(key(ix + dx, iz + dz));
+        if (!a) continue;
+        for (const j of a) {
+          const ddx = positions[j * 3] - x, ddz = positions[j * 3 + 2] - z;
+          const ddy = positions[j * 3 + 1] - y;
+          if (ddx * ddx + ddz * ddz <= cell * cell && Math.abs(ddy) <= maxLayerGap) nb.push(j);
+        }
+      }
+    }
+    // 6 pont alatt a síkillesztés elfajul (majdnem kollineáris pontok).
+    if (nb.length < 6) continue;
+    idxs.push(i);
+    nbList.push(nb);
+  }
+
+  const out = new Float32Array(positions);
+  for (let it = 0; it < iterations; it++) {
+    const snapshot = out.slice();
+    idxs.forEach((i, k) => {
+      const nb = nbList[k];
+      const x0 = snapshot[i * 3], z0 = snapshot[i * 3 + 2];
+      let Sxx = 0, Szz = 0, Sxz = 0, Sx = 0, Sz = 0, S1 = 0, Sxy = 0, Szy = 0, Sy = 0;
+      for (const j of nb) {
+        const dx = snapshot[j * 3] - x0, dz = snapshot[j * 3 + 2] - z0, y = snapshot[j * 3 + 1];
+        Sxx += dx * dx; Szz += dz * dz; Sxz += dx * dz;
+        Sx += dx; Sz += dz; S1++; Sxy += dx * y; Szy += dz * y; Sy += y;
+      }
+      const det = Sxx * (Szz * S1 - Sz * Sz) - Sxz * (Sxz * S1 - Sz * Sx) + Sx * (Sxz * Sz - Szz * Sx);
+      if (Math.abs(det) < 1e-12) return;
+      // A sík értéke a saját pontban (dx = dz = 0) épp a konstans tag.
+      const c = (Sxx * (Szz * Sy - Szy * Sz) - Sxz * (Sxz * Sy - Szy * Sx) + Sxy * (Sxz * Sz - Szz * Sx)) / det;
+      out[i * 3 + 1] = c;
+    });
+  }
+
+  // Korlát: a valódi lépcsőket (pályaszél, hidak, felüljárók) ne rántsuk el.
+  // A síkillesztés több szinten futó geometriánál nagyot akarna mozdítani —
+  // ez a korlát az, ami ezt megfogja.
+  let moved = 0;
+  for (const i of idxs) {
+    const d = out[i * 3 + 1] - positions[i * 3 + 1];
+    const clamped = Math.max(-maxShift, Math.min(maxShift, d));
+    out[i * 3 + 1] = positions[i * 3 + 1] + clamped;
+    if (Math.abs(clamped) > 0.001) moved++;
+  }
+
+  return { positions: out, indices, jelolt: idxs.length, mozdult: moved, osszes: n };
+}
+
+// ---------- Az aszfalt érdességének MÉRÉSE ----------
+// Mit mérünk, és miért pont ezt.
+//
+// A kerék-sugár nem csúcsokat érint, hanem HÁROMSZÖGLAPOKAT. Egy lapon belül a
+// magasság lineárisan változik, tehát ott sima a menet; a lökés a lapok
+// HATÁRÁN keletkezik, ahol a lejtés ugrik. Amit a felfüggesztés érez, az ez a
+// törés: 1 méteres lapoknál 0.5 fok törés 180 km/h-nál kb. 0.4 m/s függőleges
+// sebességugrást ad — másodpercenként ötvenszer.
+//
+// Miért NEM a síkillesztés maradékát mérjük (ami korábban a mérőszám volt):
+// az önhivatkozó. A smoothAsphaltToPlane pont arra optimalizál, hogy minden
+// csúcs a saját környezetének síkján legyen, tehát utána a maradék
+// szükségszerűen kicsi — akkor is, ha a vezetés semmit nem változott. Mérve
+// éppen ez történt: a maradék szerint a Red Bull Ring (1.0 mm) és a Bahrain
+// (1.5 mm) JOBB lett, mint a sosem panaszolt Suzuka (2.7 mm) és Hungaroring
+// (2.0 mm) — miközben vezetve továbbra is ezek a rázósak.
+//
+// A törésszög független a simítótól, és élesen szét is választja a pályákat
+// (median): Red Bull Ring 0.47°, Bahrain 0.45° — Suzuka 0.12°, Hungaroring
+// 0.07°. Ez a négyszeres különbség az, ami vezetve érződik.
+//
+// Csak a nagyjából VÍZSZINTES (45 foknál laposabb) aszfaltlapokat nézzük: a
+// falak, korlátok és lelátók függőlegesek, azokon nem hajtunk.
+function measureAsphaltRoughness(positions, indices, isAsphaltAt) {
+  const triCount = indices.length / 3;
+  const nrm = new Float32Array(triCount * 3);
+  const jo = new Uint8Array(triCount);
+
+  for (let t = 0; t < triCount; t++) {
+    const a = indices[t * 3], b = indices[t * 3 + 1], c = indices[t * 3 + 2];
+    const ax = positions[a * 3], ay = positions[a * 3 + 1], az = positions[a * 3 + 2];
+    const bx = positions[b * 3], by = positions[b * 3 + 1], bz = positions[b * 3 + 2];
+    const cx = positions[c * 3], cy = positions[c * 3 + 1], cz = positions[c * 3 + 2];
+    const ux = bx - ax, uy = by - ay, uz = bz - az;
+    const vx = cx - ax, vy = cy - ay, vz = cz - az;
+    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    const len = Math.hypot(nx, ny, nz);
+    if (len < 1e-12) continue;
+    nx /= len; ny /= len; nz /= len;
+    // Egységes irány (felfelé), különben a szomszédos lapok szöge 180 fok körül
+    // ugrálna attól függően, melyik irányba van a háromszög körüljárása.
+    if (ny < 0) { nx = -nx; ny = -ny; nz = -nz; }
+    if (ny < 0.707) continue;
+    if (!isAsphaltAt((ax + bx + cx) / 3, (az + bz + cz) / 3)) continue;
+    nrm[t * 3] = nx; nrm[t * 3 + 1] = ny; nrm[t * 3 + 2] = nz;
+    jo[t] = 1;
+  }
+
+  // Szomszédság: két lap akkor szomszéd, ha KÖZÖS ÉLÜK van.
+  const elMap = new Map();
+  const szogek = [];
+  for (let t = 0; t < triCount; t++) {
+    if (!jo[t]) continue;
+    const v0 = indices[t * 3], v1 = indices[t * 3 + 1], v2 = indices[t * 3 + 2];
+    const elek = [[v0, v1], [v1, v2], [v2, v0]];
+    for (const [i1, i2] of elek) {
+      const k = i1 < i2 ? i1 + ':' + i2 : i2 + ':' + i1;
+      const masik = elMap.get(k);
+      if (masik === undefined) { elMap.set(k, t); continue; }
+      const d = nrm[t * 3] * nrm[masik * 3]
+              + nrm[t * 3 + 1] * nrm[masik * 3 + 1]
+              + nrm[t * 3 + 2] * nrm[masik * 3 + 2];
+      szogek.push(Math.acos(Math.max(-1, Math.min(1, d))) * 180 / Math.PI);
+    }
+  }
+
+  if (!szogek.length) return null;
+  szogek.sort((a, b) => a - b);
+  const pct = (q) => szogek[Math.min(szogek.length - 1, Math.floor(q * szogek.length))];
+  return {
+    elek: szogek.length,
+    median: +pct(0.5).toFixed(3),
+    p90: +pct(0.9).toFixed(2),
+    // A "durva" élek aránya. Ez a legbeszédesebb szám: a jó pályákon 3-7%,
+    // a panaszolt kettőn 10-17% volt.
+    felett2fok: +((szogek.filter((s) => s > 2).length / szogek.length) * 100).toFixed(1),
+  };
+}
+
 function applyTrackCollider(floor, wall) {
   removeTrackCollider();
   trackColliderBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
@@ -3507,7 +3698,11 @@ const devApi = {
   NORMAL_FOG_DENSITY,
   moveTowardsAngle, updateSunTarget, updateShowcaseCamera,
   findEntry, fillSelect, setTrack, loadZoneRuntime, extractDrivableTriangles, extractWallTriangles,
-  smoothFloorHeights,
+  smoothFloorHeights, smoothAsphaltToPlane, measureAsphaltRoughness,
+  // Az aszfalt-simításhoz kell megmondani, hol van aszfalt. A futásidejű
+  // zóna-térképet olvassa, ugyanazt, amiből vezetés közben is dolgozunk.
+  isAsphaltAt: (x, z) => sampleZoneAt(x, z) === ZONE_ASPHALT,
+  hasZoneRuntime: () => !!zoneRuntime,
   makeSearchableSelect,
   // A dev pályaváltás ugyanazt a betöltő-overlayt kapja, mint a menü: egy
   // pálya 60-150 MB, ami nélküle 20-30 másodpercnyi néma üres képernyő.
