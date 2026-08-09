@@ -240,6 +240,9 @@ async function startRace(room) {
   }
   room.sim = sim;
 
+  // Ha a visszaszámlálás már elindult, amíg a fizika épült, azt a sim.start()
+  // maga vette át a szobától — lásd ott a magyarázatot.
+
   // Az időkorlát: ha valaki nem jelentkezik be készen, nélküle indulunk.
   room.loadTimer = setTimeout(() => maybeBeginCountdown(room, true), RACE_LOAD_TIMEOUT_MS);
   // Egyjátékos szoba (vagy már mindenki kész) esetén ne várjunk feleslegesen.

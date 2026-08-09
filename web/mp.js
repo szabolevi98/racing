@@ -49,6 +49,12 @@ window.__mp = {
   get clockOffsetMs() { return +clockOffsetMs.toFixed(1); },
   get interpDelayMs() { return +interpDelayMs.toFixed(1); },
   get physSteps() { return physSteps; },
+  // A szerver LEGUTÓBBI hiteles állapota a SAJÁT kocsinkról. Enélkül csak a
+  // helyi jóslatot lehet megnézni, az viszont pont elfedi a lényeget: ha a
+  // szerver nem mozgatja a kocsit, a jóslat akkor is előremegy, majd minden
+  // snapshotnál visszaugrik. A `th` a szerver által ténylegesen használt gáz,
+  // a `fin` pedig azt mondja meg, befejezettnek hiszi-e a versenyt.
+  get lastSelf() { return lastSnapshot?.cars?.find((c) => c.id === me.id) || null; },
   // Rángás-diagnosztikához: a kirajzolt pozíció három összetevője külön.
   // Így kiderül, MELYIK ugrik — a nyers fizika, az interpoláció, vagy a
   // korrekció-simítás —, ahelyett hogy tippelnénk.
@@ -876,6 +882,8 @@ let interpDelayMs = MIN_INTERP_DELAY_MS;
 let snapshotTransitMs = 0;
 let snapshotJitterMs = 0;
 let lastSnapshotTransitMs = null;
+// Csak diagnosztikához (lásd __mp.lastSelf) — a feldolgozás nem használja.
+let lastSnapshot = null;
 
 function resetNetworkRaceState() {
   interpDelayMs = MIN_INTERP_DELAY_MS;
@@ -1089,6 +1097,7 @@ function isFrozen() {
 
 function onSnapshot(m) {
   window.__mp.snaps++;
+  lastSnapshot = m;
   const transit = Math.max(0, serverNow() - m.t);
   if (lastSnapshotTransitMs !== null) {
     const delta = Math.abs(transit - lastSnapshotTransitMs);

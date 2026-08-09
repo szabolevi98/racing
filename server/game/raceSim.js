@@ -326,6 +326,24 @@ export class RaceSim {
     this.simTimeMs = this.lastPump;
     this.accumulator = 0;
     this.timer = setInterval(() => this.pump(), TICK_MS);
+
+    // A szoba állapota a mérvadó, NEM a hívások sorrendje.
+    //
+    // A visszaszámlálás elindulhatott, amíg mi itt a fizikát építettük: a kliens
+    // a RACE_STARTING-re azonnal SET_READY-vel válaszol, az pedig elindítja a
+    // 3-2-1-et. A hálózati réteg olyankor a MÉG NEM LÉTEZŐ szimulációt próbálta
+    // elengedni (`room.sim?.releaseAt(...)`), és az optional chaining ezt némán
+    // elnyelte — a kocsik ÖRÖKRE befagyasztva maradtak.
+    //
+    // Élesben mérve: a szerver 51 másodperccel a rajt után is bitre ugyanazt a
+    // pozíciót küldte, miközben a bemenetek rendben érkeztek, a kliens látta a
+    // visszaszámlálást, és semmi nem jelzett hibát.
+    //
+    // Versenyhelyzet volt, ezért tűnt véletlenszerűnek: akkor sült el, ha a
+    // kliens HAMARABB végzett a betöltéssel, mint mi a fizikával — vagyis épp a
+    // gyors, gyorsítótárazott klienseknél. Üres gyorsítótárral (60-150 MB
+    // letöltés) sosem jött elő, innen a "csak az én böngészőmben" jelenség.
+    if (this.room.countdownEndsAt) this.releaseAt(this.room.countdownEndsAt);
   }
 
   // Mindenki betöltött (vagy lejárt a türelmi idő): innentől számol a 3-2-1,
