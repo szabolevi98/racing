@@ -27,6 +27,7 @@ import {
 // Ezért ezek `let`-ek, és csak az injektálás UTÁN kapnak értéket.
 let devHudEl, devSpawnCountEl, devSpawnStatusEl, devMapSelectEl;
 let bakeCollisionBtn, bakeStatusEl, bakeDebrisFilterCheck, bakeSmoothCheck, openZoneEditorBtn;
+let bakeCanopyCheck, bakeCanopyHeight;
 let carTesterBtn, carTesterHudEl, carTesterBackBtn, carTesterCarSelectEl;
 let devDriveBtn, devDriveHudEl, devDriveBackBtn, devDriveResetBtn, devDriveSaveBtn, devDriveSlidersEl;
 let openMaterialPickerBtn, generateCheckpointsBtn, autoCheckpointCountEl;
@@ -67,6 +68,8 @@ function queryElements() {
   bakeStatusEl = $('bakeStatus');
   bakeDebrisFilterCheck = $('bakeDebrisFilterCheck');
   bakeSmoothCheck = $('bakeSmoothCheck');
+  bakeCanopyCheck = $('bakeCanopyCheck');
+  bakeCanopyHeight = $('bakeCanopyHeight');
   openZoneEditorBtn = $('openZoneEditorBtn');
   carTesterBtn = $('carTesterBtn');
   carTesterHudEl = $('carTesterHud');
@@ -1426,7 +1429,11 @@ async function bakeCollisionToFile() {
   const pruneDebris = bakeDebrisFilterCheck.checked;
   const rawFloor = extractDrivableTriangles(track, pruneDebris);
   let floor = dedupeVertices(rawFloor.positions, rawFloor.indices);
-  const rawWall = extractWallTriangles(track, pruneDebris);
+
+  const vegetation = bakeCanopyCheck.checked
+    ? { minHeight: Math.max(1, Number(bakeCanopyHeight.value) || 10) }
+    : null;
+  const rawWall = extractWallTriangles(track, pruneDebris, vegetation);
   const wall = dedupeVertices(rawWall.positions, rawWall.indices);
 
   // A simítás a dedupe UTÁN megy: addigra a szomszédos háromszögek KÖZÖS
@@ -1480,6 +1487,9 @@ async function bakeCollisionToFile() {
       `Kész: talaj ${floor.indices.length / 3} (${rawFloor.positions.length / 3}→${floorVertexCount} csúcs), ` +
       `fal ${wall.indices.length / 3} (${rawWall.positions.length / 3}→${wallVertexCount} csúcs) háromszög, ` +
       `${(data.bytes / 1048576).toFixed(1)} MB` +
+      (vegetation
+        ? ` · növényzet: ${rawWall.vegetationObjects} objektum / ${rawWall.vegetationDropped} háromszög kihagyva (${vegetation.minHeight} m fölött)`
+        : ' · növényzet-szűrés KI') +
       (simStat
         ? ` · simítás: ${simStat.mozdult} csúcs mozdult a ${simStat.osszes}-ből ` +
           `(${(simStat.mozdult / simStat.osszes * 100).toFixed(1)}%, ${simStat.ms} ms)`

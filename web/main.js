@@ -1487,18 +1487,51 @@ function extractDrivableTriangles(track, pruneDebris = true) {
 //
 // A `pruneDebris` kikapcsolható (dev bake felület, ellenőrzés célból) —
 // normál játékmenetben (fallback kinyerés) mindig bekapcsolva marad.
-function extractWallTriangles(track, pruneDebris = true) {
+// Átlátszó anyag? A növényzetet és a kerítést ez fogja meg — a kettőt utána a
+// MAGASSÁG választja szét.
+function hasTransparentMaterial(obj) {
+  const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+  return mats.some((m) => m && (m.transparent === true || m.alphaTest > 0));
+}
+
+// `vegetation`: { minHeight } — a magas növényzet kihagyása az ütközésből.
+//
+// A döntés OBJEKTUMONKÉNT történik, nem háromszögenként, és ez nem finomság:
+// ezekben a modellekben egy fa néhány óriási, függőleges kártya, ami EGY
+// darabban ér a törzs tövétől a lombkorona tetejéig. Egy ilyen háromszög
+// legalsó pontja a pálya szintje ALATT van, a felülete viszont 20-30 méterrel
+// fölötte lebeg — háromszögenkénti magasság-vizsgálattal tehát egyetlen fa sem
+// akadt fenn (mérve: 0 találat).
+//
+// A kihagyás három feltétele együtt:
+//   1. átlátszó anyag — a tömör épületek, falak így kimaradnak;
+//   2. nagy függőleges kiterjedés — a kerítés és a szalagkorlát 2-5 méter,
+//      a fák 20-50 (mérve Hockenheimen: a meghagyottak 2,5-5,2 m, a
+//      kivettek 26,9-50,7 m — a két csoport között nincs átfedés);
+//   3. nem ad menetfelületet — ami padló-háromszöget is tartalmaz (lelátó,
+//      híd), az semmiképp nem eshet ki.
+function extractWallTriangles(track, pruneDebris = true, vegetation = null) {
   track.updateMatrixWorld(true);
   const positions = [];
   const indices = [];
   const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
   const ab = new THREE.Vector3(), ac = new THREE.Vector3(), n = new THREE.Vector3();
+  let dropped = 0;
+  let droppedObjects = 0;
 
   track.traverse((obj) => {
     if (!obj.isMesh || !obj.geometry) return;
+    const canDrop = vegetation && hasTransparentMaterial(obj);
     const pos = obj.geometry.attributes.position;
     const idx = obj.geometry.index;
     const count = idx ? idx.count : pos.count;
+
+    // Az objektum háromszögeit előbb FÉLRETESSZÜK, mert a döntés csak a mesh
+    // végigjárása után hozható meg: addigra tudjuk a függőleges kiterjedését és
+    // azt, hogy ad-e menetfelületet.
+    const staged = [];
+    let minY = Infinity, maxY = -Infinity, hasFloor = false;
+
     for (let i = 0; i < count; i += 3) {
       const i0 = idx ? idx.getX(i) : i;
       const i1 = idx ? idx.getX(i + 1) : i + 1;
@@ -1509,15 +1542,32 @@ function extractWallTriangles(track, pruneDebris = true) {
       ab.subVectors(b, a);
       ac.subVectors(c, a);
       n.crossVectors(ab, ac).normalize();
-      if (Math.abs(n.y) > COLLISION_NORMAL_MIN_Y) continue;
+      if (Math.abs(n.y) > COLLISION_NORMAL_MIN_Y) { hasFloor = true; continue; }
+
+      if (canDrop) {
+        minY = Math.min(minY, a.y, b.y, c.y);
+        maxY = Math.max(maxY, a.y, b.y, c.y);
+      }
+      staged.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+    }
+
+    if (canDrop && !hasFloor && maxY - minY > vegetation.minHeight) {
+      dropped += staged.length / 9;
+      droppedObjects++;
+      return;
+    }
+    for (let i = 0; i < staged.length; i += 9) {
       const base = positions.length / 3;
-      positions.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+      for (let k = 0; k < 9; k++) positions.push(staged[i + k]);
       indices.push(base, base + 1, base + 2);
     }
   });
 
   const mesh = { positions: new Float32Array(positions), indices: new Uint32Array(indices) };
-  return pruneDebris ? pruneIsolatedDebris(mesh.positions, mesh.indices) : mesh;
+  const out = pruneDebris ? pruneIsolatedDebris(mesh.positions, mesh.indices) : mesh;
+  out.vegetationDropped = dropped;
+  out.vegetationObjects = droppedObjects;
+  return out;
 }
 
 // Néhány letöltött pályamodellben apró, a valódi útfelülettől teljesen

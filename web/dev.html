@@ -47,16 +47,28 @@
       Jobb egérgomb + húzás: nézelődés, WASD: mozgás, Space/Ctrl: fel/le, Shift: gyorsítás<br>
       Rajtpontok: <span id="devSpawnCount">0</span> / 8 (a zóna szerkesztőben szerkeszthetők)<br>
       <span id="devSpawnStatus"></span><br>
-      <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+      <div class="mt-2">
         <button id="bakeCollisionBtn" class="btn btn-sm btn-outline-info">Ütközés bekészítése</button>
-        <div class="form-check form-check-inline mb-0">
+      </div>
+      <div class="d-flex flex-wrap align-items-center gap-3 mt-2">
+        <div class="form-check mb-0">
           <input type="checkbox" id="bakeDebrisFilterCheck" class="form-check-input" checked>
           <label for="bakeDebrisFilterCheck" class="form-check-label small">Apró darabok kiszűrése</label>
         </div>
-        <div class="form-check form-check-inline mb-0">
+        <div class="form-check mb-0">
           <input type="checkbox" id="bakeSmoothCheck" class="form-check-input" checked>
           <label for="bakeSmoothCheck" class="form-check-label small">Rázókő-hullámok simítása</label>
         </div>
+        <div class="form-check mb-0">
+          <input type="checkbox" id="bakeCanopyCheck" class="form-check-input" checked>
+          <label for="bakeCanopyCheck" class="form-check-label small">Fák ütközés nélkül</label>
+        </div>
+        <label class="small mb-0 d-flex align-items-center gap-1">
+          ennél magasabb
+          <input type="number" id="bakeCanopyHeight" class="form-control form-control-sm"
+                 style="width:64px" value="10" min="1" max="60" step="1">
+          m
+        </label>
       </div>
       <div id="bakeStatus" class="mt-1"></div>
       <div class="d-flex flex-wrap gap-2 mt-2">
