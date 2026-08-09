@@ -118,12 +118,6 @@
     <div id="raceHud" class="panel"></div>
   </div>
 
-  <!-- A ping és az fps a sebesség-doboz fölé csoportosítva, közös oszlopban:
-       ez tartja a jobb alsó saroknál meglévő pozíciót anélkül, hogy a
-       sebesség-doboz magasságát fixen be kellene lőni CSS-ből. A ping/fps sor
-       maga egy külön, egymás melletti páros — kicsi dobozok, mert a tartalmuk
-       (pl. "1 ms") alig pár karakter, a korábbi 172px-es szélesség sok
-       üres helyet hagyott középen. -->
   <div id="bottomRightStack">
     <div id="perfRow">
       <div id="pingBox" class="panel perf-box hidden">
@@ -161,12 +155,6 @@
       <button class="touch-btn touch-small" type="button" data-touch-action="reset" aria-label="Visszaállítás a pályára">↻</button>
     </div>
 
-    <!-- A gáz és a fék GOMB, nem joystick: itt nincs mit adagolni hüvelykujjal —
-         a hosszan nyomva tartott teljes gáz a természetes, a joystick csak
-         bizonytalanná tette. A kormányzás marad joystick, mert ott a finom,
-         arányos kitérítés tényleg számít.
-         A kézifék a két kerek gomb ALATT fut végig: ritkábban kell, mint a gáz,
-         és így nem választja el a hüvelykujjat a két fő gombtól. -->
     <div class="touch-pedals" aria-label="Pedálok">
       <div class="touch-pedal-row">
         <button class="touch-btn touch-drive touch-brake" type="button" data-touch-key="KeyS" aria-label="Fék">
@@ -181,22 +169,13 @@
   </div>
 </div>
 
-<!-- A minitérkép a #hud-on KÍVÜL van, mert a menüben is látszik (ott a HUD
-     rejtve van). A láthatóságát ezért külön kapcsoljuk az állapotváltásoknál,
-     nem a HUD-dal együtt. -->
 <div id="miniMapWrap" class="panel hidden">
   <canvas id="miniMapCanvas" width="180" height="180"></canvas>
 </div>
 
-<!-- Pályánkénti leggyorsabb körök. Csak a menüben látszik (bal felül), a
-     láthatóságát ugyanúgy az appState-ből vezetjük le, mint a minitérképét.
-     Az adat a szerver hiteles méréséből jön: egyjátékos idők NEM kerülnek
-     ide, mert azokat a böngésző méri, tehát nem lennének megbízhatóak. -->
 <div id="leaderboardWrap" class="panel hidden">
   <span class="lbl">Leggyorsabb körök</span>
   <div id="leaderboardBody"></div>
-  <!-- Statikus lábjegyzet: akkor is ott van, ha a lista még üres — így rögtön
-       kiderül, MIÉRT üres, nem tűnik hibának. -->
   <div class="lb-foot">Csak a többjátékos mód körei számítanak</div>
 </div>
 
