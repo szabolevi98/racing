@@ -21,6 +21,7 @@ import {
 } from '../../shared/zone.js';
 import { WHEEL_POSITIONS } from '../../shared/vehicleConfig.js';
 import { restHeightAboveGround } from '../../shared/spawnRest.js';
+import { gridSlotPose } from '../../shared/grid.js';
 import { decodePngRows } from './pngDecode.js';
 import { ASSETS_DIR } from '../paths.js';
 
@@ -221,13 +222,10 @@ export class RaceSim {
     const spawns = this.map?.spawns?.length ? this.map.spawns : [{ x: 0, z: 0, heading: 0 }];
     let i = 0;
     for (const player of this.room.players.values()) {
-      const s = spawns[(player.slot ?? i) % spawns.length];
-      // Ha több a játékos, mint a rajtpont, hátrébb soroljuk őket, hogy ne
-      // egymásba spawnoljanak.
-      const row = Math.floor((player.slot ?? i) / spawns.length);
-      const back = row * (CHASSIS_SIZE.z * 2.5);
-      const x = s.x - Math.sin(s.heading) * back;
-      const z = s.z - Math.cos(s.heading) * back;
+      // A rajthely számítása a közös shared/grid.js-ben él: a kliens is ebből
+      // teszi a helyére a kocsit az első snapshotig, és a kettőnek egyeznie kell.
+      const s = gridSlotPose(spawns, player.slot ?? i);
+      const { x, z } = s;
       // A rajtpont csak x/z-t ad meg — a magasságot a pálya geometriájából
       // kell megkeresni. A pályamodellek világ-magassága nagyon eltérő (az
       // egyik alatta, a másik 100 méterrel a nulla fölött van), így egy fix

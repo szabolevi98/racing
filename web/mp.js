@@ -700,6 +700,12 @@ async function beginRace(info) {
 
   window.__mp.stage = 'tobbiek-kesz';
   G.setMenuStatus('');
+  // A saját kocsit a rajthelyére tesszük, MIELŐTT az első képkocka kimenne.
+  // A hiteles pozíciót a szerver első snapshotja adja, de az később érkezik —
+  // addig a helyi fizika a menübeli kirakat-pózból indulna, ahol a kocsi 2
+  // méterrel a talaj fölött lebeg. A játékos így egy pillanatra a levegőben
+  // látta a saját autóját a rajtnál.
+  G.placeAtGridSlot(info.spawns || map?.spawns || [], myPlayer?.slot ?? 0);
   G.enterMultiplayer(frame);
   raceLoadActive = false;
   window.__mp.stage = 'fut';

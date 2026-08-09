@@ -5,6 +5,7 @@ import { getManifest } from '../server/assets.js';
 import { RaceSim } from '../server/game/raceSim.js';
 import { ROOM_STATE } from '../shared/protocol.js';
 import { restHeightAboveGround, forgetRestHeight } from '../shared/spawnRest.js';
+import { gridSlotPose } from '../shared/grid.js';
 import { WHEEL_POSITIONS, SUSPENSION_REST_LENGTH, WHEEL_RADIUS } from '../shared/vehicleConfig.js';
 
 await RAPIER.init();
@@ -21,6 +22,52 @@ test('the measured rest height is repeatable and inside the suspension travel', 
   const extended = -WHEEL_POSITIONS[0].y + SUSPENSION_REST_LENGTH + WHEEL_RADIUS;
   assert.ok(first < extended, `${first} < ${extended}: a rugónak össze kell nyomódnia`);
   assert.ok(first > extended - SUSPENSION_REST_LENGTH, 'a kocsi nem ülhet a rugóút alá');
+});
+
+test('the grid pose the client uses is exactly where the server builds the car', async () => {
+  const map = (await getManifest()).maps.find((entry) => entry.collision && entry.spawns?.length);
+  assert.ok(map, 'a baked map with spawn points is required');
+
+  // Több játékos, mint rajtpont: így a hátrébb sorolás ága is lefut. Ez az,
+  // ami a kliensen és a szerveren korábban külön élt volna.
+  const count = map.spawns.length + 2;
+  const players = new Map();
+  for (let i = 0; i < count; i++) players.set('p' + i, { id: 'p' + i, slot: i, carId: 'car' });
+  const room = {
+    code: 'TEST', players, state: ROOM_STATE.LOADING, laps: 1, mapId: map.id,
+    recordLap: async () => {}, recordResults: async () => {}, toJSON: () => ({}),
+  };
+  const sim = new RaceSim(room, { map, broadcast: () => {} });
+  room.sim = sim;
+  await sim.start();
+  clearInterval(sim.timer);
+  sim.timer = null;
+
+  try {
+    for (let slot = 0; slot < count; slot++) {
+      const pose = gridSlotPose(map.spawns, slot);
+      const car = sim.cars.get('p' + slot);
+      // A szerver a KIOSZTOTT rajtpontot őrzi meg (ide tesz vissza az "R" is) —
+      // ennek bitre egyeznie kell azzal, amit a kliens számol. A magasság
+      // szándékosan nincs benne: azt a szerver a pálya geometriájából keresi ki.
+      assert.ok(
+        Math.hypot(car.respawn.x - pose.x, car.respawn.z - pose.z) < 1e-9,
+        `${slot}. rajthely: a kliens (${pose.x.toFixed(2)}, ${pose.z.toFixed(2)}) `
+        + `és a szerver (${car.respawn.x.toFixed(2)}, ${car.respawn.z.toFixed(2)}) eltér`
+      );
+      assert.equal(car.respawn.heading, pose.heading, `${slot}. rajthely: eltérő irány`);
+
+      // A tényleges test már leülepedett, tehát lejtőn csúszhatott néhány
+      // centit — de nem méreteket. Ez fogja meg, ha a rajtrács elcsúszna.
+      const body = car.body.translation();
+      assert.ok(
+        Math.hypot(body.x - pose.x, body.z - pose.z) < 0.5,
+        `${slot}. rajthely: a kocsi ${Math.hypot(body.x - pose.x, body.z - pose.z).toFixed(2)} m-re került a rajtponttól`
+      );
+    }
+  } finally {
+    sim.stop();
+  }
 });
 
 test('cars spawn already settled, so the race does not start with a drop', async () => {

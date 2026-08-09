@@ -12,6 +12,7 @@ import {
 } from '/shared/vehicleConfig.js';
 import { TAINT, requiredCheckpoints } from '/shared/protocol.js';
 import { restHeightAboveGround } from '/shared/spawnRest.js';
+import { gridSlotPose } from '/shared/grid.js';
 import { classifyPing } from '/shared/ping.js';
 import {
   countdownBeep, startBeep, setMuted, isMuted, setVolume, getVolume, primeOnFirstGesture,
@@ -4183,6 +4184,31 @@ window.__game = {
   disposeObject3D,
   setMenuStatus,
   findGroundAt,
+  // A kocsi a rajthelyére, MIELŐTT a multiplayer első képkockája kirajzolódna.
+  //
+  // A hiteles pozíciót a szerver első snapshotja adja, de az csak a betöltés
+  // után érkezik. Addig a helyi fizika ott folytatná, ahol a menüben abbahagyta
+  // — ott viszont a kocsi SZÁNDÉKOSAN 2 méterrel a talaj fölött lebeg (a
+  // kirakat-nézethez), tehát a játékos a rajt pillanatában a levegőben látná
+  // az autóját, ahogy épp esni kezd.
+  //
+  // A rajthely számítása a közös shared/grid.js-ben él, ugyanaz, amiből a
+  // szerver a világot építi — így az első snapshot nem mozdítja el a kocsit.
+  placeAtGridSlot(spawns, slot) {
+    const pose = gridSlotPose(spawns, slot);
+    const groundY = findGroundAt(currentTrack, currentTrackBox, pose.x, pose.z);
+    if (groundY === null || groundY === undefined) return false;
+    spawnPoint.set(pose.x, groundY + restHeightAboveGround(RAPIER), pose.z);
+    spawnHeading = pose.heading;
+    resetCarTo(spawnPoint);
+    // A LÁTHATÓ kocsit is oda kell tenni: a carPivot csak a vezetés-képkockában
+    // frissül a fizikai testből, tehát enélkül egy képkockányit még a régi
+    // helyén villanna.
+    carPivot.position.copy(spawnPoint);
+    const q = chassisBody.rotation();
+    carPivot.quaternion.set(q.x, q.y, q.z, q.w);
+    return true;
+  },
   get currentTrackBox() { return currentTrackBox; },
   showLoadingOverlay, hideLoadingOverlay, runLoadTasks,
   // A minitérkép pöttyei: a hálózati modul képkockánként adja meg, hol tartanak
