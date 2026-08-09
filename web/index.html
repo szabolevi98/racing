@@ -161,15 +161,22 @@
       <button class="touch-btn touch-small" type="button" data-touch-action="reset" aria-label="Visszaállítás a pályára">↻</button>
     </div>
 
-    <button class="touch-btn touch-handbrake" type="button" data-touch-key="Space">Kézifék</button>
-
-    <div class="touch-joystick touch-pedal" data-touch-joystick="pedal"
-         role="slider" aria-label="Gáz és fék" aria-orientation="vertical"
-         aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0">
-      <span class="joystick-axis joystick-axis-vertical" aria-hidden="true"></span>
-      <span class="joystick-side joystick-side-top" aria-hidden="true">Gáz</span>
-      <span class="joystick-side joystick-side-bottom" aria-hidden="true">Fék</span>
-      <span class="joystick-knob" aria-hidden="true"></span>
+    <!-- A gáz és a fék GOMB, nem joystick: itt nincs mit adagolni hüvelykujjal —
+         a hosszan nyomva tartott teljes gáz a természetes, a joystick csak
+         bizonytalanná tette. A kormányzás marad joystick, mert ott a finom,
+         arányos kitérítés tényleg számít.
+         A kézifék a két kerek gomb ALATT fut végig: ritkábban kell, mint a gáz,
+         és így nem választja el a hüvelykujjat a két fő gombtól. -->
+    <div class="touch-pedals" aria-label="Pedálok">
+      <div class="touch-pedal-row">
+        <button class="touch-btn touch-drive touch-brake" type="button" data-touch-key="KeyS" aria-label="Fék">
+          <span class="touch-icon" aria-hidden="true">▼</span><span class="touch-label" aria-hidden="true">Fék</span>
+        </button>
+        <button class="touch-btn touch-drive touch-gas" type="button" data-touch-key="KeyW" aria-label="Gáz">
+          <span class="touch-icon" aria-hidden="true">▲</span><span class="touch-label" aria-hidden="true">Gáz</span>
+        </button>
+      </div>
+      <button class="touch-btn touch-handbrake" type="button" data-touch-key="Space">Kézifék</button>
     </div>
   </div>
 </div>

@@ -30,9 +30,16 @@
   --r-sm:          9px;
   --shadow:        0 10px 34px rgba(0, 0, 0, 0.5);
   --touch-stick-size: clamp(104px, 16vw, 124px);
-  --touch-steer-inline: clamp(88px, 16vw, 160px);
-  --touch-pedal-inline: clamp(90px, 16.5vw, 165px);
-  --touch-stick-bottom: clamp(72px, 23vh, 112px);
+  /* A kormány-joystick a képernyő szélétől befelé. Kisebb, mint korábban:
+     a hüvelykujj a készülék sarkából indul, nem a közepe felől. */
+  --touch-steer-inline: clamp(52px, 10vw, 104px);
+  --touch-stick-bottom: clamp(60px, 19vh, 94px);
+  /* Mekkora sávot foglal a jobb alsó sarokban a kézifék + a két pedálgomb.
+     A fölöttük ülő panelek (sebesség, FPS) ehhez igazodnak. */
+  --touch-pedal-height: calc(clamp(66px, 9vw, 82px) + 37px);
+  /* A pedálblokk a jobb széltől befelé — nem a sarokba tapasztva, hogy a
+     hüvelykujj ne a képernyő peremén dolgozzon. */
+  --touch-pedal-inline: clamp(28px, 5vw, 56px);
 }
 
 /* A natív űrlapelemeket (a <select> LEGÖRDÜLŐ LISTÁJÁT, a görgetősávot) a
@@ -510,25 +517,42 @@ kbd.k {
   transition: opacity .15s ease, border-color .12s ease, background-color .12s ease;
 }
 .touch-steering {
-  left: max(var(--touch-steer-inline), calc(env(safe-area-inset-left) + 18px));
+  left: max(var(--touch-steer-inline), calc(env(safe-area-inset-left) + 12px));
 }
-.touch-pedal {
-  right: max(var(--touch-pedal-inline), calc(env(safe-area-inset-right) + 18px));
+
+/* Gáz/fék: gombok, a jobb alsó sarokban egymás mellett, fölöttük a kézifék. */
+.touch-pedals {
+  position: absolute; pointer-events: auto;
+  right: max(var(--touch-pedal-inline), calc(env(safe-area-inset-right) + 12px));
+  bottom: max(20px, calc(env(safe-area-inset-bottom) + 14px));
+  display: flex; flex-direction: column; align-items: stretch; gap: 7px;
 }
+.touch-pedal-row { display: flex; gap: 12px; }
+.touch-drive {
+  width: clamp(66px, 9vw, 82px); aspect-ratio: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; border-radius: 50%;
+}
+.touch-icon { font-size: 25px; line-height: 1; }
+.touch-label { font-size: 8px; letter-spacing: .09em; opacity: .78; }
+.touch-gas { border-color: rgba(61, 220, 132, .5); background: rgba(17, 75, 48, .56); }
+.touch-brake { border-color: rgba(255, 95, 95, .5); background: rgba(91, 29, 34, .56); }
+.touch-gas.is-pressed { background-color: rgba(38, 177, 99, .7); }
+.touch-brake.is-pressed { background-color: rgba(218, 61, 67, .7); }
 .joystick-axis {
   position: absolute; left: 50%; top: 50%; pointer-events: none;
   background: rgba(255, 255, 255, .15); transform: translate(-50%, -50%);
 }
+/* Csak vízszintes tengely maradt: a gáz/fék gomb lett, egyedül a kormányzás
+   joystick. A függőleges tengely és a hozzá tartozó fel/le feliratok innen
+   kikerültek — használat nélkül csak félrevezetnék a következő olvasót. */
 .joystick-axis-horizontal { width: 72%; height: 1px; }
-.joystick-axis-vertical { width: 1px; height: 72%; }
 .joystick-axis::before, .joystick-axis::after {
   content: ''; position: absolute; width: 5px; height: 5px; border-radius: 50%;
   background: rgba(255, 255, 255, .28);
 }
 .joystick-axis-horizontal::before { left: 0; top: -2px; }
 .joystick-axis-horizontal::after { right: 0; top: -2px; }
-.joystick-axis-vertical::before { left: -2px; top: 0; }
-.joystick-axis-vertical::after { left: -2px; bottom: 0; }
 .joystick-knob {
   position: absolute; left: 50%; top: 50%; width: 38%; aspect-ratio: 1;
   border-radius: 50%; transform: translate3d(-50%, -50%, 0);
@@ -546,8 +570,6 @@ kbd.k {
 }
 .joystick-side-left { left: 7px; top: 50%; transform: translateY(-50%); }
 .joystick-side-right { right: 5px; top: 50%; transform: translateY(-50%); }
-.joystick-side-top { left: 50%; top: 7px; transform: translateX(-50%); }
-.joystick-side-bottom { left: 50%; bottom: 6px; transform: translateX(-50%); }
 .touch-utility {
   position: absolute; left: 50%; bottom: max(28px, calc(env(safe-area-inset-bottom) + 18px));
   transform: translateX(-50%); display: flex; gap: 8px; pointer-events: auto;
@@ -568,12 +590,10 @@ kbd.k {
 }
 .touch-mute { min-width: 38px; padding-inline: 8px; font-size: 14px; }
 .touch-mute.is-muted { border-color: rgba(255, 95, 95, .5); background: rgba(91, 29, 34, .58); }
+/* A pedálok ALATT ül, azok teljes szélességében — nem külön pozicionált elem. */
 .touch-handbrake {
-  position: absolute;
-  right: calc(var(--touch-pedal-inline) + (var(--touch-stick-size) - 78px) / 2);
-  bottom: max(28px, calc(env(safe-area-inset-bottom) + 18px)); pointer-events: auto;
-  min-width: 78px; height: 34px; padding: 0 12px;
-  border-radius: 17px; font-size: 8px; letter-spacing: .08em;
+  height: 30px; padding: 0 12px;
+  border-radius: 15px; font-size: 8px; letter-spacing: .08em;
   border-color: rgba(255, 194, 71, .5); background: rgba(93, 64, 16, .55);
 }
 .touch-btn.is-pressed {
@@ -630,9 +650,10 @@ kbd.k {
   .st-lap, .st-gap, .st-time { font-size: 8px; }
   .st-event { margin-top: 6px; padding-top: 5px; font-size: 9px; }
 
+  /* A bal alsó sarokban a kormány-joystick ül; a minitérkép fölé kerül. */
   #miniMapWrap {
     left: max(8px, env(safe-area-inset-left));
-    bottom: calc(max(28px, calc(env(safe-area-inset-bottom) + 18px)) + var(--touch-stick-size) + 8px);
+    bottom: calc(var(--touch-stick-bottom) + var(--touch-stick-size) + 8px);
     padding: 2px;
   }
   /* A menüben nincs alatta joystick, ezért nem kell fölé emelni — oda kerül,
@@ -663,9 +684,11 @@ kbd.k {
     max-width: 82px; max-height: 82px;
     border-radius: 8px;
   }
+  /* Jobb alul már nem joystick van, hanem a pedálgombok — azok magasságához
+     igazodik, különben feleslegesen magasan lógna a sebességpanel. */
   #bottomRightStack {
     right: max(8px, env(safe-area-inset-right));
-    bottom: calc(max(28px, calc(env(safe-area-inset-bottom) + 18px)) + var(--touch-stick-size) + 8px);
+    bottom: calc(max(20px, calc(env(safe-area-inset-bottom) + 14px)) + var(--touch-pedal-height) + 8px);
     gap: 4px;
   }
   #perfRow { gap: 4px; }
