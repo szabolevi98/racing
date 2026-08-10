@@ -1022,7 +1022,7 @@ async function beginRace(info) {
   send(C2S.SET_READY, {
     ready: true,
     state: {
-      seq: 0,
+      seq: inputSeq,
       t: serverNow(),
       ...initialState,
       ...initialWheels,
@@ -1804,8 +1804,9 @@ function eventText(e) {
 
 function startInputLoop() {
   stopInputLoop();
-  // Új versenyben a csomagsorszámozás nulláról indul.
-  inputSeq = 0;
+  // A sorszám a teljes WebSocket-kapcsolaton monoton nő. R után még úton
+  // lehetnek az előző próbálkozás csomagjai; ha nulláznánk, az új állapotokat
+  // a szerver addig réginek hinné, amíg újra el nem érjük a korábbi értéket.
   lapTainted = TAINT.NONE;
   finishedDriving = false;
   G.setMultiplayerControlsEnabled(true);

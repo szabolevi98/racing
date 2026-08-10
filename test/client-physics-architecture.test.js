@@ -20,3 +20,15 @@ test('online racing has one client-physics architecture without the old switch',
   assert.equal(existsSync(resolve(root, 'server', 'config.js')), false);
   assert.equal(existsSync(resolve(root, 'shared', 'prediction.js')), false);
 });
+
+test('online state sequence stays monotonic across Hot Lap restarts', () => {
+  const client = source('web', 'mp.js');
+  const room = source('server', 'game', 'room.js');
+
+  assert.match(client, /state:\s*\{\s*seq: inputSeq,/);
+  assert.doesNotMatch(
+    client,
+    /function startInputLoop\(\)[\s\S]*?inputSeq\s*=\s*0[\s\S]*?const tick/,
+  );
+  assert.match(room, /p\.ready = false;[\s\S]*?p\.pendingInitialState = null;/);
+});

@@ -103,3 +103,43 @@ test('an old Hot Lap finish cannot overwrite a restarted attempt', async () => {
   assert.deepEqual(room.sim, { newAttempt: true });
   assert.equal(broadcasts.some(({ type }) => type === S2C.RACE_END), false);
 });
+
+test('Hot Lap R accepts the first new state without waiting for an old sequence number', async () => {
+  const player = { id: 'driver', carId: 'f2004' };
+  const room = {
+    laps: 1,
+    mode: GAME_MODE.HOT_LAP,
+    state: ROOM_STATE.LOADING,
+    countdownEndsAt: 0,
+    players: new Map([[player.id, player]]),
+  };
+  const sim = new RaceController(room, {
+    map: {
+      spawns: [{ x: 0, z: 0, heading: 0 }],
+      gates: { start: { x1: 10, z1: -2, x2: 10, z2: 2 }, checkpoints: [] },
+    },
+    broadcast: () => {},
+  });
+  await sim.start();
+  clearInterval(sim.timer);
+  sim.timer = null;
+
+  const packet = (seq, x) => ({
+    seq, p: [x, 0, 0], q: [0, 0, 0, 1],
+    v: [1, 0, 0], w: [0, 0, 0], st: 0, wr: 0, th: 1,
+  });
+
+  // Az R után még beérhet egy régi, magas sorszámú állapot az R helyéről.
+  assert.equal(sim.receiveState(player.id, packet(50, 30), { receivedAt: 1_000 }), true);
+  // A kliens kezdőállapota visszateszi az autót a felvezető elejére, de a
+  // sorszámnak ugyanonnan kell folytatódnia, nem nulláról újraindulnia.
+  assert.equal(sim.receiveState(player.id, packet(50, 0), { initial: true, receivedAt: 1_100 }), true);
+  room.state = ROOM_STATE.RACING;
+  sim.startAt = 0;
+
+  assert.equal(sim.receiveState(player.id, packet(1, 11), { receivedAt: 1_200 }), false);
+  assert.equal(sim.receiveState(player.id, packet(51, 11), { receivedAt: 1_300 }), true);
+  assert.equal(sim.cars.get(player.id).race.hasCrossedStart, true);
+  assert.ok(sim.cars.get(player.id).race.lapStart > 1_200);
+  assert.ok(sim.cars.get(player.id).race.lapStart <= 1_300);
+});

@@ -6,7 +6,7 @@ import { WebSocketServer } from 'ws';
 import { randomUUID } from 'node:crypto';
 import {
   C2S, S2C, ROOM_STATE, GAME_MODE, ROOM_CODE_LENGTH, sanitizeName, sanitizePlayerToken,
-  COUNTDOWN_MS, RACE_LOAD_TIMEOUT_MS,
+  RACE_LOAD_TIMEOUT_MS,
 } from '../../shared/protocol.js';
 import { Room } from '../game/room.js';
 import { RaceController } from '../game/raceController.js';
@@ -215,8 +215,12 @@ async function handleMessage(player, msg) {
       // pozíciót is elküldjük. Ha a nagyon gyors kliens megelőzte a vezérlő
       // elkészültét, ideiglenesen a playeren tartjuk, és startRace átveszi.
       if (msg.state) {
-        player.pendingInitialState = msg.state;
-        room.sim?.receiveState?.(player.id, msg.state, { initial: true });
+        if (room.sim) {
+          room.sim.receiveState?.(player.id, msg.state, { initial: true });
+          player.pendingInitialState = null;
+        } else {
+          player.pendingInitialState = msg.state;
+        }
       }
       player.ready = !!msg.ready;
       pushRoomState(room);
@@ -389,7 +393,7 @@ function maybeBeginCountdown(room, timedOut = false) {
 
   const startsAt = room.beginCountdown();
   room.sim?.releaseAt(startsAt);
-  broadcastRoom(room, S2C.RACE_COUNTDOWN, { startsAt, countdownMs: COUNTDOWN_MS });
+  broadcastRoom(room, S2C.RACE_COUNTDOWN, { startsAt, countdownMs: room.countdownMs });
   pushRoomState(room);
 }
 

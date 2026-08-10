@@ -4,7 +4,8 @@
 // szerver-újraindítás után úgyis értelmét vesztené. Csak a lefutott verseny
 // eredménye kerül adatbázisba.
 import {
-  ROOM_STATE, GAME_MODE, MAX_PLAYERS_PER_ROOM, COUNTDOWN_MS, PLAYER_COLORS, RACE_LOAD_TIMEOUT_MS,
+  ROOM_STATE, GAME_MODE, MAX_PLAYERS_PER_ROOM, COUNTDOWN_MS, HOT_LAP_COUNTDOWN_MS,
+  PLAYER_COLORS, RACE_LOAD_TIMEOUT_MS,
 } from '../../shared/protocol.js';
 import { createRace, finishRace, saveResult, saveLap } from '../db/index.js';
 
@@ -148,16 +149,25 @@ export class Room {
     this.countdownEndsAt = 0;
     this.loadingSince = Date.now();
     // Új verseny: a korábbi "kész" jelzések nem érvényesek rá.
-    for (const p of this.players.values()) p.ready = false;
+    for (const p of this.players.values()) {
+      p.ready = false;
+      // Csak az aktuális betöltési generáció kezdőállapota használható. Az
+      // előző futamé különben az új vezérlő létrejöttekor visszakerülhetne.
+      p.pendingInitialState = null;
+    }
     // Az elkészült azonosítót a startRace csak akkor kapcsolja a szobához,
     // ha ez a betöltési generáció még mindig aktuális. Két egymásra futó
     // próbálkozás így nem írhatja felül egymás raceId-ját.
     return createRace(this.code, this.mapId, this.laps).catch(() => null);
   }
 
-  beginCountdown() {
+  get countdownMs() {
+    return this.mode === GAME_MODE.HOT_LAP ? HOT_LAP_COUNTDOWN_MS : COUNTDOWN_MS;
+  }
+
+  beginCountdown(now = Date.now()) {
     this.state = ROOM_STATE.COUNTDOWN;
-    this.countdownEndsAt = Date.now() + COUNTDOWN_MS;
+    this.countdownEndsAt = now + this.countdownMs;
     return this.countdownEndsAt;
   }
 

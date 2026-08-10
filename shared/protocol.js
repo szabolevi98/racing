@@ -119,6 +119,7 @@ export const PLAYER_COLORS = [
 export const MAX_PLAYERS_PER_ROOM = 8;
 export const ROOM_CODE_LENGTH = 6;
 export const COUNTDOWN_MS = 5000;
+export const HOT_LAP_COUNTDOWN_MS = 3000;
 // Meddig várunk a betöltésre, mielőtt a hiányzók nélkül is elindulnánk. Kell a
 // felső korlát: egy beragadt vagy elhalt kliens különben a végtelenségig
 // túszként tartaná az egész szobát.

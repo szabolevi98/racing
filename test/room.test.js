@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Room } from '../server/game/room.js';
-import { GAME_MODE } from '../shared/protocol.js';
+import { COUNTDOWN_MS, GAME_MODE, HOT_LAP_COUNTDOWN_MS } from '../shared/protocol.js';
 
 test('each race randomly assigns exactly the first N grid slots', () => {
   const host = { id: 'host' };
@@ -61,4 +61,17 @@ test('Hot Lap keeps the selected ghost replay across R restarts', async () => {
   await room.finishAttempt(null);
   assert.equal(await room.loadSelectedGhost(loader), replay);
   assert.equal(loads, 1, 'R must reuse the selected replay instead of querying it again');
+});
+
+test('Hot Lap counts down for 3 seconds while multiplayer keeps 5 seconds', () => {
+  const host = { id: 'host' };
+  const multiplayer = new Room('MULTI', host, { mapId: 'map', laps: 3 });
+  const hotLap = new Room('HOTLAP', host, {
+    mapId: 'map', laps: 1, mode: GAME_MODE.HOT_LAP,
+  });
+
+  assert.equal(multiplayer.beginCountdown(1_000), 1_000 + COUNTDOWN_MS);
+  assert.equal(hotLap.beginCountdown(1_000), 1_000 + HOT_LAP_COUNTDOWN_MS);
+  assert.equal(COUNTDOWN_MS, 5_000);
+  assert.equal(HOT_LAP_COUNTDOWN_MS, 3_000);
 });
