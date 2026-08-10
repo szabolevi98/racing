@@ -281,9 +281,7 @@ async function startRace(room) {
   const manifest = await getManifest();
   if (rooms.get(room.code) !== room || room.size === 0 || room.raceGeneration !== generation) return;
   const map = manifest.maps.find((m) => m.id === room.mapId);
-  const ghost = room.mode === GAME_MODE.HOT_LAP && room.ghostPlayerId
-    ? await ghostLap(room.mapId, room.ghostPlayerId).catch(() => null)
-    : null;
+  const ghost = await room.loadSelectedGhost(ghostLap);
   if (rooms.get(room.code) !== room || room.size === 0 || room.raceGeneration !== generation) return;
 
   // A rajtrács-pontok a pálya spawn.json-jából jönnek; ha kevesebb van, mint

@@ -907,6 +907,11 @@ function isHotLap() {
 
 async function beginRace(info) {
   const loadGeneration = ++raceLoadGeneration;
+  const ghostReplay = info.ghost?.replay?.frames?.length ? info.ghost : null;
+  const reuseGhost = !!ghostReplay && !!ghostCar
+    && ghostCar.playerId === ghostReplay.playerId
+    && ghostCar.carId === ghostReplay.carId
+    && ghostCar.timeMs === ghostReplay.timeMs;
   raceLoadActive = true;
   closeLobby();
   // Az eredménypanel alatt az előző inputciklus szándékosan tovább lépteti a
@@ -940,7 +945,12 @@ async function beginRace(info) {
   // Tiszta lappal indulunk, FÜGGETLENÜL attól, hogyan ért véget az előző
   // meccs. Ez az utolsó védvonal: ha bármelyik kilépési ág mégis kihagyná a
   // takarítást, itt akkor sem halmozódhatnak egymásra az előző meccs kocsijai.
-  clearOtherCars();
+  clearOtherCars({ preserveGhost: reuseGhost });
+  if (reuseGhost) {
+    ghostCar.frames = ghostReplay.replay.frames;
+    ghostCar.index = 0;
+    ghostCar.group.visible = false;
+  }
   resetNetworkRaceState();
   // Multiplayerben mindig a fájlba mentett, kanonikus járműbeállításokkal indulunk.
   G.resetLiveVehicleTunables();
@@ -953,7 +963,6 @@ async function beginRace(info) {
   const map = G.manifest.maps.find((m) => m.id === info.mapId);
   const car = G.manifest.cars.find((c) => c.id === myPlayer?.carId);
   const otherPlayers = info.players.filter((p) => p.id !== me.id);
-  const ghostReplay = info.ghost?.replay?.frames?.length ? info.ghost : null;
 
   const tasks = [];
   if (G.currentMapId !== info.mapId) {
@@ -966,7 +975,7 @@ async function beginRace(info) {
     const otherCar = G.manifest.cars.find((c) => c.id === p.carId) || G.manifest.cars[0];
     tasks.push({ bytes: otherCar?.bytes, run: (onP) => addOtherCar(p, onP, loadGeneration) });
   });
-  if (ghostReplay) {
+  if (ghostReplay && !reuseGhost) {
     const replayCar = G.manifest.cars.find((c) => c.id === ghostReplay.carId) || G.manifest.cars[0];
     tasks.push({ bytes: replayCar?.bytes, run: (onP) => addGhostCar(ghostReplay, onP, loadGeneration) });
   }
@@ -1036,9 +1045,14 @@ async function beginRace(info) {
 //  2. innen, közvetlenül azokon az ágakon, amelyek NEM mennek a menübe
 //     (kapcsolatvesztés, szoba bezárása, kilépés a szobából) — ilyenkor a
 //     lobby jön elő, a menü nem, tehát az 1-es nem sülne el.
-function clearOtherCars() {
+function clearOtherCars({ preserveGhost = false } = {}) {
   for (const id of [...others.keys()]) removeOtherCar(id);
-  clearGhostCar();
+  if (preserveGhost && ghostCar) {
+    ghostCar.index = 0;
+    ghostCar.group.visible = false;
+  } else {
+    clearGhostCar();
+  }
   G.clearRemoteCarProxies();
   // A modellek és fizikai proxyk mellett a minitérképes lenyomatuk is ugyanennek
   // az állapotnak a része. A játék közbeni „Vissza a menübe” közvetlenül az
@@ -1224,6 +1238,8 @@ async function addGhostCar(ghost, onProgress, loadGeneration) {
   }
   ghostCar = {
     group,
+    playerId: ghost.playerId,
+    carId: ghost.carId,
     frames: ghost.replay.frames,
     index: 0,
     name: ghost.name || 'Szellem',

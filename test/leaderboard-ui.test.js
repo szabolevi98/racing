@@ -13,6 +13,8 @@ test('leaderboard stays informational while Hot Lap uses a separate ghost picker
   assert.match(multiplayer, /renderer\.initTexture\(texture\)/);
   assert.match(multiplayer, /await G\.renderer\.compileAsync\(group, G\.camera, G\.scene\)/);
   assert.match(multiplayer, /await warmGhostCarVisual\(group\)/);
+  assert.match(multiplayer, /clearOtherCars\(\{ preserveGhost: reuseGhost \}\)/);
+  assert.match(multiplayer, /if \(ghostReplay && !reuseGhost\)/);
   assert.match(multiplayer, /if \(ghostCar\?\.group\.visible\)/);
   assert.match(multiplayer, /rgba\(117, 215, 255, 0\.62\)/);
   assert.match(multiplayer, /Szellem nélkül/);

@@ -20,6 +20,10 @@ export class Room {
     this.ghostPlayerId = Number.isSafeInteger(ghostPlayerId) && ghostPlayerId > 0
       ? ghostPlayerId
       : null;
+    // Az Időmérés indításakor kiválasztott konkrét visszajátszás az egész
+    // szoba-életciklusra rögzül. Az R csak új próbálkozás, nem új
+    // szellemválasztás, ezért nem kérjük le újra minden restartnál.
+    this.selectedGhost = undefined;
     // Szobaszintű és futam közben nem változtatható: minden kliensnek ugyanazt
     // kell használnia.
     this.ghostMode = this.mode === GAME_MODE.HOT_LAP || ghostMode === true;
@@ -168,6 +172,17 @@ export class Room {
 
   loadingExpired() {
     return Date.now() - (this.loadingSince || 0) >= RACE_LOAD_TIMEOUT_MS;
+  }
+
+  async loadSelectedGhost(loader) {
+    if (this.mode !== GAME_MODE.HOT_LAP || !this.ghostPlayerId) return null;
+    if (this.selectedGhost !== undefined) return this.selectedGhost;
+    try {
+      this.selectedGhost = await loader(this.mapId, this.ghostPlayerId) || null;
+    } catch {
+      this.selectedGhost = null;
+    }
+    return this.selectedGhost;
   }
 
   async recordLap(player, lapNumber, timeMs, invalid, ghost = null, raceId = this.raceId) {

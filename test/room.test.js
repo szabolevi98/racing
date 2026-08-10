@@ -47,3 +47,18 @@ test('Hot Lap is a one-lap server mode with collisionless replay support', () =>
   assert.equal(room.toJSON().mode, GAME_MODE.HOT_LAP);
   assert.equal(room.toJSON().players[0].slot, 7);
 });
+
+test('Hot Lap keeps the selected ghost replay across R restarts', async () => {
+  const host = { id: 'host' };
+  const room = new Room('HOTLAP', host, {
+    mapId: 'map', laps: 1, mode: GAME_MODE.HOT_LAP, ghostPlayerId: 42,
+  });
+  const replay = { playerId: 42, replay: { frames: [[0, 1, 2, 3, 0, 0, 0, 1]] } };
+  let loads = 0;
+  const loader = async () => { loads++; return replay; };
+
+  assert.equal(await room.loadSelectedGhost(loader), replay);
+  await room.finishAttempt(null);
+  assert.equal(await room.loadSelectedGhost(loader), replay);
+  assert.equal(loads, 1, 'R must reuse the selected replay instead of querying it again');
+});
