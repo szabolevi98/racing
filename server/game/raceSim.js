@@ -8,7 +8,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
-  S2C, ROOM_STATE, TAINT, TICK_RATE, TICK_MS, SNAPSHOT_RATE, requiredCheckpoints,
+  S2C, ROOM_STATE, GAME_MODE, TAINT, TICK_RATE, TICK_MS, SNAPSHOT_RATE, requiredCheckpoints,
 } from '../../shared/protocol.js';
 import {
   GRAVITY, buildVehicle, applyControls, CHASSIS_SIZE, applySpeedCap,
@@ -21,7 +21,10 @@ import {
 } from '../../shared/zone.js';
 import { WHEEL_POSITIONS } from '../../shared/vehicleConfig.js';
 import { restHeightAboveGround } from '../../shared/spawnRest.js';
-import { gridSlotPose } from '../../shared/grid.js';
+import { gridSlotPose, hotLapStartPose } from '../../shared/grid.js';
+import {
+  GHOST_SAMPLE_MS, MAX_GHOST_FRAMES, makeGhostFrame, makeGhostReplay,
+} from '../../shared/ghost.js';
 import { decodePngRows } from './pngDecode.js';
 import { ASSETS_DIR } from '../paths.js';
 
@@ -152,10 +155,14 @@ const WALL_PROBES = wallProbes(CHASSIS_SIZE);
 const WHEEL_PROBES = wheelProbes(WHEEL_POSITIONS);
 
 export class RaceSim {
-  constructor(room, { map, broadcast }) {
+  constructor(room, { map, broadcast, generation = room.raceGeneration, raceId = room.raceId }) {
     this.room = room;
     this.map = map;
     this.broadcast = broadcast;
+    // Egy RaceSim egész életében ugyanahhoz a próbálkozáshoz tartozik. A Room
+    // mutable mezői közben már a következő próbálkozásra válthatnak.
+    this.generation = generation;
+    this.raceId = raceId;
     this.world = null;
     this.cars = new Map();     // playerId -> { body, vehicle, input, race }
     this.tick = 0;
@@ -224,7 +231,9 @@ export class RaceSim {
     for (const player of this.room.players.values()) {
       // A rajthely számítása a közös shared/grid.js-ben él: a kliens is ebből
       // teszi a helyére a kocsit az első snapshotig, és a kettőnek egyeznie kell.
-      const s = gridSlotPose(spawns, player.slot ?? i);
+      const s = this.room.mode === GAME_MODE.HOT_LAP
+        ? hotLapStartPose(spawns, this.map?.hotLapSpawn)
+        : gridSlotPose(spawns, player.slot ?? i);
       const { x, z } = s;
       // A rajtpont csak x/z-t ad meg — a magasságot a pálya geometriájából
       // kell megkeresni. A pályamodellek világ-magassága nagyon eltérő (az
@@ -271,6 +280,8 @@ export class RaceSim {
           hasCrossedStart: false,
           lapStart: 0,
           lapTimes: [],
+          ghostFrames: null,
+          lastGhostSampleAt: 0,
           // Abszolút verseny-előrehaladási kulcs és az egyes időmérő
           // vonalak szerverideje. A kliensek ebből kapnak valódi időrést:
           // nem a két autó térbeli távolságát próbáljuk másodperccé
@@ -406,6 +417,39 @@ export class RaceSim {
     // útközben átvágna kapukon — ezért itt "megszakítjuk".
     car.race.prevX = x;
     car.race.prevZ = z;
+  }
+
+  beginGhostRecording(car, now) {
+    const r = car.race;
+    r.ghostFrames = [];
+    r.lastGhostSampleAt = now;
+    const p = car.body.translation();
+    const q = car.body.rotation();
+    r.ghostFrames.push(makeGhostFrame(0, p, q));
+  }
+
+  recordGhostFrame(car, now, force = false) {
+    const r = car.race;
+    if (!r.hasCrossedStart || !r.ghostFrames) return;
+    if (!force && now - r.lastGhostSampleAt < GHOST_SAMPLE_MS) return;
+    if (r.ghostFrames.length >= MAX_GHOST_FRAMES) {
+      // A kör ettől még érvényes lehet, csak a korlátlan memórianövekedést
+      // akadályozzuk meg. A következő kör új, üres felvétellel indul.
+      r.ghostFrames = null;
+      return;
+    }
+    const p = car.body.translation();
+    const q = car.body.rotation();
+    const frame = makeGhostFrame(now - r.lapStart, p, q);
+    const last = r.ghostFrames.at(-1);
+    if (force && last?.[0] === frame[0]) r.ghostFrames[r.ghostFrames.length - 1] = frame;
+    else r.ghostFrames.push(frame);
+    r.lastGhostSampleAt = now;
+  }
+
+  finishGhostRecording(car, now) {
+    this.recordGhostFrame(car, now, true);
+    return makeGhostReplay(car.race.ghostFrames);
   }
 
   // A szobából kilépő játékos nem maradhat a szerver fizikai világában.
@@ -552,40 +596,47 @@ export class RaceSim {
       r.prevX = p.x;
       r.prevZ = p.z;
 
-      for (let i = 0; i < checkpoints.length; i++) {
-        if (crossedGate(checkpoints[i], fromX, fromZ, p.x, p.z)) {
-          // A Set miatt ugyanaz a kapu kétszer sem számít duplán.
-          r.passed.add(i);
-          if (i === r.nextCheckpoint) {
-            r.nextCheckpoint++;
-            const splitKey = r.lap * (checkpoints.length + 1) + i + 1;
-            r.progressKey = splitKey;
-            r.splits.set(splitKey, now);
-            // Csak SIKERES átlépéskor jegyezzük meg — így az R sosem tesz
-            // vissza egy olyan pontra, ahol már rossz úton járt.
-            car.respawn = {
-              ...gateMidpoint(checkpoints[i]),
-              heading: headingFrom(fromX, fromZ, p.x, p.z, car.respawn.heading),
-            };
-          } else if (i > r.nextCheckpoint) {
-            // Előrébb lévő kapu: tényleg kihagyott egyet közben.
-            r.taintReason = TAINT.CHECKPOINT;
+      this.recordGhostFrame(car, now);
+
+      // A rajtvonal előtti felvezetés még nem része a mért körnek. Az innen
+      // érinthető checkpointokat nem elég utólag lenullázni a rajtvonalnál:
+      // addig a snapshot téves "checkpoint kimaradt" riasztást küldene.
+      if (r.hasCrossedStart) {
+        for (let i = 0; i < checkpoints.length; i++) {
+          if (crossedGate(checkpoints[i], fromX, fromZ, p.x, p.z)) {
+            // A Set miatt ugyanaz a kapu kétszer sem számít duplán.
+            r.passed.add(i);
+            if (i === r.nextCheckpoint) {
+              r.nextCheckpoint++;
+              const splitKey = r.lap * (checkpoints.length + 1) + i + 1;
+              r.progressKey = splitKey;
+              r.splits.set(splitKey, now);
+              // Csak SIKERES átlépéskor jegyezzük meg — így az R sosem tesz
+              // vissza egy olyan pontra, ahol már rossz úton járt.
+              car.respawn = {
+                ...gateMidpoint(checkpoints[i]),
+                heading: headingFrom(fromX, fromZ, p.x, p.z, car.respawn.heading),
+              };
+            } else if (i > r.nextCheckpoint) {
+              // Előrébb lévő kapu: tényleg kihagyott egyet közben.
+              r.taintReason = TAINT.CHECKPOINT;
+            }
+            // Egy MÁR MEGSZERZETT kapu újbóli átlépése (i < nextCheckpoint) nem
+            // hiba, csak nem is számít. A crossedGate iránytól függetlenül metsz
+            // szakaszt, ezért egy megcsúszás, oldalra sodródás vagy pördülés
+            // ugyanazon a vonalon másodszor is "átlépés" — korábban ez rontotta
+            // el a kört, holmi csalás nélkül. Ugyanezért nem hiba az sem, ha az
+            // összes kapu megvan (nextCheckpoint == length), és utána még
+            // egyszer átcsúszik valamelyiken.
+            break;
           }
-          // Egy MÁR MEGSZERZETT kapu újbóli átlépése (i < nextCheckpoint) nem
-          // hiba, csak nem is számít. A crossedGate iránytól függetlenül metsz
-          // szakaszt, ezért egy megcsúszás, oldalra sodródás vagy pördülés
-          // ugyanazon a vonalon másodszor is "átlépés" — korábban ez rontotta
-          // el a kört, holmi csalás nélkül. Ugyanezért nem hiba az sem, ha az
-          // összes kapu megvan (nextCheckpoint == length), és utána még
-          // egyszer átcsúszik valamelyiken.
-          break;
         }
       }
 
       // Teljes letérés az aszfaltról: a kör érvénytelen lesz, de tovább lehet
       // menni. Eddig ez csak egyjátékosban élt — multiplayerben a kifutón át
       // le lehetett vágni a kanyart következmények nélkül.
-      if (!r.taintReason && allWheelsOffTrack(this.zone, car.body, WHEEL_PROBES)) {
+      if (r.hasCrossedStart && !r.taintReason && allWheelsOffTrack(this.zone, car.body, WHEEL_PROBES)) {
         r.taintReason = TAINT.OFFTRACK;
       }
 
@@ -593,7 +644,13 @@ export class RaceSim {
         if (!r.hasCrossedStart) {
           // A rajtpont a rajtvonal ELŐTT van: az első átlépés a kört KEZDI.
           r.hasCrossedStart = true;
+          // A rajtvonal előtti felvezetés nem része a mért körnek. Ami ott
+          // történt (kifutó, véletlen kapuérintés), nem ronthatja el a Hot Lapot.
+          r.nextCheckpoint = 0;
+          r.passed.clear();
+          r.taintReason = TAINT.NONE;
           r.lapStart = now;
+          this.beginGhostRecording(car, now);
           r.progressKey = r.lap * (checkpoints.length + 1);
           r.splits.set(r.progressKey, now);
           car.respawn = {
@@ -616,6 +673,7 @@ export class RaceSim {
           if (r.passed.size < checkpoints.length) r.taintReason = TAINT.CHECKPOINT;
           const invalid = !!r.taintReason;
           const time = now - r.lapStart;
+          const ghost = invalid ? null : this.finishGhostRecording(car, now);
           const splitKey = (r.lap + 1) * (checkpoints.length + 1);
           r.progressKey = splitKey;
           r.splits.set(splitKey, now);
@@ -625,7 +683,10 @@ export class RaceSim {
           r.passed.clear();
           r.taintReason = TAINT.NONE;
           r.lapStart = now;
-          this.room.recordLap(this.room.players.get(car.playerId), r.lap, time, invalid).catch(() => {});
+          if (r.lap < this.room.laps) this.beginGhostRecording(car, now);
+          this.room.recordLap(
+            this.room.players.get(car.playerId), r.lap, time, invalid, ghost, this.raceId
+          ).catch(() => {});
           this.broadcast(S2C.RACE_EVENT, {
             kind: 'lap', playerId: car.playerId, lap: r.lap, timeMs: Math.round(time), invalid,
           });
@@ -719,6 +780,9 @@ export class RaceSim {
         best: bestLap === null ? null : Math.round(bestLap),
         last: lastLap ? Math.round(lastLap.time) : null,
         li: !!lastLap?.invalid,
+        // A hiteles körkezdet kell a Hot Lap órájához és a szellem pontos
+        // indításához. null, amíg a játékos nem ért el a rajtvonalig.
+        ls: car.race.hasCrossedStart ? Math.round(car.race.lapStart) : null,
         fin: !!car.race.finished,
       });
     }
@@ -745,7 +809,11 @@ export class RaceSim {
       .sort((a, b) => (b.lapsCompleted - a.lapsCompleted) || (a.totalMs - b.totalMs));
 
     results.forEach((r, i) => { r.position = i + 1; });
-    await this.room.recordResults(results).catch(() => {});
+    await this.room.recordResults(results, this.raceId).catch(() => {});
+    // Célba érés után az R már elindíthatott egy új Hot Lapot, amíg az előző
+    // eredménye az adatbázisra várt. A régi szimuláció ilyenkor csak a saját
+    // mentését fejezheti be; az új állapotát és felületét nem írhatja felül.
+    if (this.room.sim !== this || this.room.raceGeneration !== this.generation) return;
     this.broadcast(S2C.RACE_END, { results });
 
     // Vissza LOBBY-ra: enélkül a state örökre FINISHED maradt, és a

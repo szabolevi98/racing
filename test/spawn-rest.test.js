@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { getManifest } from '../server/assets.js';
 import { RaceSim } from '../server/game/raceSim.js';
-import { ROOM_STATE } from '../shared/protocol.js';
+import { GAME_MODE, ROOM_STATE } from '../shared/protocol.js';
 import { restHeightAboveGround, forgetRestHeight } from '../shared/spawnRest.js';
 import { gridSlotPose } from '../shared/grid.js';
 import { WHEEL_POSITIONS, SUSPENSION_REST_LENGTH, WHEEL_RADIUS } from '../shared/vehicleConfig.js';
@@ -109,6 +109,37 @@ test('cars spawn already settled, so the race does not start with a drop', async
     const after = [...sim.cars.values()].map((car) => car.body.translation().y);
     const moved = Math.max(...after.map((y, i) => Math.abs(y - before[i])));
     assert.ok(moved < 0.01, `a kocsi ${(moved * 100).toFixed(1)} cm-t mozdult a rajt után`);
+  } finally {
+    sim.stop();
+  }
+});
+
+test('the authoritative Hot Lap simulation uses the dedicated start point', async () => {
+  const sourceMap = (await getManifest()).maps.find(
+    (entry) => entry.collision && entry.spawns?.length >= 8
+  );
+  assert.ok(sourceMap, 'a baked map with eight spawn points is required');
+
+  const hotLapSpawn = { ...sourceMap.spawns[0], heading: 1.2345 };
+  const map = { ...sourceMap, hotLapSpawn };
+  const player = { id: 'hotlap-driver', slot: 7, carId: 'car' };
+  const room = {
+    code: 'HOTLAP', mode: GAME_MODE.HOT_LAP, ghostMode: true,
+    players: new Map([[player.id, player]]), state: ROOM_STATE.LOADING,
+    laps: 1, mapId: map.id,
+    recordLap: async () => {}, recordResults: async () => {}, toJSON: () => ({}),
+  };
+  const sim = new RaceSim(room, { map, broadcast: () => {} });
+  room.sim = sim;
+  await sim.start();
+  clearInterval(sim.timer);
+  sim.timer = null;
+
+  try {
+    const car = sim.cars.get(player.id);
+    assert.equal(car.respawn.x, hotLapSpawn.x);
+    assert.equal(car.respawn.z, hotLapSpawn.z);
+    assert.equal(car.respawn.heading, hotLapSpawn.heading);
   } finally {
     sim.stop();
   }

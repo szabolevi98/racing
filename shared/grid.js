@@ -28,3 +28,17 @@ export function gridSlotPose(spawns, slot) {
     heading,
   };
 }
+
+// A Hot Lap külön felvezetőpontról indulhat. Ha a pályához nincs ilyen
+// beállítva, a korábbi viselkedés marad: a nyolcadik normál rajthely.
+// Közös függvény, hogy a böngésző első képkockája és a szerver fizikája
+// ugyanazt a pozíciót használja.
+export function hotLapStartPose(spawns, hotLapSpawn) {
+  const x = Number(hotLapSpawn?.x);
+  const z = Number(hotLapSpawn?.z);
+  if (Number.isFinite(x) && Number.isFinite(z)) {
+    const rawHeading = Number(hotLapSpawn?.heading);
+    return { x, z, heading: Number.isFinite(rawHeading) ? rawHeading : 0 };
+  }
+  return gridSlotPose(spawns, 7);
+}

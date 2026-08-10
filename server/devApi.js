@@ -32,6 +32,19 @@ async function mapDirOf(mapId) {
 
 const round2 = (v) => Math.round(Number(v) * 100) / 100;
 
+function cleanSpawnPoint(point) {
+  if (!point || point.x === undefined || point.z === undefined) return null;
+  const x = Number(point.x);
+  const z = Number(point.z);
+  const heading = Number(point.heading);
+  if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
+  return {
+    x: round2(x),
+    z: round2(z),
+    heading: Number.isFinite(heading) ? Math.round(heading * 1e4) / 1e4 : 0,
+  };
+}
+
 export async function saveSpawn(body) {
   const dir = await mapDirOf(body?.mapId);
   if (!Array.isArray(body?.spawns)) {
@@ -41,15 +54,24 @@ export async function saveSpawn(body) {
   }
   const spawns = body.spawns
     .slice(0, 8)
-    .filter((p) => p && p.x !== undefined && p.z !== undefined)
-    .map((p) => ({
-      x: round2(p.x),
-      z: round2(p.z),
-      heading: Math.round((Number(p.heading) || 0) * 1e4) / 1e4,
-    }));
+    .map(cleanSpawnPoint)
+    .filter(Boolean);
   await fs.writeFile(path.join(dir, 'spawn.json'), JSON.stringify(spawns, null, 2) + '\n');
+
+  let hotLapSpawn = null;
+  if (Object.hasOwn(body, 'hotLapSpawn')) {
+    hotLapSpawn = cleanSpawnPoint(body.hotLapSpawn);
+    const hotLapFile = path.join(dir, 'hotlap_spawn.json');
+    if (hotLapSpawn) {
+      await fs.writeFile(hotLapFile, JSON.stringify(hotLapSpawn, null, 2) + '\n');
+    } else {
+      await fs.unlink(hotLapFile).catch((err) => {
+        if (err?.code !== 'ENOENT') throw err;
+      });
+    }
+  }
   invalidateManifest();
-  return { ok: true, count: spawns.length };
+  return { ok: true, count: spawns.length, hasHotLapSpawn: !!hotLapSpawn };
 }
 
 export async function saveGates(body) {
@@ -168,7 +190,7 @@ export async function saveBakeConfig(body) {
     debrisFilter: b.debrisFilter !== false,
     kerbSmoothing: b.kerbSmoothing !== false,
     canopy: {
-      enabled: b.canopy?.enabled === true,
+      enabled: b.canopy?.enabled !== false,
       minHeight: num(b.canopy?.minHeight, 1, 60, 10),
     },
     asphaltSmoothing: {

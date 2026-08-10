@@ -8,13 +8,14 @@ export const C2S = {
   RESTORE_PROFILE: 'restoreProfile', // { token }         — meglévő profil visszaállítása
   RENAME_PLAYER: 'renamePlayer',     // { name }          — bejelentkezett profil átnevezése
   CREATE_ROOM: 'createRoom',   // { mapId, carId, laps, ghostMode }
+  START_HOT_LAP: 'startHotLap', // { mapId, carId, ghostPlayerId? }
   JOIN_ROOM: 'joinRoom',       // { code, carId }
   LEAVE_ROOM: 'leaveRoom',
   SET_CAR: 'setCar',           // { carId }
   SET_READY: 'setReady',       // { ready }
   START_RACE: 'startRace',     // csak a szoba tulajdonosa
   INPUT: 'input',              // { seq, steer:-1..1, throttle:-1..1, brake:0..1, handbrake }
-  RESET: 'reset',              // az "R": vissza az utolsó érintett checkpontra
+  RESET: 'reset',              // az "R": multi = checkpoint, Hot Lap = teljes újrakezdés
   PING: 'ping',                // { t }
 };
 
@@ -80,6 +81,11 @@ export const ROOM_STATE = {
   COUNTDOWN: 'countdown',
   RACING: 'racing',
   FINISHED: 'finished',
+};
+
+export const GAME_MODE = {
+  MULTIPLAYER: 'multiplayer',
+  HOT_LAP: 'hotLap',
 };
 
 // A szerver ennyiszer lépteti a fizikát másodpercenként. A kliens ugyanezzel

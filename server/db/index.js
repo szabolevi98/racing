@@ -7,9 +7,15 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { SERVER_DIR } from '../paths.js';
+import { sanitizeGhostReplay } from '../../shared/ghost.js';
 
 let pool = null;
 let available = false;
+
+async function ensureColumn(conn, table, column, definition) {
+  const [rows] = await conn.query(`SHOW COLUMNS FROM \`${table}\` LIKE ?`, [column]);
+  if (!rows.length) await conn.query(`ALTER TABLE \`${table}\` ADD COLUMN ${definition}`);
+}
 
 export function dbAvailable() {
   return available;
@@ -37,6 +43,11 @@ export async function initDb() {
       if (/^\s*(CREATE\s+DATABASE|USE)\b/i.test(stmt)) continue;
       await conn.query(stmt);
     }
+    // A CREATE TABLE IF NOT EXISTS egy már futó szerveren nem bővíti a meglévő
+    // táblát. Ezek az idempotens migrációk ezért külön biztosítják, hogy deploy
+    // után a régi map_records is megkapja a szellemhez szükséges mezőket.
+    await ensureColumn(conn, 'map_records', 'car_id', "`car_id` VARCHAR(128) NOT NULL DEFAULT '' AFTER `map_id`");
+    await ensureColumn(conn, 'map_records', 'ghost_data', '`ghost_data` MEDIUMTEXT NULL AFTER `race_id`');
     conn.release();
     available = true;
     console.log(`Adatbázis: csatlakozva (${cfg.user}@${cfg.host}:${cfg.port}/${cfg.database})`);
@@ -143,7 +154,10 @@ export async function saveResult(raceId, playerId, data) {
   );
 }
 
-export async function saveLap(raceId, playerId, lapNumber, timeMs, invalid, mapId) {
+export async function saveLap(
+  raceId, playerId, lapNumber, timeMs, invalid, mapId,
+  { carId = '', ghost = null } = {}
+) {
   if (!available || !raceId || !playerId) return;
   const ms = Math.round(timeMs);
   await pool.query(
@@ -160,14 +174,18 @@ export async function saveLap(raceId, playerId, lapNumber, timeMs, invalid, mapI
   // hasonlítanák önmagához (mindig hamis) — pontosan ettől frissült korábban
   // csak az idő, a race_id és az achieved_at pedig a régi rekordé maradt.
   if (invalid || !mapId) return;
+  const replay = sanitizeGhostReplay(ghost);
+  const ghostJson = replay ? JSON.stringify(replay) : null;
   await pool.query(
-    `INSERT INTO map_records (player_id, map_id, best_ms, race_id)
-     VALUES (?, ?, ?, ?)
+    `INSERT INTO map_records (player_id, map_id, car_id, best_ms, race_id, ghost_data)
+     VALUES (?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
        race_id     = IF(VALUES(best_ms) < map_records.best_ms, VALUES(race_id),  map_records.race_id),
+       car_id      = IF(VALUES(best_ms) < map_records.best_ms, VALUES(car_id),   map_records.car_id),
+       ghost_data  = IF(VALUES(best_ms) < map_records.best_ms, VALUES(ghost_data), map_records.ghost_data),
        achieved_at = IF(VALUES(best_ms) < map_records.best_ms, CURRENT_TIMESTAMP, map_records.achieved_at),
        best_ms     = LEAST(map_records.best_ms, VALUES(best_ms))`,
-    [playerId, mapId, ms, raceId]
+    [playerId, mapId, carId, ms, raceId, ghostJson]
   );
 }
 
@@ -176,7 +194,8 @@ export async function saveLap(raceId, playerId, lapNumber, timeMs, invalid, mapI
 export async function bestLaps(mapId, limit = 20) {
   if (!available) return [];
   const [rows] = await pool.query(
-    `SELECT p.name, m.best_ms, m.map_id, m.achieved_at
+    `SELECT m.player_id, p.name, m.best_ms, m.map_id, m.car_id, m.achieved_at,
+            (m.ghost_data IS NOT NULL) AS has_ghost
        FROM map_records m
        JOIN players p ON p.id = m.player_id
       WHERE m.map_id = ?
@@ -185,4 +204,30 @@ export async function bestLaps(mapId, limit = 20) {
     [mapId, limit]
   );
   return rows;
+}
+
+export async function ghostLap(mapId, playerId) {
+  if (!available || !mapId || !Number.isSafeInteger(playerId) || playerId <= 0) return null;
+  const [rows] = await pool.query(
+    `SELECT m.player_id, p.name, m.best_ms, m.car_id, m.ghost_data
+       FROM map_records m
+       JOIN players p ON p.id = m.player_id
+      WHERE m.map_id = ? AND m.player_id = ?
+      LIMIT 1`,
+    [mapId, playerId]
+  );
+  if (!rows.length || !rows[0].ghost_data) return null;
+  try {
+    const replay = sanitizeGhostReplay(JSON.parse(rows[0].ghost_data));
+    if (!replay) return null;
+    return {
+      playerId: rows[0].player_id,
+      name: rows[0].name,
+      timeMs: rows[0].best_ms,
+      carId: rows[0].car_id,
+      replay,
+    };
+  } catch {
+    return null;
+  }
 }

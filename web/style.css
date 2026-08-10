@@ -29,17 +29,19 @@
   --r:             14px;
   --r-sm:          9px;
   --shadow:        0 10px 34px rgba(0, 0, 0, 0.5);
-  --touch-stick-size: clamp(104px, 16vw, 124px);
-  /* A kormány-joystick a képernyő szélétől befelé. Kisebb, mint korábban:
-     a hüvelykujj a készülék sarkából indul, nem a közepe felől. */
-  --touch-steer-inline: clamp(52px, 10vw, 104px);
-  --touch-stick-bottom: clamp(60px, 19vh, 94px);
+  --touch-drive-size: clamp(66px, 9vw, 82px);
+  --touch-control-bottom: max(20px, calc(env(safe-area-inset-bottom) + 14px));
+  /* A két oldali gombcsoport EGY közös távolságot használ, így valóban
+     egymás tükörképei, és később sem lehet csak az egyiket eltolni. */
+  --touch-drive-inline: clamp(28px, 5vw, 56px);
+  /* A jobb oldali kézifék alsó sora: 30px magas + 7px rés. A bal oldalon nincs
+     ilyen sor, ezért ennyivel emeljük meg a kormánygombokat a pedálok szintjére. */
+  --touch-lower-row-height: 37px;
   /* Mekkora sávot foglal a jobb alsó sarokban a kézifék + a két pedálgomb.
      A fölöttük ülő panelek (sebesség, FPS) ehhez igazodnak. */
-  --touch-pedal-height: calc(clamp(66px, 9vw, 82px) + 37px);
+  --touch-pedal-height: calc(var(--touch-drive-size) + 37px);
   /* A pedálblokk a jobb széltől befelé — nem a sarokba tapasztva, hogy a
      hüvelykujj ne a képernyő peremén dolgozzon. */
-  --touch-pedal-inline: clamp(28px, 5vw, 56px);
 }
 
 /* A natív űrlapelemeket (a <select> LEGÖRDÜLŐ LISTÁJÁT, a görgetősávot) a
@@ -214,6 +216,10 @@ kbd.k {
   border: 1px solid transparent; border-radius: var(--r-sm);
   font-size: 12px; font-weight: 650; line-height: 1.35;
 }
+.menu-primary-fields { display: flex; flex-direction: column; }
+.menu-map-field { order: 1; }
+.menu-primary-fields > .track-alert { order: 2; }
+.menu-car-field { order: 3; }
 .track-alert[data-type="success"] {
   color: #8ce8b3; background: rgba(61, 220, 132, 0.10); border-color: rgba(61, 220, 132, 0.35);
 }
@@ -233,9 +239,18 @@ kbd.k {
 .btn-race:not(:disabled):hover { filter: brightness(1.12); }
 .btn-race:not(:disabled):active { transform: translateY(1px); }
 .btn-solo { background: linear-gradient(180deg, #4d8dff, #2f6de0); }
+.mode-buttons {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;
+}
+.mode-buttons .btn-race { min-width: 0; padding-inline: 0.55rem; }
+.btn-hotlap {
+  background: linear-gradient(180deg, #d59a35, #9f681d);
+  border: 1px solid rgba(255, 205, 112, 0.38);
+}
 .btn-mp {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--line-strong); color: var(--text);
+  grid-column: 1 / -1;
 }
 .ghost-mode-option {
   display: flex; align-items: flex-start; gap: 9px; margin-top: 10px;
@@ -279,22 +294,30 @@ kbd.k {
   /* Kétoszlopos elrendezés. A .menu-inner eddig oszlop-flex volt; ráccsá
      alakítva a gyerekek MARKUP-VÁLTOZÁS NÉLKÜL kerülnek két hasábba, tehát
      az asztali nézet érintetlen marad. A címsor, a körök/környezet sora és a
-     ghost mód a teljes szélességet kapja, a két nagy legördülő és a két
-     indítógomb viszont egymás mellé. */
+     ghost mód a teljes szélességet kapja, a két nagy legördülő pedig
+     egymás mellé kerül. A módgombok a saját kétoszlopos rácsukat tartják. */
   .menu-inner {
     display: grid; grid-template-columns: 1fr 1fr;
     column-gap: 0.6rem; align-content: center;
   }
   .menu-inner > h1,
   .menu-inner > .menu-sub,
+  .menu-inner > .menu-primary-fields,
   .menu-inner > .row,
-  .menu-inner > .track-alert,
+  .menu-inner > .mode-buttons,
   .menu-inner > .ghost-mode-option,
   .menu-inner > #menuStatus { grid-column: 1 / -1; }
-  /* A Többjátékos gombot a mp.js szúrja be `mt-2`-vel: egymás ALATT ez a
-     térköz, egymás MELLETT viszont 8 képponttal lejjebb csúsztatná. A
-     Bootstrap segédosztályai `!important`-ok, ezért itt is kell. */
-  #mpOpenBtn { margin-top: 0 !important; }
+  .mode-buttons { gap: 6px; }
+  .mode-buttons .btn-race { padding-inline: 0.3rem; font-size: 0.78rem; }
+  .menu-primary-fields {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.45rem 0.6rem;
+  }
+  .menu-map-field { grid-column: 1; grid-row: 1; }
+  .menu-car-field { grid-column: 2; grid-row: 1; }
+  .menu-primary-fields > .track-alert { grid-column: 1 / -1; grid-row: 2; }
+  .menu-primary-fields > .mb-3 { margin-bottom: 0 !important; }
+  .menu-primary-fields > .track-alert { margin: 0; }
 
   /* A Környezet (col-7) és a Körök (col-5) itt fele-fele: két oszlopban a
      7/5-ös bootstrap-arány felesleges, egyenlő hasábokkal rendezettebb. */
@@ -432,7 +455,9 @@ kbd.k {
 .lb-row {
   display: grid; grid-template-columns: 16px minmax(0, 1fr) auto;
   align-items: center; column-gap: 8px;
-  min-height: 24px; padding: 3px 5px; border-radius: 6px; font-size: 12.5px;
+  min-height: 24px; padding: 3px 5px;
+  border-radius: 6px; color: inherit; background: transparent;
+  text-align: left; font-size: 12.5px;
 }
 .lb-row + .lb-row { border-top: 1px solid rgba(255, 255, 255, 0.035); }
 .lb-pos { font-size: 11px; font-weight: 800; color: var(--muted); text-align: right; }
@@ -515,38 +540,32 @@ kbd.k {
 #zoneIndicator[data-zone="wall"]     { --zone-c: var(--danger); }
 
 /* --- mobilos érintésvezérlés ---
-   Két valódi analóg kar: balra a kormány, jobbra a gáz/fék. A gombhalmaz
-   helyett mindkét hüvelykujj egy nagy, stabil célfelületet kap. */
+   Mindkét oldalon nagy digitális gombok vannak. A kormányzásnál ez pontosabb
+   és kiszámíthatóbb, mint amikor a hüvelykujjnak egy analóg kart kell középen
+   tartania, miközben a telefont is fogja. */
 #touchControls {
   display: none; position: fixed; inset: 0; z-index: 18;
   pointer-events: none; touch-action: none;
   -webkit-user-select: none; user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
-.touch-joystick {
+.touch-steering-buttons {
   position: absolute;
-  bottom: var(--touch-stick-bottom);
-  width: var(--touch-stick-size); aspect-ratio: 1; border-radius: 50%;
-  pointer-events: auto; touch-action: none; overflow: visible;
-  border: 1px solid var(--line-strong); background: var(--panel);
-  box-shadow: var(--shadow);
-  -webkit-backdrop-filter: blur(16px) saturate(1.3); backdrop-filter: blur(16px) saturate(1.3);
-  transition: opacity .15s ease, border-color .12s ease, background-color .12s ease;
-}
-.touch-steering {
-  left: max(var(--touch-steer-inline), calc(env(safe-area-inset-left) + 12px));
+  bottom: calc(var(--touch-control-bottom) + var(--touch-lower-row-height));
+  left: max(var(--touch-drive-inline), calc(env(safe-area-inset-left) + 12px));
+  display: flex; gap: 12px; pointer-events: auto;
 }
 
 /* Gáz/fék: gombok, a jobb alsó sarokban egymás mellett, fölöttük a kézifék. */
 .touch-pedals {
   position: absolute; pointer-events: auto;
-  right: max(var(--touch-pedal-inline), calc(env(safe-area-inset-right) + 12px));
-  bottom: max(20px, calc(env(safe-area-inset-bottom) + 14px));
+  right: max(var(--touch-drive-inline), calc(env(safe-area-inset-right) + 12px));
+  bottom: var(--touch-control-bottom);
   display: flex; flex-direction: column; align-items: stretch; gap: 7px;
 }
 .touch-pedal-row { display: flex; gap: 12px; }
-.touch-drive {
-  width: clamp(66px, 9vw, 82px); aspect-ratio: 1;
+.touch-drive, .touch-steer {
+  width: var(--touch-drive-size); aspect-ratio: 1;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 2px; border-radius: 50%;
 }
@@ -556,37 +575,8 @@ kbd.k {
 .touch-brake { border-color: rgba(255, 95, 95, .5); background: rgba(91, 29, 34, .56); }
 .touch-gas.is-pressed { background-color: rgba(38, 177, 99, .7); }
 .touch-brake.is-pressed { background-color: rgba(218, 61, 67, .7); }
-.joystick-axis {
-  position: absolute; left: 50%; top: 50%; pointer-events: none;
-  background: rgba(255, 255, 255, .15); transform: translate(-50%, -50%);
-}
-/* Csak vízszintes tengely maradt: a gáz/fék gomb lett, egyedül a kormányzás
-   joystick. A függőleges tengely és a hozzá tartozó fel/le feliratok innen
-   kikerültek — használat nélkül csak félrevezetnék a következő olvasót. */
-.joystick-axis-horizontal { width: 72%; height: 1px; }
-.joystick-axis::before, .joystick-axis::after {
-  content: ''; position: absolute; width: 5px; height: 5px; border-radius: 50%;
-  background: rgba(255, 255, 255, .28);
-}
-.joystick-axis-horizontal::before { left: 0; top: -2px; }
-.joystick-axis-horizontal::after { right: 0; top: -2px; }
-.joystick-knob {
-  position: absolute; left: 50%; top: 50%; width: 38%; aspect-ratio: 1;
-  border-radius: 50%; transform: translate3d(-50%, -50%, 0);
-  border: 1px solid rgba(255, 255, 255, .38);
-  background: rgba(255, 255, 255, .15);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, .32);
-  pointer-events: none; will-change: transform;
-}
-.touch-joystick.is-active { border-color: rgba(77, 141, 255, .65); background: rgba(13, 16, 23, .68); }
-.touch-joystick.is-active .joystick-knob { background: rgba(77, 141, 255, .28); }
-.joystick-side {
-  position: absolute; pointer-events: none; text-transform: uppercase;
-  font-size: 8px; font-weight: 800; letter-spacing: .12em;
-  color: rgba(255, 255, 255, .62);
-}
-.joystick-side-left { left: 7px; top: 50%; transform: translateY(-50%); }
-.joystick-side-right { right: 5px; top: 50%; transform: translateY(-50%); }
+.touch-steer { border-color: rgba(77, 141, 255, .5); background: rgba(25, 52, 99, .56); }
+.touch-steer.is-pressed { background-color: rgba(56, 112, 215, .72); }
 .touch-utility {
   position: absolute; left: 50%; bottom: max(28px, calc(env(safe-area-inset-bottom) + 18px));
   transform: translateX(-50%); display: flex; gap: 8px; pointer-events: auto;
@@ -617,7 +607,6 @@ kbd.k {
   transform: scale(0.93); border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(77, 141, 255, 0.56);
 }
-#touchControls.is-disabled .touch-joystick { opacity: .35; pointer-events: none; }
 
 @media (hover: none) and (pointer: coarse), (max-width: 900px) {
   .ghost-mode-option { gap: 7px; margin-top: 7px; padding: 6px 8px; }
@@ -667,13 +656,15 @@ kbd.k {
   .st-lap, .st-gap, .st-time { font-size: 8px; }
   .st-event { margin-top: 6px; padding-top: 5px; font-size: 9px; }
 
-  /* A bal alsó sarokban a kormány-joystick ül; a minitérkép fölé kerül. */
+  /* A bal alsó sarokban a kormánygombok ülnek; a minitérkép föléjük kerül. */
   #miniMapWrap {
     left: max(8px, env(safe-area-inset-left));
-    bottom: calc(var(--touch-stick-bottom) + var(--touch-stick-size) + 8px);
+    /* Ugyanaz az alapvonal, mint a jobb oldali km/h blokk alja: a teljes
+       kormánygomb-magasság fölé kerül, nem az alsó kézifék-sor mellé. */
+    bottom: calc(var(--touch-control-bottom) + var(--touch-lower-row-height) + var(--touch-drive-size) + 8px);
     padding: 2px;
   }
-  /* A menüben nincs alatta joystick, ezért nem kell fölé emelni — oda kerül,
+  /* A menüben nincsenek alatta kormánygombok, ezért nem kell fölé emelni — oda kerül,
      ahová a felhasználó várja: a bal alsó sarokba. */
   #miniMapWrap.in-menu {
     bottom: max(8px, env(safe-area-inset-bottom));
@@ -705,7 +696,7 @@ kbd.k {
      igazodik, különben feleslegesen magasan lógna a sebességpanel. */
   #bottomRightStack {
     right: max(8px, env(safe-area-inset-right));
-    bottom: calc(max(20px, calc(env(safe-area-inset-bottom) + 14px)) + var(--touch-pedal-height) + 8px);
+    bottom: calc(var(--touch-control-bottom) + var(--touch-pedal-height) + 8px);
     gap: 4px;
   }
   #perfRow { gap: 4px; }
@@ -726,9 +717,9 @@ kbd.k {
   #standingsWrap:not(.hidden) { margin-top: 82px; }
 }
 
-/* Fekvő telefonon kevés a magasság: a joystickok és a HUD is kompaktabb. */
+/* Alacsony fekvő telefonon a négy vezetőgomb legyen kompaktabb. */
 @media (max-height: 520px) and (min-width: 601px) {
-  :root { --touch-stick-size: clamp(96px, 15vw, 112px); }
+  :root { --touch-drive-size: clamp(62px, 8.5vw, 74px); }
 }
 
 /* ============================================================
@@ -852,11 +843,54 @@ kbd.k {
 /* ============================================================
    Többjátékos lobby
    ============================================================ */
-#mpOverlay {
+#mpOverlay, #hotLapGhostPicker {
   position: fixed; inset: 0; z-index: 40;
   display: flex; align-items: center; justify-content: center;
   background: rgba(6, 8, 12, 0.74);
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+.hotlap-picker-panel { width: min(560px, 94vw); }
+.hotlap-picker-map { margin-top: 3px; color: var(--muted); font-size: 10px; }
+.hotlap-picker-intro { margin-bottom: 12px; color: var(--muted); font-size: 11.5px; line-height: 1.4; }
+.hotlap-ghost-list {
+  max-height: min(48vh, 360px); overflow-y: auto;
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, .02);
+}
+.hotlap-ghost-row {
+  display: grid; grid-template-columns: 18px 22px minmax(80px, 1fr) 82px 76px;
+  align-items: center; gap: 7px; min-height: 38px; padding: 5px 9px;
+  border-bottom: 1px solid rgba(255, 255, 255, .045);
+  cursor: pointer; font-size: 12px;
+}
+.hotlap-ghost-row:last-of-type { border-bottom: 0; }
+.hotlap-ghost-row:has(input:checked) { background: rgba(77, 141, 255, .15); }
+.hotlap-ghost-row input { margin: 0; accent-color: var(--accent); }
+.hotlap-ghost-rank { color: var(--muted); text-align: right; font-weight: 750; }
+.hotlap-ghost-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
+.hotlap-ghost-time { text-align: right; white-space: nowrap; }
+.hotlap-ghost-state { color: #9ec0ff; font-size: 9px; text-align: right; white-space: nowrap; }
+.hotlap-ghost-row.is-unavailable { opacity: .48; cursor: not-allowed; }
+.hotlap-ghost-row.is-unavailable .hotlap-ghost-state { color: var(--muted); }
+.hotlap-ghost-none .hotlap-ghost-name { font-weight: 750; }
+.hotlap-ghost-none .hotlap-ghost-time { color: var(--muted); font-size: 10px; }
+.hotlap-picker-empty { padding: 13px 10px; color: var(--muted); font-size: 11px; text-align: center; }
+.hotlap-picker-error { min-height: 17px; margin-top: 8px; color: #ff9b9b; font-size: 10px; }
+.hotlap-picker-actions { display: flex; gap: 8px; margin-top: 10px; }
+
+@media (hover: none) and (pointer: coarse), (max-width: 900px) {
+  .hotlap-picker-panel { max-height: 94vh; }
+  .hotlap-picker-panel .mp-head { padding: 10px 14px; }
+  .hotlap-picker-panel .mp-body { padding: 11px 14px 12px; }
+  .hotlap-picker-intro { margin-bottom: 7px; font-size: 9px; }
+  .hotlap-ghost-list { max-height: 47vh; }
+  .hotlap-ghost-row {
+    grid-template-columns: 15px 18px minmax(65px, 1fr) 68px 67px;
+    min-height: 29px; gap: 5px; padding: 3px 7px; font-size: 10px;
+  }
+  .hotlap-ghost-state { font-size: 7px; }
+  .hotlap-picker-actions { margin-top: 6px; }
+  .hotlap-picker-actions .mp-btn { padding-block: .38rem; font-size: .72rem; }
 }
 .mp-panel {
   width: min(440px, 92vw); max-height: 88vh; overflow-y: auto;

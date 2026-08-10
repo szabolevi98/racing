@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Room } from '../server/game/room.js';
+import { GAME_MODE } from '../shared/protocol.js';
 
 test('each race randomly assigns exactly the first N grid slots', () => {
   const host = { id: 'host' };
@@ -30,4 +31,19 @@ test('ghost mode is a room-wide setting included in room state', () => {
   assert.equal(ghostRoom.toJSON().ghostMode, true);
   assert.equal(normalRoom.ghostMode, false);
   assert.equal(normalRoom.toJSON().ghostMode, false);
+});
+
+test('Hot Lap is a one-lap server mode with collisionless replay support', () => {
+  const host = { id: 'host' };
+  const room = new Room('HOTLAP', host, {
+    mapId: 'map', laps: 1, mode: GAME_MODE.HOT_LAP, ghostPlayerId: 42,
+  });
+  room.add(host, 'f2004');
+  host.slot = 7;
+
+  assert.equal(room.mode, GAME_MODE.HOT_LAP);
+  assert.equal(room.ghostMode, true);
+  assert.equal(room.ghostPlayerId, 42);
+  assert.equal(room.toJSON().mode, GAME_MODE.HOT_LAP);
+  assert.equal(room.toJSON().players[0].slot, 7);
 });

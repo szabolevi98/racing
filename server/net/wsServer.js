@@ -5,11 +5,13 @@
 import { WebSocketServer } from 'ws';
 import { randomUUID } from 'node:crypto';
 import {
-  C2S, S2C, ROOM_STATE, ROOM_CODE_LENGTH, sanitizeName, sanitizePlayerToken,
+  C2S, S2C, ROOM_STATE, GAME_MODE, ROOM_CODE_LENGTH, sanitizeName, sanitizePlayerToken,
   COUNTDOWN_MS, RACE_LOAD_TIMEOUT_MS,
 } from '../../shared/protocol.js';
 import { Room } from '../game/room.js';
-import { dbAvailable, findPlayerByToken, renamePlayer, upsertPlayer } from '../db/index.js';
+import {
+  dbAvailable, findPlayerByToken, ghostLap, renamePlayer, upsertPlayer,
+} from '../db/index.js';
 import { getManifest } from '../assets.js';
 import { recentBlockMs } from '../loopLag.js';
 
@@ -80,6 +82,7 @@ function leaveRoom(player, reason) {
   if (remaining === 0) {
     room.sim?.stop();
     clearTimeout(room.loadTimer);
+    void room.finishAttempt();
     rooms.delete(room.code);
   } else {
     pushRoomState(room);
@@ -145,11 +148,42 @@ async function handleMessage(player, msg) {
       return;
     }
 
+    case C2S.START_HOT_LAP: {
+      if (!player.name) return fail(socket, 'Előbb add meg a neved.');
+      if (player.roomCode) leaveRoom(player);
+      const manifest = await getManifest();
+      const map = manifest.maps.find((m) => m.id === msg.mapId);
+      const car = manifest.cars.find((c) => c.id === msg.carId);
+      if (!map) return fail(socket, 'Nincs ilyen pálya.');
+      if (!car) return fail(socket, 'Nincs ilyen kocsi.');
+      const code = makeRoomCode();
+      if (!code) return fail(socket, 'Nem sikerült időmérést indítani, próbáld újra.');
+      const ghostPlayerId = Number(msg.ghostPlayerId);
+      const room = new Room(code, player, {
+        mapId: map.id,
+        laps: 1,
+        ghostMode: true,
+        mode: GAME_MODE.HOT_LAP,
+        ghostPlayerId: Number.isSafeInteger(ghostPlayerId) && ghostPlayerId > 0
+          ? ghostPlayerId
+          : null,
+      });
+      room.add(player, car.id);
+      // A Hot Lap felvezetőből indul: minden aktív pályán pontosan nyolc
+      // rajthely van, a 7-es index tehát a nyolcadik, legtávolabbi kocka.
+      player.slot = 7;
+      rooms.set(code, room);
+      pushRoomState(room);
+      await startRace(room);
+      return;
+    }
+
     case C2S.JOIN_ROOM: {
       if (!player.name) return fail(socket, 'Előbb add meg a neved.');
       const code = String(msg.code || '').toUpperCase().trim();
       const room = rooms.get(code);
       if (!room) return fail(socket, 'Nincs ilyen szoba.');
+      if (room.mode === GAME_MODE.HOT_LAP) return fail(socket, 'Ez egy egyszemélyes időmérés.');
       if (room.isFull) return fail(socket, 'A szoba megtelt.');
       if (room.state !== ROOM_STATE.LOBBY) return fail(socket, 'A verseny már elindult ebben a szobában.');
       if (player.roomCode) leaveRoom(player);
@@ -203,7 +237,8 @@ async function handleMessage(player, msg) {
 
     case C2S.RESET: {
       const room = rooms.get(player.roomCode);
-      room?.sim?.resetCar(player.id);
+      if (room?.mode === GAME_MODE.HOT_LAP) await restartHotLap(room);
+      else room?.sim?.resetCar(player.id);
       return;
     }
 
@@ -220,17 +255,30 @@ async function handleMessage(player, msg) {
 }
 
 async function startRace(room) {
-  await room.beginLoading();
+  const generation = ++room.raceGeneration;
+  const raceId = await room.beginLoading();
   // A DB-művelet alatt a tulajdonos bezárhatta a lapot. Ilyenkor a szoba már
   // nincs a nyilvántartásban; nem indítunk hozzá árva fizikai időzítőt.
-  if (rooms.get(room.code) !== room || room.size === 0) return;
+  if (rooms.get(room.code) !== room || room.size === 0 || room.raceGeneration !== generation) {
+    await room.finishAttempt(raceId);
+    return;
+  }
+  room.raceId = raceId;
   // A rajtsorrend futamonként új: csak az első N rajthelyet osztjuk ki az N
   // résztvevő között, véletlenszerűen. Itt történik, nem belépéskor, ezért a
   // host és a korábban érkezők sem kapnak állandó rajtpozíciót.
-  room.randomizeGridSlots();
+  if (room.mode === GAME_MODE.HOT_LAP) {
+    for (const player of room.players.values()) player.slot = 7;
+  } else {
+    room.randomizeGridSlots();
+  }
   const manifest = await getManifest();
-  if (rooms.get(room.code) !== room || room.size === 0) return;
+  if (rooms.get(room.code) !== room || room.size === 0 || room.raceGeneration !== generation) return;
   const map = manifest.maps.find((m) => m.id === room.mapId);
+  const ghost = room.mode === GAME_MODE.HOT_LAP && room.ghostPlayerId
+    ? await ghostLap(room.mapId, room.ghostPlayerId).catch(() => null)
+    : null;
+  if (rooms.get(room.code) !== room || room.size === 0 || room.raceGeneration !== generation) return;
 
   // A rajtrács-pontok a pálya spawn.json-jából jönnek; ha kevesebb van, mint
   // ahány játékos, körbeforgunk rajtuk (a szimuláció szétdobja őket).
@@ -240,8 +288,11 @@ async function startRace(room) {
   broadcastRoom(room, S2C.RACE_STARTING, {
     mapId: room.mapId,
     laps: room.laps,
+    mode: room.mode,
     ghostMode: room.ghostMode,
+    ghost,
     spawns,
+    hotLapSpawn: room.mode === GAME_MODE.HOT_LAP ? (map?.hotLapSpawn || null) : null,
     players: room.toJSON().players,
   });
   pushRoomState(room);
@@ -249,14 +300,24 @@ async function startRace(room) {
   // A szimulációt a raceSim modul indítja — külön fájlban, hogy ez a réteg
   // tisztán a hálózatról szóljon. Befagyasztva indul, és a releaseAt oldja.
   const { RaceSim } = await import('../game/raceSim.js');
-  const sim = new RaceSim(room, { map, broadcast: (type, data) => broadcastRoom(room, type, data) });
+  const sim = new RaceSim(room, {
+    map,
+    generation,
+    raceId,
+    broadcast: (type, data) => broadcastRoom(room, type, data),
+  });
   try {
     await sim.start();
   } catch (err) {
+    if (rooms.get(room.code) !== room || room.raceGeneration !== generation) {
+      sim.stop();
+      return;
+    }
     // A szoba nem maradhat LOADING-ban: onnan sem indítani, sem csatlakozni nem
     // lehetne, vagyis az egész szoba használhatatlanná válna egy hibás pályától.
     console.error(`[${room.code}] A verseny nem indítható:`, err);
     sim.stop();
+    await room.finishAttempt(raceId);
     room.state = ROOM_STATE.LOBBY;
     room.sim = null;
     broadcastRoom(room, S2C.ERROR, { message: 'A verseny nem indítható: ' + err.message });
@@ -266,7 +327,7 @@ async function startRace(room) {
   // A collision/zonemap beolvasása közben is kiléphetett valaki. Az üres vagy
   // már lecserélt szobát teljesen leállítjuk; többjátékos szobánál pedig az
   // időközben távozott autókat eltávolítjuk, mielőtt egyetlen snapshot kimenne.
-  if (rooms.get(room.code) !== room || room.size === 0) {
+  if (rooms.get(room.code) !== room || room.size === 0 || room.raceGeneration !== generation) {
     sim.stop();
     return;
   }
@@ -282,6 +343,27 @@ async function startRace(room) {
   room.loadTimer = setTimeout(() => maybeBeginCountdown(room, true), RACE_LOAD_TIMEOUT_MS);
   // Egyjátékos szoba (vagy már mindenki kész) esetén ne várjunk feleslegesen.
   maybeBeginCountdown(room);
+}
+
+async function restartHotLap(room) {
+  if (room.mode !== GAME_MODE.HOT_LAP || room.restarting) return;
+  room.restarting = true;
+  try {
+    // Az épp még aszinkron pályafizikát építő régi startRace is azonnal
+    // érvényét veszti; amikor elkészül, a generation-ellenőrzés leállítja.
+    room.raceGeneration++;
+    clearTimeout(room.loadTimer);
+    room.loadTimer = null;
+    room.sim?.stop();
+    room.sim = null;
+    room.state = ROOM_STATE.LOBBY;
+    room.countdownEndsAt = 0;
+    for (const player of room.players.values()) player.ready = false;
+    await room.finishAttempt();
+    if (rooms.get(room.code) === room && room.size === 1) await startRace(room);
+  } finally {
+    room.restarting = false;
+  }
 }
 
 // Elindítja a 3-2-1-et, ha mindenki betöltött — vagy ha lejárt a türelmi idő.

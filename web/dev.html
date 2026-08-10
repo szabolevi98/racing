@@ -60,7 +60,7 @@
           <label for="bakeSmoothCheck" class="form-check-label small">Rázókő-hullámok simítása</label>
         </div>
         <div class="form-check mb-0">
-          <input type="checkbox" id="bakeCanopyCheck" class="form-check-input">
+          <input type="checkbox" id="bakeCanopyCheck" class="form-check-input" checked>
           <label for="bakeCanopyCheck" class="form-check-label small">Fák ütközés nélkül</label>
         </div>
         <label class="small mb-0 d-flex align-items-center gap-1">
@@ -154,6 +154,8 @@
       <div class="btn-group mb-2" role="group">
         <input type="radio" class="btn-check" name="zoneBrush" id="brushSpawn" value="spawn">
         <label class="btn btn-outline-info btn-sm" for="brushSpawn">Rajtpont</label>
+        <input type="radio" class="btn-check" name="zoneBrush" id="brushHotLapSpawn" value="hotlap-spawn">
+        <label class="btn btn-outline-danger btn-sm" for="brushHotLapSpawn">Időmérés rajtpont</label>
         <input type="radio" class="btn-check" name="zoneBrush" id="brushStart" value="start">
         <label class="btn btn-outline-success btn-sm" for="brushStart">Rajtvonal</label>
         <input type="radio" class="btn-check" name="zoneBrush" id="brushCheckpoint" value="checkpoint">
@@ -168,6 +170,11 @@
       <span id="spawnToolRow" class="d-none">
         Rajtpontok: <span id="zoneSpawnCount">0</span> / 8 — kattints és <em>húzd</em> a nézési irányba &nbsp;
         <button id="undoSpawnBtn" class="btn btn-sm btn-outline-info py-0">Utolsó törlése</button><br>
+      </span>
+      <span id="hotLapSpawnToolRow" class="d-none">
+        Időmérés rajtpont: <span id="hotLapSpawnState">nincs</span> — kattints és <em>húzd</em> a nézési irányba &nbsp;
+        <button id="clearHotLapSpawnBtn" class="btn btn-sm btn-outline-danger py-0">Törlés</button><br>
+        <span class="text-secondary">Ha nincs megadva, az időmérés a 8. normál rajthelyről indul.</span><br>
       </span>
       <span id="gateToolRow" class="d-none">
         Húzz egy vonalat a pályán keresztbe.<br>

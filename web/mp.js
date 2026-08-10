@@ -4,7 +4,7 @@
 // modul a bemenetet küldi, és a beérkező állapotot jeleníti meg; a köztes
 // időt interpolálja, hogy a 20/mp állapot is folyamatos mozgásnak látsszon.
 import {
-  C2S, S2C, ROOM_STATE, TAINT, TICK_RATE, TICK_MS,
+  C2S, S2C, ROOM_STATE, GAME_MODE, TAINT, TICK_RATE, TICK_MS,
   PLAYER_TOKEN_LENGTH, sanitizeName, sanitizePlayerToken,
 } from '/shared/protocol.js';
 import {
@@ -14,6 +14,7 @@ import {
   normalizeQuaternion, rotateVector, rebasePredictedState,
   samplePredictionStateAt, yawTwist,
 } from '/shared/prediction.js';
+import { raceClockTimes } from '/shared/raceClock.js';
 
 const G = window.__game;
 // Diagnosztika. A step() azért kell, mert a requestAnimationFrame megáll, ha
@@ -74,8 +75,12 @@ let ws = null;
 let me = { id: null, name: null, token: localStorage.getItem('racing.token') || null };
 let room = null;
 let starting = null;
+let pendingHotLap = null;
 // A távoli autók modelljei: playerId -> { group, buf: [állapotok] }
 const others = new Map();
+// A kiválasztott ranglistakör áttetsző visszajátszása. Nem kerül fizikai
+// proxyba, ezért sem a szerveren, sem a helyi jóslatban nem tud ütközni.
+let ghostCar = null;
 // A saját kocsi állapot-puffere is kell: a szerver mozgat minket is.
 let selfBuf = [];
 let currentRaceResults = null;
@@ -109,7 +114,7 @@ el.className = 'hidden';
 el.innerHTML = `
 <div class="mp-panel">
   <div class="mp-head">
-    <h5>Többjátékos</h5>
+    <h5 id="mpTitle">Többjátékos</h5>
     <button id="mpClose" class="mp-x" title="Vissza a menübe">&times;</button>
   </div>
   <div class="mp-body">
@@ -190,7 +195,7 @@ mpResultsEl.id = 'mpResults';
 mpResultsEl.className = 'hidden';
 mpResultsEl.innerHTML = `
   <div class="panel mp-results-card">
-    <div class="results-title">Verseny vége</div>
+    <div id="mpResultsTitle" class="results-title">Verseny vége</div>
     <div id="mpResultsBody"></div>
     <div id="mpResultsHint" class="mp-results-hint"></div>
     <div class="d-flex gap-2 mt-4">
@@ -199,6 +204,35 @@ mpResultsEl.innerHTML = `
     </div>
   </div>`;
 document.body.appendChild(mpResultsEl);
+
+// A menübeli ranglista csak tájékoztat. A Hot Lap indításakor ez a külön
+// ablak teszi egyértelművé, hogy lehet szellemet választani, de nélküle is
+// el lehet indulni.
+const hotLapGhostPickerEl = document.createElement('div');
+hotLapGhostPickerEl.id = 'hotLapGhostPicker';
+hotLapGhostPickerEl.className = 'hidden';
+hotLapGhostPickerEl.innerHTML = `
+  <div class="mp-panel hotlap-picker-panel">
+    <div class="mp-head">
+      <div>
+        <h5>Időmérés indítása</h5>
+        <div id="hotLapGhostMap" class="hotlap-picker-map"></div>
+      </div>
+      <button id="hotLapGhostClose" class="mp-x" title="Bezárás">&times;</button>
+    </div>
+    <div class="mp-body">
+      <div class="hotlap-picker-intro">
+        Válassz egy visszajátszható ranglistakört szellemnek, vagy indulj egyedül.
+      </div>
+      <div id="hotLapGhostList" class="hotlap-ghost-list"></div>
+      <div id="hotLapGhostError" class="hotlap-picker-error"></div>
+      <div class="hotlap-picker-actions">
+        <button id="hotLapGhostCancel" class="mp-btn ghost">Mégse</button>
+        <button id="hotLapGhostStart" class="mp-btn primary flex-grow-1">Időmérés indítása</button>
+      </div>
+    </div>
+  </div>`;
+document.body.appendChild(hotLapGhostPickerEl);
 
 const $ = (id) => document.getElementById(id);
 const show = (id, on) => $(id).classList.toggle('hidden', !on);
@@ -210,14 +244,175 @@ ghostModeCheckbox.addEventListener('change', () => {
 });
 
 export function openLobby() {
+  closeHotLapGhostPicker();
+  pendingHotLap = null;
+  $('mpTitle').textContent = 'Többjátékos';
   el.classList.remove('hidden');
   setErr('');
-  if (!ws || ws.readyState > 1) {
+  if (ws?.readyState === WebSocket.OPEN && me.id) {
+    show('mpLogin', false);
+    if (room?.mode === GAME_MODE.MULTIPLAYER) renderRoom();
+    else { show('mpRooms', true); show('mpRoom', false); }
+  } else {
     show('mpLogin', true); show('mpRooms', false); show('mpRoom', false);
     $('mpName').value = localStorage.getItem('racing.name') || '';
   }
 }
-function closeLobby() { el.classList.add('hidden'); }
+function closeLobby() {
+  if (!room) pendingHotLap = null;
+  el.classList.add('hidden');
+}
+
+function selectedMenuRace() {
+  return {
+    mapId: document.getElementById('mapSelect')?.value,
+    carId: document.getElementById('carSelect')?.value,
+  };
+}
+
+function sendPendingHotLap() {
+  if (!pendingHotLap || ws?.readyState !== WebSocket.OPEN || !me.id) return false;
+  const request = pendingHotLap;
+  pendingHotLap = null;
+  closeLobby();
+  G.requestGameFullscreen();
+  send(C2S.START_HOT_LAP, request);
+  return true;
+}
+
+const HOT_LAP_GHOST_SELECTION_KEY = 'racing.hotLapGhosts';
+let hotLapPickerRace = null;
+let hotLapPickerGeneration = 0;
+
+function readHotLapGhostSelections() {
+  try {
+    const value = JSON.parse(localStorage.getItem(HOT_LAP_GHOST_SELECTION_KEY) || '{}');
+    return value && typeof value === 'object' ? value : {};
+  } catch {
+    return {};
+  }
+}
+
+function savedHotLapGhost(mapId) {
+  const playerId = Number(readHotLapGhostSelections()[mapId]);
+  return Number.isSafeInteger(playerId) && playerId > 0 ? playerId : null;
+}
+
+function saveHotLapGhost(mapId, playerId) {
+  const selections = readHotLapGhostSelections();
+  if (playerId) selections[mapId] = playerId;
+  else delete selections[mapId];
+  localStorage.setItem(HOT_LAP_GHOST_SELECTION_KEY, JSON.stringify(selections));
+}
+
+function ghostChoiceHtml(entries, selectedPlayerId) {
+  const availableIds = new Set(entries
+    .filter((entry) => !!entry.has_ghost)
+    .map((entry) => Number(entry.player_id))
+    .filter((id) => Number.isSafeInteger(id) && id > 0));
+  const selectedAvailable = availableIds.has(selectedPlayerId);
+  const noGhost =
+    '<label class="hotlap-ghost-row hotlap-ghost-none">' +
+      `<input type="radio" name="hotLapGhostChoice" value=""${selectedAvailable ? '' : ' checked'}>` +
+      '<span class="hotlap-ghost-rank">—</span>' +
+      '<span class="hotlap-ghost-name">Szellem nélkül</span>' +
+      '<span class="hotlap-ghost-time">Egyedül indulok</span>' +
+    '</label>';
+  if (!entries.length) {
+    return noGhost + '<div class="hotlap-picker-empty">Ezen a pályán még nincs ranglistakör.</div>';
+  }
+  return noGhost + entries.map((entry, index) => {
+    const playerId = Number(entry.player_id);
+    const available = !!entry.has_ghost && Number.isSafeInteger(playerId) && playerId > 0;
+    const checked = available && playerId === selectedPlayerId;
+    return `<label class="hotlap-ghost-row${available ? '' : ' is-unavailable'}">` +
+      `<input type="radio" name="hotLapGhostChoice" value="${available ? playerId : ''}"` +
+        `${checked ? ' checked' : ''}${available ? '' : ' disabled'}>` +
+      `<span class="hotlap-ghost-rank num">${index + 1}</span>` +
+      `<span class="hotlap-ghost-name">${escapeHtml(entry.name)}</span>` +
+      `<span class="hotlap-ghost-time num">${G.formatTime(entry.best_ms)}</span>` +
+      `<span class="hotlap-ghost-state">${available ? 'Választható' : 'Nincs felvétel'}</span>` +
+    '</label>';
+  }).join('');
+}
+
+function closeHotLapGhostPicker() {
+  hotLapPickerGeneration++;
+  hotLapPickerRace = null;
+  hotLapGhostPickerEl.classList.add('hidden');
+}
+
+async function showHotLapGhostPicker(race) {
+  const generation = ++hotLapPickerGeneration;
+  hotLapPickerRace = race;
+  const map = G.manifest?.maps.find((entry) => entry.id === race.mapId);
+  $('hotLapGhostMap').textContent = map?.label || race.mapId;
+  $('hotLapGhostError').textContent = '';
+  $('hotLapGhostList').innerHTML = '<div class="hotlap-picker-empty">Ranglista betöltése…</div>';
+  $('hotLapGhostStart').disabled = true;
+  hotLapGhostPickerEl.classList.remove('hidden');
+
+  try {
+    const response = await fetch(`/api/leaderboard?mapId=${encodeURIComponent(race.mapId)}&limit=20`);
+    if (!response.ok) throw new Error('A ranglista nem tölthető be.');
+    const entries = (await response.json()).entries || [];
+    if (generation !== hotLapPickerGeneration) return;
+    $('hotLapGhostList').innerHTML = ghostChoiceHtml(entries, savedHotLapGhost(race.mapId));
+  } catch {
+    if (generation !== hotLapPickerGeneration) return;
+    $('hotLapGhostList').innerHTML = ghostChoiceHtml([], null);
+    $('hotLapGhostError').textContent = 'A ranglista nem töltődött be, de szellem nélkül elindulhatsz.';
+  }
+  $('hotLapGhostStart').disabled = false;
+}
+
+function beginHotLap(race, ghostPlayerId) {
+  saveHotLapGhost(race.mapId, ghostPlayerId);
+  pendingHotLap = { ...race, ghostPlayerId };
+  closeHotLapGhostPicker();
+  $('mpTitle').textContent = 'Időmérés';
+  setErr('');
+  hideMultiplayerResults();
+
+  if (sendPendingHotLap()) return;
+
+  el.classList.remove('hidden');
+  show('mpRoom', false);
+  show('mpRooms', false);
+  show('mpLogin', true);
+  $('mpName').value = localStorage.getItem('racing.name') || '';
+
+  // A már ezen a gépen mentett profilhoz nem kérünk még egy kattintást. A
+  // szerver ellenőrzi a tokent; ha már nem érvényes, a hiba a login panelen
+  // marad, és kézzel lehet új profilt létrehozni vagy másik tokent beilleszteni.
+  if (me.token) {
+    authenticate(C2S.HELLO, {
+      name: sanitizeName(localStorage.getItem('racing.name') || 'Játékos'),
+      token: me.token,
+    });
+  }
+}
+
+export function openHotLap() {
+  const { mapId, carId } = selectedMenuRace();
+  if (!mapId || !carId) return G.setMenuStatus('Előbb válassz pályát és kocsit.');
+  showHotLapGhostPicker({ mapId, carId });
+}
+
+$('hotLapGhostClose').addEventListener('click', closeHotLapGhostPicker);
+$('hotLapGhostCancel').addEventListener('click', closeHotLapGhostPicker);
+$('hotLapGhostStart').addEventListener('click', () => {
+  if (!hotLapPickerRace) return;
+  const selected = hotLapGhostPickerEl.querySelector('input[name="hotLapGhostChoice"]:checked');
+  const playerId = Number(selected?.value);
+  beginHotLap(
+    hotLapPickerRace,
+    Number.isSafeInteger(playerId) && playerId > 0 ? playerId : null
+  );
+});
+hotLapGhostPickerEl.addEventListener('click', (event) => {
+  if (event.target === hotLapGhostPickerEl) closeHotLapGhostPicker();
+});
 
 $('mpClose').addEventListener('click', closeLobby);
 
@@ -250,6 +445,7 @@ let loggingOut = false;
 $('mpLogout').addEventListener('click', () => {
   loggingOut = true;
   pendingAuthentication = null;
+  pendingHotLap = null;
   localStorage.removeItem('racing.token');
   localStorage.removeItem('racing.name');
   me = { id: null, name: null, token: null };
@@ -539,7 +735,9 @@ function onMessage(m) {
       localStorage.setItem('racing.name', m.name);
       $('mpToken').value = '';
       $('mpWho').textContent = m.name;
-      show('mpLogin', false); show('mpRooms', true);
+      if (!sendPendingHotLap()) {
+        show('mpLogin', false); show('mpRooms', true);
+      }
       break;
 
     case S2C.PROFILE_UPDATED:
@@ -552,7 +750,7 @@ function onMessage(m) {
 
     case S2C.ROOM_STATE:
       room = m.room;
-      renderRoom();
+      if (room?.mode !== GAME_MODE.HOT_LAP) renderRoom();
       updateResultsActions();
       break;
 
@@ -568,14 +766,20 @@ function onMessage(m) {
       awaitingFirstSnapshot = false;
       G.detachMultiplayerFrame();
       if (G.appState === 'mp') G.leaveMultiplayer();
-      show('mpRoom', false); show('mpRooms', true);
+      const stillAuthenticated = !!me.id && ws?.readyState === WebSocket.OPEN;
+      show('mpLogin', !stillAuthenticated);
+      show('mpRoom', false);
+      show('mpRooms', stillAuthenticated);
       setErr(m.reason || '');
       break;
 
     case S2C.RACE_STARTING:
       // Ez a "töltsd be" jel: rajtidő még NINCS benne, azt a RACE_COUNTDOWN adja.
       starting = m;
-      if (room) room.ghostMode = m.ghostMode === true;
+      if (room) {
+        room.ghostMode = m.ghostMode === true;
+        room.mode = m.mode || room.mode;
+      }
       hideMultiplayerResults();
       beginRace(m).catch((err) => {
         // A játékos vagy a kapcsolat közben kilépett, és már másik életciklus
@@ -601,7 +805,9 @@ function onMessage(m) {
     case S2C.RACE_COUNTDOWN:
       // Mindenki betöltött (vagy lejárt a türelmi idő): innen számol a 3-2-1.
       if (starting) starting.startsAt = m.startsAt;
-      myLapStartedAt = m.startsAt;
+      // Hot Lapnál ez még csak a felvezető kezdete. A mért kör hiteles
+      // kezdőidejét az első rajtvonal-átlépés után a snapshot `ls` mezője adja.
+      myLapStartedAt = isHotLap() ? 0 : m.startsAt;
       break;
 
     case S2C.SNAPSHOT:
@@ -734,6 +940,10 @@ const colorDot = (color) =>
 
 // ---------- Verseny ----------
 
+function isHotLap() {
+  return starting?.mode === GAME_MODE.HOT_LAP || room?.mode === GAME_MODE.HOT_LAP;
+}
+
 async function beginRace(info) {
   const loadGeneration = ++raceLoadGeneration;
   raceLoadActive = true;
@@ -787,10 +997,11 @@ async function beginRace(info) {
   const map = G.manifest.maps.find((m) => m.id === info.mapId);
   const car = G.manifest.cars.find((c) => c.id === myPlayer?.carId);
   const otherPlayers = info.players.filter((p) => p.id !== me.id);
+  const ghostReplay = info.ghost?.replay?.frames?.length ? info.ghost : null;
 
   const tasks = [];
   if (G.currentMapId !== info.mapId) {
-    tasks.push({ bytes: map.bytes, run: (onP) => G.setTrack('assets/' + map.file, map.id, map.spawns, map.gates, onP) });
+    tasks.push({ bytes: map.bytes, run: (onP) => G.setTrack('assets/' + map.file, map.id, map.spawns, map.gates, onP, map.hotLapSpawn) });
   }
   if (car) {
     tasks.push({ bytes: car.bytes, run: (onP) => G.setCar('assets/' + car.file, car.id, car.config, onP) });
@@ -799,6 +1010,10 @@ async function beginRace(info) {
     const otherCar = G.manifest.cars.find((c) => c.id === p.carId) || G.manifest.cars[0];
     tasks.push({ bytes: otherCar?.bytes, run: (onP) => addOtherCar(p, onP, loadGeneration) });
   });
+  if (ghostReplay) {
+    const replayCar = G.manifest.cars.find((c) => c.id === ghostReplay.carId) || G.manifest.cars[0];
+    tasks.push({ bytes: replayCar?.bytes, run: (onP) => addGhostCar(ghostReplay, onP, loadGeneration) });
+  }
 
   G.showLoadingOverlay(true);
   try {
@@ -823,7 +1038,11 @@ async function beginRace(info) {
   // addig a helyi fizika a menübeli kirakat-pózból indulna, ahol a kocsi 2
   // méterrel a talaj fölött lebeg. A játékos így egy pillanatra a levegőben
   // látta a saját autóját a rajtnál.
-  G.placeAtGridSlot(info.spawns || map?.spawns || [], myPlayer?.slot ?? 0);
+  G.placeAtGridSlot(
+    info.spawns || map?.spawns || [],
+    myPlayer?.slot ?? 0,
+    info.mode === GAME_MODE.HOT_LAP ? (info.hotLapSpawn || null) : undefined
+  );
   G.enterMultiplayer(frame);
   raceLoadActive = false;
   window.__mp.stage = 'fut';
@@ -854,6 +1073,7 @@ async function beginRace(info) {
 //     lobby jön elő, a menü nem, tehát az 1-es nem sülne el.
 function clearOtherCars() {
   for (const id of [...others.keys()]) removeOtherCar(id);
+  clearGhostCar();
   G.clearRemoteCarProxies();
   // A modellek és fizikai proxyk mellett a minitérképes lenyomatuk is ugyanennek
   // az állapotnak a része. A játék közbeni „Vissza a menübe” közvetlenül az
@@ -898,7 +1118,7 @@ function cleanupMultiplayerForMenu() {
   // A versenyből a Menüre kattintás valódi kilépés, nem csak vizuális
   // elrejtés. A befejezett, már lobbyba visszaállt szobát viszont megtartjuk,
   // hogy ugyanazzal a társasággal lehessen újraindítani.
-  if (wasActive && room && room.state !== ROOM_STATE.LOBBY) {
+  if (wasActive && room && (room.mode === GAME_MODE.HOT_LAP || room.state !== ROOM_STATE.LOBBY)) {
     send(C2S.LEAVE_ROOM);
     room = null;
     starting = null;
@@ -917,6 +1137,29 @@ function cancelRaceLoad() {
 
 async function addOtherCar(p, onProgress, loadGeneration) {
   const car = G.manifest.cars.find((c) => c.id === p.carId) || G.manifest.cars[0];
+  const group = await loadRemoteCarVisual(car, p.color, onProgress);
+  // Névtábla a kocsi fölött, a játékos színével keretezve — ugyanaz a szín,
+  // ami a HUD-listán és a minitérképen is jelöli őt.
+  const label = makeNameSprite(p.name, p.color);
+  label.position.y = 1.8;
+  label.visible = false;
+  group.add(label);
+
+  // A modell letöltése közben megszakadhatott a kapcsolat vagy a játékos
+  // visszaléphetett a menübe. A késve elkészült objektum ilyenkor nem kerülhet
+  // vissza ghostként a jelenetbe.
+  if (loadGeneration !== raceLoadGeneration) {
+    G.disposeObject3D(group);
+    return;
+  }
+  G.scene.add(group);
+  others.set(p.id, {
+    group, label, engineAudio: G.createRemoteEngine(), buf: [], color: p.color, name: p.name, lap: 0, cp: 0,
+    rank: 0, gap: null, bestLap: null, lastLap: null, lastLapInvalid: false, finished: false,
+  });
+}
+
+async function loadRemoteCarVisual(car, fallbackColor, onProgress, translucent = false) {
   const group = new THREE.Group();
   try {
     const gltf = await G.loadGLTF('assets/' + car.file, onProgress);
@@ -940,6 +1183,23 @@ async function addOtherCar(p, onProgress, loadGeneration) {
     G.centerCarModelOnWheels(model, car.config?.wheelPattern);
     const box3 = new THREE.Box3().setFromObject(model);
     model.position.y = -box3.min.y - 0.85;
+    if (translucent) {
+      model.traverse((object) => {
+        if (!object.isMesh || !object.material) return;
+        const fade = (material) => {
+          const clone = material.clone();
+          clone.transparent = true;
+          clone.opacity = 0.34;
+          clone.depthWrite = false;
+          clone.needsUpdate = true;
+          return clone;
+        };
+        object.material = Array.isArray(object.material)
+          ? object.material.map(fade)
+          : fade(object.material);
+        object.castShadow = false;
+      });
+    }
     group.add(model);
   } catch {
     // Ha a modell nem tölthető, egy doboz is jobb, mint egy láthatatlan
@@ -947,29 +1207,69 @@ async function addOtherCar(p, onProgress, loadGeneration) {
     // ilyenkor is beazonosítható legyen.
     group.add(new THREE.Mesh(
       new THREE.BoxGeometry(2, 0.8, 4.4),
-      new THREE.MeshStandardMaterial({ color: p.color || '#ff4444' })
+      new THREE.MeshStandardMaterial({
+        color: fallbackColor || '#ff4444', transparent: translucent,
+        opacity: translucent ? 0.34 : 1, depthWrite: !translucent,
+      })
     ));
   }
+  return group;
+}
 
-  // Névtábla a kocsi fölött, a játékos színével keretezve — ugyanaz a szín,
-  // ami a HUD-listán és a minitérképen is jelöli őt.
-  const label = makeNameSprite(p.name, p.color);
-  label.position.y = 1.8;
-  label.visible = false;
-  group.add(label);
+async function warmGhostCarVisual(group) {
+  // A rejtett szellemet a renderer az első valódi megjelenéséig nem készítené
+  // elő. Ezért a GLB betöltése után, még a loading overlay alatt feltöltjük az
+  // összes textúráját, majd lefordítjuk az áttetsző anyagok shaderprogramjait.
+  // A rajtvonalnál így már csak a visible kapcsoló változik meg.
+  const textures = new Set();
+  group.traverse((object) => {
+    if (!object.material) return;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    materials.forEach((material) => {
+      if (!material) return;
+      Object.values(material).forEach((value) => {
+        if (value?.isTexture) textures.add(value);
+      });
+    });
+  });
+  textures.forEach((texture) => G.renderer.initTexture(texture));
 
-  // A modell letöltése közben megszakadhatott a kapcsolat vagy a játékos
-  // visszaléphetett a menübe. A késve elkészült objektum ilyenkor nem kerülhet
-  // vissza ghostként a jelenetbe.
+  if (typeof G.renderer.compileAsync === 'function') {
+    await G.renderer.compileAsync(group, G.camera, G.scene);
+  } else {
+    G.renderer.compile(group, G.camera, G.scene);
+  }
+}
+
+async function addGhostCar(ghost, onProgress, loadGeneration) {
+  const car = G.manifest.cars.find((c) => c.id === ghost.carId) || G.manifest.cars[0];
+  const group = await loadRemoteCarVisual(car, '#75d7ff', onProgress, true);
   if (loadGeneration !== raceLoadGeneration) {
     G.disposeObject3D(group);
     return;
   }
+  group.visible = false;
   G.scene.add(group);
-  others.set(p.id, {
-    group, label, engineAudio: G.createRemoteEngine(), buf: [], color: p.color, name: p.name, lap: 0, cp: 0,
-    rank: 0, gap: null, bestLap: null, lastLap: null, lastLapInvalid: false, finished: false,
-  });
+  await warmGhostCarVisual(group);
+  if (loadGeneration !== raceLoadGeneration) {
+    G.scene.remove(group);
+    G.disposeObject3D(group);
+    return;
+  }
+  ghostCar = {
+    group,
+    frames: ghost.replay.frames,
+    index: 0,
+    name: ghost.name || 'Szellem',
+    timeMs: ghost.timeMs,
+  };
+}
+
+function clearGhostCar() {
+  if (!ghostCar) return;
+  G.scene.remove(ghostCar.group);
+  G.disposeObject3D(ghostCar.group);
+  ghostCar = null;
 }
 
 function makeNameSprite(name, color) {
@@ -1289,6 +1589,12 @@ function onSnapshot(m) {
       myLastLap = c.last ?? null;
       myLastLapInvalid = !!c.li;
       myFinished = !!c.fin;
+      if (isHotLap()) {
+        // A szerver az egyetlen hiteles időmérő: null a felvezetőn, majd az
+        // átlépés szimulációs időpontja. Így nagy pingnél sem a csomag
+        // megérkezése indítja késve az órát vagy a szellemet.
+        myLapStartedAt = Number.isFinite(c.ls) ? c.ls : 0;
+      }
       ackedSeq = c.seq || 0;
       lapTainted = c.ti || TAINT.NONE;
       // Ugyanazt a fizikai időpontot hasonlítjuk össze. Magas pingnél az
@@ -1441,6 +1747,38 @@ function slerp(a, b, f) {
   return [a[0] * w1 + bb[0] * w2, a[1] * w1 + bb[1] * w2, a[2] * w1 + bb[2] * w2, a[3] * w1 + bb[3] * w2];
 }
 
+function updateGhostPlayback(nowServer) {
+  if (!ghostCar) return;
+  if (!myLapStartedAt || myFinished || raceEnded) {
+    ghostCar.group.visible = false;
+    ghostCar.index = 0;
+    return;
+  }
+  const elapsed = Math.max(0, nowServer - myLapStartedAt);
+  const frames = ghostCar.frames;
+  if (!frames?.length) {
+    ghostCar.group.visible = false;
+    return;
+  }
+
+  let i = Math.max(0, Math.min(ghostCar.index, frames.length - 1));
+  while (i + 1 < frames.length && frames[i + 1][0] <= elapsed) i++;
+  while (i > 0 && frames[i][0] > elapsed) i--;
+  ghostCar.index = i;
+  const a = frames[i];
+  const b = frames[Math.min(i + 1, frames.length - 1)];
+  const span = b[0] - a[0];
+  const f = span > 0 ? Math.max(0, Math.min(1, (elapsed - a[0]) / span)) : 0;
+  const q = slerp(a.slice(4, 8), b.slice(4, 8), f);
+  ghostCar.group.position.set(
+    a[1] + (b[1] - a[1]) * f,
+    a[2] + (b[2] - a[2]) * f,
+    a[3] + (b[3] - a[3]) * f
+  );
+  ghostCar.group.quaternion.set(q[0], q[1], q[2], q[3]);
+  ghostCar.group.visible = true;
+}
+
 // Minden képkockán fut (a main.js animate-jéből).
 // A dt-nek van alapértéke, mert a __mp.step() (kézi léptetés teszteléshez)
 // paraméter nélkül hívja — enélkül a simítás lecsengése NaN-ra futna.
@@ -1533,6 +1871,14 @@ function frame(dt = 1 / 60) {
   // A main.js a stepMultiplayerFrame-ben MIUTÁN meghívta ezt a frame()-et,
   // rajzolja a térképet — tehát az itt beadott pöttyök még ebben a képkockában
   // megjelennek.
+  updateGhostPlayback(nowServer);
+  if (ghostCar?.group.visible) {
+    markers.push({
+      x: ghostCar.group.position.x,
+      z: ghostCar.group.position.z,
+      color: 'rgba(117, 215, 255, 0.62)',
+    });
+  }
   G.setMiniMapMarkers(markers, myColor());
 
   // A nagy 3-2-1. A szerver órája a mérvadó (starting.startsAt), nem a helyi
@@ -1555,16 +1901,32 @@ function frame(dt = 1 / 60) {
     return;
   }
 
+  if (isHotLap() && !myLapStartedAt) {
+    G.setHud(
+      '<div class="lap-head">' +
+        '<span class="lbl">Időmérés</span>' +
+        '<span><span class="lap-now num">1</span><span class="lap-total num"> / 1</span></span>' +
+      '</div>' +
+      '<div class="hud-note"><strong>Felvezető</strong><br>Az időmérés a rajtvonalnál indul.</div>' +
+      '<div class="t-row"><span class="lbl">Aktuális</span><span class="t-val num">—</span></div>' +
+      '<div class="t-row"><span class="lbl">Összes</span><span class="t-val num">—</span></div>'
+    );
+    G.setStandings('');
+    return;
+  }
+
   // A kör-kijelző (jobb fent) ugyanaz a panel, mint egyjátékosban; a mezőny
   // állása KÜLÖN panelbe megy (bal fent). Korábban a kettő egy dobozban volt,
   // és pont ettől lett belőle olvashatatlan szövegfal.
   const completedTotal = myLapTimes.reduce((sum, lap) => sum + lap.time, 0);
-  const currentTime = finishedDriving
-    ? 0
-    : Math.max(0, nowServer - (myLapStartedAt || starting.startsAt));
-  const totalTime = finishedDriving
-    ? completedTotal
-    : Math.max(0, nowServer - starting.startsAt);
+  const { currentTime, totalTime } = raceClockTimes({
+    now: nowServer,
+    raceStartedAt: starting.startsAt,
+    lapStartedAt: myLapStartedAt,
+    completedTotal,
+    finished: finishedDriving,
+    hotLap: isHotLap(),
+  });
   const validTimes = myLapTimes.filter((lap) => !lap.invalid).map((lap) => lap.time);
   const bestTime = validTimes.length ? Math.min(...validTimes) : NaN;
   G.setHud(
@@ -1584,10 +1946,14 @@ function frame(dt = 1 / 60) {
   );
 
   const evt = lastEvents[0];
-  G.setStandings(
-    standingsHtml() +
-    (evt ? `<div class="st-event">${escapeHtml(eventText(evt))}</div>` : '')
-  );
+  if (isHotLap()) {
+    G.setStandings('');
+  } else {
+    G.setStandings(
+      standingsHtml() +
+      (evt ? `<div class="st-event">${escapeHtml(eventText(evt))}</div>` : '')
+    );
+  }
 }
 
 // A saját színünk. A szoba osztja ki (szerver = hiteles forrás), tehát ugyanaz,
@@ -1804,6 +2170,7 @@ function stopInputLoop() {
 }
 
 function showResults(results) {
+  const hotLap = isHotLap();
   raceEnded = true;
   finishedDriving = true;
   G.setMultiplayerControlsEnabled(false);
@@ -1828,8 +2195,9 @@ function showResults(results) {
       `<span class="mp-res-time num">${Number.isFinite(r.bestLapMs) ? G.formatTime(r.bestLapMs) : '—'}</span>` +
     '</div>';
   }).join('');
-  G.setHud('<div class="lap-head"><span class="lbl">Verseny vége</span></div>');
+  G.setHud(`<div class="lap-head"><span class="lbl">${hotLap ? 'Időmérés vége' : 'Verseny vége'}</span></div>`);
   G.setStandings('');
+  $('mpResultsTitle').textContent = hotLap ? 'Időmérés vége' : 'Verseny vége';
   $('mpResultsBody').innerHTML =
     '<div class="mp-res-cols">' +
       '<span>#</span><span></span><span>Név</span><span>Kör</span>' +
@@ -1841,12 +2209,15 @@ function showResults(results) {
 
 function updateResultsActions() {
   if (mpResultsEl.classList.contains('hidden')) return;
+  const hotLap = isHotLap();
   const isHost = room?.hostId === me.id;
   const restart = $('mpResultsRestart');
-  restart.classList.toggle('hidden', !isHost);
+  restart.classList.toggle('hidden', !hotLap && !isHost);
   restart.disabled = false;
-  restart.textContent = 'Új játék';
-  $('mpResultsHint').textContent = isHost
+  restart.textContent = hotLap ? 'Új próbálkozás' : 'Új játék';
+  $('mpResultsHint').textContent = hotLap
+    ? 'Az R billentyűvel menet közben is teljesen újrakezdheted a próbát.'
+    : isHost
     ? 'Te vagy a szoba tulajdonosa — ugyanebben a szobában indíthatsz új futamot.'
     : 'Várakozás a szoba tulajdonosára, vagy kiléphetsz a szobából.';
 }
@@ -1857,29 +2228,41 @@ function hideMultiplayerResults() {
 }
 
 $('mpResultsRestart').addEventListener('click', () => {
-  if (!currentRaceResults || room?.hostId !== me.id) return;
+  if (!currentRaceResults || (!isHotLap() && room?.hostId !== me.id)) return;
   G.requestGameFullscreen();
   const button = $('mpResultsRestart');
   button.disabled = true;
   button.textContent = 'Indítás…';
-  send(C2S.START_RACE);
+  send(isHotLap() ? C2S.RESET : C2S.START_RACE);
 });
 
 $('mpResultsLeave').addEventListener('click', () => {
+  const hotLap = isHotLap();
   hideMultiplayerResults();
   if (room) send(C2S.LEAVE_ROOM);
   room = null;
   starting = null;
   G.leaveMultiplayer();
   show('mpRoom', false);
-  show('mpRooms', true);
-  openLobby();
+  if (!hotLap) {
+    show('mpRooms', true);
+    openLobby();
+  }
 });
 
-// A menübe egy gomb, ami megnyitja a lobbyt.
+// Az Egyjátékos és az Időmérés osztozik a felső soron; a Többjátékos külön,
+// teljes szélességű sort kap alattuk, hogy a három mód ne zsúfolódjon össze.
+const modeButtons = document.getElementById('modeButtons');
+const hotLapBtn = document.createElement('button');
+hotLapBtn.id = 'hotLapBtn';
+hotLapBtn.className = 'btn-race btn-hotlap';
+hotLapBtn.textContent = 'Időmérés';
+hotLapBtn.addEventListener('click', openHotLap);
+modeButtons?.appendChild(hotLapBtn);
+
 const btn = document.createElement('button');
 btn.id = 'mpOpenBtn';
-btn.className = 'btn-race btn-mp mt-2';
+btn.className = 'btn-race btn-mp';
 btn.textContent = 'Többjátékos';
 btn.addEventListener('click', openLobby);
-document.getElementById('startBtn')?.insertAdjacentElement('afterend', btn);
+modeButtons?.appendChild(btn);

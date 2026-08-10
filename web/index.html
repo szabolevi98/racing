@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="description" content="Böngészőben játszható F1-es körverseny egy- és többjátékos móddal, több autóval és versenypályával." />
+<meta name="description" content="Böngészőben játszható autóverseny egyjátékos, szerverhiteles időmérő és többjátékos móddal, több autóval és versenypályával." />
 <title>Levente Racing</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg" />
 <link href="vendor/bootstrap.min.css" rel="stylesheet">
@@ -31,16 +31,18 @@
   <h1>Levente Racing</h1>
   <div class="menu-sub">Körverseny</div>
 
-  <div class="mb-3">
-    <label for="mapSelect" class="form-label lbl">Pálya</label>
-    <select id="mapSelect" class="form-select" disabled></select>
-  </div>
+  <div class="menu-primary-fields">
+    <div class="menu-map-field mb-3">
+      <label for="mapSelect" class="form-label lbl">Pálya</label>
+      <select id="mapSelect" class="form-select" disabled></select>
+    </div>
 
-  <div id="trackAlert" class="track-alert hidden" role="status" aria-live="polite"></div>
+    <div id="trackAlert" class="track-alert hidden" role="status" aria-live="polite"></div>
 
-  <div class="mb-3">
-    <label for="carSelect" class="form-label lbl">Kocsi</label>
-    <select id="carSelect" class="form-select" disabled></select>
+    <div class="menu-car-field mb-3">
+      <label for="carSelect" class="form-label lbl">Kocsi</label>
+      <select id="carSelect" class="form-select" disabled></select>
+    </div>
   </div>
 
   <div class="row g-3 mb-4">
@@ -60,7 +62,9 @@
     </div>
   </div>
 
-  <button id="startBtn" class="btn-race btn-solo" disabled>Egyjátékos</button>
+  <div id="modeButtons" class="mode-buttons">
+    <button id="startBtn" class="btn-race btn-solo" disabled>Egyjátékos</button>
+  </div>
   <label class="ghost-mode-option" for="ghostModeCheckbox">
     <input id="ghostModeCheckbox" type="checkbox">
     <span><strong>Ghost mód</strong><small>Többjátékos módban az autók nem ütköznek egymással.</small></span>
@@ -98,8 +102,8 @@
         <span class="help-keys"><kbd class="k">M</kbd></span></div>
       </div>
       <div class="help-mobile">
-        <div class="help-row"><span>Bal joystick</span><span>Kormányzás</span></div>
-        <div class="help-row"><span>Jobb joystick</span><span>Gáz / fék</span></div>
+        <div class="help-row"><span>Bal / jobb gomb</span><span>Kormányzás</span></div>
+        <div class="help-row"><span>Gáz / fék gomb</span><span>Gyorsítás / fékezés</span></div>
         <div class="help-row"><span>Üres játéktér</span><span>Körbenézés</span></div>
         <div class="help-row"><span>Kamera / 🔊 / ↻</span><span>Nézet / hang / reset</span></div>
         <div class="help-row"><span>Kézifék</span><span>Csúsztatás</span></div>
@@ -142,13 +146,15 @@
   </div>
 
   <div id="touchControls" aria-label="Mobilos irányítás">
-    <div class="touch-joystick touch-steering" data-touch-joystick="steer"
-         role="slider" aria-label="Kormányzás" aria-orientation="horizontal"
-         aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0">
-      <span class="joystick-axis joystick-axis-horizontal" aria-hidden="true"></span>
-      <span class="joystick-side joystick-side-left" aria-hidden="true">Bal</span>
-      <span class="joystick-side joystick-side-right" aria-hidden="true">Jobb</span>
-      <span class="joystick-knob" aria-hidden="true"></span>
+    <div class="touch-steering-buttons" aria-label="Kormányzás">
+      <button class="touch-btn touch-steer touch-steer-left" type="button"
+              data-touch-key="KeyA" aria-label="Kormányzás balra">
+        <span class="touch-icon" aria-hidden="true">◀</span><span class="touch-label" aria-hidden="true">Bal</span>
+      </button>
+      <button class="touch-btn touch-steer touch-steer-right" type="button"
+              data-touch-key="KeyD" aria-label="Kormányzás jobbra">
+        <span class="touch-icon" aria-hidden="true">▶</span><span class="touch-label" aria-hidden="true">Jobb</span>
+      </button>
     </div>
 
     <div class="touch-utility" aria-label="Kiegészítő vezérlés">

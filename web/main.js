@@ -12,7 +12,7 @@ import {
 } from '/shared/vehicleConfig.js';
 import { TAINT, requiredCheckpoints } from '/shared/protocol.js';
 import { restHeightAboveGround } from '/shared/spawnRest.js';
-import { gridSlotPose } from '/shared/grid.js';
+import { gridSlotPose, hotLapStartPose } from '/shared/grid.js';
 import { classifyPing } from '/shared/ping.js';
 import {
   countdownBeep, startBeep, setMuted, isMuted, setVolume, getVolume, primeOnFirstGesture,
@@ -627,6 +627,9 @@ let currentMapId = null;
 // a jövőbeli multiplayerhez előkészítve — egyelőre mindig az első szabad
 // (üresnek tekintett) pontot használjuk, mert még nincs több játékos.
 let currentSpawnPoints = [];
+// A Hot Lap opcionális, külön felvezetőpontja. Ha null, a közös grid-logika a
+// nyolcadik normál rajthelyet használja.
+let currentHotLapSpawn = null;
 // Rajtvonal + checkpointok. Egy kapu egy szakasz felülnézetből: {x1,z1,x2,z2}.
 // A checkpointokat SORRENDBEN kell érinteni, utána a rajtvonal zárja a kört —
 // enélkül a rajtvonal előtt oda-vissza hajtva lehetne köröket gyűjteni.
@@ -929,10 +932,11 @@ function refreshFoliageShading() {
   }
 }
 
-async function setTrack(trackUrl, mapId, spawnPoints, gates, onProgress) {
+async function setTrack(trackUrl, mapId, spawnPoints, gates, onProgress, hotLapSpawn = null) {
   setMenuStatus('Pálya betöltése...');
   currentMapId = mapId || null;
   currentSpawnPoints = spawnPoints || [];
+  currentHotLapSpawn = hotLapSpawn || null;
   currentGates = {
     start: (gates && gates.start) || null,
     checkpoints: (gates && gates.checkpoints) || [],
@@ -2386,7 +2390,8 @@ function drawMiniMapStartLine() {
 // kapcsolgatjuk, hanem képkockánként az appState-ből vezetjük le. Így nincs
 // olyan átmenet (dev mód, autó tesztelő, zóna szerkesztő, kilépés), amit ki
 // lehetne felejteni: bárhogy változik az állapot, a következő képkockán már
-// helyes. A menüben más a pozíciója mobilon, mert ott nincs alatta joystick.
+// helyes. A menüben más a pozíciója mobilon, mert ott nincsenek alatta
+// kormánygombok.
 const MINIMAP_VISIBLE_STATES = new Set(['menu', 'driving', 'mp']);
 
 function syncMiniMapVisibility() {
@@ -2899,9 +2904,6 @@ const keys = {};
 const keyboardKeys = new Set();
 const touchKeyCounts = new Map();
 const touchPointers = new Map();
-const touchAxes = { steer: 0, pedal: 0 };
-const joystickStates = new Map();
-const JOYSTICK_DEADZONE = 0.1;
 
 function refreshControlKey(code) {
   keys[code] = keyboardKeys.has(code) || (touchKeyCounts.get(code) || 0) > 0;
@@ -2933,114 +2935,32 @@ function clearTouchInputs() {
   touchPointers.clear();
   touchKeyCounts.clear();
   for (const code of codes) refreshControlKey(code);
-
-  for (const [joystick, state] of joystickStates) {
-    state.pointerId = null;
-    state.knob.style.transform = 'translate3d(-50%, -50%, 0)';
-    joystick.classList.remove('is-active');
-    joystick.setAttribute('aria-valuenow', '0');
-  }
-  touchAxes.steer = 0;
-  touchAxes.pedal = 0;
 }
 
 function setTouchControlsEnabled(enabled) {
   touchControlsEl.classList.toggle('is-disabled', !enabled);
-  touchControlsEl.querySelectorAll('[data-touch-joystick]').forEach((joystick) => {
-    joystick.setAttribute('aria-disabled', String(!enabled));
-  });
   touchControlsEl.querySelectorAll('button').forEach((button) => {
     button.disabled = !enabled && button.dataset.touchAction !== 'mute';
   });
   if (!enabled) clearTouchInputs();
 }
 
-function normalizeJoystickAxis(raw) {
-  const value = Math.max(-1, Math.min(1, raw));
-  const magnitude = Math.abs(value);
-  if (magnitude <= JOYSTICK_DEADZONE) return 0;
-  return Math.sign(value) * (magnitude - JOYSTICK_DEADZONE) / (1 - JOYSTICK_DEADZONE);
-}
-
-function updateJoystickFromPointer(joystick, state, event) {
-  const rect = joystick.getBoundingClientRect();
-  const radius = rect.width / 2;
-  const knobRadius = state.knob.getBoundingClientRect().width / 2;
-  const travel = Math.max(0, radius - knobRadius - 7);
-  const centerX = rect.left + radius;
-  const centerY = rect.top + radius;
-
-  // A kör alakú karok szándékosan egytengelyesek: a kormány csak vízszintesen,
-  // a pedál csak függőlegesen mozog. Így az ujj oldalirányú sodródása nem vesz
-  // el gázt, a függőleges sodródás pedig nem rángatja meg a kormányt.
-  const raw = state.axis === 'x'
-    ? (event.clientX - centerX) / radius
-    : (centerY - event.clientY) / radius;
-  const clamped = Math.max(-1, Math.min(1, raw));
-  const value = normalizeJoystickAxis(clamped);
-  touchAxes[state.output] = state.invert ? -value : value;
-
-  const offset = clamped * travel;
-  const x = state.axis === 'x' ? offset : 0;
-  const y = state.axis === 'y' ? -offset : 0;
-  state.knob.style.transform = `translate3d(calc(-50% + ${x}px), calc(-50% + ${y}px), 0)`;
-  joystick.classList.toggle('is-active', Math.abs(value) > 0);
-  joystick.setAttribute('aria-valuenow', String(Math.round(touchAxes[state.output] * 100)));
-}
-
-touchControlsEl.querySelectorAll('[data-touch-joystick]').forEach((joystick) => {
-  const kind = joystick.dataset.touchJoystick;
-  const state = {
-    pointerId: null,
-    knob: joystick.querySelector('.joystick-knob'),
-    axis: kind === 'steer' ? 'x' : 'y',
-    output: kind,
-    // A fizika előjel-konvenciója szerint +1 a balra kormányzás.
-    invert: kind === 'steer',
-  };
-  joystickStates.set(joystick, state);
-
-  joystick.addEventListener('pointerdown', (event) => {
-    if (touchControlsEl.classList.contains('is-disabled') || state.pointerId !== null) return;
-    event.preventDefault();
-    state.pointerId = event.pointerId;
-    updateJoystickFromPointer(joystick, state, event);
-    try { joystick.setPointerCapture(event.pointerId); } catch { /* pointer már megszűnt */ }
-  });
-  joystick.addEventListener('pointermove', (event) => {
-    if (state.pointerId !== event.pointerId) return;
-    event.preventDefault();
-    updateJoystickFromPointer(joystick, state, event);
-  });
-  const release = (event) => {
-    if (state.pointerId !== event.pointerId) return;
-    state.pointerId = null;
-    touchAxes[state.output] = 0;
-    state.knob.style.transform = 'translate3d(-50%, -50%, 0)';
-    joystick.classList.remove('is-active');
-    joystick.setAttribute('aria-valuenow', '0');
-  };
-  joystick.addEventListener('pointerup', release);
-  joystick.addEventListener('pointercancel', release);
-  joystick.addEventListener('lostpointercapture', release);
-  joystick.addEventListener('contextmenu', (event) => event.preventDefault());
-});
-
 function getDriveAxes() {
-  const keyboardSteer = (keys['KeyA'] || keys['ArrowLeft'])
+  const digitalSteer = (keys['KeyA'] || keys['ArrowLeft'])
     ? 1
     : (keys['KeyD'] || keys['ArrowRight']) ? -1 : null;
-  const keyboardPedal = (keys['KeyW'] || keys['ArrowUp'])
+  const digitalPedal = (keys['KeyW'] || keys['ArrowUp'])
     ? 1
     : (keys['KeyS'] || keys['ArrowDown']) ? -1 : null;
   return {
-    steer: keyboardSteer ?? touchAxes.steer,
-    pedal: keyboardPedal ?? touchAxes.pedal,
+    steer: digitalSteer ?? 0,
+    pedal: digitalPedal ?? 0,
   };
 }
 
-// A megmaradt digitális touch gomb (kézifék) ugyanabba a `keys` állapotba fut,
-// mint a billentyűzet. A két analóg joystick külön tengelyértéket tart fenn.
+// Minden mobilos vezetőgomb ugyanabba a `keys` állapotba fut, mint a
+// billentyűzet. A pointerenkénti számlálás miatt egyszerre lehet például
+// kormányozni és gázt adni, és az egyik ujj felengedése nem oldja fel a másikat.
 touchControlsEl.querySelectorAll('[data-touch-key]').forEach((button) => {
   const code = button.dataset.touchKey;
   button.addEventListener('pointerdown', (event) => {
@@ -3731,6 +3651,8 @@ const devApi = {
   get currentTrack() { return currentTrack; },
   get currentTrackBox() { return currentTrackBox; },
   get currentSpawnPoints() { return currentSpawnPoints; },
+  get currentHotLapSpawn() { return currentHotLapSpawn; },
+  set currentHotLapSpawn(point) { currentHotLapSpawn = point || null; },
   get currentGates() { return currentGates; },
   get currentGuidePath() { return currentGuidePath; },
   set currentGuidePath(p) { currentGuidePath = p; },
@@ -4119,7 +4041,7 @@ async function init() {
 
   await runLoadTasks([
     { bytes: initialEnv.bytes, run: (onP) => setSkybox('assets/' + initialEnv.file, onP) },
-    { bytes: initialMap.bytes, run: (onP) => setTrack('assets/' + initialMap.file, initialMap.id, initialMap.spawns, initialMap.gates, onP) },
+    { bytes: initialMap.bytes, run: (onP) => setTrack('assets/' + initialMap.file, initialMap.id, initialMap.spawns, initialMap.gates, onP, initialMap.hotLapSpawn) },
     { bytes: initialCar.bytes, run: (onP) => setCar('assets/' + initialCar.file, initialCar.id, initialCar.config, onP) },
   ]);
 
@@ -4143,7 +4065,7 @@ async function init() {
     loadLeaderboard(entry.id);
     showLoadingOverlay(true);
     try {
-      await runLoadTasks([{ bytes: entry.bytes, run: (onP) => setTrack('assets/' + entry.file, entry.id, entry.spawns, entry.gates, onP) }]);
+      await runLoadTasks([{ bytes: entry.bytes, run: (onP) => setTrack('assets/' + entry.file, entry.id, entry.spawns, entry.gates, onP, entry.hotLapSpawn) }]);
     } finally {
       hideLoadingOverlay();
     }
@@ -4502,6 +4424,7 @@ window.__game = {
   stepMpFrame: stepMultiplayerFrame,
   get manifest() { return manifest; },
   get currentMapId() { return currentMapId; },
+  refreshLeaderboard() { return loadLeaderboard(currentMapId); },
   get currentTrack() { return currentTrack; },
   get carLoaded() { return carLoaded; },
   keys,
@@ -4552,8 +4475,10 @@ window.__game = {
   //
   // A rajthely számítása a közös shared/grid.js-ben él, ugyanaz, amiből a
   // szerver a világot építi — így az első snapshot nem mozdítja el a kocsit.
-  placeAtGridSlot(spawns, slot) {
-    const pose = gridSlotPose(spawns, slot);
+  placeAtGridSlot(spawns, slot, hotLapSpawn = undefined) {
+    const pose = hotLapSpawn === undefined
+      ? gridSlotPose(spawns, slot)
+      : hotLapStartPose(spawns, hotLapSpawn);
     const groundY = findGroundAt(currentTrack, currentTrackBox, pose.x, pose.z);
     if (groundY === null || groundY === undefined) return false;
     spawnPoint.set(pose.x, groundY + restHeightAboveGround(RAPIER), pose.z);

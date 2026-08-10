@@ -84,8 +84,10 @@ CREATE TABLE IF NOT EXISTS lap_times (
 CREATE TABLE IF NOT EXISTS map_records (
   player_id   BIGINT UNSIGNED NOT NULL,
   map_id      VARCHAR(128)    NOT NULL,
+  car_id      VARCHAR(128)    NOT NULL DEFAULT '',
   best_ms     INT UNSIGNED    NOT NULL,
   race_id     BIGINT UNSIGNED NULL,
+  ghost_data  MEDIUMTEXT      NULL,
   achieved_at TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (player_id, map_id),
   KEY idx_map_best (map_id, best_ms),

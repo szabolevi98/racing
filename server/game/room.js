@@ -4,19 +4,25 @@
 // szerver-újraindítás után úgyis értelmét vesztené. Csak a lefutott verseny
 // eredménye kerül adatbázisba.
 import {
-  ROOM_STATE, MAX_PLAYERS_PER_ROOM, COUNTDOWN_MS, PLAYER_COLORS, RACE_LOAD_TIMEOUT_MS,
+  ROOM_STATE, GAME_MODE, MAX_PLAYERS_PER_ROOM, COUNTDOWN_MS, PLAYER_COLORS, RACE_LOAD_TIMEOUT_MS,
 } from '../../shared/protocol.js';
 import { createRace, finishRace, saveResult, saveLap } from '../db/index.js';
 
 export class Room {
-  constructor(code, host, { mapId, laps, ghostMode = false }) {
+  constructor(code, host, {
+    mapId, laps, ghostMode = false, mode = GAME_MODE.MULTIPLAYER, ghostPlayerId = null,
+  }) {
     this.code = code;
     this.hostId = host.id;
     this.mapId = mapId;
     this.laps = Math.max(1, Math.min(20, Number(laps) || 3));
+    this.mode = mode === GAME_MODE.HOT_LAP ? GAME_MODE.HOT_LAP : GAME_MODE.MULTIPLAYER;
+    this.ghostPlayerId = Number.isSafeInteger(ghostPlayerId) && ghostPlayerId > 0
+      ? ghostPlayerId
+      : null;
     // Szobaszintű és futam közben nem változtatható: minden kliensnek és a
     // hiteles szerverfizikának ugyanazt kell használnia.
-    this.ghostMode = ghostMode === true;
+    this.ghostMode = this.mode === GAME_MODE.HOT_LAP || ghostMode === true;
     this.state = ROOM_STATE.LOBBY;
     this.players = new Map(); // playerId -> player
     this.raceId = null;       // adatbázis-beli verseny azonosító
@@ -24,6 +30,8 @@ export class Room {
     this.countdownEndsAt = 0;
     this.loadingSince = 0;    // mikor kezdődött a betöltési szakasz (időkorláthoz)
     this.loadTimer = null;    // a betöltési időkorlát órája, hogy le is lehessen állítani
+    this.restarting = false;
+    this.raceGeneration = 0;  // az elkéső, már lecserélt RaceSim-ek érvénytelenítéséhez
     this.createdAt = Date.now();
   }
 
@@ -110,6 +118,7 @@ export class Room {
       hostId: this.hostId,
       mapId: this.mapId,
       laps: this.laps,
+      mode: this.mode,
       ghostMode: this.ghostMode,
       state: this.state,
       countdownEndsAt: this.countdownEndsAt || null,
@@ -136,7 +145,10 @@ export class Room {
     this.loadingSince = Date.now();
     // Új verseny: a korábbi "kész" jelzések nem érvényesek rá.
     for (const p of this.players.values()) p.ready = false;
-    this.raceId = await createRace(this.code, this.mapId, this.laps).catch(() => null);
+    // Az elkészült azonosítót a startRace csak akkor kapcsolja a szobához,
+    // ha ez a betöltési generáció még mindig aktuális. Két egymásra futó
+    // próbálkozás így nem írhatja felül egymás raceId-ját.
+    return createRace(this.code, this.mapId, this.laps).catch(() => null);
   }
 
   beginCountdown() {
@@ -158,18 +170,30 @@ export class Room {
     return Date.now() - (this.loadingSince || 0) >= RACE_LOAD_TIMEOUT_MS;
   }
 
-  async recordLap(player, lapNumber, timeMs, invalid) {
+  async recordLap(player, lapNumber, timeMs, invalid, ghost = null, raceId = this.raceId) {
     // A mapId azért kell, mert az érvényes kör a pályánkénti rekordot is
     // frissíti (map_records) — az a ranglista forrása, és túléli a versenyek
     // későbbi takarítását.
-    await saveLap(this.raceId, player.dbId, lapNumber, timeMs, invalid, this.mapId).catch(() => {});
+    await saveLap(raceId, player.dbId, lapNumber, timeMs, invalid, this.mapId, {
+      carId: player.carId || '',
+      ghost,
+    }).catch(() => {});
   }
 
-  async recordResults(results) {
+  async finishAttempt(raceId = this.raceId) {
+    // Előbb választjuk le a szobáról, és csak utána várunk az adatbázisra.
+    // Közben már indulhat új próbálkozás anélkül, hogy a régi lezárása annak
+    // azonosítóját nullázná ki.
+    if (this.raceId === raceId) this.raceId = null;
+    await finishRace(raceId).catch(() => {});
+  }
+
+  async recordResults(results, raceId = this.raceId) {
     for (const r of results) {
       const p = this.players.get(r.playerId);
-      if (p) await saveResult(this.raceId, p.dbId, r).catch(() => {});
+      if (p) await saveResult(raceId, p.dbId, r).catch(() => {});
     }
-    await finishRace(this.raceId).catch(() => {});
+    await finishRace(raceId).catch(() => {});
+    if (this.raceId === raceId) this.raceId = null;
   }
 }

@@ -37,6 +37,7 @@ let closeMaterialPickerBtn, materialPickerStatusEl;
 let closeZoneEditorBtn, saveZoneBtn, zoneEditorEl, zoneOverlayCanvas, zoneStatusEl;
 let brushSizeRange, brushSizeLabel, brushSizeRow;
 let spawnToolRow, zoneSpawnCountEl, undoSpawnBtn;
+let hotLapSpawnToolRow, hotLapSpawnStateEl, clearHotLapSpawnBtn;
 let gateToolRow, startLineStateEl, checkpointCountEl, undoGateBtn, clearCheckpointsBtn;
 let guideToolRow, guidePointCountEl, undoGuideBtn, clearGuideBtn, autoCheckpointRow;
 
@@ -105,6 +106,9 @@ function queryElements() {
   spawnToolRow = $('spawnToolRow');
   zoneSpawnCountEl = $('zoneSpawnCount');
   undoSpawnBtn = $('undoSpawnBtn');
+  hotLapSpawnToolRow = $('hotLapSpawnToolRow');
+  hotLapSpawnStateEl = $('hotLapSpawnState');
+  clearHotLapSpawnBtn = $('clearHotLapSpawnBtn');
   gateToolRow = $('gateToolRow');
   startLineStateEl = $('startLineState');
   checkpointCountEl = $('checkpointCount');
@@ -156,6 +160,7 @@ let devSpeed = 8;
 const devSpawnMarkers = [];
 let devMarkerGeometry = null;
 let devMarkerMaterial = null;
+let devHotLapMarkerMaterial = null;
 
 function enterDevMode() {
   api.appState = 'dev';
@@ -488,15 +493,18 @@ function refreshSpawnMarkers() {
 
   const raycaster = new THREE.Raycaster();
   raycaster.firstHitOnly = true;
-  api.currentSpawnPoints.forEach(({ x, z }) => {
+  const addMarker = ({ x, z }, material, scale = 1) => {
     raycaster.set(new THREE.Vector3(x, box.max.y + 20, z), new THREE.Vector3(0, -1, 0));
     const hits = raycaster.intersectObject(track, true);
     const y = hits.length ? hits[0].point.y : box.min.y;
-    const marker = new THREE.Mesh(devMarkerGeometry, devMarkerMaterial);
+    const marker = new THREE.Mesh(devMarkerGeometry, material);
+    marker.scale.setScalar(scale);
     marker.position.set(x, y + 1.2, z);
     scene.add(marker);
     devSpawnMarkers.push(marker);
-  });
+  };
+  api.currentSpawnPoints.forEach((point) => addMarker(point, devMarkerMaterial));
+  if (api.currentHotLapSpawn) addMarker(api.currentHotLapSpawn, devHotLapMarkerMaterial, 1.25);
   devSpawnCountEl.textContent = String(api.currentSpawnPoints.length);
 }
 
@@ -735,8 +743,14 @@ function getSelectedBrush() {
 
 // A rajtrács-pontok lerakása is itt, a felülnézeti szerkesztőben történik —
 // sokkal pontosabb, mint a 3D szabad kamerából lefelé lőtt sugárral.
-function isSpawnTool() {
+function isRegularSpawnTool() {
   return getSelectedBrush() === 'spawn';
+}
+function isHotLapSpawnTool() {
+  return getSelectedBrush() === 'hotlap-spawn';
+}
+function isSpawnTool() {
+  return isRegularSpawnTool() || isHotLapSpawnTool();
 }
 function isGateTool() {
   const b = getSelectedBrush();
@@ -751,12 +765,15 @@ function isPaintTool() {
 
 function updateSpawnToolUI() {
   brushSizeRow.classList.toggle('d-none', !isPaintTool());
-  spawnToolRow.classList.toggle('d-none', !isSpawnTool());
+  spawnToolRow.classList.toggle('d-none', !isRegularSpawnTool());
+  hotLapSpawnToolRow.classList.toggle('d-none', !isHotLapSpawnTool());
   gateToolRow.classList.toggle('d-none', !isGateTool());
   guideToolRow.classList.toggle('d-none', !isGuideTool());
   autoCheckpointRow.classList.toggle('d-none', !isGateTool() && !isGuideTool());
   zoneSpawnCountEl.textContent = String(api.currentSpawnPoints.length);
   devSpawnCountEl.textContent = String(api.currentSpawnPoints.length);
+  hotLapSpawnStateEl.textContent = api.currentHotLapSpawn ? 'kész' : 'nincs';
+  clearHotLapSpawnBtn.disabled = !api.currentHotLapSpawn;
   startLineStateEl.textContent = api.currentGates.start ? 'kész' : 'nincs';
   checkpointCountEl.textContent = String(api.currentGates.checkpoints.length);
   guidePointCountEl.textContent = String(api.currentGuidePath.length);
@@ -770,6 +787,14 @@ function headingFromDelta(dx, dz) {
 }
 
 function addSpawnPointAtWorld(x, z) {
+  if (isHotLapSpawnTool()) {
+    const point = { x: +x.toFixed(2), z: +z.toFixed(2), heading: 0 };
+    api.currentHotLapSpawn = point;
+    refreshSpawnMarkers();
+    updateSpawnToolUI();
+    zoneStatusEl.textContent = '';
+    return point;
+  }
   if (api.currentSpawnPoints.length >= 8) {
     zoneStatusEl.textContent = 'Már megvan mind a 8 rajtpont.';
     return null;
@@ -780,6 +805,12 @@ function addSpawnPointAtWorld(x, z) {
   updateSpawnToolUI();
   zoneStatusEl.textContent = '';
   return point;
+}
+
+function clearHotLapSpawn() {
+  api.currentHotLapSpawn = null;
+  refreshSpawnMarkers();
+  updateSpawnToolUI();
 }
 
 function removeLastSpawnPoint() {
@@ -969,6 +1000,35 @@ function drawZoneOverlay() {
     ctx.fillText(String(idx + 1), s.x, s.y);
   });
 
+  const hotLapSpawn = api.currentHotLapSpawn;
+  if (hotLapSpawn) {
+    const s = toScreen(hotLapSpawn.x, hotLapSpawn.z);
+    const heading = hotLapSpawn.heading || 0;
+    const tip = toScreen(
+      hotLapSpawn.x + Math.sin(heading) * 8,
+      hotLapSpawn.z + Math.cos(heading) * 8
+    );
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(tip.x, tip.y);
+    ctx.strokeStyle = '#ff4f9a';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, 11, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,79,154,0.9)';
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('HL', s.x, s.y);
+  }
+
   if (zoneCursorWorld) {
     const s = toScreen(zoneCursorWorld.x, zoneCursorWorld.z);
     ctx.beginPath();
@@ -1068,12 +1128,25 @@ function loadExistingZoneMask() {
 // A "Mentés" gomb a zóna-maszkot ÉS a rajtrács-pontokat is kiírja — egy
 // helyen szerkesztjük őket, így egy gombbal is mentődjenek.
 function saveSpawnPoints() {
-  if (!api.currentMapId || !api.currentSpawnPoints.length) return Promise.resolve(null);
+  if (!api.currentMapId) return Promise.resolve(null);
   return fetch('/api/dev/spawn', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mapId: api.currentMapId, spawns: api.currentSpawnPoints }),
-  }).then((res) => res.json());
+    body: JSON.stringify({
+      mapId: api.currentMapId,
+      spawns: api.currentSpawnPoints,
+      hotLapSpawn: api.currentHotLapSpawn,
+    }),
+  }).then((res) => res.json()).then((data) => {
+    if (data.ok) {
+      const entry = api.manifest && findEntry(api.manifest.maps, api.currentMapId);
+      if (entry) {
+        if (api.currentHotLapSpawn) entry.hotLapSpawn = { ...api.currentHotLapSpawn };
+        else delete entry.hotLapSpawn;
+      }
+    }
+    return data;
+  });
 }
 
 function saveGates() {
@@ -1437,7 +1510,7 @@ async function loadBakeConfig(mapId) {
   }
   bakeDebrisFilterCheck.checked = cfg ? cfg.debrisFilter !== false : true;
   bakeSmoothCheck.checked = cfg ? cfg.kerbSmoothing !== false : true;
-  bakeCanopyCheck.checked = cfg?.canopy?.enabled === true;
+  bakeCanopyCheck.checked = cfg ? cfg.canopy?.enabled !== false : true;
   bakeCanopyHeight.value = cfg?.canopy?.minHeight ?? 10;
   bakeAsphaltCheck.checked = cfg?.asphaltSmoothing?.enabled === true;
   bakeAsphaltIterations.value = cfg?.asphaltSmoothing?.iterations ?? 4;
@@ -1702,7 +1775,8 @@ function wireEvents() {
   window.addEventListener('keydown', (e) => {
     if (api.appState === 'zone-edit' && e.code === 'Backspace' && isSpawnTool()) {
       e.preventDefault();
-      removeLastSpawnPoint();
+      if (isHotLapSpawnTool()) clearHotLapSpawn();
+      else removeLastSpawnPoint();
       return;
     }
     if (api.appState !== 'dev') return;
@@ -1716,6 +1790,7 @@ function wireEvents() {
     el.addEventListener('change', updateSpawnToolUI);
   });
   undoSpawnBtn.addEventListener('click', removeLastSpawnPoint);
+  clearHotLapSpawnBtn.addEventListener('click', clearHotLapSpawn);
   undoGateBtn.addEventListener('click', removeLastGate);
   clearCheckpointsBtn.addEventListener('click', () => {
     api.currentGates.checkpoints = [];
@@ -1869,7 +1944,7 @@ function wireEvents() {
     try {
       await api.runLoadTasks([{
         bytes: entry.bytes,
-        run: (onP) => setTrack('assets/' + entry.file, entry.id, entry.spawns, entry.gates, onP),
+        run: (onP) => setTrack('assets/' + entry.file, entry.id, entry.spawns, entry.gates, onP, entry.hotLapSpawn),
       }]);
     } finally {
       api.hideLoadingOverlay();
@@ -1914,6 +1989,7 @@ export async function initDevTools(gameApi) {
   // biztos, hogy bármi kell belőlük.
   devMarkerGeometry = new THREE.SphereGeometry(1.2, 12, 12);
   devMarkerMaterial = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
+  devHotLapMarkerMaterial = new THREE.MeshBasicMaterial({ color: 0xff4f9a });
   highlightMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
   zoneOrthoCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10000);
   zoneOrthoCam.up.set(0, 0, -1);

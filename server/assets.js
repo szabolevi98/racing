@@ -151,6 +151,21 @@ async function collectMaps() {
       if (spawns.length) entry.spawns = spawns;
     }
 
+    // Opcionális, külön Hot Lap felvezetőpont. Szándékosan nem a nyolc
+    // rajtrácspont közé kerül: így azok sorrendje és régi fájlformátuma nem
+    // változik. Ha nincs fájl, a közös grid-logika a 8. rajthelyre esik vissza.
+    const hotLapSpawn = await readJson(path.join(mapDir, 'hotlap_spawn.json'));
+    const hotLapX = Number(hotLapSpawn?.x);
+    const hotLapZ = Number(hotLapSpawn?.z);
+    const hotLapHeading = Number(hotLapSpawn?.heading);
+    if (Number.isFinite(hotLapX) && Number.isFinite(hotLapZ)) {
+      entry.hotLapSpawn = {
+        x: hotLapX,
+        z: hotLapZ,
+        heading: Number.isFinite(hotLapHeading) ? hotLapHeading : 0,
+      };
+    }
+
     // Zóna-térkép (dev módban festett aszfalt/kifutó/fal maszk).
     const zonePng = path.join(mapDir, 'zonemap.png');
     const zoneMeta = await readJson(path.join(mapDir, 'zonemap.json'));
