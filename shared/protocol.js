@@ -44,6 +44,7 @@ export const TAINT = {
   NONE: 0,
   OFFTRACK: 1,    // mind a négy kerék lehagyta az aszfaltot
   CHECKPOINT: 2,  // kimaradt egy checkpoint
+  VALIDATION: 3,  // a kliensfizika szerveroldali hihetőségvizsgálata jelzett
 };
 
 // Mennyi checkpointot kell ÖSSZESEN érinteni ahhoz, hogy a rajtvonal lezárja a

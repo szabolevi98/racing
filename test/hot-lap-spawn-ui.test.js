@@ -21,3 +21,11 @@ test('the dev editor exposes and persists a dedicated Hot Lap start point', asyn
   assert.match(multiplayer, /info\.hotLapSpawn \|\| null/);
   assert.match(socket, /hotLapSpawn: room\.mode === GAME_MODE\.HOT_LAP/);
 });
+
+test('returning to the menu restores the first normal grid slot', async () => {
+  const main = await fs.readFile(new URL('../web/main.js', import.meta.url), 'utf8');
+
+  assert.match(main, /function restoreMenuStartPose\(\)/);
+  assert.match(main, /gridSlotPose\(currentSpawnPoints, 0\)/);
+  assert.match(main, /restoreMenuStartPose\(\);\s*resetCarTo\(spawnPoint\);/);
+});

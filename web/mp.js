@@ -830,6 +830,9 @@ function onMessage(m) {
       // pályáról. Ő nem kap több snapshotot, tehát az utolsó pozícióján
       // megfagyva ott maradna a verseny végéig.
       if (m.kind === 'left') removeOtherCar(m.playerId);
+      if (m.kind === 'validation' && m.playerId === me.id) {
+        G.showServerValidationAlert?.();
+      }
       if (m.kind === 'lap' && m.playerId === me.id) {
         myLapTimes.push({ time: m.timeMs, invalid: !!m.invalid });
         // A következő kör kezdete nem a csomag megérkezési ideje: nagy
@@ -841,8 +844,10 @@ function onMessage(m) {
         finishedDriving = true;
         G.setMultiplayerControlsEnabled(false);
       }
-      lastEvents.unshift(m);
-      lastEvents = lastEvents.slice(0, 4);
+      if (m.kind !== 'validation') {
+        lastEvents.unshift(m);
+        lastEvents = lastEvents.slice(0, 4);
+      }
       break;
 
     case S2C.RACE_END:

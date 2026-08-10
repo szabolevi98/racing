@@ -117,6 +117,23 @@ const highPingAlertEl = document.getElementById('highPingAlert');
 const highPingAlertTextEl = document.getElementById('highPingAlertText');
 const lapInvalidAlertEl = document.getElementById('lapInvalidAlert');
 const lapInvalidAlertTextEl = document.getElementById('lapInvalidAlertText');
+let multiplayerLapInvalidReason = TAINT.NONE;
+let serverValidationAlertUntil = 0;
+let serverValidationAlertTimer = null;
+
+function renderMultiplayerLapInvalidAlert() {
+  const validationVisible = performance.now() < serverValidationAlertUntil;
+  const reason = validationVisible ? TAINT.VALIDATION : multiplayerLapInvalidReason;
+  if (reason) lapInvalidAlertTextEl.textContent = lapInvalidText(reason);
+  lapInvalidAlertEl.classList.toggle('hidden', !reason);
+}
+
+function clearServerValidationAlert() {
+  serverValidationAlertUntil = 0;
+  multiplayerLapInvalidReason = TAINT.NONE;
+  clearTimeout(serverValidationAlertTimer);
+  serverValidationAlertTimer = null;
+}
 const lapCountSelect = document.getElementById('lapCountSelect');
 const raceHudEl = document.getElementById('raceHud');
 const raceHudWrapEl = document.getElementById('raceHudWrap');
@@ -2690,6 +2707,9 @@ function startRace() {
 // jött, amiből a játékos nem tudta, mit rontott el.
 function lapInvalidText(reason) {
   if (reason === TAINT.OFFTRACK) return 'Kör érvénytelen — mind a négy kerékkel letértél az aszfaltról!';
+  if (reason === TAINT.VALIDATION) {
+    return 'A szerveroldali ellenőrzés szabálytalan mozgást észlelt. Ez a kör érvénytelen.';
+  }
   // A kihagyott checkpoint nem "érvénytelenít", hanem meg sem engedi a kör
   // lezárását — a szöveg ezt mondja meg, hogy a játékos tudja: nem elég
   // átgurulni a rajtvonalon, tényleg körbe kell menni.
@@ -3424,6 +3444,21 @@ let multiplayerCleanupHook = null;
 // és a helyi jóslás is frissíti; a motorhang ugyanezt az értéket követi.
 let lastReportedSpeedKmh = 0;
 
+// A menü kirakatpozíciója nem azonos az előző játékmód rajtpontjával.
+// Időmérésben a külön felvezetőpont, multiplayerben pedig egy véletlenszerű
+// rajtrácshely kerül a spawnPointba. Ha ezt változtatás nélkül használnánk,
+// kilépés után a menü is ott mutatná az autót. A menü ehelyett mindig az adott
+// pálya első NORMÁL rajthelyét használja.
+function restoreMenuStartPose() {
+  if (!currentTrack || !currentTrackBox || !currentSpawnPoints.length) return false;
+  const pose = gridSlotPose(currentSpawnPoints, 0);
+  const groundY = findGroundAt(currentTrack, currentTrackBox, pose.x, pose.z);
+  if (groundY === null || groundY === undefined) return false;
+  spawnPoint.set(pose.x, groundY + restHeightAboveGround(RAPIER), pose.z);
+  spawnHeading = pose.heading;
+  return true;
+}
+
 function enterMenu() {
   // A takarítás ELŐBB fut, mint az állapotváltás: így ha bármi hibázna benne,
   // az nem hagyja félúton a menübe lépést.
@@ -3461,17 +3496,19 @@ function enterMenu() {
   // (updateRace / a felborulás-figyelő), az viszont menüben már nem fut —
   // tehát ami az utolsó képkockán látszott, az fagy be.
   lapInvalidAlertEl.classList.add('hidden');
+  clearServerValidationAlert();
   rolloverAlertEl.classList.add('hidden');
   highPingAlertEl.classList.add('hidden');
   // A ping csak multiplayerben értelmes (nincs mihez mérni egyjátékosban) —
   // menüben mindegy, hogy áll, mert a #hud egésze el van rejtve, de a
   // konzisztencia kedvéért itt is nullázzuk.
   pingBoxEl.classList.add('hidden');
-  // A kocsi vissza a rajthelyre. A menü ugyanazt a kocsit mutatja, amit az
+  // A kocsi vissza az ELSŐ normál rajthelyre. A menü ugyanazt a kocsit mutatja, amit az
   // előbb vezettünk: ott hagyva a pálya közepén — esetleg felborulva vagy a
   // falnak nyomódva — a kirakat-nézet romosan néz ki, és a következő "Indítás"
-  // is onnan folytatná. A spawnPoint a verseny rajtrács-helye (a startBtn
-  // állítja be), boot után pedig a kirakat-pozíció.
+  // is onnan folytatná. A játékmódok átírják a spawnPointot a saját indulási
+  // helyükre, ezért a menü előtt külön visszaállítjuk az első rajtrácshelyet.
+  restoreMenuStartPose();
   resetCarTo(spawnPoint);
   // A LÁTHATÓ modellt külön kell a helyére tenni, és ez nem elhagyható: a
   // carPivot KIZÁRÓLAG a vezetés-képkockában frissül a fizikai testből (lásd
@@ -4578,12 +4615,22 @@ window.__game = {
   // A `reason` a TAINT kódja (0 = érvényes), ugyanaz, amit az egyjátékos
   // logika is használ — így a szöveg is ugyanaz, egy helyről.
   setLapInvalid(reason) {
-    if (reason) lapInvalidAlertTextEl.textContent = lapInvalidText(reason);
-    lapInvalidAlertEl.classList.toggle('hidden', !reason);
+    multiplayerLapInvalidReason = reason || TAINT.NONE;
+    renderMultiplayerLapInvalidAlert();
+  },
+  showServerValidationAlert() {
+    serverValidationAlertUntil = performance.now() + 5_000;
+    clearTimeout(serverValidationAlertTimer);
+    serverValidationAlertTimer = setTimeout(() => {
+      serverValidationAlertTimer = null;
+      renderMultiplayerLapInvalidAlert();
+    }, 5_050);
+    renderMultiplayerLapInvalidAlert();
   },
   // Multiplayer módba váltás: a versenylogikát a szerver végzi. A helyi
   // fizikát a hálózati modul lépteti, ha a jóslás be van kapcsolva.
   enterMultiplayer(frameHook) {
+    clearServerValidationAlert();
     requestGameFullscreen();
     showFullscreenHint();
     mpFrameHook = frameHook;
