@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "yawDegrees": 0,
+  "_wheelPattern": "Javasolta a tools/propose.mjs. Ellenőrizd élőben.",
+  "wheelPattern": "disc|tread|rim|tyre|nis_300gt_94_wheel\\.005(?![^\\s])"
+}
