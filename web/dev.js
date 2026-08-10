@@ -34,6 +34,7 @@ let devDriveBtn, devDriveHudEl, devDriveBackBtn, devDriveResetBtn, devDriveSaveB
 let openMaterialPickerBtn, generateCheckpointsBtn, autoCheckpointCountEl;
 let materialPickerPanelEl, materialPickerGridEl, generateAsphaltBtn;
 let closeMaterialPickerBtn, materialPickerStatusEl;
+let asphaltAdditiveCheck, asphaltModeHintEl;
 let closeZoneEditorBtn, saveZoneBtn, zoneEditorEl, zoneOverlayCanvas, zoneStatusEl;
 let brushSizeRange, brushSizeLabel, brushSizeRow;
 let spawnToolRow, zoneSpawnCountEl, undoSpawnBtn;
@@ -95,6 +96,8 @@ function queryElements() {
   generateAsphaltBtn = $('generateAsphaltBtn');
   closeMaterialPickerBtn = $('closeMaterialPickerBtn');
   materialPickerStatusEl = $('materialPickerStatus');
+  asphaltAdditiveCheck = $('asphaltAdditiveCheck');
+  asphaltModeHintEl = $('asphaltModeHint');
   closeZoneEditorBtn = $('closeZoneEditorBtn');
   saveZoneBtn = $('saveZoneBtn');
   zoneEditorEl = $('zoneEditor');
@@ -595,11 +598,23 @@ function openMaterialPicker() {
     });
     materialPickerGridEl.appendChild(canvas);
   });
+  updateAsphaltModeHint();
   materialPickerPanelEl.classList.remove('hidden');
 }
 
 function closeMaterialPicker() {
   materialPickerPanelEl.classList.add('hidden');
+}
+
+// A két üzemmód következménye eltér annyira, hogy érdemes kiírni: a teljes
+// újragenerálás a FALAKAT is eldobja (azokat az automatika nem rakja vissza),
+// és vele az összes kézi finomítást.
+function updateAsphaltModeHint() {
+  asphaltModeHintEl.textContent = asphaltAdditiveCheck.checked
+    ? 'A kijelölt anyag aszfalt lesz; minden más festés (kifutó, fal, kézi javítás) marad.'
+    : 'FIGYELEM: mindent felülír — a falak és a kézi festés elvesznek.';
+  asphaltModeHintEl.classList.toggle('text-warning', !asphaltAdditiveCheck.checked);
+  asphaltModeHintEl.classList.toggle('text-secondary', asphaltAdditiveCheck.checked);
 }
 
 // GPU-s felülnézeti render, ahol csak a kiválasztott anyagú mesh-ek
@@ -682,24 +697,55 @@ function generateAsphaltMask() {
   const texW = zoneMaskCanvas.width;
   const texH = zoneMaskCanvas.height;
   const mask = renderMaterialMask(track, zoneBounds, texW, texH, selectedRoadMaterials);
+  const kiegeszit = asphaltAdditiveCheck.checked;
 
   const ctx = zoneMaskCanvas.getContext('2d');
-  const imageData = ctx.createImageData(texW, texH);
-  const data = imageData.data;
-  // rgb(255,165,0) == OFFTRACK_COLOR — ugyanaz, mint amit az ecset fest.
-  for (let p = 0; p < texW * texH; p++) {
-    const o = p * 4;
-    if (mask[p]) {
-      data[o] = 0; data[o + 1] = 0; data[o + 2] = 0; data[o + 3] = 0;
-    } else {
-      data[o] = 255; data[o + 1] = 165; data[o + 2] = 0; data[o + 3] = 255;
+  let valtozott = 0;
+
+  if (kiegeszit) {
+    // KIEGÉSZÍTŐ mód: csak ott nyúlunk a képhez, ahol a kiválasztott anyag
+    // van — ott aszfalttá (törölt képpont) tesszük. Minden más képpont
+    // ÉRINTETLEN marad, tehát a kézi festés és a falak megmaradnak.
+    //
+    // Miért kell ez: egy zóna-térkép elkészítése órákat visz el kézi
+    // finomítással. Ha utólag ki akarsz egészíteni valamit (pl. a rázókövet is
+    // aszfaltnak jelölni), a teljes újragenerálás az egész addigi munkát
+    // eldobná — a falakat is, amiket az automatika egyáltalán nem tesz vissza.
+    //
+    // A putImageData a képpontokat CSERÉLI, nem keveri (nincs alfa-blend),
+    // ezért a 0 alfa tényleg törlésként viselkedik.
+    const meglevo = ctx.getImageData(0, 0, texW, texH);
+    const d = meglevo.data;
+    for (let p = 0; p < texW * texH; p++) {
+      if (!mask[p]) continue;
+      const o = p * 4;
+      if (d[o + 3] === 0) continue;          // már aszfalt volt
+      d[o] = 0; d[o + 1] = 0; d[o + 2] = 0; d[o + 3] = 0;
+      valtozott++;
     }
+    ctx.putImageData(meglevo, 0, 0);
+  } else {
+    // TELJES újragenerálás: mindenhol kifutó, kivéve a kiválasztott anyagot.
+    // Fal nem kerül bele — azt kézzel kell visszafesteni.
+    const imageData = ctx.createImageData(texW, texH);
+    const data = imageData.data;
+    // rgb(255,165,0) == OFFTRACK_COLOR — ugyanaz, mint amit az ecset fest.
+    for (let p = 0; p < texW * texH; p++) {
+      const o = p * 4;
+      if (mask[p]) {
+        data[o] = 0; data[o + 1] = 0; data[o + 2] = 0; data[o + 3] = 0;
+      } else {
+        data[o] = 255; data[o + 1] = 165; data[o + 2] = 0; data[o + 3] = 255;
+      }
+    }
+    ctx.clearRect(0, 0, texW, texH);
+    ctx.putImageData(imageData, 0, 0);
   }
-  ctx.clearRect(0, 0, texW, texH);
-  ctx.putImageData(imageData, 0, 0);
 
   closeMaterialPicker();
-  zoneStatusEl.textContent = 'Aszfalt-maszk legenerálva a kiválasztott anyagokból — nézd át és finomítsd kézzel, majd Mentés.';
+  zoneStatusEl.textContent = kiegeszit
+    ? `Kiegészítve: ${valtozott} képpont lett aszfalt, a többi festés érintetlen — nézd át, majd Mentés.`
+    : 'Aszfalt-maszk újragenerálva a kiválasztott anyagokból — a falakat kézzel kell visszafesteni. Nézd át, majd Mentés.';
 }
 
 // ---------- Zóna-szerkesztő: felülnézeti "ecsetes" aszfalt/kifutó/fal térkép ----------
@@ -1920,6 +1966,7 @@ function wireEvents() {
   openMaterialPickerBtn.addEventListener('click', openMaterialPicker);
   closeMaterialPickerBtn.addEventListener('click', closeMaterialPicker);
   generateAsphaltBtn.addEventListener('click', generateAsphaltMask);
+  asphaltAdditiveCheck.addEventListener('change', updateAsphaltModeHint);
 
   bakeCollisionBtn.addEventListener('click', bakeCollisionToFile);
 

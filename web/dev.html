@@ -206,8 +206,20 @@
     <div class="card bg-dark bg-opacity-75 border-info text-light">
       <div class="card-body py-2 px-3 small">
         <strong class="text-info">Aszfalt anyagok kiválasztása</strong><br>
-        Kattints azokra a textúrákra, amik az útburkolatot ábrázolják (több is lehet), majd Generálás. Ez felülírja a jelenlegi festést.
+        Kattints azokra a textúrákra, amik az útburkolatot ábrázolják (több is lehet), majd Generálás.
         <div id="materialPickerGrid" class="d-flex flex-wrap gap-1 my-2"></div>
+
+        <!-- Kiegészítés vs. újragenerálás. Utólagos bővítéshez (pl. a rázókövet
+             is aszfalttá tenni) elengedhetetlen: a teljes újragenerálás minden
+             kézi festést és falat eldob. -->
+        <div class="form-check mb-1">
+          <input type="checkbox" id="asphaltAdditiveCheck" class="form-check-input" checked>
+          <label for="asphaltAdditiveCheck" class="form-check-label">
+            Meglévő festés megtartása <span class="text-secondary">(csak kiegészíti aszfalttal)</span>
+          </label>
+        </div>
+        <div id="asphaltModeHint" class="text-secondary mb-2" style="font-size:0.85em"></div>
+
         <button id="generateAsphaltBtn" class="btn btn-sm btn-info mt-1">Generálás</button>
         <button id="closeMaterialPickerBtn" class="btn btn-sm btn-secondary mt-1">Mégse</button>
         <div id="materialPickerStatus" class="mt-1"></div>
