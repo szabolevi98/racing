@@ -40,23 +40,12 @@ tools/     ← offline GLB-elemzők (kerék-minták meghatározásához)
 backup/    ← a kocsi-konfigurációk felülvizsgálat előtti állapota
 ```
 
-A fizikai autoritás ENV-ből váltható. `PHYSICS_AUTHORITY=server` esetén a szerver
-futtatja a teljes fizikát, a kliensek bemenetet küldenek és korrigálnak.
-`PHYSICS_AUTHORITY=client` esetén minden böngésző a saját autóját számolja, a
-szerver az állapotot továbbítja, és továbbra is ő kezeli a köröket,
-checkpointokat, eredményeket és szellemeket. A kliensmód nagy pingnél nem
-rángatja vissza a saját autót, cserébe nem csalásbiztos, és két autó ütközése
-eltérhet a játékosok képernyőjén.
-
-Ez azon áll vagy bukik, hogy a két oldal ugyanazt számolja:
-
-- a `shared/vehicleConfig.js` tartalmaz **minden** fizikai állandót, és
-  mindkét oldal onnan veszi — egy csak az egyik oldalon módosított érték
-  tartósan elcsúsztatná a két szimulációt;
-- a böngészőbe bemásolt Rapier build **bitre azonos** az npm-es
-  `@dimforge/rapier3d-compat@0.14.0`-val (ha frissül, egyszerre kell mindkét
-  oldalon);
-- a szerver **ugyanazt a `collision.bin`-t** olvassa, amit a böngésző letölt.
+A saját autó fizikáját mindig a játékos böngészője számolja. A szerver a kapott
+állapotokat ellenőrzi, továbbítja, és központilag kezeli a rajtot, köröket,
+checkpointokat, eredményeket és szellemeket. Emiatt a saját autót nagy ping sem
+rángatja vissza, viszont az autó–autó ütközés eltérhet a játékosok képernyőjén.
+Az irreális sebesség vagy mozgás nem dobja ki a játékost, hanem érvényteleníti
+az adott körét és figyelmeztetést küld.
 
 A szobák memóriában élnek (másodpercenként sokszor változnak, és egy
 újraindítás után értelmüket vesztenék); MySQL-be az kerül, ami túléli a
@@ -73,8 +62,8 @@ A menüben a *Fejlesztői mód* gombbal érhetők el:
   generálás a pálya bejárásával.
 - **Rajtrács** — akár 8 rajtpont iránnyal (a multiplayerhez).
 - **Ütközés bekészítése** — a pálya háromszöghálójának kimentése
-  `collision.bin`-be. Multiplayerhez **kötelező**: így kap minden kliens és a
-  szerver bitre azonos geometriát.
+  `collision.bin`-be. Multiplayerhez **kötelező**: így minden kliens ugyanazt
+  a geometriát használja.
 - **Kocsi-teszt** — a kocsi egy helyben, forgó kerekekkel; az új kocsik
   kerék-mintájának ellenőrzésére.
 
@@ -95,26 +84,19 @@ magukat a modelleket kell zsugorítani (Draco geometria, KTX2 textúrák).
 
 ## Hálózati késleltetés kezelése
 
-A saját autót a kliens **maga szimulálja**, azonnal reagálva a billentyűkre,
-és minden szerver-snapshotnál visszaáll a hiteles állapotra, majd újrajátssza
-a még fel nem dolgozott bemeneteit. Ez azért lehet pontos, mert a két oldal
-ugyanazt a `shared/vehicleConfig.js`-t futtatja ugyanazon a Rapier buildon, és
-a szerver tickenként **pontosan egy** bemenetet fogyaszt el.
+A saját autót a kliens szimulálja, ezért a vezérlés nem vár hálózati válaszra.
+A szervernek 60 Hz-en állapotot küld; a szerver ezeket ellenőrzi, a többi
+játékos pedig késleltetett interpolációval jeleníti meg. A ping főleg az
+ellenfelek mozgásának késésében és az ütközések eltérő érzékelésében látszik.
 
 Fejlesztéshez mesterséges késleltetés kapcsolható, mert localhoston a ping 0:
 
 ```
 http://localhost:3000/?lag=150&jitter=30      # ms, teljes körbefordulás
-http://localhost:3000/?predict=0              # vissza a régi, szerverkövető módra
 ```
 
-Diagnosztika a konzolban: `__mp.lastError` (a legutóbbi korrekció méterben),
-`__mp.queueDepth`, `__mp.sendPeriod`. Ha a `lastError` tartósan nagy, a két
-szimuláció eltér — az bug, nem hangolási kérdés.
-
-Ismert korlát: nagy késleltetésnél a szerver bemenet-sora kiürülhet, olyankor
-az utolsó bemenetet ismétli, amiről a kliens nem tud — ez a maradék hiba
-forrása (300 ms-nál ~1,5 m).
+Diagnosztika a konzolban: `__mp.pingMs`, `__mp.jitterMs`,
+`__mp.interpDelayMs`, `__mp.rawPos` és `__mp.interpPos`.
 
 ## Ami még hátravan
 

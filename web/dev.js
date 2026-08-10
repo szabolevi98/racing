@@ -417,7 +417,7 @@ function buildTunablePanel() {
 // Minden csúszkát és a mögötte lévő élő/Rapier-értéket visszaállít a
 // kanonikus alapra. Ezt hívja a "Vissza a dev módba" gomb ÉS a
 // hideOverlays() is (ha máshonnan lép ki, pl. a "Vissza a menübe" linkkel) —
-// így hangolás után SOSEM maradhat élesben a helyi jóslat vagy egy következő
+// így hangolás után SOSEM maradhat élesben a helyi fizika vagy egy következő
 // egyjátékos/multiplayer verseny.
 function resetAllTunables() {
   resetLiveVehicleTunables();

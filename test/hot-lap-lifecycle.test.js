@@ -1,14 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RaceSim } from '../server/game/raceSim.js';
-import { ROOM_STATE, S2C, TAINT } from '../shared/protocol.js';
+import { RaceController } from '../server/game/raceController.js';
+import { GAME_MODE, ROOM_STATE, S2C, TAINT } from '../shared/protocol.js';
 
 test('Hot Lap warm-up ignores checkpoints before the timing line', () => {
   const room = {
     laps: 1,
+    mode: GAME_MODE.HOT_LAP,
     players: new Map([['driver', { id: 'driver' }]]),
   };
-  const sim = new RaceSim(room, {
+  const sim = new RaceController(room, {
     map: {
       gates: {
         start: { x1: 20, z1: -2, x2: 20, z2: 2 },
@@ -32,17 +33,23 @@ test('Hot Lap warm-up ignores checkpoints before the timing line', () => {
     finished: false,
     prevX: 4,
     prevZ: 0,
+    prevAt: 900,
+    lapTimes: [],
+    lastGhostSampleAt: 0,
+    validationAlertLap: -1,
   };
   sim.cars.set('driver', {
     playerId: 'driver',
-    body: { translation: () => ({ x: 6, y: 0, z: 0 }) },
+    state: {
+      p: [6, 0, 0], q: [0, 0, 0, 1], v: [0, 0, 0], w: [0, 0, 0], offtrack: false,
+    },
     race,
     respawn: { x: 0, z: 0, heading: 0 },
   });
 
   // A felvezetés közvetlenül a második checkpointon halad át. Ez mért körben
   // kihagyás lenne, a rajtvonal előtt viszont sem állapotot, sem alertet nem adhat.
-  sim.updateRaceProgress(1_000);
+  sim.updateCarProgress(sim.cars.get('driver'), 1_000);
 
   assert.equal(race.nextCheckpoint, 0);
   assert.equal(race.passed.size, 0);
@@ -55,7 +62,7 @@ test('an old Hot Lap finish cannot overwrite a restarted attempt', async () => {
   const broadcasts = [];
   const player = { id: 'driver', carId: 'f2004' };
   const room = {
-    state: ROOM_STATE.RUNNING,
+    state: ROOM_STATE.RACING,
     raceGeneration: 1,
     raceId: 101,
     players: new Map([[player.id, player]]),
@@ -65,7 +72,7 @@ test('an old Hot Lap finish cannot overwrite a restarted attempt', async () => {
     },
     toJSON() { return { state: this.state }; },
   };
-  const sim = new RaceSim(room, {
+  const sim = new RaceController(room, {
     map: {}, generation: 1, raceId: 101,
     broadcast: (type, data) => broadcasts.push({ type, data }),
   });

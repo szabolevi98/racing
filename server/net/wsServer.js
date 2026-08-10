@@ -1,20 +1,20 @@
 // WebSocket réteg: kapcsolatok, szobák, üzenetkezelés.
 //
-// A tényleges fizikai szimuláció a game/raceSim.js-ben él; ez a fájl csak a
-// hálózati protokollt kezeli, és a szobákat tartja nyilván.
+// A verseny állapotát a RaceController kezeli; ez a fájl a hálózati protokollt
+// és a szobák életciklusát tartja kézben.
 import { WebSocketServer } from 'ws';
 import { randomUUID } from 'node:crypto';
 import {
   C2S, S2C, ROOM_STATE, GAME_MODE, ROOM_CODE_LENGTH, sanitizeName, sanitizePlayerToken,
-  COUNTDOWN_MS, RACE_LOAD_TIMEOUT_MS, PHYSICS_AUTHORITY,
+  COUNTDOWN_MS, RACE_LOAD_TIMEOUT_MS,
 } from '../../shared/protocol.js';
 import { Room } from '../game/room.js';
+import { RaceController } from '../game/raceController.js';
 import {
   dbAvailable, findPlayerByToken, ghostLap, renamePlayer, upsertPlayer,
 } from '../db/index.js';
 import { getManifest } from '../assets.js';
 import { recentBlockMs } from '../loopLag.js';
-import { physicsAuthority } from '../config.js';
 
 const rooms = new Map();    // kód -> Room
 const players = new Map();  // playerId -> player
@@ -214,7 +214,7 @@ async function handleMessage(player, msg) {
       // Kliensfizikánál a betöltés végén már a pályára helyezett, helyes Y
       // pozíciót is elküldjük. Ha a nagyon gyors kliens megelőzte a vezérlő
       // elkészültét, ideiglenesen a playeren tartjuk, és startRace átveszi.
-      if (physicsAuthority === PHYSICS_AUTHORITY.CLIENT && msg.state) {
+      if (msg.state) {
         player.pendingInitialState = msg.state;
         room.sim?.receiveState?.(player.id, msg.state, { initial: true });
       }
@@ -232,14 +232,6 @@ async function handleMessage(player, msg) {
       const problem = room.canStart();
       if (problem) return fail(socket, problem);
       await startRace(room);
-      return;
-    }
-
-    case C2S.INPUT: {
-      const room = rooms.get(player.roomCode);
-      // A bemenetet a szimuláció dolgozza fel; itt csak eltároljuk a
-      // legfrissebbet. (A szerver szimulál, a kliens csak kér.)
-      room?.sim?.queueInput(player.id, msg);
       return;
     }
 
@@ -295,7 +287,7 @@ async function startRace(room) {
   if (rooms.get(room.code) !== room || room.size === 0 || room.raceGeneration !== generation) return;
 
   // A rajtrács-pontok a pálya spawn.json-jából jönnek; ha kevesebb van, mint
-  // ahány játékos, körbeforgunk rajtuk (a szimuláció szétdobja őket).
+  // ahány játékos, a közös rajtrács-logika folytatja hátrafelé a kiosztást.
   // A startsAt itt szándékosan NINCS: ez a "töltsd be" jel, nem a rajt. A
   // pontos rajtidőt a RACE_COUNTDOWN adja meg, ha mindenki megvan.
   const spawns = map?.spawns || [];
@@ -303,7 +295,6 @@ async function startRace(room) {
     mapId: room.mapId,
     laps: room.laps,
     mode: room.mode,
-    physicsAuthority,
     ghostMode: room.ghostMode,
     ghost,
     spawns,
@@ -312,12 +303,8 @@ async function startRace(room) {
   });
   pushRoomState(room);
 
-  // A szimulációt a raceSim modul indítja — külön fájlban, hogy ez a réteg
-  // tisztán a hálózatról szóljon. Befagyasztva indul, és a releaseAt oldja.
-  const Sim = physicsAuthority === PHYSICS_AUTHORITY.CLIENT
-    ? (await import('../game/clientRaceSim.js')).ClientRaceSim
-    : (await import('../game/raceSim.js')).RaceSim;
-  const sim = new Sim(room, {
+  // A versenyvezérlő befagyasztva indul, és a releaseAt oldja a rajtnál.
+  const sim = new RaceController(room, {
     map,
     generation,
     raceId,
@@ -341,8 +328,8 @@ async function startRace(room) {
     pushRoomState(room);
     return;
   }
-  // A collision/zonemap beolvasása közben is kiléphetett valaki. Az üres vagy
-  // már lecserélt szobát teljesen leállítjuk; többjátékos szobánál pedig az
+  // Az aszinkron indítás alatt is kiléphetett valaki. Az üres vagy már
+  // lecserélt szobát teljesen leállítjuk; többjátékos szobánál pedig az
   // időközben távozott autókat eltávolítjuk, mielőtt egyetlen snapshot kimenne.
   if (rooms.get(room.code) !== room || room.size === 0 || room.raceGeneration !== generation) {
     sim.stop();
@@ -352,17 +339,15 @@ async function startRace(room) {
     if (!room.players.has(playerId)) sim.removeCar(playerId);
   }
   room.sim = sim;
-  if (physicsAuthority === PHYSICS_AUTHORITY.CLIENT) {
-    for (const player of room.players.values()) {
-      if (player.pendingInitialState) {
-        sim.receiveState(player.id, player.pendingInitialState, { initial: true });
-        player.pendingInitialState = null;
-      }
+  for (const player of room.players.values()) {
+    if (player.pendingInitialState) {
+      sim.receiveState(player.id, player.pendingInitialState, { initial: true });
+      player.pendingInitialState = null;
     }
   }
 
-  // Ha a visszaszámlálás már elindult, amíg a fizika épült, azt a sim.start()
-  // maga vette át a szobától — lásd ott a magyarázatot.
+  // Ha a visszaszámlálás már elindult a vezérlő létrejötte előtt, a start()
+  // átvette a szobától a meghirdetett rajtidőt.
 
   // Az időkorlát: ha valaki nem jelentkezik be készen, nélküle indulunk.
   room.loadTimer = setTimeout(() => maybeBeginCountdown(room, true), RACE_LOAD_TIMEOUT_MS);
@@ -374,8 +359,8 @@ async function restartHotLap(room) {
   if (room.mode !== GAME_MODE.HOT_LAP || room.restarting) return;
   room.restarting = true;
   try {
-    // Az épp még aszinkron pályafizikát építő régi startRace is azonnal
-    // érvényét veszti; amikor elkészül, a generation-ellenőrzés leállítja.
+    // Az épp még aszinkron indítás alatt álló régi startRace azonnal érvényét
+    // veszti; amikor elkészül, a generation-ellenőrzés leállítja.
     room.raceGeneration++;
     clearTimeout(room.loadTimer);
     room.loadTimer = null;
@@ -470,5 +455,5 @@ export function attachWebSocket(httpServer) {
 }
 
 export function roomStats() {
-  return { rooms: rooms.size, players: players.size, physicsAuthority };
+  return { rooms: rooms.size, players: players.size };
 }

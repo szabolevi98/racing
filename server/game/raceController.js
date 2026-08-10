@@ -1,6 +1,6 @@
-// Kliens-autoritatív online versenyvezérlő.
+// Online versenyvezérlő.
 //
-// Ebben az üzemmódban a szerver nem épít Rapier világot és nem szimulálja újra
+// A szerver nem épít Rapier világot és nem szimulálja újra
 // az autókat. A saját autó fizikáját minden böngésző helyben futtatja; ide a
 // kész állapot érkezik. A szerver továbbra is központilag kezeli a köröket,
 // checkpointokat, sorrendet, eredményeket és a szellem rögzítését.
@@ -133,7 +133,7 @@ function createRaceState(x, z) {
   };
 }
 
-export class ClientRaceSim {
+export class RaceController {
   constructor(room, { map, broadcast, generation = room.raceGeneration, raceId = room.raceId }) {
     this.room = room;
     this.map = map;
@@ -184,10 +184,6 @@ export class ClientRaceSim {
 
   releaseAt(startAt) {
     this.startAt = startAt;
-  }
-
-  queueInput() {
-    // Szándékosan üres: kliensfizikánál kész állapot érkezik INPUT helyett.
   }
 
   receiveState(playerId, raw, { initial = false, receivedAt = Date.now() } = {}) {

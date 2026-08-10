@@ -20,18 +20,18 @@ export class Room {
     this.ghostPlayerId = Number.isSafeInteger(ghostPlayerId) && ghostPlayerId > 0
       ? ghostPlayerId
       : null;
-    // Szobaszintű és futam közben nem változtatható: minden kliensnek és a
-    // hiteles szerverfizikának ugyanazt kell használnia.
+    // Szobaszintű és futam közben nem változtatható: minden kliensnek ugyanazt
+    // kell használnia.
     this.ghostMode = this.mode === GAME_MODE.HOT_LAP || ghostMode === true;
     this.state = ROOM_STATE.LOBBY;
     this.players = new Map(); // playerId -> player
     this.raceId = null;       // adatbázis-beli verseny azonosító
-    this.sim = null;          // RaceSim vagy ClientRaceSim versenyvezérlő
+    this.sim = null;          // RaceController versenyvezérlő
     this.countdownEndsAt = 0;
     this.loadingSince = 0;    // mikor kezdődött a betöltési szakasz (időkorláthoz)
     this.loadTimer = null;    // a betöltési időkorlát órája, hogy le is lehessen állítani
     this.restarting = false;
-    this.raceGeneration = 0;  // az elkéső, már lecserélt RaceSim-ek érvénytelenítéséhez
+    this.raceGeneration = 0;  // az elkéső, már lecserélt vezérlők érvénytelenítéséhez
     this.createdAt = Date.now();
   }
 

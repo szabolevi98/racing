@@ -14,8 +14,7 @@ export const C2S = {
   SET_CAR: 'setCar',           // { carId }
   SET_READY: 'setReady',       // { ready }
   START_RACE: 'startRace',     // csak a szoba tulajdonosa
-  INPUT: 'input',              // { seq, steer:-1..1, throttle:-1..1, brake:0..1, handbrake }
-  STATE: 'state',              // kliensfizika: { seq, t, p, q, v, w, st, wr, th, offtrack }
+  STATE: 'state',              // { seq, t, p, q, v, w, st, wr, th, offtrack }
   RESET: 'reset',              // az "R": multi = checkpoint, Hot Lap = teljes újrakezdés
   PING: 'ping',                // { t }
 };
@@ -28,7 +27,7 @@ export const S2C = {
   RACE_STARTING: 'raceStarting', // { spawns, mapId, laps, ghostMode, players } — TÖLTS BE
   RACE_COUNTDOWN: 'raceCountdown', // { startsAt, countdownMs } — mindenki kész, indul a 3-2-1
   SNAPSHOT: 'snapshot',        // { tick, cars[] }  — a szerver hiteles állapota
-  CAR_RESET: 'carReset',       // kliensfizika: { playerId, respawn:{x,z,heading} }
+  CAR_RESET: 'carReset',       // { playerId, respawn:{x,z,heading} }
   RACE_EVENT: 'raceEvent',     // { kind, playerId, ... } — kör, érvénytelenítés, célba érés
   RACE_END: 'raceEnd',         // { results[] }
   ERROR: 'error',              // { message }
@@ -44,7 +43,7 @@ export const TAINT = {
   NONE: 0,
   OFFTRACK: 1,    // mind a négy kerék lehagyta az aszfaltot
   CHECKPOINT: 2,  // kimaradt egy checkpoint
-  VALIDATION: 3,  // a kliensfizika szerveroldali hihetőségvizsgálata jelzett
+  VALIDATION: 3,  // a kliensállapot szerveroldali hihetőségvizsgálata jelzett
 };
 
 // Mennyi checkpointot kell ÖSSZESEN érinteni ahhoz, hogy a rajtvonal lezárja a
@@ -91,21 +90,8 @@ export const GAME_MODE = {
   HOT_LAP: 'hotLap',
 };
 
-// A szerver teljes fizikát számol, vagy csak a kliensek állapotát hitelesíti és
-// továbbítja. Ez szerverenként, ENV-ből dől el; nem szobabeállítás.
-export const PHYSICS_AUTHORITY = {
-  SERVER: 'server',
-  CLIENT: 'client',
-};
-
-export function normalizePhysicsAuthority(value) {
-  return String(value || '').trim().toLowerCase() === PHYSICS_AUTHORITY.CLIENT
-    ? PHYSICS_AUTHORITY.CLIENT
-    : PHYSICS_AUTHORITY.SERVER;
-}
-
-// A szerver ennyiszer lépteti a fizikát másodpercenként. A kliens ugyanezzel
-// a lépésközzel jósol előre, hogy a két szimuláció ne csússzon el.
+// A kliens ennyiszer lépteti a saját fizikáját és küldi az állapotát
+// másodpercenként. A szerver ezeket ellenőrzi és továbbítja.
 export const TICK_RATE = 60;
 export const TICK_MS = 1000 / TICK_RATE;
 

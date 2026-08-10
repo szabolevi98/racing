@@ -1,17 +1,13 @@
 // A jármű- és világ-fizika minden számszerű beállítása, EGY helyen.
 //
-// Ez a fájl a böngészőben és a szerveren is fut. Ez nem kényelmi kérdés: az
-// authoritative multiplayer csak akkor működik, ha a két oldal ugyanazt
-// számolja. Ha egy érték csak az egyik oldalon változna, a kliens jóslata
-// folyamatosan eltérne a szerver igazságától, és a kocsi ugrálna.
-//
-// (A Rapier build is bitre azonos a két oldalon: @dimforge/rapier3d-compat 0.14.0.)
+// A böngésző egyjátékosban és online is ebből építi az autó fizikáját. A Node
+// tesztek ugyanezekkel az értékekkel ellenőrzik a jármű viselkedését.
 //
 // A menetdinamikai (hangolható) számok NEM itt vannak, hanem a
 // vehicleTunables.js-ben — az a fájl csak sima export-lista, semmi logika,
 // hogy a dev autó-tesztelő "Mentés fájlba" gombja pontosan ilyen tartalmat
 // tudjon generálni, és felülírható legyen vele. Innen csak TOVÁBBADJUK őket
-// (export ... from), hogy a többi fájlnak (main.js, dev.js, raceSim.js) ne
+// (export ... from), hogy a többi fájlnak (main.js, dev.js) ne
 // kelljen tudnia a szétválasztásról — mindenki továbbra is a
 // shared/vehicleConfig.js-ből importál, ugyanazokkal a nevekkel.
 export {
@@ -63,9 +59,9 @@ export const CAR_COLLIDER_GROUPS =
 // CAR_PROXY. Emiatt a talaj/fal továbbra is fizikai akadály, másik autó nem.
 export const GHOST_CAR_COLLIDER_GROUPS =
   (COLLISION_GROUP_CAR << 16) | (COLLISION_GROUP_FLOOR | COLLISION_GROUP_WALL);
-// A helyi jóslás távoli autó-proxyja csak a saját valódi kasztnival ütközik.
+// A távoli autó helyi proxyja csak a saját valódi kasztnival ütközik.
 // Így nem akad bele a talajba/falba, és a proxyk sem lökdösik egymást egy
-// olyan kliensen, amely csak a saját autó fizikáját jósolja.
+// olyan kliensen, amely csak a saját autó fizikáját számolja.
 export const CAR_PROXY_COLLIDER_GROUPS =
   (COLLISION_GROUP_CAR_PROXY << 16) | COLLISION_GROUP_CAR;
 // A kerék-sugár lekérdezés tagsága = autó, szűrője = csak talaj. A Rapier
@@ -218,9 +214,8 @@ export const MAX_SPEED = MAX_SPEED_KMH / 3.6;
 // A világ léptetése UTÁN kell hívni, ugyanúgy, mint a zone.js
 // applyWallConstraint-jét — mindkettő a kész sebességre ható kényszer, nem
 // vezérlő-bemenet, ezért nincs helyük az applyControls-ban. Mindhárom hívási
-// helyen ugyanabban a sorrendben kell futniuk (egyjátékos animate,
-// kliens-oldali jóslás stepLocalPhysics, szerver raceSim.step), különben a
-// jóslat elcsúszna a szerver igazságától.
+// helyen ugyanabban a sorrendben kell futniuk (egyjátékos animate és online
+// stepLocalPhysics), hogy a két játékmód azonosan viselkedjen.
 export function applySpeedCap(body) {
   const v = body.linvel();
   const speed = Math.hypot(v.x, v.z);

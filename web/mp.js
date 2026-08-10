@@ -1,17 +1,12 @@
-// Online verseny kliens: szerverfizikánál bemenetet küld és korrigál, az
-// ENV-ből kapcsolható kliensfizikánál pedig a kész saját állapotot továbbítja.
-// A többi autó mindkét módban szerver-snapshotból, interpolálva jelenik meg.
+// Online verseny kliens: a saját autó fizikája helyben fut, kész állapotát a
+// szerver ellenőrzi és továbbítja. A többi autó snapshotból, interpolálva jelenik meg.
 import {
-  C2S, S2C, ROOM_STATE, GAME_MODE, TAINT, TICK_RATE, TICK_MS,
-  PLAYER_TOKEN_LENGTH, sanitizeName, sanitizePlayerToken, PHYSICS_AUTHORITY,
+  C2S, S2C, ROOM_STATE, GAME_MODE, TAINT, TICK_MS,
+  PLAYER_TOKEN_LENGTH, sanitizeName, sanitizePlayerToken,
 } from '/shared/protocol.js';
 import {
   forwardSpeed, REVERSE_BRAKE_THRESHOLD, shouldBrakeFinishedVelocity,
 } from '/shared/vehicleConfig.js';
-import {
-  normalizeQuaternion, rotateVector, rebasePredictedState,
-  samplePredictionStateAt, yawTwist,
-} from '/shared/prediction.js';
 import { raceClockTimes } from '/shared/raceClock.js';
 
 const G = window.__game;
@@ -25,48 +20,22 @@ window.__mp = {
   pingDiscarded: 0,
   step: () => frame(),
   get others() { return others.size; },
-  get selfBuf() { return selfBuf.length; },
   get room() { return room; },
   // Mesterséges késleltetés: __mp.setPing(150) vagy __mp.setPing(150, 30).
   // Ugyanez URL-ből: ?lag=150&jitter=30
   setPing: (rtt, jitter) => setPing(rtt, jitter),
   get net() { return { ...netsim }; },
-  // Prediction-diagnosztika: hány saját bemenet vár még nyugtázásra, és
-  // meddig jutott a szerver. A kettő különbsége a tényleges bemenet-késés
-  // tickben mérve.
   get inputSeq() { return inputSeq; },
-  get ackedSeq() { return ackedSeq; },
-  get pending() { return inputHistory.length; },
-  // Jóslás: be van-e kapcsolva (?predict=0 kikapcsolja), és mekkora volt a
-  // legutóbbi korrekció méterben. Ha ez tartósan nagy, a két szimuláció
-  // eltér egymástól — az bug, nem hangolási kérdés.
-  get predict() { return predict; },
-  get physicsAuthority() { return starting?.physicsAuthority || PHYSICS_AUTHORITY.SERVER; },
-  lastError: 0,
-  // Az óra-sodródás elleni szabályozás állapota: milyen mély a szerver sora,
-  // és mennyire tért el ettől a küldési ütem a névleges tick-időtől.
-  get queueDepth() { return queueDepth; },
-  get queueTarget() { return queueTarget; },
-  get queueDrops() { return queueDrops; },
-  get queueUnderflows() { return queueUnderflows; },
-  get sendPeriod() { return +sendPeriod.toFixed(2); },
   get pingMs() { return +pingRttMs.toFixed(1); },
   get jitterMs() { return +pingJitterMs.toFixed(1); },
   get clockOffsetMs() { return +clockOffsetMs.toFixed(1); },
   get interpDelayMs() { return +interpDelayMs.toFixed(1); },
   get physSteps() { return physSteps; },
-  // A szerver LEGUTÓBBI hiteles állapota a SAJÁT kocsinkról. Enélkül csak a
-  // helyi jóslatot lehet megnézni, az viszont pont elfedi a lényeget: ha a
-  // szerver nem mozgatja a kocsit, a jóslat akkor is előremegy, majd minden
-  // snapshotnál visszaugrik. A `th` a szerver által ténylegesen használt gáz,
-  // a `fin` pedig azt mondja meg, befejezettnek hiszi-e a versenyt.
+  // A szerver legutóbbi ellenőrzött állapota a saját kocsinkról.
   get lastSelf() { return lastSnapshot?.cars?.find((c) => c.id === me.id) || null; },
-  // Rángás-diagnosztikához: a kirajzolt pozíció három összetevője külön.
-  // Így kiderül, MELYIK ugrik — a nyers fizika, az interpoláció, vagy a
-  // korrekció-simítás —, ahelyett hogy tippelnénk.
+  // A helyi fizika és a kirajzolási interpoláció pozíciója diagnosztikához.
   get rawPos() { const s = G.getCarState(); return [s.p[0], s.p[2]]; },
   get interpPos() { const s = interpolatedPhys(); return [s.p[0], s.p[2]]; },
-  get smoothLen() { return Math.hypot(smooth.p[0], smooth.p[1], smooth.p[2]); },
 };
 const THREE = G.THREE;
 
@@ -78,21 +47,13 @@ let pendingHotLap = null;
 // A távoli autók modelljei: playerId -> { group, buf: [állapotok] }
 const others = new Map();
 // A kiválasztott ranglistakör áttetsző visszajátszása. Nem kerül fizikai
-// proxyba, ezért sem a szerveren, sem a helyi jóslatban nem tud ütközni.
+// proxyba, ezért nem tud ütközni.
 let ghostCar = null;
-// A saját kocsi állapot-puffere is kell: a szerver mozgat minket is.
-let selfBuf = [];
 let currentRaceResults = null;
 let inputSeq = 0;
 let awaitingFirstSnapshot = false;
 let raceLoadGeneration = 0;
 let raceLoadActive = false;
-let queueDepth = 0;
-let queueDrops = 0;
-let queueUnderflows = 0;
-let queueTarget = 1;
-let queueTargetBoost = 0;
-let lastQueueIssueAt = 0;
 // Elromlott-e már az aktuális kör a szerver szerint, és ha igen, MIÉRT: a
 // snapshot `ti` mezője a TAINT kódját küldi (0 = érvényes). A konkrét ok kell,
 // nem csak egy igen/nem — abból a játékos nem tudja, mit rontott el.
@@ -627,9 +588,8 @@ function sendPing() {
 // Hungaroringen (220 e háromszög), Shanghain (565 e) ennek a többszöröse —
 // innen a "700 ms-os ping", ami valójában semmit nem mond a hálózatról.
 //
-// Az ilyen mintát el KELL dobni, nem csak kozmetikából: a jitterbe is beszáll,
-// az pedig megemeli a bemenet-puffert (queueTarget), tehát egy hamis tüske
-// valódi, másodpercekig tartó extra késleltetést okozna a vezérlésben.
+// Az ilyen mintát el KELL dobni, mert a jitterbe beszállva feleslegesen
+// megnövelné a távoli autók interpolációs késleltetését.
 //
 // A figyelő egy sűrű időzítő: ha két ütés között sokkal több idő telt el, mint
 // kellett volna, akkor a főszál addig blokkolt. A PONG-nál elég annyit nézni,
@@ -815,13 +775,7 @@ function onMessage(m) {
 
     case S2C.CAR_RESET:
       if (m.playerId === me.id && G.resetMultiplayerCar(m.respawn || {})) {
-        selfBuf.length = 0;
         predBuf.length = 0;
-        inputHistory.length = 0;
-        predictionHistory.length = 0;
-        smooth.p = [0, 0, 0];
-        smooth.q = [0, 0, 0, 1];
-        smooth.active = false;
       }
       break;
 
@@ -895,15 +849,6 @@ function onMessage(m) {
             clockOffsetMs += (sampleOffset - clockOffsetMs) * 0.1;
           }
         }
-        // Csak a jitter növeli az alap inputpuffert; a stabil ping nem. Ha a
-        // szerver mégis kiéhezést jelentett, arra külön, lassan lecsengő plusz
-        // tartalék kerül (onSnapshot), nem írjuk felül a következő PONG-nál.
-        const jitterTarget = 1 + Math.ceil(pingJitterMs / TICK_MS);
-        if (queueTargetBoost && performance.now() - lastQueueIssueAt > 10000) {
-          queueTargetBoost--;
-          lastQueueIssueAt = performance.now();
-        }
-        queueTarget = Math.max(1, Math.min(6, jitterTarget + queueTargetBoost));
         G.setPingMs(pingRttMs);
       }
       break;
@@ -960,10 +905,6 @@ function isHotLap() {
   return starting?.mode === GAME_MODE.HOT_LAP || room?.mode === GAME_MODE.HOT_LAP;
 }
 
-function usesClientAuthority() {
-  return starting?.physicsAuthority === PHYSICS_AUTHORITY.CLIENT;
-}
-
 async function beginRace(info) {
   const loadGeneration = ++raceLoadGeneration;
   raceLoadActive = true;
@@ -976,8 +917,6 @@ async function beginRace(info) {
   // kapkodott végig a motorhang a fokozatokon a második verseny elején.
   stopInputLoop();
   awaitingFirstSnapshot = false;
-  inputHistory.length = 0;
-  predictionHistory.length = 0;
   predBuf.length = 0;
   // A második futam nem örökölheti az előző célba érési sebességét/fokozatát.
   // Enélkül a nulláról induló új autónál a hang gyorsan végigváltott lefelé,
@@ -1003,10 +942,7 @@ async function beginRace(info) {
   // takarítást, itt akkor sem halmozódhatnak egymásra az előző meccs kocsijai.
   clearOtherCars();
   resetNetworkRaceState();
-  // Biztonsági háló: a dev autó-tesztelő élő hangolása (motorerő/fék/tapadás)
-  // csak a helyi jóslatot érintené, de multiplayerben a szerver mindig a
-  // kanonikus értékekkel számol — a jóslatnak is azzal kell indulnia, különben
-  // folytonos, meglepő korrekciók jönnének.
+  // Multiplayerben mindig a fájlba mentett, kanonikus járműbeállításokkal indulunk.
   G.resetLiveVehicleTunables();
   G.setMenuStatus('Verseny betöltése...');
 
@@ -1044,8 +980,8 @@ async function beginRace(info) {
   if (loadGeneration !== raceLoadGeneration) return;
   window.__mp.stage = 'kocsi-kesz';
   // strict: multiplayerben a pálya ütközési hálója KÖTELEZŐEN a bekészített
-  // fájlból jön, mert a szerver is abból számol. Ha nem tölthető le, itt
-  // hibával elhasal — jobb, mint némán rossz geometrián versenyezni (ettől
+  // fájlból jön. Ha nem tölthető le, itt hibával elhasal — jobb, mint némán
+  // rossz geometrián versenyezni (ettől
   // lebegett a kocsi a pálya fölött).
   await G.prepareTrackPhysics({ strict: true });
   if (loadGeneration !== raceLoadGeneration) return;
@@ -1054,8 +990,8 @@ async function beginRace(info) {
   window.__mp.stage = 'tobbiek-kesz';
   G.setMenuStatus('');
   // A saját kocsit a rajthelyére tesszük, MIELŐTT az első képkocka kimenne.
-  // A hiteles pozíciót a szerver első snapshotja adja, de az később érkezik —
-  // addig a helyi fizika a menübeli kirakat-pózból indulna, ahol a kocsi 2
+  // A rajthelyet az indítási csomag adja; a helyi fizika különben a menübeli
+  // kirakat-pózból indulna, ahol a kocsi 2
   // méterrel a talaj fölött lebeg. A játékos így egy pillanatra a levegőben
   // látta a saját autóját a rajtnál.
   G.placeAtGridSlot(
@@ -1070,31 +1006,22 @@ async function beginRace(info) {
   // csak akkor indul, ha MINDENKI jelentkezett (vagy lejár a türelmi idő) —
   // enélkül egy lassan töltő játékos a 3-2-1-ből csak az 1-et látta.
   // Már a visszajelzés ELŐTT várjuk az első snapshotot: localhoston a
-  // kliensfizikai relé olyan gyors lehet, hogy különben megelőzné ezt a flaget.
+  // az állapotrelé olyan gyors lehet, hogy különben megelőzné ezt a flaget.
   awaitingFirstSnapshot = true;
-  if (usesClientAuthority()) {
-    const initialState = G.getCarState();
-    const initialWheels = G.getWheelNetworkState?.() || { st: 0, wr: 0 };
-    send(C2S.SET_READY, {
-      ready: true,
-      state: {
-        seq: 0,
-        t: serverNow(),
-        ...initialState,
-        ...initialWheels,
-        th: 0,
-        offtrack: !!G.isCarFullyOffTrack?.(),
-      },
-    });
-  } else {
-    send(C2S.SET_READY, { ready: true });
-  }
-  // A bemenet-küldést NEM itt indítjuk, hanem az első snapshotnál. A
-  // raceStarting jóval előbb megérkezik, mint ahogy a szerver szimulációja
-  // tényleg futni kezd (előtte betölti a pálya ütközési hálóját) — az addig
-  // elküldött bemenetek csak felhalmozódnának a szerver sorában, és onnantól
-  // minden bemenet ennyivel késve érvényesülne. Az első snapshot a bizonyíték
-  // arra, hogy a szimuláció ÉL és fogyaszt.
+  const initialState = G.getCarState();
+  const initialWheels = G.getWheelNetworkState?.() || { st: 0, wr: 0 };
+  send(C2S.SET_READY, {
+    ready: true,
+    state: {
+      seq: 0,
+      t: serverNow(),
+      ...initialState,
+      ...initialWheels,
+      th: 0,
+      offtrack: !!G.isCarFullyOffTrack?.(),
+    },
+  });
+  // Az állapotküldést az első snapshot után indítjuk, amikor a versenyvezérlő él.
 }
 
 // ---------- A távoli kocsik eltakarítása ----------
@@ -1118,7 +1045,6 @@ function clearOtherCars() {
   // enterMenu() cleanup hookján halad át, nem feltétlenül a leaveMultiplayer()-en,
   // ezért az ottani külön nullázás ezt az útvonalat nem fedte le.
   G.setMiniMapMarkers([], null);
-  selfBuf = [];
 }
 
 // Egyetlen játékos kocsijának leszedése — verseny KÖZBEN is, amikor kilép
@@ -1142,12 +1068,7 @@ function cleanupMultiplayerForMenu() {
   cancelRaceLoad();
   stopInputLoop();
   awaitingFirstSnapshot = false;
-  inputHistory.length = 0;
-  predictionHistory.length = 0;
   predBuf.length = 0;
-  smooth.p = [0, 0, 0];
-  smooth.q = [0, 0, 0, 1];
-  smooth.active = false;
   G.detachMultiplayerFrame();
   hideMultiplayerResults();
   clearOtherCars();
@@ -1359,61 +1280,6 @@ function resetNetworkRaceState() {
   snapshotTransitMs = 0;
   snapshotJitterMs = 0;
   lastSnapshotTransitMs = null;
-  queueDepth = 0;
-  queueDrops = 0;
-  queueUnderflows = 0;
-  queueTarget = 1;
-  queueTargetBoost = 0;
-  lastQueueIssueAt = 0;
-  sendPeriod = TICK_MS;
-}
-
-// ---------- Client-side prediction ----------
-// A saját kocsit a HELYI fizika mozgatja, azonnal a billentyűkre reagálva —
-// nem várjuk meg a szerver válaszát. A szerver marad a hiteles forrás: minden
-// elküldött bemenethez eltesszük az akkori jósolt állapotot. Amikor a szerver
-// ugyanazt a sorszámot nyugtázza, a kettő eltérését a jelenlegi autóra visszük
-// át — a fizikát nem tekerjük vissza a múltba.
-//
-// Ez CSAK azért működhet pontosan, mert (1) a két oldal ugyanazt a
-// buildVehicle/applyControls kódot futtatja ugyanazon a Rapier buildon, és
-// (2) a szerver tickenként pontosan egy bemenetet fogyaszt — tehát ugyanaz a
-// sorszám ugyanazt a logikai fizikai lépést azonosítja mindkét oldalon.
-//
-// ?predict=0 kikapcsolja, és visszaáll a régi, szerverkövető viselkedésre —
-// így ugyanazon a késleltetésen összehasonlítható a kettő.
-const predict = new URLSearchParams(location.search).get('predict') !== '0';
-
-// A szerver által legutóbb FELHASZNÁLT saját bemenet sorszáma. Minden, ami
-// ennél újabb, még nincs benne a kapott állapotban.
-let ackedSeq = 0;
-
-// A korrekció simítása. A jóslat és a szerver igazsága közti különbséget nem
-// ugrásként visszük fel, hanem eltolásként, ami ~120 ms alatt lecseng. A
-// fizika közben MÁR a helyes állapotban van; ez pusztán a megjelenítés.
-const smooth = { p: [0, 0, 0], q: [0, 0, 0, 1], active: false };
-const SMOOTH_HALFLIFE = 0.12;   // mp
-// Efölött nincs értelme simítani (újraszületés, nagy ütközés, teleport) —
-// olyankor a hirtelen ugrás a helyes, mert a köztes út hazugság lenne.
-const SMOOTH_MAX_DIST = 8;
-// Az eltolás felső korlátja. Kell, mert a korrekciók sűrűbben jönnek (20/mp),
-// mint ahogy a simítás lecseng (120 ms félidő): két korrekció közt csak ~0.75-re
-// esik, a maradék pedig halmozódik. Az egyensúly így a hiba ~négyszerese lenne
-// — 0 pingnél láthatatlan (1 mm -> 4 mm), nagy késleltetésnél viszont több
-// méterrel a valódi helye MÖGÖTT rajzolnánk ki a kocsit. Inkább vállalunk egy
-// alig látható maradék-ugrást, mint egy tartós lemaradást.
-const SMOOTH_MAX_OFFSET = 1.5;
-
-function decaySmoothing(dt) {
-  if (!smooth.active) return;
-  const k = Math.pow(0.5, dt / SMOOTH_HALFLIFE);
-  smooth.p[0] *= k; smooth.p[1] *= k; smooth.p[2] *= k;
-  smooth.q = slerp([0, 0, 0, 1], smooth.q, k);
-  if (Math.hypot(...smooth.p) < 0.005) {
-    smooth.p = [0, 0, 0];
-    smooth.q = [0, 0, 0, 1];
-    smooth.active = false;
-  }
 }
 
 function mulQuat(a, b) {
@@ -1423,100 +1289,6 @@ function mulQuat(a, b) {
     a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3],
     a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2],
   ];
-}
-
-function cloneState(s) {
-  return { p: [...s.p], q: [...s.q], v: [...s.v], w: [...s.w] };
-}
-
-// Egy korábbi, sorszámmal azonosított jóslat és a hozzá tartozó hiteles
-// szerverállapot közti transzformációt a JELENLEGI állapotra visszük át.
-// Nem tekerjük vissza a Rapier autót a múltba: a raycast vehicle belső
-// rugóállapotát nem lehet snapshotból visszaállítani, ezért a régi rollback
-// minden szervercsomagnál maga gyártott új fizikai eltérést és rángást.
-function reconcile(state, predictedState) {
-  const predictedAnchor = cloneState(predictedState);
-  const authoritativeAnchor = cloneState(state);
-  predictedAnchor.q = normalizeQuaternion(predictedAnchor.q);
-  authoritativeAnchor.q = normalizeQuaternion(authoritativeAnchor.q);
-  let dq = normalizeQuaternion(mulQuat(authoritativeAnchor.q, invQuat(predictedAnchor.q)));
-  const grounded = G.getWheelContactCount?.() === 4
-    && Math.abs(authoritativeAnchor.p[1] - predictedAnchor.p[1]) < 0.4
-    && Math.abs(authoritativeAnchor.v[1]) < 3
-    && Math.abs(predictedAnchor.v[1]) < 3;
-
-  if (grounded) {
-    // A Rapier raycast vehicle rugóállapota nem része a body snapshotjának.
-    // Ha talajkontaktus közben átírnánk a kasztni Y/pitch/roll állapotát, a
-    // kerekek a következő ticken a régi rugóhosszból új erőt számolnának, és
-    // periodikusan visszalöknék az autót. Talajon ezért csak a vízszintes hely,
-    // irány és mozgás szerverhibáját korrigáljuk. Levegőben/borulva továbbra is
-    // a teljes hiteles állapot érvényesül.
-    dq = yawTwist(dq);
-    const predictedV = rotateVector(dq, predictedAnchor.v);
-    const predictedW = rotateVector(dq, predictedAnchor.w);
-    authoritativeAnchor.p[1] = predictedAnchor.p[1];
-    authoritativeAnchor.q = normalizeQuaternion(mulQuat(dq, predictedAnchor.q));
-    authoritativeAnchor.v[1] = predictedV[1];
-    authoritativeAnchor.w[0] = predictedW[0];
-    authoritativeAnchor.w[2] = predictedW[2];
-  }
-  const before = G.getCarState();
-  // Ahol a kocsi LÁTSZIK most — a jóslat PLUSZ a még le nem csengett korábbi
-  // korrekció. Ez a fontos: ha csak a nyers jóslatból számolnánk az új
-  // eltolást, minden snapshotnál (20/mp) egy csapásra eldobnánk a maradékot,
-  // és pont ez adna egy apró, folyamatos rángatást.
-  const visualX = before.p[0] + smooth.p[0];
-  const visualY = before.p[1] + smooth.p[1];
-  const visualZ = before.p[2] + smooth.p[2];
-  const visualQ = smooth.active ? mulQuat(smooth.q, before.q) : before.q;
-
-  const after = rebasePredictedState(before, predictedAnchor, authoritativeAnchor, dq);
-  G.setCarState(after);
-  // A jóslási hiba maga a nyers jóslat és a szerver igazsága közti eltérés —
-  // ezt mérjük, nem a látható eltolást.
-  window.__mp.lastError = +Math.hypot(
-    before.p[0] - after.p[0], before.p[1] - after.p[1], before.p[2] - after.p[2]
-  ).toFixed(3);
-
-  // A kirajzolási és a sorszámhoz kötött történeti puffert ugyanabba az új
-  // koordinátarendszerbe visszük. Így a következő snapshot már nem számolja
-  // újra ugyanazt a korrekciót.
-  for (const e of predBuf) {
-    const rel = [
-      e.p[0] - predictedAnchor.p[0],
-      e.p[1] - predictedAnchor.p[1],
-      e.p[2] - predictedAnchor.p[2],
-    ];
-    const rp = rotateVector(dq, rel);
-    e.p = [
-      authoritativeAnchor.p[0] + rp[0],
-      authoritativeAnchor.p[1] + rp[1],
-      authoritativeAnchor.p[2] + rp[2],
-    ];
-    e.q = normalizeQuaternion(mulQuat(dq, e.q));
-  }
-  for (const entry of predictionHistory) {
-    entry.state = rebasePredictedState(entry.state, predictedAnchor, authoritativeAnchor, dq);
-  }
-
-  const dx = visualX - after.p[0];
-  const dy = visualY - after.p[1];
-  const dz = visualZ - after.p[2];
-  if (Math.hypot(dx, dy, dz) > SMOOTH_MAX_DIST) {
-    // Túl nagy ugrás a simításhoz (újraszületés, teleport): ilyenkor a
-    // hirtelen váltás a helyes, a köztes út hazugság lenne.
-    smooth.p = [0, 0, 0];
-    smooth.q = [0, 0, 0, 1];
-    smooth.active = false;
-    return;
-  }
-  // A LÁTHATÓ kocsi ott marad, ahol volt, és onnan csúszik a helyes helyre.
-  const len = Math.hypot(dx, dy, dz);
-  const k = len > SMOOTH_MAX_OFFSET ? SMOOTH_MAX_OFFSET / len : 1;
-  smooth.p = [dx * k, dy * k, dz * k];
-  smooth.q = mulQuat(visualQ, invQuat(after.q));
-  smooth.active = true;
 }
 
 // ---------- A saját kocsi megjelenítése: időbélyeges puffer ----------
@@ -1529,14 +1301,13 @@ function reconcile(state, predictedState) {
 // fizikai lépést időbélyeggel eltárolunk, és a képet egy kicsivel a jelen
 // MÖGÖTT, a puffer két eleme közé interpolálva rajzoljuk ki. Így a kirajzolt
 // pozíció a VALÓS idő szerint halad, függetlenül attól, mikor esik egy-egy
-// fizikai lépés vagy szerver-korrekció.
+// fizikai lépés.
 //
 // Ára ennyi megjelenítési késleltetés. Két tick, hogy a setTimeout
 // pontatlansága (a lépések nem pontosan 16.67 ms-onként esnek) se tudja
 // kiéheztetni az interpolációt.
 const PRED_DELAY_MS = TICK_MS * 2;
 const predBuf = [];
-const predictionHistory = [];
 let physSteps = 0;   // diagnosztikához: hány fizikai lépés történt eddig
 
 // A `t` a lépés ÜTEMEZETT ideje (egyenletesen TICK_MS-enként), nem az, amikor
@@ -1572,15 +1343,9 @@ function interpolatedPhys() {
   return at < predBuf[0].t ? predBuf[0] : predBuf[predBuf.length - 1];
 }
 
-function invQuat(q) {
-  return [-q[0], -q[1], -q[2], q[3]];   // egységkvaternióra a konjugált
-}
-
-// A visszaszámlálás alatt a szerver befagyasztja a kocsikat — a jóslatnak
-// ugyanezt kell tennie, különben elindulnánk a rajt előtt.
+// A visszaszámlálás alatt befagyasztjuk a helyi kocsit.
 // Áll-e még a kocsi (befékezve). Ha a rajtidőt még nem tudjuk, akkor IGEN: a
-// szerver a betöltésre várva szintén fagyasztva tartja a kocsikat, és ha a
-// kliens közben szabadon jósolna, a két szimuláció azonnal elcsúszna.
+// a versenyvezérlő a betöltésre vár.
 function isFrozen() {
   return !starting?.startsAt || serverNow() < starting.startsAt;
 }
@@ -1604,7 +1369,7 @@ function onSnapshot(m) {
   awaitingFirstSnapshot = false;
   for (const c of m.cars) {
     const entry = c.id === me.id ? null : others.get(c.id);
-    const buf = c.id === me.id ? selfBuf : entry?.buf;
+    const buf = entry?.buf;
     if (buf) {
       buf.push({
         t: m.t, p: c.p, q: c.q, v: c.v, w: c.w,
@@ -1628,7 +1393,7 @@ function onSnapshot(m) {
       entry.finished = !!c.fin;
     }
     if (c.id === me.id) {
-      const speedState = usesClientAuthority() ? G.getCarState() : c;
+      const speedState = G.getCarState();
       G.setSpeed(Math.hypot(speedState.v[0], speedState.v[2]) * 3.6);
       myLap = c.lap;
       myCp = c.cp ?? 0;
@@ -1644,38 +1409,7 @@ function onSnapshot(m) {
         // megérkezése indítja késve az órát vagy a szellemet.
         myLapStartedAt = Number.isFinite(c.ls) ? c.ls : 0;
       }
-      ackedSeq = c.seq || 0;
       lapTainted = c.ti || TAINT.NONE;
-      if (usesClientAuthority()) continue;
-      // Ugyanazt a fizikai időpontot hasonlítjuk össze. Magas pingnél az
-      // ackelt sorszám helyi állapota egy fél hálózati úttal korábbi lenne,
-      // ezért a régi seq-alapú horgony önmagában gyártott többméteres hibát.
-      const predictedAtSnapshot = samplePredictionStateAt(predictionHistory, m.t);
-      // A nyugtázott bemenetek hatása már benne van a kapott állapotban,
-      // őket nem kell tovább őrizni.
-      while (inputHistory.length && inputHistory[0].seq <= ackedSeq) inputHistory.shift();
-      // A sorszámhoz eltett korabeli jóslatból számoljuk ki a korrekciót, de
-      // azt a JELENRE visszük át. A járművet nem tekerjük vissza és nem
-      // szimuláljuk újra, mert a kerékvezérlő belső rugóállapota nem állítható
-      // vissza ugyanarra a múltbeli értékre.
-      if (predict && inputTimer && predictedAtSnapshot) {
-        reconcile({ p: c.p, q: c.q, v: c.v, w: c.w }, predictedAtSnapshot);
-      }
-      else if (predict && startAfterSnapshot) G.setCarState({ p: c.p, q: c.q, v: c.v, w: c.w });
-      while (predictionHistory.length && predictionHistory[0].seq <= ackedSeq) predictionHistory.shift();
-      if (typeof c.qd === 'number') {
-        queueDepth = c.qd;
-        adjustSendRate(c.qd);
-      }
-      if (typeof c.qdrop === 'number') queueDrops = c.qdrop;
-      if (typeof c.qunder === 'number') {
-        if (c.qunder > queueUnderflows) {
-          queueTargetBoost = Math.min(5, queueTargetBoost + 1);
-          lastQueueIssueAt = performance.now();
-          queueTarget = Math.min(6, queueTarget + 1);
-        }
-        queueUnderflows = c.qunder;
-      }
     }
   }
   if (startAfterSnapshot) startInputLoop();
@@ -1760,13 +1494,10 @@ function remoteStateAt(buf, targetServerTime) {
   };
 }
 
-// A proxyk időpontja az adott jóslási lépés saját, szerverórára átszámolt
-// ideje. Reconciliationkor így nem a jelenlegi ellenfélpozíciót használjuk az
-// összes történeti inputhoz, hanem lépésenként a hozzá tartozó becslést.
+// A proxyk időpontja az adott helyi fizikai lépés szerverórára átszámolt ideje.
 function syncRemoteProxies(targetServerTime) {
-  // Ghost módban a szerver sem számol autó–autó kontaktot. Ha a kliens mégis
-  // létrehozná a távoli dinamikus proxykat, a helyi jóslat lökést kapna, amit a
-  // hiteles snapshot rögtön visszakorrigálna — vagyis látszólag rángatna.
+  // Ghost módban nem hozunk létre távoli dinamikus proxykat, ezért a kocsik
+  // helyben sem tudnak egymással ütközni.
   if (starting?.ghostMode === true || room?.ghostMode === true) return;
   const mine = G.getCarState().p;
   const now = serverNow();
@@ -1834,47 +1565,13 @@ function updateGhostPlayback(nowServer) {
 }
 
 // Minden képkockán fut (a main.js animate-jéből).
-// A dt-nek van alapértéke, mert a __mp.step() (kézi léptetés teszteléshez)
-// paraméter nélkül hívja — enélkül a simítás lecsengése NaN-ra futna.
-function frame(dt = 1 / 60) {
+function frame() {
   window.__mp.frames++;
   const nowServer = serverNow();
   const renderTime = nowServer - interpDelayMs;
 
-  if (usesClientAuthority()) {
-    // Ebben a módban nincs szerveres korrekció: a test és a kirajzolás is a
-    // helyi fizika állapotát követi, ezért a ping a saját autót nem rángathatja.
-    const state = interpolatedPhys();
-    G.applyServerTransform(state.p, state.q);
-  } else if (predict) {
-    // JÓSLÁS: a saját kocsit a HELYI fizika mozgatja, azonnal reagálva a
-    // billentyűkre. A szerver korrekcióját nem ugrásként visszük fel, hanem
-    // egy lecsengő eltolással (ld. reconcile) — így a kocsi akkor sem
-    // rándul, ha a jóslat egy kicsit mellément.
-    decaySmoothing(dt);
-    const s = interpolatedPhys();
-    G.applyServerTransform(
-      [s.p[0] + smooth.p[0], s.p[1] + smooth.p[1], s.p[2] + smooth.p[2]],
-      smooth.active ? mulQuat(smooth.q, s.q) : s.q
-    );
-  } else {
-    // JÓSLÁS NÉLKÜL (?predict=0): a saját kocsi a szerver állapotát követi.
-    // A késleltetést itt sem alkalmazzuk — az a többiek simításához kell, a
-    // sajátunkat csak még lomhábbá tenné a hálózati út késése MELLÉ jőve.
-    // Helyette a legfrissebb állapotot vesszük, és a szerver óta eltelt időre
-    // a sebességgel előre becsüljük.
-    const mine = selfBuf[selfBuf.length - 1];
-    if (mine) {
-      // A mine.t a SZERVER órája szerinti idő, a Date.now() a kliensé — a kettő
-      // eltérhet, ezért az eredményt mindkét irányban korlátozzuk. Enélkül egy
-      // elállított óra a kocsit a semmibe repítené (vagy hátrafelé rántaná).
-      const ahead = Math.max(0, Math.min((nowServer - mine.t) / 1000, 0.25));
-      G.applyServerTransform(
-        [mine.p[0] + mine.v[0] * ahead, mine.p[1] + mine.v[1] * ahead, mine.p[2] + mine.v[2] * ahead],
-        mine.q
-      );
-    }
-  }
+  const state = interpolatedPhys();
+  G.applyServerTransform(state.p, state.q);
 
   // A többiek helye a minitérképhez is kell, ezért ugyanabban a körben
   // gyűjtjük — a kirajzolt (interpolált) pozícióból, hogy a pötty pontosan azt
@@ -2086,66 +1783,20 @@ function eventText(e) {
   return '';
 }
 
-// A bemenetet fix ütemben küldjük, nem képkockánként: így a hálózati terhelés
-// független attól, milyen erős a gép.
-//
-// Az ütem PONTOSAN a szerver tickje (TICK_MS), mert a szerver tickenként
-// egyetlen bemenetet fogyaszt el a sorából. Egy input = egy tick: csak így
-// tudja a kliens ugyanahhoz a logikai lépéshez hasonlítani a saját és a
-// szerver állapotát; enélkül a prediction korrekciója sosem konvergálna.
-//
-// A megőrzött előzmény (inputHistory) a nyugtázatlan bemeneteket tartalmazza:
-// a szerver a snapshotban visszaküldi, meddig HASZNÁLTA FEL őket, az addigiakat
-// eldobjuk. A predictionHistory ugyanezekhez tárolja a korabeli fizikai állapotot.
-const inputHistory = [];
-const MAX_INPUT_HISTORY = TICK_RATE * 3;
-
-// ---------- Óra-sodródás elleni visszacsatolás ----------
-// A kliens és a szerver órája sosem jár pontosan egyformán. Ha a kliens akár
-// ezrelékkel gyorsabban küld, a szerver sora lassan feltöltődik, és a korlát
-// fölött eldobás lesz belőle; ha lassabban, a sor kiürül, és a szerver az
-// utolsó bemenetet ismételgeti. Mindkettő eltolja a két szimulációt — de csak
-// sok másodperc alatt, ezért localhoston, rövid teszten észre sem venni.
-//
-// Ezért a szerver minden snapshotban megmondja, milyen mély a sor, a kliens
-// pedig ehhez igazítja az ütemét. A cél alapból 1 elem, de mért jitter vagy
-// szerveroldali kiéhezés esetén átmenetileg nagyobb lesz.
-let sendPeriod = TICK_MS;
-
-function adjustSendRate(depth) {
-  const err = depth - queueTarget;
-  // Legfeljebb ±4% eltérés a tick-ütemtől. Ennyi bőven fedi a valós
-  // óra-sodródást (az nagyságrendekkel kisebb), viszont olyan lassan hat,
-  // hogy vezetés közben nem érződik.
-  sendPeriod = TICK_MS * (1 + Math.max(-0.04, Math.min(0.04, err * 0.02)));
-}
+// A helyi fizikát és az állapotküldést fix ütemben futtatjuk, nem
+// képkockánként, így a viselkedés és a hálózati terhelés FPS-független.
 
 function startInputLoop() {
   stopInputLoop();
-  // Új verseny: a sorszámozás és az előzmény is nulláról indul, különben a
-  // szerver (ami szintén 0-ról kezd) a régi, magas sorszámokat látná.
+  // Új versenyben a csomagsorszámozás nulláról indul.
   inputSeq = 0;
-  ackedSeq = 0;
-  inputHistory.length = 0;
-  predictionHistory.length = 0;
   lapTainted = TAINT.NONE;
   finishedDriving = false;
   G.setMultiplayerControlsEnabled(true);
   predBuf.length = 0;
-  smooth.p = [0, 0, 0];
-  smooth.q = [0, 0, 0, 1];
-  smooth.active = false;
-  sendPeriod = TICK_MS;
-  queueDepth = 0;
-  queueDrops = 0;
-  queueUnderflows = 0;
-  queueTarget = Math.max(1, Math.min(6, 1 + Math.ceil(pingJitterMs / TICK_MS)));
-  queueTargetBoost = 0;
-  lastQueueIssueAt = 0;
 
-  // Önkorrigáló ütemező, nem setInterval: az egész ezredmásodpercre kerekít és
-  // sodródik, ráadásul a küldési ütemet menet közben állítani kell (ld.
-  // adjustSendRate).
+  // Önkorrigáló ütemező, nem setInterval: az utóbbi ezredmásodpercre kerekít
+  // és hosszabb távon sodródna.
   let next = performance.now();
   const tick = () => {
     const now = performance.now();
@@ -2161,7 +1812,7 @@ function startInputLoop() {
       // időbélyeget kapna — pedig két ticknyi mozgást jelentenek —, és a
       // képkocka-interpoláció ezen a "függőleges" szakaszon ugrana egyet.
       sendOneInput(next);
-      next += sendPeriod;
+      next += TICK_MS;
       steps++;
     }
     if (next < now) next = now;
@@ -2198,44 +1849,21 @@ function sendOneInput(scheduledAt) {
     brake: controlsEnabled ? brake : finishedBraking,
     handbrake: controlsEnabled && !!k['Space'],
   };
-  const clientAuthority = usesClientAuthority();
-  if (shouldSend && !clientAuthority) inputHistory.push(input);
-  // Nyugtázásig őrizzük meg. A korábbi fél másodperces plafon 500 ms körül
-  // garantáltan levágott még szükséges inputokat; három másodperc már extrém
-  // kapcsolaton is tartalék, de végesen tartja az előzmény költségét.
-  while (inputHistory.length > MAX_INPUT_HISTORY) inputHistory.shift();
-  if (shouldSend && !clientAuthority) {
-    const { at: _localPredictionTime, frozen: _localFrozen, ...wireInput } = input;
-    send(C2S.INPUT, wireInput);
-  }
-  // Ugyanaz a bemenet AZONNAL lefut helyben is: egy bemenet = egy lépés,
-  // pontosan úgy, ahogy a szerver majd elvégzi. Ettől reagál a kocsi
-  // késleltetés nélkül a billentyűkre.
-  if (clientAuthority || predict || raceEnded) {
-    syncRemoteProxies(input.at);
-    G.stepLocalPhysics(input, input.frozen, !controlsEnabled);
-    const predictedState = G.getCarState();
-    if (predict && !clientAuthority && shouldSend) {
-      // A fizikai lépés ütemezett szerverideje kell, nem a setTimeout tényleges
-      // (esetenként későbbi) lefutása. Így egy catch-upban lefutó két tick sem
-      // kap azonos időbélyeget.
-      const predictionAt = serverNow() + (scheduledAt - performance.now());
-      predictionHistory.push({ seq: input.seq, t: predictionAt, state: cloneState(predictedState) });
-      while (predictionHistory.length > MAX_INPUT_HISTORY) predictionHistory.shift();
-    }
-    recordPhysState(scheduledAt, predictedState);
-    G.setSpeed(Math.hypot(predictedState.v[0], predictedState.v[2]) * 3.6);
-    if (clientAuthority && shouldSend) {
-      const wheels = G.getWheelNetworkState?.() || { st: 0, wr: 0 };
-      send(C2S.STATE, {
-        seq: input.seq,
-        t: serverNow() + (scheduledAt - performance.now()),
-        ...predictedState,
-        ...wheels,
-        th: input.throttle,
-        offtrack: !!G.isCarFullyOffTrack?.(),
-      });
-    }
+  syncRemoteProxies(input.at);
+  G.stepLocalPhysics(input, input.frozen, !controlsEnabled);
+  const state = G.getCarState();
+  recordPhysState(scheduledAt, state);
+  G.setSpeed(Math.hypot(state.v[0], state.v[2]) * 3.6);
+  if (shouldSend) {
+    const wheels = G.getWheelNetworkState?.() || { st: 0, wr: 0 };
+    send(C2S.STATE, {
+      seq: input.seq,
+      t: serverNow() + (scheduledAt - performance.now()),
+      ...state,
+      ...wheels,
+      th: input.throttle,
+      offtrack: !!G.isCarFullyOffTrack?.(),
+    });
   }
 }
 
@@ -2249,15 +1877,12 @@ function showResults(results) {
   raceEnded = true;
   finishedDriving = true;
   G.setMultiplayerControlsEnabled(false);
-  // A szimuláció itt már leállt, ezért több hiteles sebesség-snapshot nem jön.
   // Ne tartsa ki az eredménypanel alatt az utolsó, esetleg magas fordulatot.
   G.resetRaceAudio();
   for (const other of others.values()) {
     G.stopRemoteEngine(other.engineAudio);
     other.engineAudio = null;
   }
-  inputHistory.length = 0;
-  predictionHistory.length = 0;
   currentRaceResults = results;
   const rows = results.map((r) => {
     const player = room?.players.find((p) => p.id === r.playerId);

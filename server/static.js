@@ -117,9 +117,8 @@ function sendFile(req, res, full, stat) {
     // böngésző azonnal a friss tartalmat tölti — fejlesztés közben is.
     //
     // Ezért NEM kapnak ezek a fájlok hosszú "immutable" cache-t sem, pedig a
-    // vendor/ mérete csábító: egy beragadt régi rapier.es.js némán
-    // szétcsúsztatná a kliens és a szerver fizikáját (a kettőnek bitre
-    // azonos Rapier buildet kell futtatnia — ld. shared/vehicleConfig.js).
+    // vendor/ mérete csábító: egy beragadt régi rapier.es.js némán eltérő
+    // fizikát adna a játékosok böngészőiben.
     //
     // És ezért nincs "?v=..." az index.html <script src="main.js">-én sem.
     // Egy query string ott CSAK azt az egy fájlt verziózná: az ES-modul

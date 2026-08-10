@@ -1,10 +1,5 @@
-// A zóna-térkép (aszfalt / kifutó / fal) értelmezése — EGY helyen, mert a
-// kliens és a szerver is ezt használja.
-//
-// Miért közös: multiplayerben a szerver dönti el, lassul-e a kocsi a pályán
-// kívül, a kliens viszont ELŐRE JÓSOL ugyanezzel. Ha a két oldal akár egy
-// képpontnyit is másképp mintázna, a jóslat a pálya szélén folyamatosan
-// eltérne a szervertől — pont ott, ahol a játékos amúgy is küzd.
+// A zóna-térkép (aszfalt / kifutó / fal) értelmezése egy helyen. A böngésző
+// mindkét játékmódban ezt használja, a dekódert Node-tesztek is ellenőrzik.
 //
 // A maszkot a dev módbeli zóna-szerkesztő festi, és zonemap.png-ként menti.
 
@@ -13,13 +8,7 @@ export const ZONE_OFFTRACK = 1;
 export const ZONE_WALL = 2;
 
 // EGYETLEN képsor átfordítása zóna-kódokká. Ez az egyetlen hely, ahol a festék
-// színéből kód lesz.
-//
-// Miért soronként, és nem csak egy teljes pufferre: a kliens a canvas kész
-// RGBA tömbjét kapja egyben, a szerver viszont a PNG-t soronként bontja ki
-// (nem áll meg közben a teljes eseményhurok, és nem foglal 80 MB köztes
-// puffert). A szabálynak viszont bitre azonosnak kell lennie a két oldalon,
-// különben a pálya szélén a kliens jóslata folyamatosan eltérne a szervertől.
+// színéből kód lesz; a soronkénti forma RGB és RGBA bemenetet is kezel.
 //
 // `channels`: 4 (RGBA) vagy 3 (RGB — ilyenkor minden képpont átlátszatlan).
 export function zoneCodesFromRow(codes, outOffset, pixels, pixelOffset, width, channels) {
@@ -57,9 +46,8 @@ export function sampleZone(runtime, x, z) {
 }
 
 // ---------- A kocsi alaprajzának mintavétele ----------
-// Innentől a pályaszabályok: fal és "mind a négy kerék lement". Mindkettőt a
-// szerver ÉS a kliens is futtatja (a kliens a jóslásához), ezért itt van, és
-// nem a main.js-ben, ahol eddig volt. THREE nélkül, mert a szerveren nincs.
+// Innentől a pályaszabályok: fal és "mind a négy kerék lement". THREE nélkül
+// maradnak, hogy a logika egyszerűen tesztelhető legyen.
 
 // Egy lokális pont elforgatása a kocsi állásába: v' = v + 2q⃗ × (q⃗ × v + w·v)
 function rotateByQuat(q, x, y, z) {

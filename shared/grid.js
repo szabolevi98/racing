@@ -31,7 +31,7 @@ export function gridSlotPose(spawns, slot) {
 
 // A Hot Lap külön felvezetőpontról indulhat. Ha a pályához nincs ilyen
 // beállítva, a korábbi viselkedés marad: a nyolcadik normál rajthely.
-// Közös függvény, hogy a böngésző első képkockája és a szerver fizikája
+// Közös függvény, hogy a böngésző első képkockája és a szerver versenyvezérlője
 // ugyanazt a pozíciót használja.
 export function hotLapStartPose(spawns, hotLapSpawn) {
   const x = Number(hotLapSpawn?.x);

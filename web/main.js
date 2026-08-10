@@ -346,18 +346,14 @@ let trackColliderBody = null;
 let trackCollider = null;
 
 // ---------- Autó (chassis + Rapier raycast vehicle) ----------
-// A kocsit a KÖZÖS buildVehicle() építi, ugyanaz a függvény, amit a szerver is
-// hív. Korábban itt egy külön, kézzel karbantartott másolat állt: minden értéke
-// egyezett a shared/vehicleConfig.js-ével, de két helyen kellett javítani, és
-// egy elmaradt átvezetés csendben elrontotta volna a client-side predictiont —
-// a kliens és a szerver ilyenkor másképp számol, a kocsi pedig ugrálni kezd.
+// A kocsit a közös buildVehicle() építi egyjátékosban és online is, így a két
+// játékmód ugyanazokat a menetdinamikai beállításokat használja.
 const chassisSize = CHASSIS_SIZE;
 const { body: chassisBody, collider: chassisCollider, vehicle } =
   buildVehicle(RAPIER, world, { x: 0, y: 5, z: 0 });
 
-// Közeli ellenfelek dinamikus ütközőtestei a helyi fizikához. Szerverfizikában
-// a jóslatot közelítik a szerverhez; kliensfizikában ezek adják a ténylegesen
-// helyben számolt autó–autó kontaktot.
+// Közeli ellenfelek dinamikus ütközőtestei adják a helyben számolt
+// autó–autó kontaktot.
 const remoteCarProxies = new Map();
 
 function setRemoteCarProxy(id, state) {
@@ -2428,10 +2424,8 @@ function syncMiniMapVisibility() {
 }
 
 // ---------- Ranglista: pályánkénti leggyorsabb körök ----------
-// Csak MULTIPLAYER körök kerülnek ide: azokat a hiteles szerver méri. Az
-// egyjátékos időket a böngésző számolja, tehát bárki felküldhetne bármit —
-// egy ranglistán az hamis adat lenne. (A szerver oldalán a lap_times tábla
-// eleve csak a raceSim.js-ből töltődik.)
+// Csak szerver által ellenőrzött online körök kerülnek ide. Az egyjátékos
+// időket kizárólag a böngésző számolja, ezért nem tölthetők fel ranglistára.
 const LEADERBOARD_LIMIT_DESKTOP = 10;
 const LEADERBOARD_LIMIT_MOBILE = 5;
 // Gyors pályaváltogatásnál a korábbi kérés később is megérkezhet, mint az
@@ -2651,7 +2645,7 @@ function crossedGate(gate, fromX, fromZ, toX, toZ) {
 // tehát az átlépés pontja simán lehet a kifutón vagy a fal mellett — onnan
 // visszaindulni büntetés lenne. A vonalat viszont mindig úgy húzzuk be, hogy a
 // közepe az aszfalt közepére essen, tehát az biztosan használható rajtpont.
-// (Ugyanez a számítás fut a szerveren is — lásd server/game/raceSim.js.)
+// Ugyanezt a középpontot használja a szerveres RaceController is.
 function gateMidpoint(gate) {
   return { x: (gate.x1 + gate.x2) / 2, z: (gate.z1 + gate.z2) / 2 };
 }
@@ -3294,8 +3288,8 @@ function updateChaseCamera(dt = 1 / 60) {
 
   // A LÁTHATÓ kocsit követjük, nem a fizikai testet. Egyjátékosban a kettő
   // ugyanott van (a carPivot minden képkockán a chassisBody-ról frissül), de
-  // multiplayerben a helyi fizika nem fut — a kocsit a szerver állapota
-  // mozgatja —, így a chassisBody a rajtnál maradna, és vele a kamera is.
+  // online a megjelenítés időben interpolált, ezért a kirajzolt carPivot
+  // néhány ezredmásodperccel eltérhet a fizikai test pillanatnyi helyétől.
   const chassisPos = carPivot.position;
   const q = carPivot.quaternion;
   const view = CAMERA_VIEWS[cameraViewIndex];
@@ -3441,7 +3435,7 @@ window.addEventListener('pointerdown', () => {
 let multiplayerCleanupHook = null;
 
 // A legutóbb kijelzett sebesség (km/h). Multiplayerben a szerver snapshotja
-// és a helyi jóslás is frissíti; a motorhang ugyanezt az értéket követi.
+// és a helyi online fizika is frissíti; a motorhang ugyanezt az értéket követi.
 let lastReportedSpeedKmh = 0;
 
 // A menü kirakatpozíciója nem azonos az előző játékmód rajtpontjával.
@@ -3818,12 +3812,9 @@ async function fetchPreparedCollision(entry) {
 
 // A `strict` a multiplayer: ott TILOS a modellből kinyert hálóra visszaesni.
 //
-// Korábban némán visszaesett, és ez volt a "lebegek a pálya fölött" hiba
-// gyökere: a kinyert háló NEM azonos a szerver collision.bin-jével, tehát a
-// kliens jóslata más magasságon nyugtatta meg a kocsit, mint amit a szerver
-// mond. A kirajzolt hely a jóslatból jön (a szerver-korrekció maximalizált és
-// lecsengő), így a kocsi tartósan a rossz magasságon látszott. Inkább ne
-// induljon a verseny, mint hogy rossz geometrián versenyezzünk.
+// Online futamban nem esünk vissza a modellből kinyert hálóra: minden kliensnek
+// ugyanazt a bekészített collision.bin-t kell használnia. Inkább ne induljon a
+// verseny, mint hogy valaki eltérő geometrián játsszon.
 async function loadOrExtractCollision(strict = false) {
   const entry = manifest && findEntry(manifest.maps, currentMapId);
   if (entry?.collision) {
@@ -4411,9 +4402,8 @@ let multiplayerControlsEnabled = true;
 
 // Egy multiplayer képkocka. Külön függvény, hogy teszteléskor kézzel is
 // léptethető legyen: a requestAnimationFrame megáll, ha a lap háttérbe kerül.
-// Online futamban a hálózati modul lépteti a saját kocsit: szerverfizikánál
-// jóslatként, kliensfizikánál végleges állapotként. A frame hook a kirajzolást,
-// az esetleges korrekciót és a távoli autók interpolációját végzi.
+// Online futamban a hálózati modul lépteti a saját kocsi végleges helyi
+// fizikáját. A frame hook a kirajzolást és a távoli autók interpolációját végzi.
 function stepMultiplayerFrame(dt) {
   mpFrameHook?.(dt);
   // Ugyanaz, mint az egyjátékos animate()-ben: a modell magasságát a VALÓDI,
@@ -4439,8 +4429,8 @@ function stepMultiplayerFrame(dt) {
   updateMiniMap(p.x, p.z);
   updateZoneIndicator(p.x, p.z);
 
-  // Motorhang. A kijelzett sebességet a snapshotok között a helyi jóslás
-  // frissíti. Célba éréskor a gázt itt is letiltjuk, így a kiguruló autó
+  // Motorhang. A kijelzett sebességet a helyi fizika frissíti. Célba éréskor
+  // a gázt itt is letiltjuk, így a kiguruló autó
   // hangja a sebességével együtt cseng le.
   updateEngine(
     lastReportedSpeedKmh,
@@ -4448,8 +4438,8 @@ function stepMultiplayerFrame(dt) {
     dt
   );
 
-  // Felborulás. A visszahelyezést multiplayerben nem mi végezzük — a szerver
-  // a hiteles forrás —, ezért csak jelezzük; az R-t a hálózati modul küldi el.
+  // Felborulás. A visszahelyezés célpontját a szerver választja, ezért itt csak
+  // jelezzük; az R-t a hálózati modul küldi el.
   const q = chassisBody.rotation();
   const flipped = 1 - 2 * (q.x * q.x + q.z * q.z) < 0.2;
   if (flipped) rolloverAlertTextEl.textContent = 'Felborultál! Nyomj R-et — vissza az utolsó checkpontra.';
@@ -4457,8 +4447,8 @@ function stepMultiplayerFrame(dt) {
 }
 
 // A multiplayer modul felülete a játék felé. Szándékosan szűk: csak annyit
-// ad ki, amennyi a hálózati réteghez kell — a fizikát és a versenylogikát
-// multiplayerben a szerver végzi.
+// ad ki, amennyi a hálózati réteghez kell. A fizikát a böngésző, a
+// versenylogikát a szerver végzi.
 window.__game = {
   THREE, scene, camera, carPivot, renderer,
   resetLiveVehicleTunables,
@@ -4514,14 +4504,14 @@ window.__game = {
   },
   // A kocsi a rajthelyére, MIELŐTT a multiplayer első képkockája kirajzolódna.
   //
-  // A hiteles pozíciót a szerver első snapshotja adja, de az csak a betöltés
-  // után érkezik. Addig a helyi fizika ott folytatná, ahol a menüben abbahagyta
+  // A kiosztott pozíciót már az indítási csomag tartalmazza. Enélkül a helyi
+  // fizika ott folytatná, ahol a menüben abbahagyta
   // — ott viszont a kocsi SZÁNDÉKOSAN 2 méterrel a talaj fölött lebeg (a
   // kirakat-nézethez), tehát a játékos a rajt pillanatában a levegőben látná
   // az autóját, ahogy épp esni kezd.
   //
   // A rajthely számítása a közös shared/grid.js-ben él, ugyanaz, amiből a
-  // szerver a világot építi — így az első snapshot nem mozdítja el a kocsit.
+  // szerver a verseny állapotát felépíti.
   placeAtGridSlot(spawns, slot, hotLapSpawn = undefined) {
     const pose = hotLapSpawn === undefined
       ? gridSlotPose(spawns, slot)
@@ -4548,23 +4538,13 @@ window.__game = {
     miniMapMarkers = markers || [];
     miniMapSelfColor = selfColor || null;
   },
-  // ---- Client-side prediction felülete ----
-  // A helyi kocsi ÁLLAPOTÁNAK kiolvasása és beállítása, plusz egyetlen
-  // szimulációs lépés. A hálózati modul ezekből építi fel a jóslást: a
-  // szerver állapotára visszaáll, majd újrajátssza a még nem nyugtázott
-  // bemeneteket.
-  //
-  // A szögsebesség (w) is kell, nem csak a hely/forgás/sebesség: enélkül a
-  // kocsi pörgés vagy billenés közben más állapotból folytatná, mint a szerver.
+  // ---- Online helyi fizika felülete ----
+  // A hálózati modul kiolvassa az elküldendő állapotot, és fix ütemben lépteti
+  // a fizikát. A szögsebesség is része a továbbított állapotnak.
   getCarState() {
     const p = chassisBody.translation(), q = chassisBody.rotation();
     const v = chassisBody.linvel(), w = chassisBody.angvel();
     return { p: [p.x, p.y, p.z], q: [q.x, q.y, q.z, q.w], v: [v.x, v.y, v.z], w: [w.x, w.y, w.z] };
-  },
-  getWheelContactCount() {
-    let count = 0;
-    for (let i = 0; i < 4; i++) if (vehicle.wheelIsInContact(i)) count++;
-    return count;
   },
   getWheelNetworkState() {
     return {
@@ -4575,7 +4555,7 @@ window.__game = {
   isCarFullyOffTrack() {
     return allWheelsOffTrack();
   },
-  // Kliensfizikában az R célpontját még mindig a szerver választja ki (utolsó
+  // Az R célpontját a szerver választja ki (utolsó
   // szabályosan érintett checkpoint), de a talajmagasságot és a teleportot a
   // saját Rapier világunk végzi el.
   resetMultiplayerCar({ x, z, heading = 0 }) {
@@ -4589,23 +4569,13 @@ window.__game = {
     carPivot.quaternion.set(rotation.x, rotation.y, rotation.z, rotation.w);
     return true;
   },
-  setCarState({ p, q, v, w }) {
-    chassisBody.setTranslation({ x: p[0], y: p[1], z: p[2] }, true);
-    chassisBody.setRotation({ x: q[0], y: q[1], z: q[2], w: q[3] }, true);
-    chassisBody.setLinvel({ x: v[0], y: v[1], z: v[2] }, true);
-    if (w) chassisBody.setAngvel({ x: w[0], y: w[1], z: w[2] }, true);
-  },
-  // Egyetlen szimulációs lépés, PONTOSAN úgy, ahogy a szerver csinálja
-  // (raceSim.step) — beleértve a kifutó-lassítást is. A zóna mintavétele
-  // ugyanabból a maszkból, ugyanazzal a képlettel megy mindkét oldalon
-  // (shared/zone.js), különben a pálya szélén a jóslat folyamatosan
-  // eltérne a szervertől.
+  // Egyetlen online szimulációs lépés, beleértve a kifutó-lassítást és a falat.
   stepLocalPhysics(input, frozen = false, finished = false) {
     applyControls(vehicle, chassisBody, input, { frozen, offtrackWheels: wheelsOffTrack() });
     vehicle.updateVehicle(world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
     world.step();
     // A sebességplafon és a láthatatlan fal a lépés UTÁN, ugyanabban a
-    // sorrendben, mint a szerveren és mint az egyjátékos animate()-ben.
+    // sorrendben, mint az egyjátékos animate()-ben.
     applySpeedCap(chassisBody);
     applyWallConstraint();
     if (finished) settleFinishedBody(chassisBody);
@@ -4627,8 +4597,8 @@ window.__game = {
     }, 5_050);
     renderMultiplayerLapInvalidAlert();
   },
-  // Multiplayer módba váltás: a versenylogikát a szerver végzi. A helyi
-  // fizikát a hálózati modul lépteti, ha a jóslás be van kapcsolva.
+  // Multiplayer módba váltás: a versenylogikát a szerver végzi, a helyi
+  // fizikát a hálózati modul lépteti.
   enterMultiplayer(frameHook) {
     clearServerValidationAlert();
     requestGameFullscreen();
@@ -4697,7 +4667,7 @@ window.__game = {
     standingsWrapEl.classList.toggle('hidden', !html);
   },
   setSpeed(kmh) {
-    // Menet közben ezt a szerver-snapshot és a helyi jóslás is frissíti. A
+    // Menet közben ezt a szerver-snapshot és a helyi fizika is frissíti. A
     // célba érés után már nem jön snapshot, ezért a kiguruló helyi fizika kell
     // ahhoz, hogy a sebesség és a motorhang ténylegesen nullára csengjen.
     lastReportedSpeedKmh = kmh;

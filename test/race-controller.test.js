@@ -1,8 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { physicsAuthorityFromEnv } from '../server/config.js';
-import { ClientRaceSim, sanitizeClientCarState } from '../server/game/clientRaceSim.js';
-import { PHYSICS_AUTHORITY, ROOM_STATE, GAME_MODE, S2C, TAINT } from '../shared/protocol.js';
+import { RaceController, sanitizeClientCarState } from '../server/game/raceController.js';
+import { ROOM_STATE, GAME_MODE, S2C, TAINT } from '../shared/protocol.js';
 
 const wireState = (seq, t, x, z = 0, extra = {}) => ({
   seq, t,
@@ -36,13 +35,6 @@ function makeRoom() {
   };
 }
 
-test('physics authority is server by default and client only when explicitly selected', () => {
-  assert.equal(physicsAuthorityFromEnv({}), PHYSICS_AUTHORITY.SERVER);
-  assert.equal(physicsAuthorityFromEnv({ PHYSICS_AUTHORITY: 'client' }), PHYSICS_AUTHORITY.CLIENT);
-  assert.equal(physicsAuthorityFromEnv({ PHYSICS_AUTHORITY: ' CLIENT ' }), PHYSICS_AUTHORITY.CLIENT);
-  assert.equal(physicsAuthorityFromEnv({ PHYSICS_AUTHORITY: 'anything-else' }), PHYSICS_AUTHORITY.SERVER);
-});
-
 test('client car state rejects non-finite and implausibly fast payloads', () => {
   assert.ok(sanitizeClientCarState(wireState(1, 1000, 0)));
   assert.equal(sanitizeClientCarState(wireState(1, 1000, 0, 0, { p: [NaN, 0, 0] })), null);
@@ -50,7 +42,7 @@ test('client car state rejects non-finite and implausibly fast payloads', () => 
   assert.equal(sanitizeClientCarState(wireState(1, 1000, 0, 0, { q: [0, 0, 0, 0] })), null);
 });
 
-test('client-authoritative controller relays state and still owns lap timing and ghosts', async () => {
+test('race controller relays state and still owns lap timing and ghosts', async () => {
   const room = makeRoom();
   const messages = [];
   const map = {
@@ -60,7 +52,7 @@ test('client-authoritative controller relays state and still owns lap timing and
       checkpoints: [{ x1: 10, z1: -5, x2: 10, z2: 5 }],
     },
   };
-  const sim = new ClientRaceSim(room, {
+  const sim = new RaceController(room, {
     map,
     broadcast: (type, data) => messages.push({ type, ...data }),
   });
@@ -96,7 +88,7 @@ test('client-authoritative controller relays state and still owns lap timing and
   }
 });
 
-test('client-authoritative speed validation invalidates once and keeps the player racing', async () => {
+test('race controller speed validation invalidates once and keeps the player racing', async () => {
   const room = makeRoom();
   const messages = [];
   const map = {
@@ -106,7 +98,7 @@ test('client-authoritative speed validation invalidates once and keeps the playe
       checkpoints: [{ x1: 10, z1: -5, x2: 10, z2: 5 }],
     },
   };
-  const sim = new ClientRaceSim(room, {
+  const sim = new RaceController(room, {
     map,
     broadcast: (type, data) => messages.push({ type, ...data }),
   });
@@ -143,7 +135,7 @@ test('client-authoritative speed validation invalidates once and keeps the playe
 test('rolling movement validation catches repeated small position cheats', async () => {
   const room = makeRoom();
   const messages = [];
-  const sim = new ClientRaceSim(room, {
+  const sim = new RaceController(room, {
     map: {
       spawns: [{ x: -1, z: 0, heading: 0 }],
       gates: {
@@ -172,10 +164,10 @@ test('rolling movement validation catches repeated small position cheats', async
   }
 });
 
-test('client-authoritative reset is server-selected and allows the resulting teleport once', async () => {
+test('race controller reset is server-selected and allows the resulting teleport once', async () => {
   const room = makeRoom();
   const messages = [];
-  const sim = new ClientRaceSim(room, {
+  const sim = new RaceController(room, {
     map: { spawns: [{ x: 5, z: 6, heading: 0 }], gates: null },
     broadcast: (type, data) => messages.push({ type, ...data }),
   });

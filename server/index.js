@@ -10,7 +10,6 @@ import { getManifest } from './assets.js';
 import { saveSpawn, saveGates, saveZonemap, saveCollision, saveBakeConfig } from './devApi.js';
 import { attachWebSocket, roomStats } from './net/wsServer.js';
 import { initDb, bestLaps, dbAvailable } from './db/index.js';
-import { physicsAuthority } from './config.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 // Melyik hálózati interfészen figyeljen.
@@ -130,5 +129,5 @@ server.listen(PORT, HOST, () => {
   console.log(`Racing szerver fut:  http://${HOST || 'localhost'}:${PORT}`);
   if (HOST) console.log(`Csak a ${HOST} interfészen figyel (HOST env)`);
   if (ALLOW_DEV_WRITES) console.log('Fejlesztői mentés: BE (ALLOW_DEV_WRITES=0 kapcsolja ki)');
-  console.log(`Online fizika: ${physicsAuthority === 'client' ? 'KLIENS' : 'SZERVER'} (PHYSICS_AUTHORITY)`);
+  console.log('Online fizika: KLIENS');
 });
