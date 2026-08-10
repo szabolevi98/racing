@@ -48,6 +48,22 @@ export class Room {
     return this.players.size >= MAX_PLAYERS_PER_ROOM;
   }
 
+  // Bent van-e MÁR ez a profil ebben a szobában, egy másik kapcsolaton?
+  //
+  // A `players` kulcsa a kapcsolatonként egyedi `player.id`, a profilt viszont
+  // a token azonosítja — két füllel ugyanazzal a tokennel belépve tehát
+  // ugyanaz az ember kétszer szerepelne a rajtrácson.
+  //
+  // Az `exceptId` a hívó SAJÁT kapcsolatát hagyja ki: aki már bent van és
+  // ugyanabba a szobába lép be újra, az nem ütközik önmagával.
+  hasProfile(token, exceptId) {
+    if (!token) return false;
+    for (const p of this.players.values()) {
+      if (p.id !== exceptId && p.token === token) return true;
+    }
+    return false;
+  }
+
   add(player, carId) {
     player.roomCode = this.code;
     player.carId = carId || null;

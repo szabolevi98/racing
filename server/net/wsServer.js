@@ -187,6 +187,12 @@ async function handleMessage(player, msg) {
       if (room.mode === GAME_MODE.HOT_LAP) return fail(socket, 'Ez egy egyszemélyes időmérés.');
       if (room.isFull) return fail(socket, 'A szoba megtelt.');
       if (room.state !== ROOM_STATE.LOBBY) return fail(socket, 'A verseny már elindult ebben a szobában.');
+      // Ugyanaz a profil ne kerüljön kétszer ugyanabba a szobába (két fül,
+      // egy token). Másik szobában párhuzamosan viszont szabad — az nem
+      // rontja el egyik futam rajtrácsát sem.
+      if (room.hasProfile(player.token, player.id)) {
+        return fail(socket, 'Ezzel a profillal már bent vagy ebben a szobában.');
+      }
       if (player.roomCode) leaveRoom(player);
       room.add(player, msg.carId);
       pushRoomState(room);
