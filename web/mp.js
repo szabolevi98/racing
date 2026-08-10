@@ -710,11 +710,21 @@ function onMessage(m) {
       setErr('');
       break;
 
-    case S2C.ROOM_STATE:
+    case S2C.ROOM_STATE: {
+      // Szobán KÍVÜLRŐL érkezett, tehát most léptünk be (vagy most hoztuk
+      // létre). Ilyenkor az előző szobáról szóló üzenet ("Kiléptél a
+      // szobából.", "A szoba megszűnt.") már nem aktuális, viszont ugyanabban
+      // a sávban maradna ott. Csak a belépés pillanatában törlünk, nem minden
+      // szobafrissítéskor: ide jönnek a szerver hibaüzenetei is, azokat egy
+      // közben beeső roomState (más beállt készre, valaki csatlakozott)
+      // különben azonnal letörölné.
+      const entered = !room;
       room = m.room;
+      if (entered) setErr('');
       if (room?.mode !== GAME_MODE.HOT_LAP) renderRoom();
       updateResultsActions();
       break;
+    }
 
     case S2C.ROOM_CLOSED:
       // Ez verseny KÖZBEN is jöhet (pl. a szoba gazdája kilép) — ilyenkor a
