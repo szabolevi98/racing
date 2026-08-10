@@ -166,6 +166,14 @@ kbd.k {
   text-transform: uppercase; color: var(--muted); margin-bottom: 2rem;
 }
 #menu .form-label { margin-bottom: 0.3rem; }
+/* A menü címkéi nagyobbak, mint a .lbl alapmérete: a HUD-ban azért 10px, mert
+   ott futás közben csak orientálódni kell velük, itt viszont ezekből választ a
+   játékos, és van is rá hely. A HUD/eredménytábla .lbl-jeit nem érinti. */
+#menu .lbl { font-size: 12px; }
+/* A darabszám a címke mellett — ugyanaz a stílus, csak halkabban, hogy a
+   címkét ne nyomja el. */
+.lbl-count { font-size: 10px; font-weight: 600; opacity: 0.6; }
+.lbl-count:empty { display: none; }
 /* A kereshető legördülő (makeSearchableSelect) a <select>-et elrejti, és egy
    szöveges mezőt tesz a helyére ugyanazokkal az osztályokkal — ezért kell a
    kettőre azonos stílus, különben a pálya/kocsi/környezet választó másképp
@@ -280,6 +288,8 @@ kbd.k {
   #menu h1 { font-size: 1.35rem; margin-bottom: 0; }
   .menu-sub { font-size: 9px; letter-spacing: 0.14em; margin-bottom: 0.55rem; }
   #menu .form-label { margin-bottom: 0.15rem; font-size: 9px; }
+  #menu .lbl { font-size: 10px; }
+  .lbl-count { font-size: 8px; }
   #menu .form-select, #menu .form-control { padding: 0.35rem 0.6rem; font-size: 0.85rem; }
   #menu .mb-3 { margin-bottom: 0.45rem !important; }
   #menu .row.g-3 { --bs-gutter-y: 0.45rem; }

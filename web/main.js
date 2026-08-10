@@ -4045,6 +4045,11 @@ async function init() {
   fillSelect(carSelect, manifest.cars);
   fillSelect(envSelect, manifest.skyboxes);
 
+  // Darabszám a címke mellé. A kereshető legördülő elrejti a listát, amíg rá
+  // nem kattintasz, tehát máshonnan nem derülne ki, mennyiből válogatsz.
+  document.getElementById('mapCount').textContent = `(${manifest.maps.length} db)`;
+  document.getElementById('carCount').textContent = `(${manifest.cars.length} db)`;
+
   const initialMap = findEntry(manifest.maps, loadLastChoice('map', DEFAULT_MAP_ID));
   const initialCar = findEntry(manifest.cars, loadLastChoice('car', DEFAULT_CAR_ID));
   const initialEnv = findEntry(manifest.skyboxes, loadLastChoice('env', DEFAULT_ENV_ID));
