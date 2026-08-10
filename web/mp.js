@@ -1565,7 +1565,7 @@ function updateGhostPlayback(nowServer) {
 }
 
 // Minden képkockán fut (a main.js animate-jéből).
-function frame() {
+function frame(dt = 1 / 60) {
   window.__mp.frames++;
   const nowServer = serverNow();
   const renderTime = nowServer - interpDelayMs;
