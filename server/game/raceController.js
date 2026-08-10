@@ -471,6 +471,14 @@ export class RaceController {
         li: !!lastLap?.invalid,
         ls: car.race.hasCrossedStart ? Math.round(car.race.lapStart) : null,
         fin: !!car.race.finished,
+        // Küldött-e már valódi állapotot, vagy még a rajtrács-helyfoglalón ül?
+        //
+        // A kezdőállapotot a start() rakja össze a rajthelyből, ahol viszont
+        // nincs magasság (spawn.json: csak x/z/heading), ezért y=0 — a pálya
+        // szintje alatt akár több tíz méterrel. Amíg a játékos tölt, ez a
+        // hamis magasság menne ki róla, és betöltéskor „felbukkanna” a talaj
+        // alól. A kliens ebből tudja, hogy őt még nem szabad kirajzolni.
+        rd: car.lastStateAt > 0,
       };
     });
     // `fd`: mikor zárul le magától a futam (szerver-óra szerint), vagy null.

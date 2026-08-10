@@ -1149,6 +1149,10 @@ async function addOtherCar(p, onProgress, loadGeneration) {
     G.disposeObject3D(group);
     return;
   }
+  // Rejtve születik: a helyét az első valódi állapotból kapja meg (frame()).
+  // Enélkül egy képkockányit a világ origójában villanna, mert a csoport
+  // alapból oda kerül.
+  group.visible = false;
   G.scene.add(group);
   others.set(p.id, {
     group, label, wheelRig: group.userData.wheelRig || { pivots: [], sources: [] },
@@ -1412,7 +1416,16 @@ function onSnapshot(m) {
   awaitingFirstSnapshot = false;
   for (const c of m.cars) {
     const entry = c.id === me.id ? null : others.get(c.id);
-    const buf = entry?.buf;
+    // Amíg a játékos tölt, a szerver csak egy rajtrács-helyfoglalót küld róla,
+    // magasság nélkül (`rd: false`). Ezt NEM tesszük a pufferbe: nemcsak
+    // kirajzolni nem akarjuk, de a puffer az interpolációt és a fizikai proxyt
+    // is hajtja. Ha benne lenne, betöltéskor a helyfoglaló és az első valódi
+    // állapot KÖZÖTT interpolálnánk — vagyis a kocsi ugyanúgy előbukkanna a
+    // talaj alól, csak rövidebben —, ütközni pedig egy ott sem lévő autóval
+    // lehetne. A régi szerver nem küld `rd`-t; annak a hiánya jelenlétet jelent.
+    const present = c.rd !== false;
+    if (entry) entry.present = present;
+    const buf = present ? entry?.buf : null;
     if (buf) {
       buf.push({
         t: m.t, p: c.p, q: c.q, v: c.v, w: c.w,
@@ -1671,7 +1684,15 @@ function frame(dt = 1 / 60) {
   for (const o of others.values()) {
     const delayedState = sampleAt(o.buf, renderTime);
     const currentState = remoteStateAt(o.buf, nowServer);
-    if (!delayedState || !currentState) continue;
+    // Nincs valódi állapota (még tölt, vagy épp most lépett be): ne lássuk.
+    // A `renderReady` közben hamis marad, tehát amikor megjön az első igazi
+    // állapot, a kocsi ODAKERÜL, nem odacsúszik.
+    if (!delayedState || !currentState) {
+      o.group.visible = false;
+      o.label.visible = false;
+      continue;
+    }
+    o.group.visible = true;
     const mine = G.getCarState().p;
     const dx = currentState.p[0] - mine[0], dy = currentState.p[1] - mine[1], dz = currentState.p[2] - mine[2];
     const distSq = dx * dx + dy * dy + dz * dz;
