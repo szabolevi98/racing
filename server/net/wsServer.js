@@ -6,7 +6,7 @@ import { WebSocketServer } from 'ws';
 import { randomUUID } from 'node:crypto';
 import {
   C2S, S2C, ROOM_STATE, GAME_MODE, ROOM_CODE_LENGTH, sanitizeName, sanitizePlayerToken,
-  COUNTDOWN_MS, RACE_LOAD_TIMEOUT_MS,
+  COUNTDOWN_MS, RACE_LOAD_TIMEOUT_MS, PHYSICS_AUTHORITY,
 } from '../../shared/protocol.js';
 import { Room } from '../game/room.js';
 import {
@@ -14,6 +14,7 @@ import {
 } from '../db/index.js';
 import { getManifest } from '../assets.js';
 import { recentBlockMs } from '../loopLag.js';
+import { physicsAuthority } from '../config.js';
 
 const rooms = new Map();    // kód -> Room
 const players = new Map();  // playerId -> player
@@ -210,6 +211,13 @@ async function handleMessage(player, msg) {
     case C2S.SET_READY: {
       const room = rooms.get(player.roomCode);
       if (!room) return;
+      // Kliensfizikánál a betöltés végén már a pályára helyezett, helyes Y
+      // pozíciót is elküldjük. Ha a nagyon gyors kliens megelőzte a vezérlő
+      // elkészültét, ideiglenesen a playeren tartjuk, és startRace átveszi.
+      if (physicsAuthority === PHYSICS_AUTHORITY.CLIENT && msg.state) {
+        player.pendingInitialState = msg.state;
+        room.sim?.receiveState?.(player.id, msg.state, { initial: true });
+      }
       player.ready = !!msg.ready;
       pushRoomState(room);
       // Verseny előtti betöltés: ez volt az utolsó, akire vártunk?
@@ -232,6 +240,12 @@ async function handleMessage(player, msg) {
       // A bemenetet a szimuláció dolgozza fel; itt csak eltároljuk a
       // legfrissebbet. (A szerver szimulál, a kliens csak kér.)
       room?.sim?.queueInput(player.id, msg);
+      return;
+    }
+
+    case C2S.STATE: {
+      const room = rooms.get(player.roomCode);
+      room?.sim?.receiveState?.(player.id, msg);
       return;
     }
 
@@ -289,6 +303,7 @@ async function startRace(room) {
     mapId: room.mapId,
     laps: room.laps,
     mode: room.mode,
+    physicsAuthority,
     ghostMode: room.ghostMode,
     ghost,
     spawns,
@@ -299,8 +314,10 @@ async function startRace(room) {
 
   // A szimulációt a raceSim modul indítja — külön fájlban, hogy ez a réteg
   // tisztán a hálózatról szóljon. Befagyasztva indul, és a releaseAt oldja.
-  const { RaceSim } = await import('../game/raceSim.js');
-  const sim = new RaceSim(room, {
+  const Sim = physicsAuthority === PHYSICS_AUTHORITY.CLIENT
+    ? (await import('../game/clientRaceSim.js')).ClientRaceSim
+    : (await import('../game/raceSim.js')).RaceSim;
+  const sim = new Sim(room, {
     map,
     generation,
     raceId,
@@ -335,6 +352,14 @@ async function startRace(room) {
     if (!room.players.has(playerId)) sim.removeCar(playerId);
   }
   room.sim = sim;
+  if (physicsAuthority === PHYSICS_AUTHORITY.CLIENT) {
+    for (const player of room.players.values()) {
+      if (player.pendingInitialState) {
+        sim.receiveState(player.id, player.pendingInitialState, { initial: true });
+        player.pendingInitialState = null;
+      }
+    }
+  }
 
   // Ha a visszaszámlálás már elindult, amíg a fizika épült, azt a sim.start()
   // maga vette át a szobától — lásd ott a magyarázatot.
@@ -399,6 +424,7 @@ export function attachWebSocket(httpServer) {
       carId: null,
       slot: null,
       ready: false,
+      pendingInitialState: null,
       lastSeen: Date.now(),
     };
     players.set(player.id, player);
@@ -444,5 +470,5 @@ export function attachWebSocket(httpServer) {
 }
 
 export function roomStats() {
-  return { rooms: rooms.size, players: players.size };
+  return { rooms: rooms.size, players: players.size, physicsAuthority };
 }

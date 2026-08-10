@@ -169,15 +169,21 @@ attól még megy, csak az eredmények nem őrződnek meg.
 cd /opt/racing && sudo cp .env.example .env && sudo nano .env
 ```
 
-Élesen ez a három sor a lényeg:
+Élesen ezek a sorok a lényeg:
 
 ```ini
 ALLOW_DEV_WRITES=0
 HOST=127.0.0.1
+PHYSICS_AUTHORITY=client
 DB_PASSWORD=IDE-A-FENTI-JELSZO
 ```
 
 Plusz `DB_USER=racing`.
+
+`PHYSICS_AUTHORITY=client` esetén a játékos saját böngészője számolja a saját
+autóját, a szerver pedig az állapotokat, köröket, eredményeket és szellemeket
+kezeli. Nagy pingnél ez közvetlenebb vezetést ad. `server` értékkel (és a sor
+hiányában is) a korábbi teljes szerverfizika indul.
 
 > ⚠️ Az `ALLOW_DEV_WRITES` alapból **BE van kapcsolva**: a kód
 > `process.env.ALLOW_DEV_WRITES !== '0'` (`server/index.js`). Ha elfelejted

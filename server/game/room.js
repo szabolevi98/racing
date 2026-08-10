@@ -26,7 +26,7 @@ export class Room {
     this.state = ROOM_STATE.LOBBY;
     this.players = new Map(); // playerId -> player
     this.raceId = null;       // adatbázis-beli verseny azonosító
-    this.sim = null;          // a fizikai szimuláció (RaceSim), amíg megy a verseny
+    this.sim = null;          // RaceSim vagy ClientRaceSim versenyvezérlő
     this.countdownEndsAt = 0;
     this.loadingSince = 0;    // mikor kezdődött a betöltési szakasz (időkorláthoz)
     this.loadTimer = null;    // a betöltési időkorlát órája, hogy le is lehessen állítani

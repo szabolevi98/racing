@@ -338,9 +338,9 @@ const chassisSize = CHASSIS_SIZE;
 const { body: chassisBody, collider: chassisCollider, vehicle } =
   buildVehicle(RAPIER, world, { x: 0, y: 5, z: 0 });
 
-// Közeli ellenfelek dinamikus ütközőtestei a helyi jósláshoz. A szerver
-// marad a hiteles forrás; ezek csak azt akadályozzák meg, hogy a kliens olyan
-// akadálytalan mozgást jósoljon, miközben a szerver már autó–autó kontaktot lát.
+// Közeli ellenfelek dinamikus ütközőtestei a helyi fizikához. Szerverfizikában
+// a jóslatot közelítik a szerverhez; kliensfizikában ezek adják a ténylegesen
+// helyben számolt autó–autó kontaktot.
 const remoteCarProxies = new Map();
 
 function setRemoteCarProxy(id, state) {
@@ -1069,14 +1069,14 @@ let wheelSources = [];
 // de nem elöl+hátul) összeolvasztott darabot tévesen 4 felé vágnánk szét
 // a SAJÁT (véletlenszerű, csak erre a tengelyre jellemző) Z-közepén, ami
 // egyetlen kereket vágna ketté "elöl/hátul" helyett.
-function splitMergedWheelMesh(mesh, midX, midZ) {
+function splitMergedWheelMesh(mesh, midX, midZ, pivotRoot = carPivot) {
   const geom = mesh.geometry;
   const posAttr = geom.attributes && geom.attributes.position;
   const idxAttr = geom.index;
   if (!posAttr || !idxAttr) return null;
 
   mesh.updateWorldMatrix(true, false);
-  const toCarPivot = new THREE.Matrix4().copy(carPivot.matrixWorld).invert().multiply(mesh.matrixWorld);
+  const toCarPivot = new THREE.Matrix4().copy(pivotRoot.matrixWorld).invert().multiply(mesh.matrixWorld);
   const v = new THREE.Vector3();
   const vertCount = posAttr.count;
   const localX = new Float32Array(vertCount);
@@ -1254,20 +1254,19 @@ function centerCarModelOnWheels(carRoot, wheelPattern) {
 // Ráadásul egyes alkatrészeknél a pozíció a vertexekbe van sütve, ezért
 // a csoport közepére tett pivotra fűzzük fel őket: az Object3D.attach
 // megtartja a világ-transzformot, így a kerék nem ugrik el.
-function buildWheelPivots(carRoot, wheelPattern) {
-  wheelPivots = [];
-  wheelSources = [];
-  if (!wheelPattern) return;
+function createWheelPivots(carRoot, wheelPattern, pivotRoot = carPivot) {
+  const empty = { pivots: [], sources: [] };
+  if (!wheelPattern) return empty;
 
   let regex;
   try {
     regex = new RegExp(wheelPattern, 'i');
   } catch (err) {
     console.warn('Hibás wheelPattern a kocsi konfigjában', err);
-    return;
+    return empty;
   }
 
-  carPivot.updateMatrixWorld(true);
+  pivotRoot.updateMatrixWorld(true);
   // Először csak ÖSSZEGYŰJTJÜK a találatokat — a traverse közben nem
   // módosíthatjuk a fát (a szétvágás mesh-eket cserélne ki), azt egy
   // különálló, második körben tesszük meg.
@@ -1299,9 +1298,9 @@ function buildWheelPivots(carRoot, wheelPattern) {
     box.setFromObject(obj);
     box.getCenter(centre);
     box.getSize(size);
-    return { mesh: obj, local: carPivot.worldToLocal(centre.clone()), size: size.clone() };
+    return { mesh: obj, local: pivotRoot.worldToLocal(centre.clone()), size: size.clone() };
   });
-  if (prelim.length < 1) return;
+  if (prelim.length < 1) return empty;
   const prelimXs = prelim.map((p) => p.local.x);
   const prelimZs = prelim.map((p) => p.local.z);
   const globalMidX = median(prelimXs);
@@ -1314,13 +1313,13 @@ function buildWheelPivots(carRoot, wheelPattern) {
     // egyetlen geometriában összeolvasztva (Sketchfab anyagonkénti export) —
     // megpróbáljuk a háromszögeit a globális középvonalak mentén szétvágni.
     if (size.x > 1.0 || size.z > 1.0) {
-      const split = splitMergedWheelMesh(mesh, globalMidX, globalMidZ);
+      const split = splitMergedWheelMesh(mesh, globalMidX, globalMidZ, pivotRoot);
       if (split) {
         split.forEach((m) => {
           box.setFromObject(m);
           box.getCenter(centre);
           box.getSize(size);
-          parts.push({ mesh: m, local: carPivot.worldToLocal(centre.clone()), volume: size.x * size.y * size.z });
+          parts.push({ mesh: m, local: pivotRoot.worldToLocal(centre.clone()), volume: size.x * size.y * size.z });
         });
         return;
       }
@@ -1328,9 +1327,9 @@ function buildWheelPivots(carRoot, wheelPattern) {
     box.setFromObject(mesh);
     box.getCenter(centre);
     box.getSize(size);
-    parts.push({ mesh, local: carPivot.worldToLocal(centre.clone()), volume: size.x * size.y * size.z });
+    parts.push({ mesh, local: pivotRoot.worldToLocal(centre.clone()), volume: size.x * size.y * size.z });
   });
-  if (parts.length < 2) return;
+  if (parts.length < 2) return empty;
 
   const xs = parts.map((p) => p.local.x);
   const zs = parts.map((p) => p.local.z);
@@ -1368,14 +1367,14 @@ function buildWheelPivots(carRoot, wheelPattern) {
     if (axleMode) groups[rear].push(p);
     else groups[rear * 2 + (nearerHi(p.local.x, xRef) ? 1 : 0)].push(p);
   });
-  if (groups.some((g) => g.length === 0)) return;
+  if (groups.some((g) => g.length === 0)) return empty;
 
   // Melyik fizikai kerékről vegyük a gördülést, és forduljon-e a pivot.
-  wheelSources = axleMode
+  const sources = axleMode
     ? [{ wheel: 0, steer: false }, { wheel: 2, steer: false }]
     : [0, 1, 2, 3].map((i) => ({ wheel: i, steer: i < 2 }));
 
-  wheelPivots = groups.map((group) => {
+  const pivots = groups.map((group) => {
     const pivot = new THREE.Group();
     pivot.rotation.order = 'YXZ'; // előbb a gördülés (X), utána a kormányzás (Y)
     // A pivotot NEM a csoport összes darabjának átlagára tesszük: a féknyereg
@@ -1386,7 +1385,7 @@ function buildWheelPivots(carRoot, wheelPattern) {
     // vesszük referenciának.
     const anchor = group.reduce((a, b) => (b.volume > a.volume ? b : a));
     pivot.position.copy(anchor.local);
-    carPivot.add(pivot);
+    pivotRoot.add(pivot);
     // attach (nem add): megtartja a világ-pozíciót, így a baked geometria
     // is a helyén marad.
     group.forEach((p) => pivot.attach(p.mesh));
@@ -1401,6 +1400,13 @@ function buildWheelPivots(carRoot, wheelPattern) {
     pivot.userData.bottomOffset = measureLocalBottom(pivot);
     return pivot;
   });
+  return { pivots, sources };
+}
+
+function buildWheelPivots(carRoot, wheelPattern) {
+  const rig = createWheelPivots(carRoot, wheelPattern, carPivot);
+  wheelPivots = rig.pivots;
+  wheelSources = rig.sources;
 }
 
 // Egy objektum legalsó pontja a SAJÁT koordinátarendszerében. Nem a
@@ -4368,9 +4374,9 @@ let multiplayerControlsEnabled = true;
 
 // Egy multiplayer képkocka. Külön függvény, hogy teszteléskor kézzel is
 // léptethető legyen: a requestAnimationFrame megáll, ha a lap háttérbe kerül.
-// Multiplayerben a SZERVER a hiteles forrás, de a saját kocsit a hálózati
-// modul helyben is lépteti a késleltetésmentes irányításhoz. A frame hook a
-// jóslat kirajzolását, korrekcióját és a távoli autók interpolációját végzi.
+// Online futamban a hálózati modul lépteti a saját kocsit: szerverfizikánál
+// jóslatként, kliensfizikánál végleges állapotként. A frame hook a kirajzolást,
+// az esetleges korrekciót és a távoli autók interpolációját végzi.
 function stepMultiplayerFrame(dt) {
   mpFrameHook?.(dt);
   // Ugyanaz, mint az egyjátékos animate()-ben: a modell magasságát a VALÓDI,
@@ -4430,6 +4436,10 @@ window.__game = {
   keys,
   getDriveAxes,
   setCar, setTrack, prepareTrackPhysics, loadGLTF, centerCarModelOnWheels,
+  createRemoteWheelRig(carRoot, wheelPattern, pivotRoot) {
+    return createWheelPivots(carRoot, wheelPattern, pivotRoot);
+  },
+  getCarGroundOffset() { return groundOffset; },
   createRemoteEngine, updateRemoteEngine, stopRemoteEngine,
   formatTime,
   enterMenu,
@@ -4519,6 +4529,29 @@ window.__game = {
     for (let i = 0; i < 4; i++) if (vehicle.wheelIsInContact(i)) count++;
     return count;
   },
+  getWheelNetworkState() {
+    return {
+      st: Number(vehicle.wheelSteering(0)) || 0,
+      wr: Number(vehicle.wheelRotation(2)) || 0,
+    };
+  },
+  isCarFullyOffTrack() {
+    return allWheelsOffTrack();
+  },
+  // Kliensfizikában az R célpontját még mindig a szerver választja ki (utolsó
+  // szabályosan érintett checkpoint), de a talajmagasságot és a teleportot a
+  // saját Rapier világunk végzi el.
+  resetMultiplayerCar({ x, z, heading = 0 }) {
+    const groundY = findGroundAt(currentTrack, currentTrackBox, x, z);
+    if (groundY === null || groundY === undefined) return false;
+    spawnPoint.set(x, groundY + restHeightAboveGround(RAPIER), z);
+    spawnHeading = Number(heading) || 0;
+    resetCarTo(spawnPoint);
+    carPivot.position.copy(spawnPoint);
+    const rotation = chassisBody.rotation();
+    carPivot.quaternion.set(rotation.x, rotation.y, rotation.z, rotation.w);
+    return true;
+  },
   setCarState({ p, q, v, w }) {
     chassisBody.setTranslation({ x: p[0], y: p[1], z: p[2] }, true);
     chassisBody.setRotation({ x: q[0], y: q[1], z: q[2], w: q[3] }, true);
@@ -4602,7 +4635,7 @@ window.__game = {
     miniMapSelfColor = null;
     enterMenu();
   },
-  // A látható kocsit a szerver állapotára állítja (a helyi fizika helyett).
+  // A látható modellt a hálózati modul által választott állapotra állítja.
   applyServerTransform(p, q) {
     carPivot.position.set(p[0], p[1], p[2]);
     carPivot.quaternion.set(q[0], q[1], q[2], q[3]);

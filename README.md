@@ -34,15 +34,19 @@ egymás nevét, és a körök/eredmények a szerveren dőlnek el.
 
 ```
 web/       ← EZ és csak ez publikus (index.html, main.js, mp.js, dev.js, vendor/, assets/)
-server/    ← Node játékszerver: statikus kiszolgálás + REST + WebSocket + fizika
+server/    ← Node játékszerver: statikus kiszolgálás + REST + WebSocket + versenyvezérlés
 shared/    ← a kliens ÉS a szerver is használja (protocol.js, vehicleConfig.js)
 tools/     ← offline GLB-elemzők (kerék-minták meghatározásához)
 backup/    ← a kocsi-konfigurációk felülvizsgálat előtti állapota
 ```
 
-A szerver **hiteles (authoritative)**: a teljes fizikát ő futtatja, a kliensek
-bemenetet küldenek és a kapott állapothoz igazodnak. Enélkül két autó ütközése
-nem nézne ki ugyanúgy a két képernyőn.
+A fizikai autoritás ENV-ből váltható. `PHYSICS_AUTHORITY=server` esetén a szerver
+futtatja a teljes fizikát, a kliensek bemenetet küldenek és korrigálnak.
+`PHYSICS_AUTHORITY=client` esetén minden böngésző a saját autóját számolja, a
+szerver az állapotot továbbítja, és továbbra is ő kezeli a köröket,
+checkpointokat, eredményeket és szellemeket. A kliensmód nagy pingnél nem
+rángatja vissza a saját autót, cserébe nem csalásbiztos, és két autó ütközése
+eltérhet a játékosok képernyőjén.
 
 Ez azon áll vagy bukik, hogy a két oldal ugyanazt számolja:
 
