@@ -129,5 +129,4 @@ server.listen(PORT, HOST, () => {
   console.log(`Racing szerver fut:  http://${HOST || 'localhost'}:${PORT}`);
   if (HOST) console.log(`Csak a ${HOST} interfészen figyel (HOST env)`);
   if (ALLOW_DEV_WRITES) console.log('Fejlesztői mentés: BE (ALLOW_DEV_WRITES=0 kapcsolja ki)');
-  console.log('Online fizika: KLIENS');
 });
