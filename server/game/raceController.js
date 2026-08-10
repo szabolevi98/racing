@@ -6,6 +6,7 @@
 // checkpointokat, sorrendet, eredményeket és a szellem rögzítését.
 import {
   S2C, ROOM_STATE, GAME_MODE, TAINT, TICK_MS, SNAPSHOT_RATE, requiredCheckpoints,
+  FINISH_GRACE_MS,
 } from '../../shared/protocol.js';
 import { gridSlotPose, hotLapStartPose } from '../../shared/grid.js';
 import {
@@ -146,6 +147,9 @@ export class RaceController {
     this.startAt = Infinity;
     this.lastSnapshotAt = 0;
     this.stopped = false;
+    // Az első befutó indítja; ekkortól ennyi ideje van a mezőny többi részének.
+    // null = még senki sem ért célba, tehát nincs is mit visszaszámolni.
+    this.finishDeadline = null;
   }
 
   async start() {
@@ -248,6 +252,10 @@ export class RaceController {
       this.tick++;
       this.sendSnapshot(now);
     }
+    // Lejárt a mezőny ideje: a még kint lévők az addigi állásukkal kerülnek az
+    // eredménybe. A snapshot KÜLDÉSE UTÁN nézzük, hogy a kliensek lássák a
+    // nullát is, ne az utolsó előtti tizeden ragadjon a visszaszámláló.
+    if (this.finishDeadline !== null && now >= this.finishDeadline) void this.endRace();
   }
 
   resetCar(playerId) {
@@ -395,8 +403,21 @@ export class RaceController {
       r.finished = true;
       r.finishedAt = crossedAt;
       this.broadcast(S2C.RACE_EVENT, { kind: 'finished', playerId: car.playerId });
+      this.armFinishDeadline(crossedAt);
     }
     if ([...this.cars.values()].every((entry) => entry.race.finished)) void this.endRace();
+  }
+
+  // Az első befutó elindítja a mezőny hátralévő idejét. Csak egyszer:
+  // a másodiknak, harmadiknak beérkező NEM tolja ki a határidőt.
+  //
+  // Ha ekkor már mindenki célban van, nincs mit indítani — a hívó úgyis
+  // azonnal lezárja a futamot. Ezért ez a feltétel egyben a Hot Lapot is
+  // kizárja: ott egyetlen igazi autó van, amelyik a befutójával végzett is.
+  armFinishDeadline(finishedAt) {
+    if (this.finishDeadline !== null) return;
+    if ([...this.cars.values()].every((entry) => entry.race.finished)) return;
+    this.finishDeadline = finishedAt + FINISH_GRACE_MS;
   }
 
   orderedCars() {
@@ -452,7 +473,11 @@ export class RaceController {
         fin: !!car.race.finished,
       };
     });
-    this.broadcast(S2C.SNAPSHOT, { tick: this.tick, t: now, cars });
+    // `fd`: mikor zárul le magától a futam (szerver-óra szerint), vagy null.
+    // Azért a snapshotban megy és nem egyszeri eseményként, mert így nem tud
+    // elveszni: minden snapshot újra elmondja, tehát egy kimaradt csomag után
+    // is helyreáll a visszaszámláló.
+    this.broadcast(S2C.SNAPSHOT, { tick: this.tick, t: now, cars, fd: this.finishDeadline });
   }
 
   removeCar(playerId) {

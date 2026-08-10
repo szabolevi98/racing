@@ -68,6 +68,11 @@ let inputTimer = null;
 let raceEnded = false;
 let finishedDriving = false;
 let lastEvents = [];
+// Mikor zárul le magától a futam az első befutó után, a SZERVER órája szerint
+// (vagy null, ha még senki sem ért célba). A snapshotokból frissül, a
+// kijelzést a frame() számolja belőle — így a visszaszámláló képkocka-simán
+// pörög, nem a 20 Hz-es snapshot-ütemben ugrik.
+let finishDeadlineAt = null;
 
 // ---------- Lobby felület ----------
 
@@ -943,6 +948,7 @@ async function beginRace(info) {
   window.__mp.stage = 'start';
   raceEnded = false;
   finishedDriving = false;
+  finishDeadlineAt = null;
   myLap = 0;
   myCp = 0;
   myRank = 1;
@@ -1067,6 +1073,11 @@ function clearOtherCars({ preserveGhost = false } = {}) {
     clearGhostCar();
   }
   G.clearRemoteCarProxies();
+  // A frame() innentől akár le is állhat (menübe lépés, szoba bezárása), tehát
+  // a visszaszámlálót nem bízhatjuk rá — itt vesszük le, ahol minden bontási
+  // útvonal áthalad.
+  finishDeadlineAt = null;
+  hideFinishTimer();
   // A modellek és fizikai proxyk mellett a minitérképes lenyomatuk is ugyanennek
   // az állapotnak a része. A játék közbeni „Vissza a menübe” közvetlenül az
   // enterMenu() cleanup hookján halad át, nem feltétlenül a leaveMultiplayer()-en,
@@ -1382,6 +1393,9 @@ function isFrozen() {
 function onSnapshot(m) {
   window.__mp.snaps++;
   lastSnapshot = m;
+  // Mikor zárul le magától a futam (szerver-óra). Minden snapshot hozza, tehát
+  // egy elveszett csomag után is helyreáll.
+  finishDeadlineAt = Number.isFinite(m.fd) ? m.fd : null;
   const transit = Math.max(0, serverNow() - m.t);
   if (lastSnapshotTransitMs !== null) {
     const delta = Math.abs(transit - lastSnapshotTransitMs);
@@ -1608,6 +1622,39 @@ function updateGhostPlayback(nowServer) {
   ghostCar.group.visible = true;
 }
 
+// „A VERSENY VÉGET ÉR — 12.4". Az első befutó után jelenik meg, és a szerver
+// órájához igazodik: a határidő szerver-időben érkezik, a serverNow() pedig a
+// ping-mintákból karbantartott eltolással számol, tehát mindenki nagyjából
+// ugyanazt a számot látja.
+//
+// Miért itt, képkockánként, és nem a snapshot beérkezésekor: a snapshot 20 Hz,
+// abból a tizedek szaggatva lépnének. Így viszont a szám folyamatosan pörög.
+const finishTimerEl = document.getElementById('finishTimer');
+const finishTimerValueEl = document.getElementById('finishTimerValue');
+let finishTimerShown = false;
+
+function hideFinishTimer() {
+  if (!finishTimerShown) return;
+  finishTimerEl.classList.add('hidden');
+  finishTimerEl.classList.remove('is-urgent');
+  finishTimerShown = false;
+}
+
+function renderFinishTimer(nowServer) {
+  if (finishDeadlineAt === null || raceEnded) {
+    hideFinishTimer();
+    return;
+  }
+  const leftMs = Math.max(0, finishDeadlineAt - nowServer);
+  const secs = leftMs / 1000;
+  finishTimerValueEl.textContent = secs.toFixed(1);
+  finishTimerEl.classList.toggle('is-urgent', secs <= 10);
+  if (!finishTimerShown) {
+    finishTimerEl.classList.remove('hidden');
+    finishTimerShown = true;
+  }
+}
+
 // Minden képkockán fut (a main.js animate-jéből).
 function frame(dt = 1 / 60) {
   window.__mp.frames++;
@@ -1690,6 +1737,10 @@ function frame(dt = 1 / 60) {
   // versenyállapot — az multiplayerben nem is fut.
   G.setCountdown(starting?.startsAt ? Math.ceil((starting.startsAt - nowServer) / 1000) : 0);
   G.setLapInvalid(lapTainted);
+
+  // A raceEnded-es kiugrás ELŐTT: aki már célba ért, annak is látnia kell,
+  // meddig várunk még a többiekre — pont ő az, aki nézelődik.
+  renderFinishTimer(nowServer);
 
   if (raceEnded) return;
 

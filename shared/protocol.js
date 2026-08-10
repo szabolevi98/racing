@@ -125,6 +125,18 @@ export const HOT_LAP_COUNTDOWN_MS = 3000;
 // túszként tartaná az egész szobát.
 export const RACE_LOAD_TIMEOUT_MS = 30000;
 
+// Mennyi ideje van a mezőnynek célba érni az ELSŐ befutó után. Utána a verseny
+// magától lezárul, a még kint lévők az addigi állásukkal.
+//
+// Miért kell: enélkül egyetlen félreállt vagy elnavigált autó a végtelenségig
+// bent tartja a többieket — nekik nincs mit tenniük, csak nézik a célvonalat.
+// Ez a valódi versenyekben is bevett: a győztes befutója után korlátos ideig
+// tart a futam.
+//
+// Miért a szerver dönt: ugyanaz az elv, mint a köröknél — a kliens csak
+// KIÍRJA a hátralévő időt, a lezárást a szerver mondja ki.
+export const FINISH_GRACE_MS = 60000;
+
 export const MAX_NAME_LENGTH = 20;
 export const PLAYER_TOKEN_LENGTH = 36;
 
