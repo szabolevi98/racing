@@ -29,17 +29,22 @@
   --r:             14px;
   --r-sm:          9px;
   --shadow:        0 10px 34px rgba(0, 0, 0, 0.5);
-  --touch-drive-size: clamp(66px, 9vw, 82px);
+  /* A négy vezetőgomb átmérője. Nagyobb, mint a korábbi 66-82px: hüvelykujjal,
+     menet közben, a képernyőre nem nézve nyúl oda az ember — ott a néhány
+     képpont mellényúlásba fordul. */
+  --touch-drive-size: clamp(80px, 11.5vw, 100px);
   --touch-control-bottom: max(20px, calc(env(safe-area-inset-bottom) + 14px));
   /* A két oldali gombcsoport EGY közös távolságot használ, így valóban
      egymás tükörképei, és később sem lehet csak az egyiket eltolni. */
   --touch-drive-inline: clamp(28px, 5vw, 56px);
-  /* A jobb oldali kézifék alsó sora: 30px magas + 7px rés. A bal oldalon nincs
-     ilyen sor, ezért ennyivel emeljük meg a kormánygombokat a pedálok szintjére. */
-  --touch-lower-row-height: 37px;
+  /* A jobb oldali kézifék alsó sora: a gomb magassága + 7px rés. A bal oldalon
+     nincs ilyen sor, ezért ennyivel emeljük meg a kormánygombokat a pedálok
+     szintjére. */
+  --touch-handbrake-height: 36px;
+  --touch-lower-row-height: calc(var(--touch-handbrake-height) + 7px);
   /* Mekkora sávot foglal a jobb alsó sarokban a kézifék + a két pedálgomb.
      A fölöttük ülő panelek (sebesség, FPS) ehhez igazodnak. */
-  --touch-pedal-height: calc(var(--touch-drive-size) + 37px);
+  --touch-pedal-height: calc(var(--touch-drive-size) + var(--touch-lower-row-height));
   /* A pedálblokk a jobb széltől befelé — nem a sarokba tapasztva, hogy a
      hüvelykujj ne a képernyő peremén dolgozzon. */
 }
@@ -563,7 +568,10 @@ kbd.k {
   position: absolute;
   bottom: calc(var(--touch-control-bottom) + var(--touch-lower-row-height));
   left: max(var(--touch-drive-inline), calc(env(safe-area-inset-left) + 12px));
-  display: flex; gap: 12px; pointer-events: auto;
+  /* Nagyobb rés a szomszédos gombok között: a nagyobb célfelület csak akkor
+     segít, ha a köztük lévő hely is nő — különben a mellényúlás a szomszédot
+     találja el. */
+  display: flex; gap: 16px; pointer-events: auto;
 }
 
 /* Gáz/fék: gombok, a jobb alsó sarokban egymás mellett, fölöttük a kézifék. */
@@ -573,14 +581,14 @@ kbd.k {
   bottom: var(--touch-control-bottom);
   display: flex; flex-direction: column; align-items: stretch; gap: 7px;
 }
-.touch-pedal-row { display: flex; gap: 12px; }
+.touch-pedal-row { display: flex; gap: 16px; }
 .touch-drive, .touch-steer {
   width: var(--touch-drive-size); aspect-ratio: 1;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 2px; border-radius: 50%;
 }
-.touch-icon { font-size: 25px; line-height: 1; }
-.touch-label { font-size: 8px; letter-spacing: .09em; opacity: .78; }
+.touch-icon { font-size: 30px; line-height: 1; }
+.touch-label { font-size: 9px; letter-spacing: .09em; opacity: .78; }
 .touch-gas { border-color: rgba(61, 220, 132, .5); background: rgba(17, 75, 48, .56); }
 .touch-brake { border-color: rgba(255, 95, 95, .5); background: rgba(91, 29, 34, .56); }
 .touch-gas.is-pressed { background-color: rgba(38, 177, 99, .7); }
@@ -609,8 +617,8 @@ kbd.k {
 .touch-mute.is-muted { border-color: rgba(255, 95, 95, .5); background: rgba(91, 29, 34, .58); }
 /* A pedálok ALATT ül, azok teljes szélességében — nem külön pozicionált elem. */
 .touch-handbrake {
-  height: 30px; padding: 0 12px;
-  border-radius: 15px; font-size: 8px; letter-spacing: .08em;
+  height: var(--touch-handbrake-height); padding: 0 12px;
+  border-radius: calc(var(--touch-handbrake-height) / 2); font-size: 9px; letter-spacing: .08em;
   border-color: rgba(255, 194, 71, .5); background: rgba(93, 64, 16, .55);
 }
 .touch-btn.is-pressed {
@@ -729,7 +737,7 @@ kbd.k {
 
 /* Alacsony fekvő telefonon a négy vezetőgomb legyen kompaktabb. */
 @media (max-height: 520px) and (min-width: 601px) {
-  :root { --touch-drive-size: clamp(62px, 8.5vw, 74px); }
+  :root { --touch-drive-size: clamp(74px, 10.5vw, 88px); }
 }
 
 /* ============================================================
