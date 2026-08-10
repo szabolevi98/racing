@@ -8,6 +8,9 @@ import {
   forwardSpeed, REVERSE_BRAKE_THRESHOLD, shouldBrakeFinishedVelocity,
 } from '/shared/vehicleConfig.js';
 import { raceClockTimes } from '/shared/raceClock.js';
+import {
+  remoteVisualCorrectionHalfLife, remoteVisualPredictionBlend,
+} from '/shared/remoteVisual.js';
 
 const G = window.__game;
 // Diagnosztika. A step() azért kell, mert a requestAnimationFrame megáll, ha
@@ -1548,6 +1551,21 @@ function slerp(a, b, f) {
   return [a[0] * w1 + bb[0] * w2, a[1] * w1 + bb[1] * w2, a[2] * w1 + bb[2] * w2, a[3] * w1 + bb[3] * w2];
 }
 
+function blendRemoteStates(delayed, current, amount) {
+  if (amount <= 0) return delayed;
+  if (amount >= 1) return current;
+  const mix = (a, b) => a + (b - a) * amount;
+  return {
+    p: delayed.p.map((value, index) => mix(value, current.p[index])),
+    q: slerp(delayed.q, current.q, amount),
+    v: delayed.v.map((value, index) => mix(value, current.v[index])),
+    w: delayed.w.map((value, index) => mix(value, current.w[index])),
+    st: mix(delayed.st ?? 0, current.st ?? 0),
+    wr: mix(delayed.wr ?? 0, current.wr ?? 0),
+    th: mix(delayed.th ?? 0, current.th ?? 0),
+  };
+}
+
 function updateGhostPlayback(nowServer) {
   if (!ghostCar) return;
   if (!myLapStartedAt || myFinished || raceEnded) {
@@ -1610,21 +1628,22 @@ function frame(dt = 1 / 60) {
       o.label.material.opacity = opacity;
       o.label.visible = opacity > 0.01;
     }
-    o.nearVisual = o.nearVisual
-      ? distSq <= REMOTE_PROXY_EXIT_RANGE_SQ
-      : distSq <= REMOTE_PROXY_RANGE_SQ;
-    const near = o.nearVisual;
-    const s = near ? currentState : delayedState;
+    // Korábban 60 méternél egyetlen képkocka alatt váltottunk a stabil,
+    // pufferelt állapotról a jelenre extrapoláltra. Nagy pingnél ez többméteres
+    // idővonal-ugrás lehetett. Most a távolság függvényében fokozatos az átmenet.
+    const predictionBlend = remoteVisualPredictionBlend(Math.sqrt(distSq));
+    const s = blendRemoteStates(delayedState, currentState, predictionBlend);
     if (!s) continue;
     if (!o.renderReady) {
       o.group.position.set(s.p[0], s.p[1], s.p[2]);
       o.group.quaternion.set(s.q[0], s.q[1], s.q[2], s.q[3]);
       o.renderReady = true;
     } else {
-      // Közel a jelenre extrapolált pozíció kell, különben a szerver már
-      // ütközést látna, miközben a képen még több méter rés van. Az enyhe
-      // lecsengés a friss snapshot korrekcióját rejti el.
-      const alpha = 1 - Math.pow(0.5, dt / (near ? 0.045 : 0.025));
+      // A fizikai proxy továbbra is a frissebb becslést használja. A látható
+      // modell korrekciója nagy hálózati késésnél lassabban cseng le, ezért az
+      // új snapshot nem rántja oldalra az autót.
+      const halfLife = remoteVisualCorrectionHalfLife(interpDelayMs, predictionBlend);
+      const alpha = 1 - Math.pow(0.5, dt / halfLife);
       o.group.position.x += (s.p[0] - o.group.position.x) * alpha;
       o.group.position.y += (s.p[1] - o.group.position.y) * alpha;
       o.group.position.z += (s.p[2] - o.group.position.z) * alpha;
