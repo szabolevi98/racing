@@ -8,7 +8,7 @@ export const C2S = {
   RESTORE_PROFILE: 'restoreProfile', // { token }         — meglévő profil visszaállítása
   RENAME_PLAYER: 'renamePlayer',     // { name }          — bejelentkezett profil átnevezése
   CREATE_ROOM: 'createRoom',   // { mapId, carId, laps, ghostMode, isPublic }
-  LIST_ROOMS: 'listRooms',     // — a nyitott publikus szobák listáját kéri
+  LIST_ROOMS: 'listRooms',     // { page } — a nyitott publikus szobák egy oldala
   START_HOT_LAP: 'startHotLap', // { mapId, carId, ghostPlayerId? }
   JOIN_ROOM: 'joinRoom',       // { code, carId }
   LEAVE_ROOM: 'leaveRoom',
@@ -24,7 +24,7 @@ export const S2C = {
   WELCOME: 'welcome',          // { playerId, token, name }
   PROFILE_UPDATED: 'profileUpdated', // { name }
   ROOM_STATE: 'roomState',     // { code, hostId, mapId, laps, ghostMode, state, players[] }
-  ROOM_LIST: 'roomList',       // { rooms: [{ code, mapId, laps, ghostMode, players, max }] }
+  ROOM_LIST: 'roomList',       // { rooms[], page, pages, total } — egy oldalnyi szoba
   ROOM_CLOSED: 'roomClosed',   // { reason }
   RACE_STARTING: 'raceStarting', // { spawns, mapId, laps, ghostMode, players } — TÖLTS BE
   RACE_COUNTDOWN: 'raceCountdown', // { startsAt, countdownMs } — mindenki kész, indul a 3-2-1
@@ -117,6 +117,31 @@ export const PLAYER_COLORS = [
   '#3bf0ff', // türkiz
   '#ff5fc4', // rózsaszín
 ];
+
+// Hány szoba fér egy oldalra a keresőben. A lapozás SZERVEROLDALI: a kliens
+// egy oldalnyit kap, nem az egészet. Száz nyitott szobánál különben minden
+// üresen álló kliensnek négymásodpercenként az egész listát elküldenénk,
+// hogy aztán ötöt mutasson belőle.
+//
+// Közös állandó, mert a kliens ebből tudja, hány oldal van — a szerver
+// ugyanezzel szeleteli.
+export const ROOM_LIST_PAGE_SIZE = 5;
+
+// Egy oldal kivágása a szobalistából. A kért oldal eltűnhetett, mire a kérés
+// ideért (megtelt vagy elindult néhány szoba) — ilyenkor a legközelebbi
+// LÉTEZŐ oldalt adjuk, és a válaszban megmondjuk, melyiken is vagyunk; a
+// kliens ehhez igazodik. Üres listánál is egy oldal van, nem nulla: különben
+// a lapozó „1 / 0"-t írna ki.
+export function paginateRooms(all, requestedPage = 0) {
+  const pages = Math.max(1, Math.ceil(all.length / ROOM_LIST_PAGE_SIZE));
+  const page = Math.min(Math.max(0, Math.trunc(Number(requestedPage) || 0)), pages - 1);
+  return {
+    rooms: all.slice(page * ROOM_LIST_PAGE_SIZE, (page + 1) * ROOM_LIST_PAGE_SIZE),
+    page,
+    pages,
+    total: all.length,
+  };
+}
 
 export const MAX_PLAYERS_PER_ROOM = 8;
 export const ROOM_CODE_LENGTH = 6;

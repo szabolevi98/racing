@@ -1120,10 +1120,20 @@ kbd.k {
 .mp-browse-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
 .mp-browse-count { font-size: 10px; font-weight: 700; color: var(--muted); }
 .mp-browse-list {
-  /* Korlátos magasság: nyolc-tíz szobánál a lista ne tolja le a kód-mezőt a
-     képernyőről — inkább görögjön magában. */
-  max-height: 216px; overflow-y: auto;
+  /* Egy oldalon legfeljebb öt szoba van (ROOM_LIST_PAGE_SIZE), az kényelmesen
+     elfér ennyiben. A korlát csak nagyon alacsony képernyőkre kell, hogy a
+     lista ne tolja le a kód-mezőt — ott magában görög. */
+  max-height: 300px; overflow-y: auto;
   display: flex; flex-direction: column; gap: 6px;
+}
+.mp-browse-pager {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-top: 8px;
+}
+.mp-browse-pager .mp-btn[disabled] { opacity: 0.4; cursor: default; }
+.mp-browse-page {
+  font-size: 11px; font-weight: 700; color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 .mp-browse-empty {
   padding: 14px 12px; border: 1px dashed var(--line); border-radius: var(--r-sm);

@@ -6,7 +6,7 @@ import { WebSocketServer } from 'ws';
 import { randomUUID } from 'node:crypto';
 import {
   C2S, S2C, ROOM_STATE, GAME_MODE, ROOM_CODE_LENGTH, sanitizeName, sanitizePlayerToken,
-  RACE_LOAD_TIMEOUT_MS,
+  RACE_LOAD_TIMEOUT_MS, paginateRooms,
 } from '../../shared/protocol.js';
 import { Room } from '../game/room.js';
 import { RaceController } from '../game/raceController.js';
@@ -61,14 +61,21 @@ function pushRoomState(room) {
   broadcastRoom(room, S2C.ROOM_STATE, { room: room.toJSON() });
 }
 
-// A szobakereső tartalma. A legrégebben nyitott szoba kerül elsőnek: aki
-// vár valakire, az várjon a legkevesebbet.
-function sendRoomList(socket) {
-  const list = [...rooms.values()]
+// A szobakereső egy oldala. A legrégebben nyitott szoba kerül elsőnek: aki
+// vár valakire, az várjon a legkevesebbet — és ez a rendezés lapozás közben
+// sem rendeződik át a szemünk előtt (a létszám szerinti igen).
+//
+// A szeletelés ITT történik, nem a kliensen: a lista tetszőlegesen hosszú
+// lehet, de a dróton mindig legfeljebb egy oldalnyi megy át.
+function sendRoomList(socket, requestedPage = 0) {
+  const all = [...rooms.values()]
     .filter((room) => room.isListable)
-    .sort((a, b) => a.createdAt - b.createdAt)
-    .map((room) => room.listing());
-  send(socket, S2C.ROOM_LIST, { rooms: list });
+    .sort((a, b) => a.createdAt - b.createdAt);
+  const oldal = paginateRooms(all, requestedPage);
+  send(socket, S2C.ROOM_LIST, {
+    ...oldal,
+    rooms: oldal.rooms.map((room) => room.listing()),
+  });
 }
 
 function welcomePlayer(player, record) {
@@ -162,7 +169,7 @@ async function handleMessage(player, msg) {
 
     case C2S.LIST_ROOMS: {
       if (!player.name) return fail(socket, 'Előbb add meg a neved.');
-      sendRoomList(socket);
+      sendRoomList(socket, Math.trunc(Number(msg.page) || 0));
       return;
     }
 

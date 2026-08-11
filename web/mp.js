@@ -140,6 +140,11 @@ el.innerHTML = `
       <div id="mpBrowseList" class="mp-browse-list">
         <div class="mp-browse-empty">Betöltés…</div>
       </div>
+      <div id="mpBrowsePager" class="mp-browse-pager hidden">
+        <button id="mpBrowsePrev" class="mp-btn ghost compact" type="button">‹ Előző</button>
+        <span id="mpBrowsePage" class="mp-browse-page"></span>
+        <button id="mpBrowseNext" class="mp-btn ghost compact" type="button">Következő ›</button>
+      </div>
 
       <div class="mp-sep">vagy</div>
       <label for="mpCode" class="lbl d-block mb-2">Csatlakozás kóddal</label>
@@ -688,15 +693,30 @@ function stopPingLoop() {
 // nincs miért kérdezősködnie.
 const ROOM_LIST_INTERVAL_MS = 4000;
 let roomListTimer = null;
+// Hányadik oldalt nézzük (0-tól). A szerver a válaszban megmondja, melyik
+// oldalt adta ténylegesen — ha az általunk kért közben megszűnt, ő igazít,
+// és mi ahhoz állunk hozzá. Így a lapozó sosem mutat nem létező oldalt.
+let roomListPage = 0;
 
 function requestRoomList() {
   if (ws?.readyState !== WebSocket.OPEN || !me.id) return;
   if ($('mpRooms').classList.contains('hidden')) return;
-  send(C2S.LIST_ROOMS, {});
+  send(C2S.LIST_ROOMS, { page: roomListPage });
 }
+
+function stepRoomListPage(delta) {
+  roomListPage = Math.max(0, roomListPage + delta);
+  requestRoomList();
+}
+
+$('mpBrowsePrev').addEventListener('click', () => stepRoomListPage(-1));
+$('mpBrowseNext').addEventListener('click', () => stepRoomListPage(1));
 
 function startRoomListLoop() {
   stopRoomListLoop();
+  // Friss belépéskor az első oldalról indulunk — a korábbi böngészés helye
+  // nem érdekes, és a szobák úgyis cserélődtek azóta.
+  roomListPage = 0;
   requestRoomList();
   roomListTimer = setInterval(requestRoomList, ROOM_LIST_INTERVAL_MS);
 }
@@ -706,15 +726,24 @@ function stopRoomListLoop() {
   roomListTimer = null;
 }
 
-function renderRoomList(list) {
+function renderRoomList(list, { page = 0, pages = 1, total = list.length } = {}) {
   const wrap = $('mpBrowseList');
   const count = $('mpBrowseCount');
+  // A szerveré az utolsó szó abban, melyik oldalon vagyunk.
+  roomListPage = page;
+  const pager = $('mpBrowsePager');
+  // Egyetlen oldalnál a lapozó csak zaj lenne.
+  pager.classList.toggle('hidden', pages <= 1);
+  $('mpBrowsePage').textContent = `${page + 1} / ${pages}`;
+  $('mpBrowsePrev').disabled = page <= 0;
+  $('mpBrowseNext').disabled = page >= pages - 1;
+
   if (!list.length) {
     count.textContent = '';
     wrap.innerHTML = '<div class="mp-browse-empty">Nincs nyitott publikus szoba — hozz létre egyet!</div>';
     return;
   }
-  count.textContent = list.length === 1 ? '1 szoba' : `${list.length} szoba`;
+  count.textContent = total === 1 ? '1 szoba' : `${total} szoba`;
   wrap.innerHTML = list.map((room) => {
     const map = G.manifest?.maps.find((entry) => entry.id === room.mapId);
     const tele = room.players >= room.max;
@@ -810,7 +839,7 @@ function onMessage(m) {
       break;
 
     case S2C.ROOM_LIST:
-      renderRoomList(Array.isArray(m.rooms) ? m.rooms : []);
+      renderRoomList(Array.isArray(m.rooms) ? m.rooms : [], m);
       break;
 
     case S2C.ROOM_STATE: {
