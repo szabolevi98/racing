@@ -2166,7 +2166,7 @@ function findGroundAt(track, box, x, z) {
 function updatePitOptionAvailability(entry) {
   const available = hasCompletePitConfig(entry?.pit);
   mandatoryPitStopHintEl.textContent = available
-    ? 'Singleplayerben és multiplayerben: 3 másodperc a saját boxhelyen.'
+    ? 'Kötelező kiállás egy- és többjátékos módban.'
     : 'Ezen a pályán még nincs kész boxutca; a szabály automatikusan inaktív.';
   mandatoryPitStopCheckbox.closest('label')?.classList.toggle('is-unavailable', !available);
 }
