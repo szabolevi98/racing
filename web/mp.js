@@ -2018,7 +2018,7 @@ function frame(dt = 1 / 60) {
     G.setHud(
       '<div class="lap-head">' +
         '<span class="lbl">Időmérés</span>' +
-        '<span><span class="lap-now num">1</span><span class="lap-total num"> / 1</span></span>' +
+        `<span><span class="lap-now num">${myLap + 1}</span></span>` +
       '</div>' +
       '<div class="hud-note"><strong>Felvezető</strong><br>Az időmérés a rajtvonalnál indul.</div>' +
       '<div class="t-row"><span class="lbl">Aktuális</span><span class="t-val num">—</span></div>' +
@@ -2042,11 +2042,16 @@ function frame(dt = 1 / 60) {
   });
   const validTimes = myLapTimes.filter((lap) => !lap.invalid).map((lap) => lap.time);
   const bestTime = validTimes.length ? Math.min(...validTimes) : NaN;
+  // Időmérésben nincs körszám-korlát, tehát nincs mihez viszonyítani: csak a
+  // sorszám megy ki, „/ 1" nélkül.
+  const korSzamlalo = isHotLap()
+    ? `<span class="lap-now num">${myLap + 1}</span>`
+    : `<span class="lap-now num">${Math.min(myLap + 1, room?.laps ?? myLap + 1)}</span>` +
+      `<span class="lap-total num"> / ${room?.laps ?? '?'}</span>`;
   G.setHud(
     '<div class="lap-head">' +
       '<span class="lbl">Kör</span>' +
-      `<span><span class="lap-now num">${Math.min(myLap + 1, room?.laps ?? myLap + 1)}</span>` +
-      `<span class="lap-total num"> / ${room?.laps ?? '?'}</span></span>` +
+      `<span>${korSzamlalo}</span>` +
     '</div>' +
     (lapTainted ? '<div class="t-warn mb-2">⚠ Ez a kör érvénytelen</div>' : '') +
     `<div class="t-row"><span class="lbl">Aktuális</span>` +
@@ -2054,8 +2059,14 @@ function frame(dt = 1 / 60) {
     `<div class="t-row${Number.isFinite(bestTime) ? ' is-best' : ''}">` +
       `<span class="lbl">Legjobb</span>` +
       `<span class="t-val num">${G.formatTime(bestTime)}</span></div>` +
-    `<div class="t-row"><span class="lbl">Összes</span>` +
-      `<span class="t-val num">${G.formatTime(totalTime)}</span></div>`
+    // Időmérésben az „Összes" ugyanazt mutatná, mint az „Aktuális" (a
+    // raceClock ott mindkettőt a kör kezdetétől számolja) — korlátlan körnél
+    // a megfutott körök száma többet mond.
+    (isHotLap()
+      ? `<div class="t-row"><span class="lbl">Megtett kör</span>` +
+        `<span class="t-val num">${myLapTimes.length}</span></div>`
+      : `<div class="t-row"><span class="lbl">Összes</span>` +
+        `<span class="t-val num">${G.formatTime(totalTime)}</span></div>`)
   );
 
   const evt = lastEvents[0];

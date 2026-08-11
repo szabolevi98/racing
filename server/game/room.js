@@ -55,6 +55,14 @@ export class Room {
     return this.players.size >= MAX_PLAYERS_PER_ROOM;
   }
 
+  // Az Időmérésnek nincs körszám-korlátja: addig lehet körözni, ameddig a
+  // játékos kedve tartja — nincs mit „megnyerni", minden kör önmagában mérés,
+  // és mindegyik felkerül a ranglistára. A futam attól ér véget, hogy a
+  // játékos kilép, nem attól, hogy elfogytak a körök.
+  get endlessLaps() {
+    return this.mode === GAME_MODE.HOT_LAP;
+  }
+
   // Bent van-e MÁR ez a profil ebben a szobában, egy másik kapcsolaton?
   //
   // A `players` kulcsa a kapcsolatonként egyedi `player.id`, a profilt viszont

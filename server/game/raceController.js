@@ -392,14 +392,16 @@ export class RaceController {
     r.passed.clear();
     r.taintReason = TAINT.NONE;
     r.lapStart = crossedAt;
-    if (r.lap < this.room.laps) this.beginGhostRecording(car, crossedAt);
+    if (this.room.endlessLaps || r.lap < this.room.laps) this.beginGhostRecording(car, crossedAt);
     this.room.recordLap(
       this.room.players.get(car.playerId), r.lap, time, invalid, ghost, this.raceId
     ).catch(() => {});
     this.broadcast(S2C.RACE_EVENT, {
       kind: 'lap', playerId: car.playerId, lap: r.lap, timeMs: Math.round(time), invalid,
     });
-    if (r.lap >= this.room.laps) {
+    // Az Időmérés nem ér véget magától: a kör lezárul, elmentődik, és rögtön
+    // indul a következő. A futamot a kilépés zárja le.
+    if (!this.room.endlessLaps && r.lap >= this.room.laps) {
       r.finished = true;
       r.finishedAt = crossedAt;
       this.broadcast(S2C.RACE_EVENT, { kind: 'finished', playerId: car.playerId });
