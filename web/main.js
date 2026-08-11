@@ -13,7 +13,7 @@ import {
 import { TAINT, requiredCheckpoints } from '/shared/protocol.js';
 import { restHeightAboveGround } from '/shared/spawnRest.js';
 import { gridSlotPose, hotLapStartPose } from '/shared/grid.js';
-import { classifyPing } from '/shared/ping.js';
+import { classifyPing, shouldWarnAboutPing } from '/shared/ping.js';
 import {
   countdownBeep, startBeep, setMuted, isMuted, setVolume, getVolume, primeOnFirstGesture,
   startEngine, stopEngine, updateEngine,
@@ -4686,8 +4686,10 @@ window.__game = {
     //
     // A fenti két sor (érték + minőség) marad feltétel nélkül: a ping-doboz
     // a #hud-on belül van, tehát magától csak vezetés közben látszik.
+    // A sávnak SAJÁT küszöbe van (100 ms), nem a doboz színéé (60 ms): 100-ig
+    // a játék még játszható, addig a figyelmeztetés csak takarna.
     const racing = appState === 'mp';
-    const show = racing && quality === 'bad';
+    const show = racing && shouldWarnAboutPing(ms);
     if (show) highPingAlertTextEl.textContent = `Magas ping: ${ping} ms — a kapcsolat akadozhat.`;
     highPingAlertEl.classList.toggle('hidden', !show);
   },
