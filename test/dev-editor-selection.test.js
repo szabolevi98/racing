@@ -31,6 +31,6 @@ test('dev editor keeps selected checkpoints in place and exposes drag instructio
   assert.match(dev, /selectedZoneObject = \{ kind: start \? 'start' : 'checkpoint', index: hit\.index \}/);
   assert.match(dev, /editingGate\.part === 'move'/);
   assert.match(dev, /editingSpawn\.part === 'position'/);
-  assert.match(html, /vonal közepét.*mozgatod/i);
+  assert.match(html, /meglévőre kattintva szerkesztheted/i);
   assert.match(html, /iránytű.*forgatod/i);
 });
