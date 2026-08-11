@@ -203,6 +203,16 @@
   Nyomj <kbd>F11</kbd>-et a teljes képernyőhöz
 </div>
 
+<!-- Célba érés után: kit nézünk, és hogyan váltunk. Csak többjátékosban,
+     és csak amíg van kit nézni. -->
+<div id="spectateBar" class="hidden">
+  <span class="spec-eye" aria-hidden="true">👁</span>
+  <span class="spec-who"><span class="spec-lbl">Nézőben</span><span id="spectateName" class="spec-name">—</span></span>
+  <button id="spectateNext" class="spec-next" type="button" aria-label="Következő játékos">
+    Következő <kbd>V</kbd>
+  </button>
+</div>
+
 <div id="countdown" class="hidden">3</div>
 
 <!-- Az első befutó után indul; mindenki látja, a célba értek is. -->

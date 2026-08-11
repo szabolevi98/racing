@@ -74,6 +74,11 @@ let lastEvents = [];
 // pörög, nem a 20 Hz-es snapshot-ütemben ugrik.
 let finishDeadlineAt = null;
 
+// Kit nézünk célba érés után. null = a saját (leparkolt) kocsinkat.
+// Csak a `finishedDriving` állapotban van értelme; a kamerát a main.js
+// állítja át, itt csak azt tartjuk nyilván, KIRE.
+let spectateId = null;
+
 // ---------- Lobby felület ----------
 
 const el = document.createElement('div');
@@ -949,6 +954,7 @@ async function beginRace(info) {
   raceEnded = false;
   finishedDriving = false;
   finishDeadlineAt = null;
+  resetSpectate();
   myLap = 0;
   myCp = 0;
   myRank = 1;
@@ -1078,6 +1084,7 @@ function clearOtherCars({ preserveGhost = false } = {}) {
   // útvonal áthalad.
   finishDeadlineAt = null;
   hideFinishTimer();
+  resetSpectate();
   // A modellek és fizikai proxyk mellett a minitérképes lenyomatuk is ugyanennek
   // az állapotnak a része. A játék közbeni „Vissza a menübe” közvetlenül az
   // enterMenu() cleanup hookján halad át, nem feltétlenül a leaveMultiplayer()-en,
@@ -1468,6 +1475,14 @@ function onSnapshot(m) {
       lapTainted = c.ti || TAINT.NONE;
     }
   }
+  // Nézői módban a sebességmérő a NÉZETT kocsit mutassa: a sajátunk ilyenkor
+  // már áll, egy odaragadt 0 km/h pedig azt sugallná, hogy elromlott valami.
+  // A saját kocsihoz a helyi fizikát használjuk (frissebb), a távolihoz a
+  // snapshot sebességét — másunk nincs is róla.
+  if (spectateId) {
+    const watched = m.cars.find((c) => c.id === spectateId);
+    if (watched?.v) G.setSpeed(Math.hypot(watched.v[0], watched.v[2]) * 3.6);
+  }
   if (startAfterSnapshot) startInputLoop();
 }
 
@@ -1668,6 +1683,86 @@ function renderFinishTimer(nowServer) {
   }
 }
 
+// ---------- Nézői mód ----------
+//
+// Aki célba ért, a saját leparkolt kocsiját bámulná, amíg a többiek beérnek —
+// ehelyett átkapcsolhat rájuk. A kamerát a main.js állítja (setSpectateTarget),
+// itt csak azt tartjuk nyilván, kire, és ezt írjuk ki.
+
+const spectateBarEl = document.getElementById('spectateBar');
+const spectateNameEl = document.getElementById('spectateName');
+const spectateNextEl = document.getElementById('spectateNext');
+// Egyszer, az első célba érés utáni képkockán ugrunk a mezőnyre; utána a
+// játékos választása számít (a saját kocsi is választható).
+let spectateArmed = false;
+
+// Kit lehet nézni: aki már megérkezett (van valódi állapota) és még megy.
+// A sorrend a `others` beszúrási sorrendje, tehát a „Következő" mindig
+// ugyanúgy körbejár — a helyezés szerinti sorrend versenyzés közben átrendeződne.
+function spectatableIds() {
+  return [...others.entries()].filter(([, o]) => o.present && !o.finished).map(([id]) => id);
+}
+
+function applySpectateTarget() {
+  const entry = spectateId ? others.get(spectateId) : null;
+  G.setSpectateTarget(entry?.group || null);
+}
+
+function setSpectate(id) {
+  spectateId = id;
+  applySpectateTarget();
+}
+
+// Körbelépés: a nézhetők, végül a saját kocsi (null), majd újra elölről.
+function cycleSpectate() {
+  if (!canSpectate()) return;
+  const list = [...spectatableIds(), null];
+  const index = list.indexOf(spectateId);
+  setSpectate(list[(index + 1) % list.length]);
+}
+
+function canSpectate() {
+  return finishedDriving && !raceEnded && !isHotLap();
+}
+
+function updateSpectateBar() {
+  const list = canSpectate() ? spectatableIds() : [];
+  if (!list.length) {
+    // Nincs kit nézni (mindenki beért, vagy még nem értünk célba): vissza a
+    // saját kocsira, hogy a kamera ne egy eltűnő autón ragadjon.
+    if (spectateId !== null) setSpectate(null);
+    spectateBarEl.classList.add('hidden');
+    return;
+  }
+  // Az épp nézett kiesett a mezőnyből (beért vagy kilépett): lépjünk a
+  // következőre magától, ne álljon meg a kép egy már nem frissülő kocsin.
+  if (spectateId !== null && !list.includes(spectateId)) setSpectate(list[0]);
+  // Célba éréskor rögtön a mezőnyre váltunk: a saját kocsi ilyenkor már áll,
+  // nincs rajta mit nézni.
+  else if (spectateId === null && !spectateArmed) setSpectate(list[0]);
+  spectateArmed = true;
+
+  spectateNameEl.textContent = spectateId
+    ? (others.get(spectateId)?.name || '—')
+    : 'A saját kocsid';
+  spectateBarEl.classList.remove('hidden');
+}
+
+function resetSpectate() {
+  spectateArmed = false;
+  spectateId = null;
+  G.setSpectateTarget(null);
+  spectateBarEl.classList.add('hidden');
+}
+
+spectateNextEl.addEventListener('click', cycleSpectate);
+window.addEventListener('keydown', (e) => {
+  if (e.code !== 'KeyV' || e.repeat) return;
+  const el = document.activeElement;
+  if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
+  cycleSpectate();
+});
+
 // Minden képkockán fut (a main.js animate-jéből).
 function frame(dt = 1 / 60) {
   window.__mp.frames++;
@@ -1696,10 +1791,20 @@ function frame(dt = 1 / 60) {
     const mine = G.getCarState().p;
     const dx = currentState.p[0] - mine[0], dy = currentState.p[1] - mine[1], dz = currentState.p[2] - mine[2];
     const distSq = dx * dx + dy * dy + dz * dz;
-    if (distSq >= PLAYER_LABEL_MAX_RANGE_SQ) {
+    // A NÉVTÁBLA halványodása a kamerától mért távolság szerint megy, nem a
+    // saját kocsinktól. Vezetés közben a kettő gyakorlatilag ugyanaz (a kamera
+    // néhány méterrel a kocsi mögött ül), nézői módban viszont nem: ott a
+    // saját kocsink fél pályával arrébb parkol, és épp a nézett játékos
+    // névtáblája tűnne el. A távolság-alapú hálózati simítás (lásd lejjebb)
+    // szándékosan marad a saját kocsihoz kötve — az arról szól, hol számít a
+    // pontos ütközés, nem arról, mit látunk.
+    const cam = G.camera.position;
+    const lx = currentState.p[0] - cam.x, ly = currentState.p[1] - cam.y, lz = currentState.p[2] - cam.z;
+    const labelDistSq = lx * lx + ly * ly + lz * lz;
+    if (labelDistSq >= PLAYER_LABEL_MAX_RANGE_SQ) {
       o.label.visible = false;
     } else {
-      const distance = Math.sqrt(distSq);
+      const distance = Math.sqrt(labelDistSq);
       const opacity = distance <= PLAYER_LABEL_FADE_START
         ? 1
         : (PLAYER_LABEL_MAX_RANGE - distance) / (PLAYER_LABEL_MAX_RANGE - PLAYER_LABEL_FADE_START);
@@ -1762,6 +1867,9 @@ function frame(dt = 1 / 60) {
   // A raceEnded-es kiugrás ELŐTT: aki már célba ért, annak is látnia kell,
   // meddig várunk még a többiekre — pont ő az, aki nézelődik.
   renderFinishTimer(nowServer);
+  // Szintén ide, és nem lejjebb: a nézői sávnak a verseny végén is el kell
+  // tűnnie, azt pedig már nem érné el a kiugrás után.
+  updateSpectateBar();
 
   if (raceEnded) return;
 

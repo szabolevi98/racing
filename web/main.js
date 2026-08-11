@@ -3202,14 +3202,39 @@ const chaseTarget = new THREE.Vector3();
 const audioListenerForward = new THREE.Vector3();
 const audioListenerUp = new THREE.Vector3();
 
+// Kit követ a kamera? Alapból a saját kocsit (carPivot), de a célba ért
+// játékos átkapcsolhat egy még versenyző társára — ilyenkor annak a
+// megjelenítő csoportja kerül ide. A követés minden más része (nézetek,
+// jobb-egeres körbenézés, simítás) változatlan: csak az alany más.
+let spectateTarget = null;
+// Váltáskor a kamerának ODA kell ugrania, nem átcsúsznia: a két kocsi között
+// akár fél pálya is lehet, azon végigsöpörve senki nem látna semmit.
+let cameraSnapPending = false;
+
+function setSpectateTarget(object) {
+  const next = object || null;
+  if (next === spectateTarget) return;
+  spectateTarget = next;
+  cameraSnapPending = true;
+  // Belső nézetből nézni MÁS kocsiját fordítva sülne el: a modellje nincs
+  // elrejtve (az csak a sajátunkra vonatkozik), tehát belülről a hátlapjait
+  // látnánk. Kifelé lépünk, és a váltó is átugorja, amíg nézőben vagyunk.
+  if (spectateTarget && CAMERA_VIEWS[cameraViewIndex].fpv) cameraViewIndex = 0;
+  applyCameraViewVisibility();
+}
+
 function applyCameraViewVisibility() {
-  const fpv = CAMERA_VIEWS[cameraViewIndex].fpv;
+  // Nézőben a saját kocsi maradjon látható: nem benne ülünk, hanem őt is
+  // csak nézzük valahonnan.
+  const fpv = CAMERA_VIEWS[cameraViewIndex].fpv && !spectateTarget;
   if (currentCarModel) currentCarModel.visible = !fpv;
   wheelPivots.forEach((pivot) => { pivot.visible = !fpv; });
 }
 
 function cycleCameraView() {
-  cameraViewIndex = (cameraViewIndex + 1) % CAMERA_VIEWS.length;
+  do {
+    cameraViewIndex = (cameraViewIndex + 1) % CAMERA_VIEWS.length;
+  } while (spectateTarget && CAMERA_VIEWS[cameraViewIndex].fpv);
   applyCameraViewVisibility();
   saveLastChoice('camera', CAMERA_VIEWS[cameraViewIndex].id);
 }
@@ -3290,8 +3315,9 @@ function updateChaseCamera(dt = 1 / 60) {
   // ugyanott van (a carPivot minden képkockán a chassisBody-ról frissül), de
   // online a megjelenítés időben interpolált, ezért a kirajzolt carPivot
   // néhány ezredmásodperccel eltérhet a fizikai test pillanatnyi helyétől.
-  const chassisPos = carPivot.position;
-  const q = carPivot.quaternion;
+  const followed = spectateTarget || carPivot;
+  const chassisPos = followed.position;
+  const q = followed.quaternion;
   const view = CAMERA_VIEWS[cameraViewIndex];
 
   // Csak a kocsi YAW-ját (merre néz felülnézetből) vesszük át — a dőlést és a
@@ -3339,7 +3365,12 @@ function updateChaseCamera(dt = 1 / 60) {
   // képkocka-hossznál ugyanazt a valódi idő szerinti közelítést jelenti.
   const perFrameAt60 = manualOrbitActive ? Math.max(view.smoothing, 0.3) : view.smoothing;
   const a = 1 - Math.pow(1 - perFrameAt60, Math.max(dt, 0) * 60);
-  camera.position.lerp(desiredPos, a);
+  if (cameraSnapPending) {
+    camera.position.copy(desiredPos);
+    cameraSnapPending = false;
+  } else {
+    camera.position.lerp(desiredPos, a);
+  }
   chaseTarget.set(chassisPos.x, chassisPos.y + 1, chassisPos.z);
   camera.lookAt(chaseTarget);
 }
@@ -3461,6 +3492,9 @@ function enterMenu() {
   hideFullscreenHint();
   clearTouchInputs();
   resetManualOrbit();
+  // Öv és nadrágtartó: a nézett kocsi objektuma a takarításban megszűnik, a
+  // kamera pedig nem tarthat életben egy eldobott jelenet-elemet.
+  setSpectateTarget(null);
   setTouchControlsEnabled(true);
   appState = 'menu';
   // Újratöltjük: ha épp most futottunk egy multiplayer versenyt, a friss
@@ -4486,6 +4520,9 @@ window.__game = {
   },
   // A mp.js ezzel regisztrálja a távoli kocsik eltakarítását — lásd enterMenu().
   setMultiplayerCleanupHook(hook) { multiplayerCleanupHook = hook; },
+  // Kit nézzen a kamera: egy távoli kocsi csoportja, vagy null = a sajátunk.
+  setSpectateTarget,
+  cycleCameraView,
   detachMultiplayerFrame() { mpFrameHook = null; },
   setMultiplayerControlsEnabled(enabled) {
     multiplayerControlsEnabled = !!enabled;
@@ -4692,6 +4729,9 @@ window.__debug = {
   get currentSpawnPoints() { return currentSpawnPoints; },
   get currentGates() { return currentGates; },
   get currentTrackBox() { return currentTrackBox; },
+  // Kit követ épp a kamera (nézői mód), vagy null, ha a saját kocsit. Ha a
+  // néző képe „beragad", itt derül ki elsőként, hogy rossz objektumon áll-e.
+  get spectateTarget() { return spectateTarget; },
   race, updateRace, crossedGate,
   getTrackCollider: () => trackCollider,
   // A FUTÁSIDEJŰ zóna-vizsgálat (vezetés közben is él) — a szerkesztő-oldali
