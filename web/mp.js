@@ -9,6 +9,8 @@ import {
 } from '/shared/vehicleConfig.js';
 import { raceClockTimes } from '/shared/raceClock.js';
 import {
+  approachLocalRenderDelay, LOCAL_RENDER_DELAY_MIN_MS,
+  localRenderDelayTarget, remoteDetailUpdateInterval,
   remoteVisualCorrectionHalfLife, remoteVisualPredictionBlend,
 } from '/shared/remoteVisual.js';
 
@@ -33,6 +35,7 @@ window.__mp = {
   get jitterMs() { return +pingJitterMs.toFixed(1); },
   get clockOffsetMs() { return +clockOffsetMs.toFixed(1); },
   get interpDelayMs() { return +interpDelayMs.toFixed(1); },
+  get predDelayMs() { return +predDelayMs.toFixed(1); },
   get physSteps() { return physSteps; },
   // A szerver legutóbbi ellenőrzött állapota a saját kocsinkról.
   get lastSelf() { return lastSnapshot?.cars?.find((c) => c.id === me.id) || null; },
@@ -921,7 +924,7 @@ function onMessage(m) {
 
     case S2C.CAR_RESET:
       if (m.playerId === me.id && G.resetMultiplayerCar(m.respawn || {})) {
-        predBuf.length = 0;
+        resetPredState();
       }
       break;
 
@@ -1071,7 +1074,7 @@ async function beginRace(info) {
   // kapkodott végig a motorhang a fokozatokon a második verseny elején.
   stopInputLoop();
   awaitingFirstSnapshot = false;
-  predBuf.length = 0;
+  resetPredState();
   // A második futam nem örökölheti az előző célba érési sebességét/fokozatát.
   // Enélkül a nulláról induló új autónál a hang gyorsan végigváltott lefelé,
   // mintha felgyorsított kazettát hallanánk.
@@ -1239,7 +1242,7 @@ function cleanupMultiplayerForMenu() {
   cancelRaceLoad();
   stopInputLoop();
   awaitingFirstSnapshot = false;
-  predBuf.length = 0;
+  resetPredState();
   G.detachMultiplayerFrame();
   hideMultiplayerResults();
   clearOtherCars();
@@ -1291,6 +1294,7 @@ async function addOtherCar(p, onProgress, loadGeneration) {
     group, label, wheelRig: group.userData.wheelRig || { pivots: [], sources: [] },
     engineAudio: G.createRemoteEngine(), buf: [], color: p.color, name: p.name, lap: 0, cp: 0,
     rank: 0, gap: null, bestLap: null, lastLap: null, lastLapInvalid: false, finished: false,
+    detailPhase: Math.abs(Number(p.id) || 0) % 8, audioDt: 0,
   });
 }
 
@@ -1326,9 +1330,15 @@ async function loadRemoteCarVisual(car, fallbackColor, onProgress, translucent =
         if (!object.isMesh || !object.material) return;
         const fade = (material) => {
           const clone = material.clone();
-          clone.transparent = true;
+          // A hagyományos blendelt áttetszőség minden belső karosszériaelemet
+          // is egymásra rajzolt, depthWrite nélkül. Egy részletes autónál ez
+          // több százezer, sokszorosan túlrajzolt háromszög. Az alphaHash
+          // megtartja a szellemhatást, de normál mélységi pufferrel és az
+          // átlátszó objektumok költséges rendezése nélkül fut.
+          clone.transparent = false;
+          clone.alphaHash = true;
           clone.opacity = 0.34;
-          clone.depthWrite = false;
+          clone.depthWrite = true;
           clone.needsUpdate = true;
           return clone;
         };
@@ -1480,12 +1490,34 @@ function mulQuat(a, b) {
 // pozíció a VALÓS idő szerint halad, függetlenül attól, mikor esik egy-egy
 // fizikai lépés.
 //
-// Ára ennyi megjelenítési késleltetés. Két tick, hogy a setTimeout
-// pontatlansága (a lépések nem pontosan 16.67 ms-onként esnek) se tudja
-// kiéheztetni az interpolációt.
-const PRED_DELAY_MS = TICK_MS * 2;
+// A késleltetés alapból két tick. Ha a főszál terhelése miatt a setTimeout
+// rendszeresen késik, fokozatosan legfeljebb hat tickre nő; amikor a terhelés
+// elmúlik, lassan visszaáll. Így nem a puffer legutolsó elemén megakadva várjuk
+// a következő fizikai lépést.
 const predBuf = [];
 let physSteps = 0;   // diagnosztikához: hány fizikai lépés történt eddig
+let predDelayMs = LOCAL_RENDER_DELAY_MIN_MS;
+let predDelayTargetMs = LOCAL_RENDER_DELAY_MIN_MS;
+let predDelayUpdatedAt = 0;
+let physicsTimerLatenessMs = 0;
+let physicsTimerJitterMs = 0;
+
+function resetPredState() {
+  predBuf.length = 0;
+  predDelayMs = LOCAL_RENDER_DELAY_MIN_MS;
+  predDelayTargetMs = LOCAL_RENDER_DELAY_MIN_MS;
+  predDelayUpdatedAt = performance.now();
+  physicsTimerLatenessMs = 0;
+  physicsTimerJitterMs = 0;
+}
+
+function observePhysicsTimer(latenessMs) {
+  const sample = Math.max(0, Math.min(250, latenessMs));
+  const deviation = Math.abs(sample - physicsTimerLatenessMs);
+  physicsTimerLatenessMs += (sample - physicsTimerLatenessMs) * 0.12;
+  physicsTimerJitterMs += (deviation - physicsTimerJitterMs) * 0.12;
+  predDelayTargetMs = localRenderDelayTarget(physicsTimerLatenessMs, physicsTimerJitterMs);
+}
 
 // A `t` a lépés ÜTEMEZETT ideje (egyenletesen TICK_MS-enként), nem az, amikor
 // a böngésző ténylegesen odaért. A kettő rendszeresen eltér, és a kirajzolás
@@ -1503,7 +1535,11 @@ function recordPhysState(scheduledAt, state = G.getCarState()) {
 
 function interpolatedPhys() {
   if (!predBuf.length) return G.getCarState();
-  const at = performance.now() - PRED_DELAY_MS;
+  const now = performance.now();
+  const elapsed = predDelayUpdatedAt ? now - predDelayUpdatedAt : 0;
+  predDelayUpdatedAt = now;
+  predDelayMs = approachLocalRenderDelay(predDelayMs, predDelayTargetMs, elapsed);
+  const at = now - predDelayMs;
   for (let i = predBuf.length - 1; i > 0; i--) {
     const a = predBuf[i - 1], b = predBuf[i];
     if (a.t <= at && at <= b.t) {
@@ -1658,6 +1694,13 @@ const PLAYER_LABEL_MAX_RANGE = 50;
 const PLAYER_LABEL_MAX_RANGE_SQ = PLAYER_LABEL_MAX_RANGE * PLAYER_LABEL_MAX_RANGE;
 const REMOTE_PROXY_MAX_AGE_MS = 750;
 const REMOTE_EXTRAP_MAX_MS = 250;
+// A pálya köde 700 méternél már 5% alá csökkenti a kontrasztot. A teljes,
+// több százezer háromszöges autómodellt ott már nem érdemes kirajzolni. A
+// minitérképes jel megmarad, és spectate-ben a kocsi mindig kivétel.
+const REMOTE_RENDER_MAX_RANGE = 700;
+const REMOTE_RENDER_MAX_RANGE_SQ = REMOTE_RENDER_MAX_RANGE * REMOTE_RENDER_MAX_RANGE;
+const REMOTE_AUDIO_MAX_RANGE = 125;
+let remoteDetailFrame = 0;
 
 function integrateRotation(q, w, dt) {
   const speed = Math.hypot(w?.[0] || 0, w?.[1] || 0, w?.[2] || 0);
@@ -1888,6 +1931,7 @@ window.addEventListener('keydown', (e) => {
 // Minden képkockán fut (a main.js animate-jéből).
 function frame(dt = 1 / 60) {
   window.__mp.frames++;
+  remoteDetailFrame = (remoteDetailFrame + 1) % 240;
   const nowServer = serverNow();
   const renderTime = nowServer - interpDelayMs;
 
@@ -1903,17 +1947,15 @@ function frame(dt = 1 / 60) {
   // folyamatos, mint vezetés közben a sajátunk.
   const watchedEntry = spectateId ? others.get(spectateId) : null;
   for (const o of others.values()) {
-    const delayedState = sampleAt(o.buf, renderTime);
     const currentState = remoteStateAt(o.buf, nowServer);
     // Nincs valódi állapota (még tölt, vagy épp most lépett be): ne lássuk.
     // A `renderReady` közben hamis marad, tehát amikor megjön az első igazi
     // állapot, a kocsi ODAKERÜL, nem odacsúszik.
-    if (!delayedState || !currentState) {
+    if (!currentState) {
       o.group.visible = false;
       o.label.visible = false;
       continue;
     }
-    o.group.visible = true;
     const mine = G.getCarState().p;
     const dx = currentState.p[0] - mine[0], dy = currentState.p[1] - mine[1], dz = currentState.p[2] - mine[2];
     const distSq = dx * dx + dy * dy + dz * dz;
@@ -1927,15 +1969,54 @@ function frame(dt = 1 / 60) {
     const cam = G.camera.position;
     const lx = currentState.p[0] - cam.x, ly = currentState.p[1] - cam.y, lz = currentState.p[2] - cam.z;
     const labelDistSq = lx * lx + ly * ly + lz * lz;
-    if (labelDistSq >= PLAYER_LABEL_MAX_RANGE_SQ) {
+    const cameraDistance = Math.sqrt(labelDistSq);
+    const watched = o === watchedEntry;
+    const detailInterval = remoteDetailUpdateInterval(cameraDistance, watched);
+    const detailDue = detailInterval === 1
+      || (remoteDetailFrame + o.detailPhase) % detailInterval === 0;
+
+    o.audioDt = Math.min(0.5, (o.audioDt || 0) + dt);
+    const audioInterval = watched || cameraDistance <= REMOTE_AUDIO_MAX_RANGE
+      ? detailInterval
+      : 30;
+    const audioDue = audioInterval === 1
+      || (remoteDetailFrame + o.detailPhase) % audioInterval === 0;
+
+    // A ködben már nem látható kasztni GPU-munkáját teljesen elhagyjuk. A
+    // currentState-ből a minitérkép és a lehalkítás továbbra is frissül.
+    if (!watched && labelDistSq > REMOTE_RENDER_MAX_RANGE_SQ) {
+      o.group.visible = false;
       o.label.visible = false;
-    } else {
-      const distance = Math.sqrt(labelDistSq);
-      const opacity = distance <= PLAYER_LABEL_FADE_START
-        ? 1
-        : (PLAYER_LABEL_MAX_RANGE - distance) / (PLAYER_LABEL_MAX_RANGE - PLAYER_LABEL_FADE_START);
-      o.label.material.opacity = opacity;
-      o.label.visible = opacity > 0.01;
+      if (audioDue) {
+        G.updateRemoteEngine(o.engineAudio, {
+          position: currentState.p,
+          velocity: currentState.v,
+          speedKmh: Math.hypot(currentState.v?.[0] || 0, currentState.v?.[2] || 0) * 3.6,
+          throttle: currentState.th ?? 0,
+        }, o.audioDt);
+        o.audioDt = 0;
+      }
+      markers.push({ x: currentState.p[0], z: currentState.p[2], color: o.color || '#ffffff' });
+      continue;
+    }
+
+    const delayedState = sampleAt(o.buf, renderTime);
+    if (!delayedState) {
+      o.group.visible = false;
+      o.label.visible = false;
+      continue;
+    }
+    o.group.visible = true;
+    if (detailDue) {
+      if (labelDistSq >= PLAYER_LABEL_MAX_RANGE_SQ) {
+        o.label.visible = false;
+      } else {
+        const opacity = cameraDistance <= PLAYER_LABEL_FADE_START
+          ? 1
+          : (PLAYER_LABEL_MAX_RANGE - cameraDistance) / (PLAYER_LABEL_MAX_RANGE - PLAYER_LABEL_FADE_START);
+        o.label.material.opacity = opacity;
+        o.label.visible = opacity > 0.01;
+      }
     }
     // Korábban 60 méternél egyetlen képkocka alatt váltottunk a stabil,
     // pufferelt állapotról a jelenre extrapoláltra. Nagy pingnél ez többméteres
@@ -1960,18 +2041,23 @@ function frame(dt = 1 / 60) {
       const qr = slerp(q0, s.q, alpha);
       o.group.quaternion.set(qr[0], qr[1], qr[2], qr[3]);
     }
-    for (let i = 0; i < o.wheelRig.pivots.length; i++) {
-      const source = o.wheelRig.sources[i];
-      o.wheelRig.pivots[i].rotation.set(s.wr ?? 0, source?.steer ? (s.st ?? 0) : 0, 0);
+    if (detailDue) {
+      for (let i = 0; i < o.wheelRig.pivots.length; i++) {
+        const source = o.wheelRig.sources[i];
+        o.wheelRig.pivots[i].rotation.set(s.wr ?? 0, source?.steer ? (s.st ?? 0) : 0, 0);
+      }
     }
     const kmh = Math.hypot(s.v?.[0] || 0, s.v?.[2] || 0) * 3.6;
     if (o === watchedEntry) G.setSpeed(kmh);
-    G.updateRemoteEngine(o.engineAudio, {
-      position: o.group.position,
-      velocity: s.v,
-      speedKmh: kmh,
-      throttle: s.th ?? 0,
-    }, dt);
+    if (audioDue) {
+      G.updateRemoteEngine(o.engineAudio, {
+        position: o.group.position,
+        velocity: s.v,
+        speedKmh: kmh,
+        throttle: s.th ?? 0,
+      }, o.audioDt);
+      o.audioDt = 0;
+    }
     markers.push({ x: o.group.position.x, z: o.group.position.z, color: o.color || '#ffffff' });
   }
   // A main.js a stepMultiplayerFrame-ben MIUTÁN meghívta ezt a frame()-et,
@@ -2158,13 +2244,14 @@ function startInputLoop() {
   lapTainted = TAINT.NONE;
   finishedDriving = false;
   G.setMultiplayerControlsEnabled(true);
-  predBuf.length = 0;
+  resetPredState();
 
   // Önkorrigáló ütemező, nem setInterval: az utóbbi ezredmásodpercre kerekít
   // és hosszabb távon sodródna.
   let next = performance.now();
   const tick = () => {
     const now = performance.now();
+    observePhysicsTimer(now - next);
     // A behozatalt korlátozzuk. Ha a lap háttérbe került, az ütemező befagy,
     // és visszatéréskor több száz bemenetet akarna egyszerre kilőni — az csak
     // elárasztaná a szerver sorát, ami onnan eldobásba fordulna.

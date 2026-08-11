@@ -4320,6 +4320,7 @@ function recordDiagFrame() {
     camX: camera.position.x, camZ: camera.position.z,
     snaps: mp?.snaps ?? 0,
     steps: mp?.physSteps ?? 0,
+    predDelay: mp?.predDelayMs ?? 0,
   });
 }
 
@@ -4424,6 +4425,10 @@ window.__diag = {
       // Hány fizikai lépés jutott egy-egy képkockára. Ha ez 0 és 2 közt
       // váltakozik, a fizika és a képfrissítés nincs szinkronban.
       fizikaiLepesKepkockankent: hist,
+      sajatRenderPuffer_ms: {
+        atlag: +mean(r.map((q) => q.predDelay || 0)).toFixed(1),
+        max: +Math.max(...r.map((q) => q.predDelay || 0)).toFixed(1),
+      },
       snapshotosKepkockak_szazalek: +((100 * snapFrames) / (r.length - 1)).toFixed(1),
     };
   },

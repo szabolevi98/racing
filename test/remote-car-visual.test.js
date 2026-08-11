@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
+  approachLocalRenderDelay, LOCAL_RENDER_DELAY_MAX_MS, LOCAL_RENDER_DELAY_MIN_MS,
+  localRenderDelayTarget, remoteDetailUpdateInterval,
   remoteVisualCorrectionHalfLife, remoteVisualPredictionBlend,
 } from '../shared/remoteVisual.js';
 
@@ -22,11 +24,44 @@ test('remote wheel steering and rolling survive buffering and reach wheel pivots
   assert.match(mp, /\.rotation\.set\(s\.wr \?\? 0, source\?\.steer \? \(s\.st \?\? 0\) : 0, 0\)/);
 });
 
-test('multiplayer frame keeps the delta time used by remote car smoothing and audio', () => {
+test('remote detail throttling always keeps the spectated car at full rate', () => {
+  assert.equal(remoteDetailUpdateInterval(20), 1);
+  assert.equal(remoteDetailUpdateInterval(100), 2);
+  assert.equal(remoteDetailUpdateInterval(220), 4);
+  assert.equal(remoteDetailUpdateInterval(500), 8);
+  assert.equal(remoteDetailUpdateInterval(500, true), 1);
+  assert.match(mp, /const watched = o === watchedEntry/);
+  assert.match(mp, /remoteDetailUpdateInterval\(cameraDistance, watched\)/);
+  assert.match(mp, /if \(!watched && labelDistSq > REMOTE_RENDER_MAX_RANGE_SQ\)/);
+});
+
+test('local render delay grows with timer stress and changes without a timeline jump', () => {
+  assert.equal(localRenderDelayTarget(0, 0), LOCAL_RENDER_DELAY_MIN_MS);
+  assert.ok(localRenderDelayTarget(15, 8) > LOCAL_RENDER_DELAY_MIN_MS);
+  assert.equal(localRenderDelayTarget(500, 500), LOCAL_RENDER_DELAY_MAX_MS);
+  const raised = approachLocalRenderDelay(LOCAL_RENDER_DELAY_MIN_MS, LOCAL_RENDER_DELAY_MAX_MS, 16);
+  assert.ok(raised > LOCAL_RENDER_DELAY_MIN_MS);
+  assert.ok(raised < LOCAL_RENDER_DELAY_MAX_MS);
+  const lowered = approachLocalRenderDelay(LOCAL_RENDER_DELAY_MAX_MS, LOCAL_RENDER_DELAY_MIN_MS, 16);
+  assert.ok(lowered < LOCAL_RENDER_DELAY_MAX_MS);
+  assert.ok(lowered > raised);
+  assert.match(mp, /observePhysicsTimer\(now - next\)/);
+  assert.match(mp, /get predDelayMs\(\)/);
+});
+
+test('Hot Lap ghost uses hashed depth-writing transparency instead of blended overdraw', () => {
+  assert.match(mp, /clone\.transparent = false/);
+  assert.match(mp, /clone\.alphaHash = true/);
+  assert.match(mp, /clone\.depthWrite = true/);
+  assert.doesNotMatch(mp, /clone\.depthWrite = false/);
+});
+
+test('multiplayer frame keeps elapsed time for remote car smoothing and throttled audio', () => {
   assert.match(mp, /function frame\(dt = 1 \/ 60\)/);
   assert.match(mp, /remoteVisualCorrectionHalfLife\(interpDelayMs, predictionBlend\)/);
   assert.match(mp, /Math\.pow\(0\.5, dt \/ halfLife\)/);
-  assert.match(mp, /G\.updateRemoteEngine\([\s\S]*?\}, dt\);/);
+  assert.match(mp, /o\.audioDt = Math\.min\(0\.5, \(o\.audioDt \|\| 0\) \+ dt\)/);
+  assert.match(mp, /G\.updateRemoteEngine\([\s\S]*?\}, o\.audioDt\);/);
   assert.match(main, /function stepMultiplayerFrame\(dt\) \{\s*mpFrameHook\?\.\(dt\);/);
 });
 
