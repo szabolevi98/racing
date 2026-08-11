@@ -642,8 +642,15 @@ $('mpCopyToken').addEventListener('click', async () => {
 // Az "R" multiplayerben KÉRÉS a szerver felé, nem helyi teleport — a kocsi
 // helyét a szerver birtokolja. Élre figyelünk (e.repeat nélkül), nem a
 // lenyomva tartásra: különben képkockánként küldenénk egy kérést.
+let multiplayerStartCrossed = false;
+let resetPending = false;
+
 function requestMultiplayerReset() {
-  if (G.appState === 'mp') send(C2S.RESET);
+  if (G.appState !== 'mp') return;
+  if (isHotLap()) return send(C2S.RESET);
+  if (!multiplayerStartCrossed || resetPending) return;
+  resetPending = true;
+  send(C2S.RESET);
 }
 
 window.addEventListener('keydown', (e) => {
@@ -1018,8 +1025,9 @@ function onMessage(m) {
       break;
 
     case S2C.CAR_RESET:
-      if (m.playerId === me.id && G.resetMultiplayerCar(m.respawn || {})) {
-        resetPredState();
+      if (m.playerId === me.id) {
+        resetPending = false;
+        if (G.resetMultiplayerCar(m.respawn || {})) resetPredState();
       }
       break;
 
@@ -1191,6 +1199,8 @@ async function beginRace(info) {
   myFinished = false;
   myLapTimes.length = 0;
   myLapStartedAt = 0;
+  multiplayerStartCrossed = false;
+  resetPending = false;
   lastEvents = [];
   G.setMultiplayerControlsEnabled(true);
   // Tiszta lappal indulunk, FÜGGETLENÜL attól, hogyan ért véget az előző
@@ -1752,6 +1762,7 @@ function onSnapshot(m) {
       entry.finished = !!c.fin;
     }
     if (c.id === me.id) {
+      if (Number.isFinite(c.ls)) multiplayerStartCrossed = true;
       // Nézői módban a nézett kocsié megy a kijelzőre (lásd frame()), a
       // sajátunké nem írhatja felül.
       if (!spectateId) {
@@ -2464,7 +2475,7 @@ function sendOneInput(scheduledAt) {
   const brake = backwardHeld && fwdSpeed > REVERSE_BRAKE_THRESHOLD ? backwardAmount : 0;
   const reverseAmount = backwardHeld && !brake ? backwardAmount : 0;
   const finishedBraking = !controlsEnabled && shouldBrakeFinishedVelocity(v[0], v[2]);
-  const shouldSend = !raceEnded;
+  const shouldSend = !raceEnded && !resetPending;
   const input = {
     seq: shouldSend ? ++inputSeq : inputSeq,
     // Csak helyi metaadat: ebből tudjuk, melyik időpontra kell tenni a távoli

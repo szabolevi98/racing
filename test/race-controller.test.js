@@ -223,6 +223,7 @@ test('race controller reset is server-selected and allows the resulting teleport
   await sim.start();
   try {
     sim.receiveState('p1', wireState(0, 1000, 5, 6), { initial: true, receivedAt: 1000 });
+    sim.cars.get('p1').race.hasCrossedStart = true;
     sim.cars.get('p1').respawn = { x: 100, z: 200, heading: 1 };
     sim.resetCar('p1');
     assert.deepEqual(messages.at(-1), {
@@ -235,6 +236,52 @@ test('race controller reset is server-selected and allows the resulting teleport
       true,
       'the first grounded state after a requested reset may jump to the checkpoint'
     );
+  } finally {
+    sim.stop();
+  }
+});
+
+test('reset is blocked before the first start-line crossing', async () => {
+  const room = makeRoom();
+  const messages = [];
+  const sim = new RaceController(room, {
+    map: { spawns: [{ x: 5, z: 6, heading: 0 }], gates: null },
+    broadcast: (type, data) => messages.push({ type, ...data }),
+  });
+  await sim.start();
+  try {
+    assert.equal(sim.resetCar('p1'), false);
+    assert.equal(messages.some((message) => message.type === S2C.CAR_RESET), false);
+  } finally {
+    sim.stop();
+  }
+});
+
+test('stale states sent while reset is in flight cannot invalidate the lap', async () => {
+  const room = makeRoom();
+  room.state = ROOM_STATE.RACING;
+  const messages = [];
+  const sim = new RaceController(room, {
+    map: { spawns: [{ x: 5, z: 6, heading: 0 }], gates: null },
+    broadcast: (type, data) => messages.push({ type, ...data }),
+  });
+  await sim.start();
+  try {
+    sim.receiveState('p1', wireState(0, 1000, 5, 6), { initial: true, receivedAt: 1000 });
+    const car = sim.cars.get('p1');
+    car.race.hasCrossedStart = true;
+    car.respawn = { x: 100, z: 200, heading: 0 };
+    assert.equal(sim.resetCar('p1'), true);
+
+    assert.equal(
+      sim.receiveState('p1', wireState(1, 1010, 6, 6), { receivedAt: 1010 }),
+      false,
+      'the pre-reset position is ignored while the reset response is in flight'
+    );
+    assert.deepEqual(car.state.p.slice(0, 3), [100, 0.8, 200]);
+    assert.equal(sim.receiveState('p1', wireState(2, 1020, 100, 200), { receivedAt: 1020 }), true);
+    assert.equal(car.race.taintReason, TAINT.NONE);
+    assert.equal(messages.some((message) => message.kind === 'validation'), false);
   } finally {
     sim.stop();
   }

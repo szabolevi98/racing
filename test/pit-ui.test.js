@@ -37,3 +37,9 @@ test('multiplayer passes pit limiter state into the local physics step', () => {
   assert.match(main, /findPitGroundAt\(currentTrack, currentTrackBox, stop\.x, stop\.z\)/);
   assert.match(main, /state\.completed && !state\.inLane/);
 });
+
+test('reset waits for the first start crossing and pauses state packets in flight', () => {
+  assert.match(main, /race\.active && !race\.hasCrossedStart/);
+  assert.match(mp, /!multiplayerStartCrossed \|\| resetPending/);
+  assert.match(mp, /const shouldSend = !raceEnded && !resetPending/);
+});

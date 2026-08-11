@@ -27,6 +27,8 @@ const MOVEMENT_PACKET_GRACE_METERS = 3;
 const MOVEMENT_WINDOW_GRACE_METERS = 8;
 const MOVEMENT_WINDOW_MIN_MS = 500;
 const MOVEMENT_WINDOW_MAX_MS = 1_500;
+const RESET_ACK_RADIUS_METERS = 2;
+const RESET_ACK_TIMEOUT_MS = 5_000;
 
 const roundArray = (values, digits) => values.map((value) => +value.toFixed(digits));
 
@@ -172,6 +174,7 @@ export class RaceController {
         lastStateAt: 0,
         movementSamples: [],
         acceptTeleportOnce: true,
+        pendingReset: null,
         respawn: { x: spawn.x, z: spawn.z, heading: spawn.heading || 0 },
         race: createRaceState(
           spawn.x,
@@ -203,6 +206,21 @@ export class RaceController {
     // A kliens `t` mezője csak hálózati diagnosztika lehet: köridőt és
     // hihetőségvizsgálatot kizárólag a szerver monoton beérkezési ideje vezérel.
     const eventTime = Math.max(car.lastStateAt || -Infinity, receivedAt);
+    if (!initial && car.pendingReset) {
+      const distanceToTarget = Math.hypot(
+        state.p[0] - car.pendingReset.x,
+        state.p[2] - car.pendingReset.z
+      );
+      if (distanceToTarget > RESET_ACK_RADIUS_METERS && eventTime <= car.pendingReset.expiresAt) {
+        // Az R elküldése és a CAR_RESET válasz megérkezése között a kliens még
+        // küldhetett egy régi pozíciót. Ezt nem tekintjük új teleportnak, és a
+        // szerver resetelt állapotát sem írhatja vissza a pálya másik pontjára.
+        car.lastSeq = Math.max(car.lastSeq, seq);
+        return false;
+      }
+      car.pendingReset = null;
+      car.acceptTeleportOnce = distanceToTarget <= RESET_ACK_RADIUS_METERS;
+    }
     const validationFailed = !initial && (
       exceedsSpeedLimit(state)
       || (!car.acceptTeleportOnce && hasImplausibleMovement(car, state, eventTime))
@@ -262,7 +280,7 @@ export class RaceController {
 
   resetCar(playerId) {
     const car = this.cars.get(playerId);
-    if (!car || car.race.finished) return;
+    if (!car || car.race.finished || !car.race.hasCrossedStart) return false;
     const { x, z, heading } = car.respawn;
     const half = heading / 2;
     car.state = {
@@ -281,7 +299,9 @@ export class RaceController {
     car.race.prevAt = car.lastStateAt || Date.now();
     car.movementSamples = [{ p: [...car.state.p], at: car.race.prevAt }];
     car.acceptTeleportOnce = true;
+    car.pendingReset = { x, z, expiresAt: Date.now() + RESET_ACK_TIMEOUT_MS };
     this.broadcast(S2C.CAR_RESET, { playerId, respawn: { x, z, heading } });
+    return true;
   }
 
   beginGhostRecording(car, now) {

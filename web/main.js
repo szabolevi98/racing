@@ -3218,6 +3218,7 @@ function moveTowardsAngle(current, target, maxDelta) {
 
 function resetSinglePlayerCar() {
   const pos = chassisBody.translation();
+  if (race.active && !race.hasCrossedStart) return;
   if (race.active && lastCheckpointSpawn) {
     const groundY = findGroundAt(currentTrack, currentTrackBox, lastCheckpointSpawn.x, lastCheckpointSpawn.z);
     // Az "R" is a nyugalmi magasságba tesz vissza, nem fölé: eddig minden
