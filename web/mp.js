@@ -10,7 +10,7 @@ import {
 import { raceClockTimes } from '/shared/raceClock.js';
 import { ghostCheckpointSplits } from '/shared/gate.js';
 import {
-  approachLocalRenderDelay, LOCAL_RENDER_DELAY_MIN_MS,
+  advanceLocalRenderClock, LOCAL_RENDER_DELAY_MIN_MS,
   localRenderDelayTarget, remoteDetailPhase, remoteDetailUpdateInterval,
   remoteVisualCorrectionHalfLife, remoteVisualPredictionBlend,
 } from '/shared/remoteVisual.js';
@@ -1593,6 +1593,8 @@ let physSteps = 0;   // diagnosztikához: hány fizikai lépés történt eddig
 let predDelayMs = LOCAL_RENDER_DELAY_MIN_MS;
 let predDelayTargetMs = LOCAL_RENDER_DELAY_MIN_MS;
 let predDelayUpdatedAt = 0;
+let predRenderAt = NaN;
+let predPlaybackRate = 1;
 let physicsTimerLatenessMs = 0;
 let physicsTimerJitterMs = 0;
 
@@ -1601,6 +1603,8 @@ function resetPredState() {
   predDelayMs = LOCAL_RENDER_DELAY_MIN_MS;
   predDelayTargetMs = LOCAL_RENDER_DELAY_MIN_MS;
   predDelayUpdatedAt = performance.now();
+  predRenderAt = NaN;
+  predPlaybackRate = 1;
   physicsTimerLatenessMs = 0;
   physicsTimerJitterMs = 0;
 }
@@ -1630,10 +1634,18 @@ function recordPhysState(scheduledAt, state = G.getCarState()) {
 function interpolatedPhys() {
   if (!predBuf.length) return G.getCarState();
   const now = performance.now();
-  const elapsed = predDelayUpdatedAt ? now - predDelayUpdatedAt : 0;
+  const clock = advanceLocalRenderClock(
+    predRenderAt,
+    predDelayUpdatedAt,
+    now,
+    predDelayTargetMs,
+    predPlaybackRate
+  );
   predDelayUpdatedAt = now;
-  predDelayMs = approachLocalRenderDelay(predDelayMs, predDelayTargetMs, elapsed);
-  const at = now - predDelayMs;
+  predRenderAt = clock.at;
+  predPlaybackRate = clock.rate;
+  predDelayMs = Math.max(0, now - predRenderAt);
+  const at = predRenderAt;
   for (let i = predBuf.length - 1; i > 0; i--) {
     const a = predBuf[i - 1], b = predBuf[i];
     if (a.t <= at && at <= b.t) {

@@ -13,6 +13,8 @@ export const REMOTE_DETAIL_BUCKETS = 8;
 
 export const LOCAL_RENDER_DELAY_MIN_MS = TICK_MS * 2;
 export const LOCAL_RENDER_DELAY_MAX_MS = TICK_MS * 6;
+export const LOCAL_RENDER_RATE_MIN = 0.985;
+export const LOCAL_RENDER_RATE_MAX = 1.005;
 
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 
@@ -70,17 +72,48 @@ export function localRenderDelayTarget(timerLatenessMs, timerJitterMs) {
   );
 }
 
-// Növelni gyorsan, de nem egyetlen képkockában szabad (az visszafelé rántaná
-// az autót az idővonalon). Csökkenteni lassabban lehet, hogy a puffer ne
-// pumpáljon fel-le minden apró időzítő-ingadozásra.
-export function approachLocalRenderDelay(currentMs, targetMs, elapsedMs) {
-  const current = Math.max(LOCAL_RENDER_DELAY_MIN_MS, Number(currentMs) || 0);
+// A puffer célmélysége nem tolhatja közvetlenül a mintavételi időt: az a saját
+// autót hol lassabban, hol gyorsabban játszaná le. Ehelyett külön, monoton
+// renderórát vezetünk. Az óra csak nagyon enyhe, kisimított sebességkorrekcióval
+// közelít a kívánt puffermélységhez, ezért terhelésnél marad tartalék, de nincs
+// képkockánként változó sebességérzet.
+export function advanceLocalRenderClock(
+  renderAtMs,
+  previousNowMs,
+  nowMs,
+  targetDelayMs,
+  playbackRate = 1
+) {
+  const now = Number(nowMs) || 0;
   const target = Math.max(
     LOCAL_RENDER_DELAY_MIN_MS,
-    Math.min(LOCAL_RENDER_DELAY_MAX_MS, Number(targetMs) || LOCAL_RENDER_DELAY_MIN_MS)
+    Math.min(LOCAL_RENDER_DELAY_MAX_MS, Number(targetDelayMs) || LOCAL_RENDER_DELAY_MIN_MS)
   );
-  const elapsed = Math.max(0, Math.min(100, Number(elapsedMs) || 0));
-  const maxChange = elapsed * (target > current ? 0.12 : 0.008);
-  if (Math.abs(target - current) <= maxChange) return target;
-  return current + Math.sign(target - current) * maxChange;
+  const previousNow = Number(previousNowMs);
+  const renderAt = Number(renderAtMs);
+  const previousRate = Math.max(
+    LOCAL_RENDER_RATE_MIN,
+    Math.min(LOCAL_RENDER_RATE_MAX, Number(playbackRate) || 1)
+  );
+  const rawElapsed = now - previousNow;
+
+  // Első képkocka vagy háttérből visszatérés: nincs értelme a régi, már
+  // kidobott pufferhez több másodpercen át visszakapaszkodni.
+  if (!Number.isFinite(renderAt) || !Number.isFinite(previousNow)
+      || rawElapsed < 0 || rawElapsed > 250) {
+    return { at: now - target, rate: 1 };
+  }
+
+  const elapsed = Math.min(100, rawElapsed);
+  const currentDelay = previousNow - renderAt;
+  const delayError = currentDelay - target;
+  const desiredRate = Math.max(
+    LOCAL_RENDER_RATE_MIN,
+    Math.min(LOCAL_RENDER_RATE_MAX, 1 + delayError / 1000)
+  );
+  // Kb. negyed másodperces lecsengés: a korrekció indulása se okozzon apró
+  // sebességlépcsőt a kamerán követett világban.
+  const blend = 1 - Math.exp(-elapsed / 250);
+  const rate = previousRate + (desiredRate - previousRate) * blend;
+  return { at: renderAt + elapsed * rate, rate };
 }
