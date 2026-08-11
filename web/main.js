@@ -2187,7 +2187,7 @@ function updatePitOptionAvailability(entry) {
   const available = hasCompletePitConfig(entry?.pit);
   mandatoryPitStopHintEl.textContent = available
     ? 'Kötelező kiállás egy- és többjátékos módban.'
-    : 'Ezen a pályán még nincs kész boxutca; a szabály automatikusan inaktív.';
+    : 'Ezen a pályán nincs boxutca; a szabály automatikusan inaktív.';
   mandatoryPitStopCheckbox.closest('label')?.classList.toggle('is-unavailable', !available);
 }
 
