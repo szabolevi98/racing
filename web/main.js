@@ -2163,6 +2163,25 @@ function findGroundAt(track, box, x, z) {
   return hits.length ? hits[0].point.y : null;
 }
 
+// A boxhely fölött lehet garázstető vagy lelátó. A normál rajtpont-keresőnek
+// a legfelső találat kell, itt viszont kifejezetten a fedés ALATTI aszfalt:
+// az összes találat közül a legalsó, felfelé néző felületet választjuk.
+function findPitGroundAt(track, box, x, z) {
+  const raycaster = new THREE.Raycaster();
+  raycaster.firstHitOnly = false;
+  raycaster.set(new THREE.Vector3(x, box.max.y + 20, z), new THREE.Vector3(0, -1, 0));
+  const hits = raycaster.intersectObject(track, true);
+  if (!hits.length) return null;
+  const up = new THREE.Vector3();
+  const groundHits = hits.filter((hit) => {
+    if (!hit.face?.normal || !hit.object?.matrixWorld) return false;
+    up.copy(hit.face.normal).transformDirection(hit.object.matrixWorld);
+    return up.y > 0.35;
+  });
+  const candidates = groundHits.length ? groundHits : hits;
+  return candidates.reduce((lowest, hit) => Math.min(lowest, hit.point.y), Infinity);
+}
+
 function updatePitOptionAvailability(entry) {
   const available = hasCompletePitConfig(entry?.pit);
   mandatoryPitStopHintEl.textContent = available
@@ -2176,14 +2195,21 @@ function setPitStopMarker(stop, visible = true) {
     pitStopMarker.visible = false;
     return;
   }
-  const y = findGroundAt(currentTrack, currentTrackBox, stop.x, stop.z);
+  const cache = pitStopMarker.userData;
+  if (cache.track !== currentTrack || cache.x !== stop.x || cache.z !== stop.z) {
+    cache.track = currentTrack;
+    cache.x = stop.x;
+    cache.z = stop.z;
+    cache.groundY = findPitGroundAt(currentTrack, currentTrackBox, stop.x, stop.z);
+  }
+  const y = cache.groundY;
   pitStopMarker.position.set(stop.x, Number.isFinite(y) ? y + 0.08 : 0.08, stop.z);
   pitStopMarker.rotation.y = Number(stop.heading) || 0;
   pitStopMarker.visible = true;
 }
 
 function renderPitStopHud(state, stopIndex = 0) {
-  if (!state?.required) {
+  if (!state?.required || (state.completed && !state.inLane)) {
     pitStopAlertEl.classList.add('hidden');
     return;
   }

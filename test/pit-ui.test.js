@@ -32,4 +32,6 @@ test('dev editor exposes and persists pit entry, exit and eight numbered stalls'
 test('multiplayer passes pit limiter state into the local physics step', () => {
   assert.match(mp, /localPitState\.required && localPitState\.inLane/);
   assert.match(main, /pitLimitedVelocity\(velocity\.x, velocity\.z, dt\)/);
+  assert.match(main, /findPitGroundAt\(currentTrack, currentTrackBox, stop\.x, stop\.z\)/);
+  assert.match(main, /state\.completed && !state\.inLane/);
 });
