@@ -236,3 +236,44 @@ test('race controller reset is server-selected and allows the resulting teleport
     sim.stop();
   }
 });
+
+test('multiplayer respawn keeps an asphalt crossing and uses gate middle off track', async () => {
+  const room = makeRoom();
+  const width = 21, height = 21;
+  const codes = new Uint8Array(width * height);
+  const map = {
+    spawns: [{ x: -1, z: 0, heading: 0 }],
+    gates: {
+      start: { x1: 0, z1: -5, x2: 0, z2: 5 },
+      checkpoints: [{ x1: 10, z1: -5, x2: 10, z2: 5 }],
+    },
+    zoneRuntime: { codes, w: width, h: height, bounds: { minX: 0, maxX: 21, minZ: -10, maxZ: 11 } },
+  };
+  const sim = new RaceController(room, { map, broadcast: () => {} });
+  await sim.start();
+  try {
+    room.state = ROOM_STATE.RACING;
+    sim.startAt = 0;
+    const car = sim.cars.get('p1');
+    car.race.hasCrossedStart = true;
+    car.race.prevX = 9;
+    car.race.prevZ = 3;
+    car.race.prevAt = 1000;
+    sim.receiveState('p1', wireState(1, 1100, 11, 3), { receivedAt: 1100 });
+    assert.deepEqual(car.respawn, { x: 10, z: 3, heading: Math.PI / 2 });
+
+    // A következő átlépési pont képpontját kifutónak jelöljük.
+    const u = Math.floor((10 / 21) * width);
+    const v = Math.floor(((4 + 10) / 21) * height);
+    codes[v * width + u] = 1;
+    car.race.nextCheckpoint = 0;
+    car.race.passed.clear();
+    car.race.prevX = 9;
+    car.race.prevZ = 4;
+    car.race.prevAt = 1200;
+    sim.receiveState('p1', wireState(2, 1300, 11, 4), { receivedAt: 1300 });
+    assert.deepEqual(car.respawn, { x: 10, z: 0, heading: Math.PI / 2 });
+  } finally {
+    sim.stop();
+  }
+});

@@ -7,7 +7,9 @@
 // rendszeresen csúszna — épp azt a néhány századot, amiért készül.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { crossingTime, gateCrossingFraction, ghostCheckpointSplits } from '../shared/gate.js';
+import {
+  crossingTime, gateCrossingFraction, gateRespawnPoint, ghostCheckpointSplits,
+} from '../shared/gate.js';
 import { RaceController } from '../server/game/raceController.js';
 import { Room } from '../server/game/room.js';
 import { GAME_MODE, ROOM_STATE } from '../shared/protocol.js';
@@ -27,6 +29,18 @@ test('a crossing is timed between samples, not snapped to one', () => {
   assert.equal(crossingTime(CHECKPOINTS[0], 0, 0, 0, 10, 0, 100), null);
   // A kapu SZÉLESSÉGÉN kívül elhaladva sincs átlépés.
   assert.equal(crossingTime(CHECKPOINTS[0], 500, 20, 500, 40, 0, 100), null);
+});
+
+test('reset keeps an asphalt crossing but falls back to the gate middle off track', () => {
+  const gate = { x1: 10, z1: -10, x2: 10, z2: 10 };
+  assert.deepEqual(
+    gateRespawnPoint(gate, 0, 6, 20, 6, (x, z) => x === 10 && z === 6),
+    { x: 10, z: 6 }
+  );
+  assert.deepEqual(
+    gateRespawnPoint(gate, 0, 8, 20, 8, () => false),
+    { x: 10, z: 0 }
+  );
 });
 
 test('ghost splits come out of the recorded path with sub-sample accuracy', () => {

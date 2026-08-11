@@ -17,6 +17,7 @@ import {
 } from '/shared/pit.js';
 import { restHeightAboveGround } from '/shared/spawnRest.js';
 import { gridSlotPose, hotLapStartPose } from '/shared/grid.js';
+import { gateRespawnPoint } from '/shared/gate.js';
 import { classifyPing, shouldWarnAboutPing } from '/shared/ping.js';
 import {
   countdownBeep, startBeep, setMuted, isMuted, setVolume, getVolume, primeOnFirstGesture,
@@ -2743,14 +2744,13 @@ function crossedGate(gate, fromX, fromZ, toX, toZ) {
   return segmentsIntersect(fromX, fromZ, toX, toZ, gate.x1, gate.z1, gate.x2, gate.z2);
 }
 
-// Az R-re ide tesszük vissza a kocsit: a kapu FELEZŐPONTJÁRA, nem oda, ahol a
-// játékos áthaladt rajta. A kapuk szélesek (átérnek az aszfalton túlra is),
-// tehát az átlépés pontja simán lehet a kifutón vagy a fal mellett — onnan
-// visszaindulni büntetés lenne. A vonalat viszont mindig úgy húzzuk be, hogy a
-// közepe az aszfalt közepére essen, tehát az biztosan használható rajtpont.
-// Ugyanezt a középpontot használja a szerveres RaceController is.
-function gateMidpoint(gate) {
-  return { x: (gate.x1 + gate.x2) / 2, z: (gate.z1 + gate.z2) / 2 };
+// Aszfalton oda állítunk vissza, ahol a kocsi ténylegesen átlépte a vonalat.
+// A kifutóra/falra nyúló kapurészeknél a biztonságos kapuközép a tartalék.
+function respawnPointAtCrossing(gate, fromX, fromZ, toX, toZ) {
+  return gateRespawnPoint(
+    gate, fromX, fromZ, toX, toZ,
+    (x, z) => sampleZoneAt(x, z) === ZONE_ASPHALT
+  );
 }
 
 // A kapun áthaladáskor nincs eltárolt "helyes irány" (a checkpointoknak nincs
@@ -2963,7 +2963,7 @@ function updateRace(dt) {
     // A Set miatt ugyanaz a kapu kétszer sem számít duplán.
     race.passed.add(crossedCheckpoint);
     lastCheckpointSpawn = {
-      ...gateMidpoint(checkpoints[crossedCheckpoint]),
+      ...respawnPointAtCrossing(checkpoints[crossedCheckpoint], fromX, fromZ, pos.x, pos.z),
       heading: headingFromMovement(fromX, fromZ, pos.x, pos.z, lastCheckpointSpawn?.heading ?? spawnHeading),
     };
     if (crossedCheckpoint === race.nextCheckpoint) {
@@ -3000,7 +3000,7 @@ function updateRace(dt) {
     race.hasCrossedStart = true;
     race.lapStartTime = now;
     lastCheckpointSpawn = {
-      ...gateMidpoint(currentGates.start),
+      ...respawnPointAtCrossing(currentGates.start, fromX, fromZ, pos.x, pos.z),
       heading: headingFromMovement(fromX, fromZ, pos.x, pos.z, lastCheckpointSpawn?.heading ?? spawnHeading),
     };
   } else if (startCrossed && race.passed.size < requiredCheckpoints(checkpoints.length)) {
@@ -3032,7 +3032,7 @@ function updateRace(dt) {
     race.lapTainted = false;
     if (invalid) race.invalidUntil = now + 2500;
     lastCheckpointSpawn = {
-      ...gateMidpoint(currentGates.start),
+      ...respawnPointAtCrossing(currentGates.start, fromX, fromZ, pos.x, pos.z),
       heading: headingFromMovement(fromX, fromZ, pos.x, pos.z, lastCheckpointSpawn?.heading ?? spawnHeading),
     };
     if (race.lap >= race.totalLaps) finishRace();

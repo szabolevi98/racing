@@ -9,11 +9,13 @@ import {
   FINISH_GRACE_MS,
 } from '../../shared/protocol.js';
 import { gridSlotPose, hotLapStartPose } from '../../shared/grid.js';
-import { crossingTime } from '../../shared/gate.js';
+import { crossingTime, gateRespawnPoint } from '../../shared/gate.js';
+import { sampleZone, ZONE_ASPHALT } from '../../shared/zone.js';
 import {
   GHOST_SAMPLE_MS, MAX_GHOST_FRAMES, makeGhostFrame, makeGhostReplay,
 } from '../../shared/ghost.js';
 import { createPitState, hasCompletePitConfig, updatePitState } from '../../shared/pit.js';
+import { loadMapZoneRuntime } from './zoneRuntime.js';
 
 const SNAPSHOT_MS = 1000 / SNAPSHOT_RATE;
 const MAX_ABS_POSITION = 100_000;
@@ -95,10 +97,6 @@ function headingFrom(fromX, fromZ, toX, toZ, fallback) {
   return Math.atan2(dx, dz);
 }
 
-function gateMidpoint(gate) {
-  return { x: (gate.x1 + gate.x2) / 2, z: (gate.z1 + gate.z2) / 2 };
-}
-
 function createRaceState(x, z, pitRequired = false) {
   return {
     lap: 0,
@@ -144,9 +142,13 @@ export class RaceController {
     // Az első befutó indítja; ekkortól ennyi ideje van a mezőny többi részének.
     // null = még senki sem ért célba, tehát nincs is mit visszaszámolni.
     this.finishDeadline = null;
+    this.zoneRuntime = map?.zoneRuntime || null;
   }
 
   async start() {
+    if (this.room.mode === GAME_MODE.MULTIPLAYER) {
+      this.zoneRuntime ||= await loadMapZoneRuntime(this.map);
+    }
     const spawns = this.map?.spawns?.length ? this.map.spawns : [{ x: 0, z: 0, heading: 0 }];
     let index = 0;
     for (const player of this.room.players.values()) {
@@ -313,6 +315,13 @@ export class RaceController {
     return makeGhostReplay(car.race.ghostFrames);
   }
 
+  respawnPoint(gate, fromX, fromZ, toX, toZ) {
+    return gateRespawnPoint(
+      gate, fromX, fromZ, toX, toZ,
+      (x, z) => sampleZone(this.zoneRuntime, x, z) === ZONE_ASPHALT
+    );
+  }
+
   updateCarProgress(car, now) {
     const gates = this.map?.gates;
     const r = car.race;
@@ -344,7 +353,7 @@ export class RaceController {
           r.lastSplitIndex = i;
           r.lastSplitMs = Math.max(0, crossedAt - r.lapStart);
           car.respawn = {
-            ...gateMidpoint(checkpoints[i]),
+            ...this.respawnPoint(checkpoints[i], fromX, fromZ, x, z),
             heading: headingFrom(fromX, fromZ, x, z, car.respawn.heading),
           };
         } else if (i > r.nextCheckpoint) {
@@ -371,7 +380,7 @@ export class RaceController {
       r.progressKey = r.lap * (checkpoints.length + 1);
       r.splits.set(r.progressKey, crossedAt);
       car.respawn = {
-        ...gateMidpoint(gates.start),
+        ...this.respawnPoint(gates.start, fromX, fromZ, x, z),
         heading: headingFrom(fromX, fromZ, x, z, car.respawn.heading),
       };
       return;
@@ -382,7 +391,7 @@ export class RaceController {
     }
 
     car.respawn = {
-      ...gateMidpoint(gates.start),
+      ...this.respawnPoint(gates.start, fromX, fromZ, x, z),
       heading: headingFrom(fromX, fromZ, x, z, car.respawn.heading),
     };
     if (r.passed.size < checkpoints.length) r.taintReason = TAINT.CHECKPOINT;

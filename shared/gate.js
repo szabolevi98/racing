@@ -25,6 +25,25 @@ export function crossingTime(gate, fromX, fromZ, toX, toZ, fromAt, toAt) {
   return fromAt + (toAt - fromAt) * fraction;
 }
 
+export function gateMidpoint(gate) {
+  return { x: (gate.x1 + gate.x2) / 2, z: (gate.z1 + gate.z2) / 2 };
+}
+
+// Az R visszaállítási pontja normál esetben pontosan az, ahol a kocsi a kaput
+// átlépte. Ha ez nem aszfalt (például egy széles checkpoint kifutóra nyúló
+// része), a kapu biztonságos közepére esünk vissza.
+export function gateRespawnPoint(gate, fromX, fromZ, toX, toZ, isAsphalt = () => true) {
+  const fraction = gateCrossingFraction(gate, fromX, fromZ, toX, toZ);
+  if (fraction !== null) {
+    const point = {
+      x: fromX + (toX - fromX) * fraction,
+      z: fromZ + (toZ - fromZ) * fraction,
+    };
+    if (isAsphalt(point.x, point.z)) return point;
+  }
+  return gateMidpoint(gate);
+}
+
 // Egy RÖGZÍTETT pálya (szellem-képkockák) checkpoint-részidői, kör kezdetétől
 // számolva. A képkocka alakja: [eltelt ms, x, y, z, …].
 //
