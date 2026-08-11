@@ -8,6 +8,8 @@ export const REMOTE_VISUAL_PREDICT_FAR = 80;
 export const REMOTE_DETAIL_NEAR = 60;
 export const REMOTE_DETAIL_MID = 140;
 export const REMOTE_DETAIL_FAR = 300;
+// A legritkább frissítés — egyben ennyi fázisra osztjuk szét a mezőnyt.
+export const REMOTE_DETAIL_BUCKETS = 8;
 
 export const LOCAL_RENDER_DELAY_MIN_MS = TICK_MS * 2;
 export const LOCAL_RENDER_DELAY_MAX_MS = TICK_MS * 6;
@@ -39,7 +41,22 @@ export function remoteDetailUpdateInterval(distanceMeters, spectated = false) {
   if (spectated || distanceMeters <= REMOTE_DETAIL_NEAR) return 1;
   if (distanceMeters <= REMOTE_DETAIL_MID) return 2;
   if (distanceMeters <= REMOTE_DETAIL_FAR) return 4;
-  return 8;
+  return REMOTE_DETAIL_BUCKETS;
+}
+
+// Melyik képkockákon frissüljön EZ az autó. A ritkításnak csak akkor van
+// értelme, ha a mezőny nem ugyanabban a képkockában végzi el a maradék
+// munkát: különben nem eltűnik a csúcs, csak ritkábban jelentkezik,
+// nyolcszoros magassággal.
+//
+// A játékos-azonosító UUID (`795856d5-79f1-…`), tehát számmá alakítva NaN —
+// egy `Number(id) % 8` minden autóra nullát adna, és pont a szétosztás
+// veszne el némán. Ezért a teljes szövegből számolunk állandó szórót.
+export function remoteDetailPhase(id, buckets = REMOTE_DETAIL_BUCKETS) {
+  const text = String(id ?? '');
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) hash = (Math.imul(hash, 31) + text.charCodeAt(i)) | 0;
+  return Math.abs(hash) % Math.max(1, buckets);
 }
 
 // A helyi fizikai időzítő késése alapján annyi múltat tartunk a render előtt,

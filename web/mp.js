@@ -10,7 +10,7 @@ import {
 import { raceClockTimes } from '/shared/raceClock.js';
 import {
   approachLocalRenderDelay, LOCAL_RENDER_DELAY_MIN_MS,
-  localRenderDelayTarget, remoteDetailUpdateInterval,
+  localRenderDelayTarget, remoteDetailPhase, remoteDetailUpdateInterval,
   remoteVisualCorrectionHalfLife, remoteVisualPredictionBlend,
 } from '/shared/remoteVisual.js';
 
@@ -1294,7 +1294,7 @@ async function addOtherCar(p, onProgress, loadGeneration) {
     group, label, wheelRig: group.userData.wheelRig || { pivots: [], sources: [] },
     engineAudio: G.createRemoteEngine(), buf: [], color: p.color, name: p.name, lap: 0, cp: 0,
     rank: 0, gap: null, bestLap: null, lastLap: null, lastLapInvalid: false, finished: false,
-    detailPhase: Math.abs(Number(p.id) || 0) % 8, audioDt: 0,
+    detailPhase: remoteDetailPhase(p.id), audioDt: 0,
   });
 }
 
@@ -1928,6 +1928,20 @@ window.addEventListener('keydown', (e) => {
   cycleSpectate();
 });
 
+// Egy távoli autó eltüntetése — akár azért, mert még nincs róla valódi
+// állapot, akár mert a ködben már úgysem látszana.
+//
+// A `renderReady` NULLÁZÁSA a lényeg: amíg igaz, a következő megjelenéskor a
+// látható modell a RÉGI helyéről indulva csúszik az újra. Ez a helyben
+// maradóknál észrevehetetlen, de a 700 méteren kívülre került autó közben fél
+// pályányit haladhat — visszatéréskor átsuhanna a képen. Hamisra állítva
+// odakerül, nem odacsúszik.
+function hideRemoteCar(o) {
+  o.group.visible = false;
+  o.label.visible = false;
+  o.renderReady = false;
+}
+
 // Minden képkockán fut (a main.js animate-jéből).
 function frame(dt = 1 / 60) {
   window.__mp.frames++;
@@ -1949,11 +1963,8 @@ function frame(dt = 1 / 60) {
   for (const o of others.values()) {
     const currentState = remoteStateAt(o.buf, nowServer);
     // Nincs valódi állapota (még tölt, vagy épp most lépett be): ne lássuk.
-    // A `renderReady` közben hamis marad, tehát amikor megjön az első igazi
-    // állapot, a kocsi ODAKERÜL, nem odacsúszik.
     if (!currentState) {
-      o.group.visible = false;
-      o.label.visible = false;
+      hideRemoteCar(o);
       continue;
     }
     const mine = G.getCarState().p;
@@ -1985,8 +1996,7 @@ function frame(dt = 1 / 60) {
     // A ködben már nem látható kasztni GPU-munkáját teljesen elhagyjuk. A
     // currentState-ből a minitérkép és a lehalkítás továbbra is frissül.
     if (!watched && labelDistSq > REMOTE_RENDER_MAX_RANGE_SQ) {
-      o.group.visible = false;
-      o.label.visible = false;
+      hideRemoteCar(o);
       if (audioDue) {
         G.updateRemoteEngine(o.engineAudio, {
           position: currentState.p,
@@ -2002,8 +2012,7 @@ function frame(dt = 1 / 60) {
 
     const delayedState = sampleAt(o.buf, renderTime);
     if (!delayedState) {
-      o.group.visible = false;
-      o.label.visible = false;
+      hideRemoteCar(o);
       continue;
     }
     o.group.visible = true;
