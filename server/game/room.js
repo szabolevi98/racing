@@ -35,7 +35,9 @@ export class Room {
     // Szobaszintű és futam közben nem változtatható: minden kliensnek ugyanazt
     // kell használnia.
     this.ghostMode = this.mode === GAME_MODE.HOT_LAP || ghostMode === true;
-    this.mandatoryPitStop = this.mode !== GAME_MODE.HOT_LAP && mandatoryPitStop === true;
+    this.mandatoryPitStop = this.mode !== GAME_MODE.HOT_LAP
+      && this.laps > 1
+      && mandatoryPitStop === true;
     this.state = ROOM_STATE.LOBBY;
     this.players = new Map(); // playerId -> player
     this.raceId = null;       // adatbázis-beli verseny azonosító

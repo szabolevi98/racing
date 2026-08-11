@@ -135,6 +135,7 @@ test('race controller speed validation invalidates once and keeps the player rac
 test('missing mandatory pit stop invalidates only the final lap and still finishes the race', async () => {
   const room = makeRoom();
   room.mode = GAME_MODE.MULTIPLAYER;
+  room.laps = 2;
   room.mandatoryPitStop = true;
   const messages = [];
   const map = {
@@ -161,13 +162,15 @@ test('missing mandatory pit stop invalidates only the final lap and still finish
     sim.releaseAt(1000);
     sim.pump(1000);
     sim.receiveState('p1', wireState(1, 1100, 1), { receivedAt: 1100 });
+    // Közvetlenül a kétkörös verseny utolsó körének lezárását vizsgáljuk.
+    sim.cars.get('p1').race.lap = 1;
     sim.receiveState('p1', wireState(2, 2000, 11), { receivedAt: 2000 });
     sim.receiveState('p1', wireState(3, 3000, -1), { receivedAt: 3000 });
     await new Promise((resolve) => setImmediate(resolve));
 
     assert.equal(room.lapsSaved.length, 1);
     assert.equal(room.lapsSaved[0][3], true, 'the final lap cannot become a best lap');
-    assert.equal(sim.cars.get('p1').race.lap, 1, 'the lap still counts toward race distance');
+    assert.equal(sim.cars.get('p1').race.lap, 2, 'the lap still counts toward race distance');
     assert.equal(sim.cars.get('p1').race.finished, true, 'the player still finishes normally');
     assert.equal(
       messages.find((message) => message.kind === 'lap')?.invalid,

@@ -570,13 +570,14 @@ $('mpLogout').addEventListener('click', () => {
 $('mpCreate').addEventListener('click', () => {
   const mapId = document.getElementById('mapSelect')?.value;
   const carId = document.getElementById('carSelect')?.value;
+  const laps = Number(document.getElementById('lapCountSelect')?.value) || 3;
   if (!mapId || !carId) return setErr('Előbb válassz pályát és kocsit a menüben.');
   send(C2S.CREATE_ROOM, {
     mapId,
     carId,
-    laps: Number(document.getElementById('lapCountSelect')?.value) || 3,
+    laps,
     ghostMode: ghostModeCheckbox.checked,
-    mandatoryPitStop: mandatoryPitStopCheckbox.checked,
+    mandatoryPitStop: laps > 1 && mandatoryPitStopCheckbox.checked,
     isPublic: publicRoomCheckbox.checked,
   });
 });
@@ -1215,6 +1216,7 @@ async function beginRace(info) {
   localPitStopIndex = Math.max(0, Math.min(7, myPlayer?.slot ?? 0));
   localPitState = createPitState(
     info.mode !== GAME_MODE.HOT_LAP
+      && Number(info.laps) > 1
       && info.mandatoryPitStop === true
       && hasCompletePitConfig(localPitConfig)
   );

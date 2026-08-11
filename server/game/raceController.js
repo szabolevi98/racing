@@ -176,7 +176,9 @@ export class RaceController {
         race: createRaceState(
           spawn.x,
           spawn.z,
-          this.room.mandatoryPitStop === true && hasCompletePitConfig(this.map?.pit)
+          this.room.laps > 1
+            && this.room.mandatoryPitStop === true
+            && hasCompletePitConfig(this.map?.pit)
         ),
       });
       index++;

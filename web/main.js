@@ -2184,10 +2184,16 @@ function findPitGroundAt(track, box, x, z) {
 }
 
 function updatePitOptionAvailability(entry) {
-  const available = hasCompletePitConfig(entry?.pit);
-  mandatoryPitStopHintEl.textContent = available
-    ? 'Kötelező kiállás egy- és többjátékos módban.'
-    : 'Ezen a pályán nincs boxutca; a szabály automatikusan inaktív.';
+  const hasPitLane = hasCompletePitConfig(entry?.pit);
+  const hasEnoughLaps = Number(lapCountSelect.value) > 1;
+  const available = hasPitLane && hasEnoughLaps;
+  mandatoryPitStopHintEl.textContent = !hasPitLane
+    ? 'Ezen a pályán nincs boxutca; a szabály automatikusan inaktív.'
+    : !hasEnoughLaps
+      ? 'Egy körnél a szabály automatikusan inaktív.'
+      : 'Kötelező kiállás egy- és többjátékos módban.';
+  if (!available) mandatoryPitStopCheckbox.checked = false;
+  mandatoryPitStopCheckbox.disabled = !available;
   mandatoryPitStopCheckbox.closest('label')?.classList.toggle('is-unavailable', !available);
 }
 
@@ -2794,7 +2800,8 @@ function startRace() {
   race.hasCrossedStart = false;
   race.pitStopIndex = 0;
   race.pit = createPitState(
-    race.active && mandatoryPitStopCheckbox.checked && hasCompletePitConfig(currentPitConfig)
+    race.active && race.totalLaps > 1
+      && mandatoryPitStopCheckbox.checked && hasCompletePitConfig(currentPitConfig)
   );
   setPitStopMarker(currentPitConfig.stops[race.pitStopIndex], race.pit.required);
   renderPitStopHud(race.pit, race.pitStopIndex);
@@ -4309,6 +4316,7 @@ async function init() {
   // hozzá, ezért nem kell async — csak eltesszük az értéket.
   lapCountSelect.addEventListener('change', () => {
     saveLastChoice('laps', lapCountSelect.value);
+    updatePitOptionAvailability(findEntry(manifest.maps, mapSelect.value));
   });
   envSelect.addEventListener('change', async () => {
     const entry = findEntry(manifest.skyboxes, envSelect.value);

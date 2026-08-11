@@ -33,14 +33,16 @@ test('ghost mode is a room-wide setting included in room state', () => {
   assert.equal(normalRoom.toJSON().ghostMode, false);
 });
 
-test('mandatory pit stop is a multiplayer-only room setting', () => {
+test('mandatory pit stop needs multiplayer mode and more than one lap', () => {
   const host = { id: 'host' };
   const race = new Room('PIT', host, { mapId: 'map', laps: 3, mandatoryPitStop: true });
+  const oneLap = new Room('ONE', host, { mapId: 'map', laps: 1, mandatoryPitStop: true });
   const hotLap = new Room('HOT', host, {
     mapId: 'map', laps: 1, mode: GAME_MODE.HOT_LAP, mandatoryPitStop: true,
   });
   assert.equal(race.toJSON().mandatoryPitStop, true);
   assert.equal(race.listing().mandatoryPitStop, true);
+  assert.equal(oneLap.toJSON().mandatoryPitStop, false);
   assert.equal(hotLap.toJSON().mandatoryPitStop, false);
 });
 

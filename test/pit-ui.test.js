@@ -12,7 +12,9 @@ test('menu and HUD expose the optional mandatory tire-change rule', () => {
   assert.match(html, /id="mandatoryPitStopCheckbox"/);
   assert.match(html, /id="pitStopAlert"/);
   assert.match(main, /hasCompletePitConfig\(currentPitConfig\)/);
-  assert.match(mp, /mandatoryPitStop: mandatoryPitStopCheckbox\.checked/);
+  assert.match(main, /race\.totalLaps > 1/);
+  assert.match(main, /mandatoryPitStopCheckbox\.disabled = !available/);
+  assert.match(mp, /mandatoryPitStop: laps > 1 && mandatoryPitStopCheckbox\.checked/);
   assert.match(
     main,
     /race\.lap \+ 1 >= race\.totalLaps[\s\S]{0,220}const invalid = race\.lapTainted/,
