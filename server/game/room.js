@@ -12,9 +12,16 @@ import { createRace, finishRace, saveResult, saveLap } from '../db/index.js';
 export class Room {
   constructor(code, host, {
     mapId, laps, ghostMode = false, mode = GAME_MODE.MULTIPLAYER, ghostPlayerId = null,
+    isPublic = true,
   }) {
     this.code = code;
     this.hostId = host.id;
+    // Publikus szoba: megjelenik a szobakeresőben, tehát ismeretlenek is
+    // beléphetnek. A privát csak KÓDDAL érhető el — a listából kimarad, de
+    // aki megkapja a kódot, ugyanúgy be tud lépni.
+    //
+    // Az Időmérés soha nem publikus: egyszemélyes, nincs mit meghirdetni.
+    this.isPublic = mode !== GAME_MODE.HOT_LAP && isPublic !== false;
     this.mapId = mapId;
     this.laps = Math.max(1, Math.min(20, Number(laps) || 3));
     this.mode = mode === GAME_MODE.HOT_LAP ? GAME_MODE.HOT_LAP : GAME_MODE.MULTIPLAYER;
@@ -141,6 +148,7 @@ export class Room {
       laps: this.laps,
       mode: this.mode,
       ghostMode: this.ghostMode,
+      isPublic: this.isPublic,
       state: this.state,
       countdownEndsAt: this.countdownEndsAt || null,
       players: [...this.players.values()].map((p) => ({
@@ -153,6 +161,30 @@ export class Room {
         isHost: p.id === this.hostId,
         connected: p.socket?.readyState === 1,
       })),
+    };
+  }
+
+  // Meghirdethető-e a szobakeresőben? Csak a nyitott, még nem tele publikus
+  // versenyszobák: egy futó versenybe úgysem lehetne belépni, a tele szobába
+  // pedig hiába próbálkozna bárki.
+  get isListable() {
+    return this.isPublic
+      && this.mode === GAME_MODE.MULTIPLAYER
+      && this.state === ROOM_STATE.LOBBY
+      && !this.isFull;
+  }
+
+  // Amit a kereső lát. Szándékosan kevesebb, mint a toJSON: ezt olyanok
+  // kapják, akik NINCSENEK bent, nekik a bent lévők neve, színe és
+  // készenléte nem tartozik rájuk — csak az, hova érdemes belépni.
+  listing() {
+    return {
+      code: this.code,
+      mapId: this.mapId,
+      laps: this.laps,
+      ghostMode: this.ghostMode,
+      players: this.players.size,
+      max: MAX_PLAYERS_PER_ROOM,
     };
   }
 

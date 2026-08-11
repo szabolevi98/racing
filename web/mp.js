@@ -124,6 +124,23 @@ el.innerHTML = `
         </div>
       </div>
       <button id="mpCreate" class="mp-btn primary w-100">Új szoba létrehozása</button>
+      <label class="mp-visibility" for="mpPublicRoom">
+        <input id="mpPublicRoom" type="checkbox" checked>
+        <span>
+          <strong>Publikus szoba</strong>
+          <small>Megjelenik a keresőben, ismeretlenek is beléphetnek. Kikapcsolva csak kóddal érhető el.</small>
+        </span>
+      </label>
+
+      <div class="mp-sep">vagy</div>
+      <div class="mp-browse-head">
+        <span class="lbl">Szoba keresése</span>
+        <span id="mpBrowseCount" class="mp-browse-count"></span>
+      </div>
+      <div id="mpBrowseList" class="mp-browse-list">
+        <div class="mp-browse-empty">Betöltés…</div>
+      </div>
+
       <div class="mp-sep">vagy</div>
       <label for="mpCode" class="lbl d-block mb-2">Csatlakozás kóddal</label>
       <div class="d-flex gap-2">
@@ -145,6 +162,7 @@ el.innerHTML = `
         <span class="mp-chip">Pálya: <b id="mpRoomMap"></b></span>
         <span class="mp-chip"><b id="mpRoomLaps"></b> kör</span>
         <span class="mp-chip">Mód: <b id="mpRoomMode"></b></span>
+        <span class="mp-chip" id="mpRoomVisibility"></span>
       </div>
       <span class="lbl d-block mb-2">Játékosok</span>
       <div id="mpPlayers"></div>
@@ -215,6 +233,14 @@ ghostModeCheckbox.checked = localStorage.getItem('racing.ghostMode') === '1';
 ghostModeCheckbox.addEventListener('change', () => {
   localStorage.setItem('racing.ghostMode', ghostModeCheckbox.checked ? '1' : '0');
 });
+// A szoba láthatósága is megjegyződik, mint a Ghost mód. Alapból PUBLIKUS:
+// a kereső csak akkor ér valamit, ha van benne mit találni; aki zárt kört
+// akar, egy kattintással kikapcsolja, és a beállítás megmarad neki.
+const publicRoomCheckbox = $('mpPublicRoom');
+publicRoomCheckbox.checked = localStorage.getItem('racing.publicRoom') !== '0';
+publicRoomCheckbox.addEventListener('change', () => {
+  localStorage.setItem('racing.publicRoom', publicRoomCheckbox.checked ? '1' : '0');
+});
 
 export function openLobby() {
   closeHotLapGhostPicker();
@@ -230,10 +256,14 @@ export function openLobby() {
     show('mpLogin', true); show('mpRooms', false); show('mpRoom', false);
     $('mpName').value = localStorage.getItem('racing.name') || '';
   }
+  // A kereső csak akkor kérdezzen, ha a panel nyitva van — a lekérés maga is
+  // ellenőrzi a láthatóságot, itt csak elindítjuk/leállítjuk az órát.
+  startRoomListLoop();
 }
 function closeLobby() {
   if (!room) pendingHotLap = null;
   el.classList.add('hidden');
+  stopRoomListLoop();
 }
 
 function selectedMenuRace() {
@@ -446,6 +476,7 @@ $('mpCreate').addEventListener('click', () => {
     carId,
     laps: Number(document.getElementById('lapCountSelect')?.value) || 3,
     ghostMode: ghostModeCheckbox.checked,
+    isPublic: publicRoomCheckbox.checked,
   });
 });
 
@@ -465,6 +496,7 @@ $('mpLeave').addEventListener('click', () => {
   clearOtherCars();
   room = null;
   show('mpRoom', false); show('mpRooms', true);
+  requestRoomList();
 });
 let copyFeedbackTimer = null;
 $('mpCopy').addEventListener('click', async () => {
@@ -647,6 +679,62 @@ function stopPingLoop() {
   stopStallWatch();
 }
 
+// ---------- Szobakereső ----------
+//
+// A lista LEKÉRÉSSEL frissül, nem szerver-oldali szórással: így csak az kap
+// forgalmat, aki tényleg a keresőt nézi, és nem kell minden szoba-eseményt
+// (belépés, rajt, verseny vége) külön értesítési útvonalra fűzni. Egyetlen
+// óra fut, az is csak akkor kér, ha a panel LÁTSZIK — háttérben ülő fülnek
+// nincs miért kérdezősködnie.
+const ROOM_LIST_INTERVAL_MS = 4000;
+let roomListTimer = null;
+
+function requestRoomList() {
+  if (ws?.readyState !== WebSocket.OPEN || !me.id) return;
+  if ($('mpRooms').classList.contains('hidden')) return;
+  send(C2S.LIST_ROOMS, {});
+}
+
+function startRoomListLoop() {
+  stopRoomListLoop();
+  requestRoomList();
+  roomListTimer = setInterval(requestRoomList, ROOM_LIST_INTERVAL_MS);
+}
+
+function stopRoomListLoop() {
+  if (roomListTimer) clearInterval(roomListTimer);
+  roomListTimer = null;
+}
+
+function renderRoomList(list) {
+  const wrap = $('mpBrowseList');
+  const count = $('mpBrowseCount');
+  if (!list.length) {
+    count.textContent = '';
+    wrap.innerHTML = '<div class="mp-browse-empty">Nincs nyitott publikus szoba — hozz létre egyet!</div>';
+    return;
+  }
+  count.textContent = list.length === 1 ? '1 szoba' : `${list.length} szoba`;
+  wrap.innerHTML = list.map((room) => {
+    const map = G.manifest?.maps.find((entry) => entry.id === room.mapId);
+    const tele = room.players >= room.max;
+    return '<div class="mp-browse-row">' +
+      '<span class="br-main">' +
+        `<span class="br-map">${escapeHtml(map?.label || room.mapId)}</span>` +
+        `<span class="br-meta">${room.laps} kör${room.ghostMode ? ' · ghost' : ''}</span>` +
+      '</span>' +
+      `<span class="br-players${tele ? ' is-full' : ''}">${room.players}/${room.max}</span>` +
+      `<button class="mp-btn ghost compact br-join" data-code="${escapeHtml(room.code)}">Belépés</button>` +
+    '</div>';
+  }).join('');
+}
+
+$('mpBrowseList').addEventListener('click', (e) => {
+  const button = e.target.closest('.br-join');
+  if (!button) return;
+  send(C2S.JOIN_ROOM, { code: button.dataset.code, carId: document.getElementById('carSelect')?.value });
+});
+
 let pendingAuthentication = null;
 
 function authenticate(type, data) {
@@ -709,6 +797,7 @@ function onMessage(m) {
       $('mpWho').textContent = m.name;
       if (!sendPendingHotLap()) {
         show('mpLogin', false); show('mpRooms', true);
+        requestRoomList();
       }
       break;
 
@@ -718,6 +807,10 @@ function onMessage(m) {
       $('mpWho').textContent = m.name;
       show('mpRename', false);
       setErr('');
+      break;
+
+    case S2C.ROOM_LIST:
+      renderRoomList(Array.isArray(m.rooms) ? m.rooms : []);
       break;
 
     case S2C.ROOM_STATE: {
@@ -752,6 +845,7 @@ function onMessage(m) {
       show('mpLogin', !stillAuthenticated);
       show('mpRoom', false);
       show('mpRooms', stillAuthenticated);
+      requestRoomList();
       setErr(m.reason || '');
       break;
 
@@ -891,6 +985,9 @@ function renderRoom() {
   $('mpRoomMap').textContent = map?.label || room.mapId;
   $('mpRoomLaps').textContent = room.laps;
   $('mpRoomMode').textContent = room.ghostMode ? 'Ghost' : 'Normál';
+  // Publikus szobába a keresőből ismeretlenek is érkezhetnek — ezt látni kell
+  // bent is, ne érje meglepetésként a társaságot.
+  $('mpRoomVisibility').textContent = room.isPublic ? '🌐 Publikus' : '🔒 Privát';
   $('mpPlayers').innerHTML = room.players.map((p) => {
     const car = G.manifest?.cars.find((c) => c.id === p.carId);
     const self = p.id === me.id;

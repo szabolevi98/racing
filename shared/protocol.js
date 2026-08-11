@@ -7,7 +7,8 @@ export const C2S = {
   HELLO: 'hello',              // { name, token? }        — belépés névvel
   RESTORE_PROFILE: 'restoreProfile', // { token }         — meglévő profil visszaállítása
   RENAME_PLAYER: 'renamePlayer',     // { name }          — bejelentkezett profil átnevezése
-  CREATE_ROOM: 'createRoom',   // { mapId, carId, laps, ghostMode }
+  CREATE_ROOM: 'createRoom',   // { mapId, carId, laps, ghostMode, isPublic }
+  LIST_ROOMS: 'listRooms',     // — a nyitott publikus szobák listáját kéri
   START_HOT_LAP: 'startHotLap', // { mapId, carId, ghostPlayerId? }
   JOIN_ROOM: 'joinRoom',       // { code, carId }
   LEAVE_ROOM: 'leaveRoom',
@@ -23,6 +24,7 @@ export const S2C = {
   WELCOME: 'welcome',          // { playerId, token, name }
   PROFILE_UPDATED: 'profileUpdated', // { name }
   ROOM_STATE: 'roomState',     // { code, hostId, mapId, laps, ghostMode, state, players[] }
+  ROOM_LIST: 'roomList',       // { rooms: [{ code, mapId, laps, ghostMode, players, max }] }
   ROOM_CLOSED: 'roomClosed',   // { reason }
   RACE_STARTING: 'raceStarting', // { spawns, mapId, laps, ghostMode, players } — TÖLTS BE
   RACE_COUNTDOWN: 'raceCountdown', // { startsAt, countdownMs } — mindenki kész, indul a 3-2-1

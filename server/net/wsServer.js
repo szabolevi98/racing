@@ -61,6 +61,16 @@ function pushRoomState(room) {
   broadcastRoom(room, S2C.ROOM_STATE, { room: room.toJSON() });
 }
 
+// A szobakereső tartalma. A legrégebben nyitott szoba kerül elsőnek: aki
+// vár valakire, az várjon a legkevesebbet.
+function sendRoomList(socket) {
+  const list = [...rooms.values()]
+    .filter((room) => room.isListable)
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .map((room) => room.listing());
+  send(socket, S2C.ROOM_LIST, { rooms: list });
+}
+
 function welcomePlayer(player, record) {
   player.name = record.name;
   player.dbId = record.id;
@@ -142,10 +152,17 @@ async function handleMessage(player, msg) {
         mapId: msg.mapId,
         laps: msg.laps,
         ghostMode: msg.ghostMode === true,
+        isPublic: msg.isPublic !== false,
       });
       room.add(player, msg.carId);
       rooms.set(code, room);
       pushRoomState(room);
+      return;
+    }
+
+    case C2S.LIST_ROOMS: {
+      if (!player.name) return fail(socket, 'Előbb add meg a neved.');
+      sendRoomList(socket);
       return;
     }
 
