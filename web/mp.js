@@ -1553,8 +1553,12 @@ function onSnapshot(m) {
       entry.finished = !!c.fin;
     }
     if (c.id === me.id) {
-      const speedState = G.getCarState();
-      G.setSpeed(Math.hypot(speedState.v[0], speedState.v[2]) * 3.6);
+      // Nézői módban a nézett kocsié megy a kijelzőre (lásd frame()), a
+      // sajátunké nem írhatja felül.
+      if (!spectateId) {
+        const speedState = G.getCarState();
+        G.setSpeed(Math.hypot(speedState.v[0], speedState.v[2]) * 3.6);
+      }
       myLap = c.lap;
       myCp = c.cp ?? 0;
       myRank = c.rk ?? 1;
@@ -1571,14 +1575,6 @@ function onSnapshot(m) {
       }
       lapTainted = c.ti || TAINT.NONE;
     }
-  }
-  // Nézői módban a sebességmérő a NÉZETT kocsit mutassa: a sajátunk ilyenkor
-  // már áll, egy odaragadt 0 km/h pedig azt sugallná, hogy elromlott valami.
-  // A saját kocsihoz a helyi fizikát használjuk (frissebb), a távolihoz a
-  // snapshot sebességét — másunk nincs is róla.
-  if (spectateId) {
-    const watched = m.cars.find((c) => c.id === spectateId);
-    if (watched?.v) G.setSpeed(Math.hypot(watched.v[0], watched.v[2]) * 3.6);
   }
   if (startAfterSnapshot) startInputLoop();
 }
@@ -1873,6 +1869,10 @@ function frame(dt = 1 / 60) {
   // gyűjtjük — a kirajzolt (interpolált) pozícióból, hogy a pötty pontosan azt
   // mutassa, amit a képen látunk.
   const markers = [];
+  // Nézői módban a sebességmérőt a nézett kocsi hajtja, KÉPKOCKÁNKÉNT, az
+  // interpolált állapotból — nem a 20 Hz-es snapshotból. Így ugyanolyan
+  // folyamatos, mint vezetés közben a sajátunk.
+  const watchedEntry = spectateId ? others.get(spectateId) : null;
   for (const o of others.values()) {
     const delayedState = sampleAt(o.buf, renderTime);
     const currentState = remoteStateAt(o.buf, nowServer);
@@ -1935,10 +1935,12 @@ function frame(dt = 1 / 60) {
       const source = o.wheelRig.sources[i];
       o.wheelRig.pivots[i].rotation.set(s.wr ?? 0, source?.steer ? (s.st ?? 0) : 0, 0);
     }
+    const kmh = Math.hypot(s.v?.[0] || 0, s.v?.[2] || 0) * 3.6;
+    if (o === watchedEntry) G.setSpeed(kmh);
     G.updateRemoteEngine(o.engineAudio, {
       position: o.group.position,
       velocity: s.v,
-      speedKmh: Math.hypot(s.v?.[0] || 0, s.v?.[2] || 0) * 3.6,
+      speedKmh: kmh,
       throttle: s.th ?? 0,
     }, dt);
     markers.push({ x: o.group.position.x, z: o.group.position.z, color: o.color || '#ffffff' });
@@ -2176,7 +2178,11 @@ function sendOneInput(scheduledAt) {
   G.stepLocalPhysics(input, input.frozen, !controlsEnabled);
   const state = G.getCarState();
   recordPhysState(scheduledAt, state);
-  G.setSpeed(Math.hypot(state.v[0], state.v[2]) * 3.6);
+  // Nézői módban NEM a saját kocsink hajtja a sebességmérőt — azt a frame()
+  // állítja a nézett kocsiról. Enélkül a két forrás váltogatná egymást: ez a
+  // 60 Hz-es ciklus a leparkolt (0 km/h) sajátunkat írta ki, a képkockánkénti
+  // rajzolás meg a nézettét, és a kijelző 0 és 140 közt ugrált.
+  if (!spectateId) G.setSpeed(Math.hypot(state.v[0], state.v[2]) * 3.6);
   if (shouldSend) {
     const wheels = G.getWheelNetworkState?.() || { st: 0, wr: 0 };
     send(C2S.STATE, {
