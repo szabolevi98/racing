@@ -3955,6 +3955,7 @@ function makeSearchableSelect(selectEl) {
   wrap.appendChild(menu);
 
   let activeIdx = -1;
+  let blurTimer = null;
 
   function currentLabel() {
     const opt = selectEl.options[selectEl.selectedIndex];
@@ -3962,6 +3963,10 @@ function makeSearchableSelect(selectEl) {
   }
 
   function closeMenu() {
+    if (blurTimer) {
+      clearTimeout(blurTimer);
+      blurTimer = null;
+    }
     menu.classList.add('hidden');
     activeIdx = -1;
     input.value = currentLabel();
@@ -3978,14 +3983,23 @@ function makeSearchableSelect(selectEl) {
   }
 
   function selectValue(value) {
-    if (selectEl.value !== value) {
-      selectEl.value = value;
-      selectEl.dispatchEvent(new Event('change'));
-    }
+    const changed = selectEl.value !== value;
+    if (changed) selectEl.value = value;
+    // Előbb fejezzük be a custom select gesztusát, és csak UTÁNA indítsuk el
+    // a change handlert. Pályaváltásnál az rögtön felteszi a teljes képernyős
+    // loading overlayt; ha az még a lenyomás/felengedés KÖZÖTT jelenik meg,
+    // touchon vagy gyors egérkattintásnál a gesztus következő része már egy
+    // másik, alatta/fölötte lévő elemre kerülhet.
     closeMenu();
+    input.blur();
+    if (changed) selectEl.dispatchEvent(new Event('change'));
   }
 
   function renderMenu(filterText) {
+    if (blurTimer) {
+      clearTimeout(blurTimer);
+      blurTimer = null;
+    }
     const q = filterText.trim().toLowerCase();
     const opts = [...selectEl.options];
     const matches = q ? opts.filter((o) => o.textContent.toLowerCase().includes(q)) : opts;
@@ -4001,8 +4015,12 @@ function makeSearchableSelect(selectEl) {
         item.className = 'ss-option' + (o.value === selectEl.value ? ' ss-selected' : '');
         item.textContent = o.textContent;
         item.dataset.value = o.value;
-        item.addEventListener('mousedown', (e) => {
-          e.preventDefault(); // ne vegye el a fókuszt a menü zárása előtt
+        // A mousedown csak a fókusz elvételét akadályozza meg. A tényleges
+        // választás a teljes click gesztus végén történik, így a lista nem
+        // tűnhet el a pointer alól még a felengedés előtt.
+        item.addEventListener('mousedown', (e) => e.preventDefault());
+        item.addEventListener('click', (e) => {
+          e.preventDefault();
           selectValue(o.value);
         });
         menu.appendChild(item);
@@ -4040,14 +4058,14 @@ function makeSearchableSelect(selectEl) {
     }
   });
   input.addEventListener('blur', () => {
-    // Kis késleltetés, hogy az option mousedown-ja lefusson a blur előtt.
-    setTimeout(closeMenu, 120);
+    // Touchon a fókuszváltás megelőzheti a szintetikus clicket, ezért rövid
+    // türelmi időt hagyunk. Újranyitáskor a renderMenu törli ezt az időzítőt,
+    // így egy régi blur nem csukhatja be az újonnan megnyitott listát.
+    blurTimer = setTimeout(closeMenu, 120);
   });
-  // Capture fázisban figyeljük (a kattintás lefelé tartó szakaszában, MIELŐTT
-  // egy option saját mousedown-kezelője lefutna) — így akkor is helyesen
-  // látja, hogy a kattintás a wrap-en belül történt, ha a kiválasztás közben
-  // a renderMenu('') újraépíti (és eltávolítja) az éppen kattintott elemet.
-  document.addEventListener('mousedown', (e) => {
+  // Pointer esemény kell, hogy az egér és az érintés ugyanazon az úton zárja
+  // be a listát. Capture fázisban még az indítógomb clickje előtt lefut.
+  document.addEventListener('pointerdown', (e) => {
     if (!wrap.contains(e.target)) closeMenu();
   }, true);
 
