@@ -9,6 +9,7 @@ import {
   FINISH_GRACE_MS,
 } from '../../shared/protocol.js';
 import { gridSlotPose, hotLapStartPose } from '../../shared/grid.js';
+import { crossingTime } from '../../shared/gate.js';
 import {
   GHOST_SAMPLE_MS, MAX_GHOST_FRAMES, makeGhostFrame, makeGhostReplay,
 } from '../../shared/ghost.js';
@@ -97,22 +98,6 @@ function gateMidpoint(gate) {
   return { x: (gate.x1 + gate.x2) / 2, z: (gate.z1 + gate.z2) / 2 };
 }
 
-function gateCrossingFraction(gate, fromX, fromZ, toX, toZ) {
-  if (!gate) return null;
-  const { x1, z1, x2, z2 } = gate;
-  const d = (x2 - x1) * (toZ - fromZ) - (z2 - z1) * (toX - fromX);
-  if (Math.abs(d) < 1e-9) return null;
-  const t = ((fromX - x1) * (toZ - fromZ) - (fromZ - z1) * (toX - fromX)) / d;
-  const u = ((fromX - x1) * (z2 - z1) - (fromZ - z1) * (x2 - x1)) / d;
-  return t >= 0 && t <= 1 && u >= 0 && u <= 1 ? u : null;
-}
-
-function crossingTime(gate, fromX, fromZ, toX, toZ, fromAt, toAt) {
-  const fraction = gateCrossingFraction(gate, fromX, fromZ, toX, toZ);
-  if (fraction === null) return null;
-  return fromAt + (toAt - fromAt) * fraction;
-}
-
 function createRaceState(x, z) {
   return {
     lap: 0,
@@ -126,6 +111,13 @@ function createRaceState(x, z) {
     lastGhostSampleAt: 0,
     progressKey: -1,
     splits: new Map(),
+    // A legutóbb SORRENDBEN érintett checkpoint és a kör kezdetétől mért ideje.
+    // Ebből számol a kliens delta-kijelzője; azért a szerver adja, mert itt van
+    // meg az interpolált átlépési idő — a kliens a 20 Hz-es snapshotokból
+    // legfeljebb 50 ms pontossággal tippelhetne, ami századokat mérő
+    // kijelzőnél használhatatlan.
+    lastSplitIndex: -1,
+    lastSplitMs: 0,
     finished: false,
     prevX: x,
     prevZ: z,
@@ -338,6 +330,8 @@ export class RaceController {
           const splitKey = r.lap * (checkpoints.length + 1) + i + 1;
           r.progressKey = splitKey;
           r.splits.set(splitKey, crossedAt);
+          r.lastSplitIndex = i;
+          r.lastSplitMs = Math.max(0, crossedAt - r.lapStart);
           car.respawn = {
             ...gateMidpoint(checkpoints[i]),
             heading: headingFrom(fromX, fromZ, x, z, car.respawn.heading),
@@ -361,6 +355,7 @@ export class RaceController {
       r.passed.clear();
       r.taintReason = TAINT.NONE;
       r.lapStart = crossedAt;
+      r.lastSplitIndex = -1;
       this.beginGhostRecording(car, crossedAt);
       r.progressKey = r.lap * (checkpoints.length + 1);
       r.splits.set(r.progressKey, crossedAt);
@@ -392,6 +387,8 @@ export class RaceController {
     r.passed.clear();
     r.taintReason = TAINT.NONE;
     r.lapStart = crossedAt;
+    // Új kör: a delta-kijelző ne az előző kör utolsó részidejét hasonlítgassa.
+    r.lastSplitIndex = -1;
     if (this.room.endlessLaps || r.lap < this.room.laps) this.beginGhostRecording(car, crossedAt);
     this.room.recordLap(
       this.room.players.get(car.playerId), r.lap, time, invalid, ghost, this.raceId
@@ -473,6 +470,11 @@ export class RaceController {
         li: !!lastLap?.invalid,
         ls: car.race.hasCrossedStart ? Math.round(car.race.lapStart) : null,
         fin: !!car.race.finished,
+        // A legutóbbi checkpoint sorszáma és a kör kezdetétől mért ideje — a
+        // delta-kijelző alapja. Minden snapshotban megy, nem egyszeri
+        // eseményként: így egy elveszett csomag nem hagy ki egy részidőt.
+        ci: car.race.lastSplitIndex,
+        ct: Math.round(car.race.lastSplitMs),
         // Küldött-e már valódi állapotot, vagy még a rajtrács-helyfoglalón ül?
         //
         // A kezdőállapotot a start() rakja össze a rajthelyből, ahol viszont

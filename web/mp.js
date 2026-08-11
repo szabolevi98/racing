@@ -8,6 +8,7 @@ import {
   forwardSpeed, REVERSE_BRAKE_THRESHOLD, shouldBrakeFinishedVelocity,
 } from '/shared/vehicleConfig.js';
 import { raceClockTimes } from '/shared/raceClock.js';
+import { ghostCheckpointSplits } from '/shared/gate.js';
 import {
   approachLocalRenderDelay, LOCAL_RENDER_DELAY_MIN_MS,
   localRenderDelayTarget, remoteDetailPhase, remoteDetailUpdateInterval,
@@ -81,6 +82,91 @@ let finishDeadlineAt = null;
 // Csak a `finishedDriving` állapotban van értelme; a kamerát a main.js
 // állítja át, itt csak azt tartjuk nyilván, KIRE.
 let spectateId = null;
+
+// ---------- Részidő-különbség ----------
+//
+// Checkpointonként megmutatjuk, mennyivel vagyunk jobbak vagy rosszabbak a
+// viszonyítási körnél. A viszonyítás alapból a SAJÁT előző körünk; Időmérésben,
+// ha van kiválasztott szellem, akkor a szellemé — ott ő az ellenfél.
+//
+// A részidőket a szerver adja (snapshot `ci`/`ct`), mert az átlépés pontos
+// idejét csak ő ismeri: a kliens a 20 Hz-es snapshotokból legfeljebb 50 ms-ra
+// tippelhetne, és a delta pont századokról szól.
+let lapSplits = [];        // az aktuális kör részidői (index = checkpoint)
+let prevLapSplits = null;  // az előző köré — ez a viszonyítás, ha nincs szellem
+let lastSeenSplitIndex = -1;
+
+function resetSplitTracking({ keepPrevious = false } = {}) {
+  if (!keepPrevious) prevLapSplits = null;
+  lapSplits = [];
+  lastSeenSplitIndex = -1;
+  hideSplitDelta();
+}
+
+// Mihez mérjük magunkat? Időmérésben a szellemhez, ha van — ő az ellenfél,
+// az ő idejét akarjuk verni. Egyébként (és szellem nélküli időmérésben) a
+// saját előző körünkhöz. Ha egyik sincs, nincs mit kiírni.
+// A szellem checkpoint-részidői a felvett pályájából. Első kérésre készülnek
+// el, mert betöltéskor a kapuk még hiányozhatnak; a pálya azonosítóját is
+// eltesszük, hogy egy másik pályára maradt számítás ne ragadjon bent.
+function ghostSplits() {
+  if (!ghostCar?.frames) return null;
+  const mapId = G.currentMapId;
+  const checkpoints = G.currentGates?.checkpoints;
+  if (!checkpoints?.length) return null;
+  if (ghostCar.splitsMapId !== mapId) {
+    ghostCar.splits = ghostCheckpointSplits(ghostCar.frames, checkpoints);
+    ghostCar.splitsMapId = mapId;
+  }
+  return ghostCar.splits;
+}
+
+function splitReference() {
+  if (isHotLap()) {
+    const splits = ghostSplits();
+    if (splits?.length) return { splits, label: ghostCar.name || 'Szellem' };
+  }
+  if (prevLapSplits?.length) return { splits: prevLapSplits, label: 'Előző kör' };
+  return null;
+}
+
+const splitDeltaEl = document.getElementById('splitDeltaAlert');
+const splitDeltaValueEl = document.getElementById('splitDeltaValue');
+const splitDeltaRefEl = document.getElementById('splitDeltaRef');
+// Elég röviden látszania: a következő checkpointig úgyis új adat jön, és
+// vezetés közben egy tartósan kint lévő doboz csak takar.
+const SPLIT_DELTA_VISIBLE_MS = 2600;
+let splitDeltaTimer = null;
+
+function hideSplitDelta() {
+  if (splitDeltaTimer) clearTimeout(splitDeltaTimer);
+  splitDeltaTimer = null;
+  splitDeltaEl.classList.add('hidden');
+}
+
+function showSplitDelta(deltaMs, label) {
+  const seconds = deltaMs / 1000;
+  const faster = deltaMs < 0;
+  splitDeltaValueEl.textContent = (faster ? '−' : '+') + Math.abs(seconds).toFixed(2);
+  splitDeltaRefEl.textContent = label;
+  splitDeltaEl.classList.toggle('is-faster', faster);
+  splitDeltaEl.classList.toggle('is-slower', !faster);
+  splitDeltaEl.classList.remove('hidden');
+  if (splitDeltaTimer) clearTimeout(splitDeltaTimer);
+  splitDeltaTimer = setTimeout(hideSplitDelta, SPLIT_DELTA_VISIBLE_MS);
+}
+
+// A szerver minden snapshotban elmondja, melyik checkpointot érintettük
+// utoljára és mikor. Új sorszámnál rögzítjük, és ha van mihez mérni, kiírjuk.
+function trackSplit(index, splitMs) {
+  if (!Number.isInteger(index) || index < 0 || index === lastSeenSplitIndex) return;
+  lastSeenSplitIndex = index;
+  lapSplits[index] = splitMs;
+  const reference = splitReference();
+  const other = reference?.splits?.[index];
+  if (!Number.isFinite(other)) return;
+  showSplitDelta(splitMs - other, reference.label);
+}
 
 // ---------- Lobby felület ----------
 
@@ -1084,6 +1170,7 @@ async function beginRace(info) {
   finishedDriving = false;
   finishDeadlineAt = null;
   resetSpectate();
+  resetSplitTracking();
   myLap = 0;
   myCp = 0;
   myRank = 1;
@@ -1214,6 +1301,7 @@ function clearOtherCars({ preserveGhost = false } = {}) {
   finishDeadlineAt = null;
   hideFinishTimer();
   resetSpectate();
+  resetSplitTracking();
   // A modellek és fizikai proxyk mellett a minitérképes lenyomatuk is ugyanennek
   // az állapotnak a része. A játék közbeni „Vissza a menübe” közvetlenül az
   // enterMenu() cleanup hookján halad át, nem feltétlenül a leaveMultiplayer()-en,
@@ -1415,6 +1503,12 @@ async function addGhostCar(ghost, onProgress, loadGeneration) {
     index: 0,
     name: ghost.name || 'Szellem',
     timeMs: ghost.timeMs,
+    // A checkpoint-részidők NEM itt készülnek: a szellem a pályával
+    // párhuzamosan töltődik (runLoadTasks: Promise.all), tehát itt még nem
+    // biztos, hogy állnak a kapuk. Első használatkor számolunk — lásd
+    // ghostSplits().
+    splits: null,
+    splitsMapId: null,
   };
 }
 
@@ -1624,6 +1718,19 @@ function onSnapshot(m) {
         const speedState = G.getCarState();
         G.setSpeed(Math.hypot(speedState.v[0], speedState.v[2]) * 3.6);
       }
+      // Kör lezárult: a most befejezett kör részidői lesznek a viszonyítás.
+      // Az érvényességtől függetlenül — „az előző kör" azt jelenti, amit
+      // legutóbb mentünk, nem azt, amit legutóbb hibátlanul.
+      if (c.lap > myLap) {
+        prevLapSplits = lapSplits;
+        lapSplits = [];
+        lastSeenSplitIndex = -1;
+      } else if (c.lap < myLap) {
+        // Visszafelé csak újrakezdéskor (R az Időmérésben) léphet a körszám.
+        // Ilyenkor az addigi részidők nem tartoznak az új próbálkozáshoz.
+        resetSplitTracking();
+      }
+      trackSplit(c.ci, c.ct);
       myLap = c.lap;
       myCp = c.cp ?? 0;
       myRank = c.rk ?? 1;

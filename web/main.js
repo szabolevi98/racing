@@ -4503,6 +4503,9 @@ window.__game = {
   get currentMapId() { return currentMapId; },
   refreshLeaderboard() { return loadLeaderboard(currentMapId); },
   get currentTrack() { return currentTrack; },
+  // A checkpoint-kapuk a részidő-különbséghez kellenek: a mp.js ebből
+  // számolja ki, hol tartott a szellem az egyes kapuknál.
+  get currentGates() { return currentGates; },
   get carLoaded() { return carLoaded; },
   keys,
   getDriveAxes,
