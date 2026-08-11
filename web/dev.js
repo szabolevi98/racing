@@ -20,6 +20,7 @@ import {
   FRONT_FRICTION_SLIP, REAR_FRICTION_SLIP, SUSPENSION, LINEAR_DAMPING, ANGULAR_DAMPING,
   setLiveVehicleTunables, resetLiveVehicleTunables,
 } from '/shared/vehicleConfig.js';
+import { findGateHit, findSpawnHit } from '/shared/editorSelection.js';
 
 // ---------- DOM: a csak dev módban használt elemek ----------
 // A markupjuk NINCS benne az index.html-ben — a dev.html-ből injektáljuk be
@@ -810,6 +811,12 @@ function isPaintTool() {
 }
 
 function updateSpawnToolUI() {
+  if (selectedZoneObject?.kind === 'checkpoint'
+      && selectedZoneObject.index >= api.currentGates.checkpoints.length) selectedZoneObject = null;
+  if (selectedZoneObject?.kind === 'spawn'
+      && selectedZoneObject.index >= api.currentSpawnPoints.length) selectedZoneObject = null;
+  if (selectedZoneObject?.kind === 'start' && !api.currentGates.start) selectedZoneObject = null;
+  if (selectedZoneObject?.kind === 'hotlap-spawn' && !api.currentHotLapSpawn) selectedZoneObject = null;
   brushSizeRow.classList.toggle('d-none', !isPaintTool());
   spawnToolRow.classList.toggle('d-none', !isRegularSpawnTool());
   hotLapSpawnToolRow.classList.toggle('d-none', !isHotLapSpawnTool());
@@ -855,6 +862,7 @@ function addSpawnPointAtWorld(x, z) {
 
 function clearHotLapSpawn() {
   api.currentHotLapSpawn = null;
+  if (selectedZoneObject?.kind === 'hotlap-spawn') selectedZoneObject = null;
   refreshSpawnMarkers();
   updateSpawnToolUI();
 }
@@ -862,6 +870,7 @@ function clearHotLapSpawn() {
 function removeLastSpawnPoint() {
   if (!api.currentSpawnPoints.length) return;
   api.currentSpawnPoints.pop();
+  if (selectedZoneObject?.kind === 'spawn') selectedZoneObject = null;
   refreshSpawnMarkers();
   updateSpawnToolUI();
 }
@@ -869,8 +878,10 @@ function removeLastSpawnPoint() {
 function removeLastGate() {
   if (getSelectedBrush() === 'start') {
     api.currentGates.start = null;
+    if (selectedZoneObject?.kind === 'start') selectedZoneObject = null;
   } else if (api.currentGates.checkpoints.length) {
     api.currentGates.checkpoints.pop();
+    if (selectedZoneObject?.kind === 'checkpoint') selectedZoneObject = null;
   }
   updateSpawnToolUI();
 }
@@ -974,9 +985,17 @@ function drawZoneOverlay() {
   });
 
   // Kapuk: a rajtvonal zöld, a checkpointok kékek és sorszámozottak.
-  const drawGate = (g, color, label) => {
+  const drawGate = (g, color, label, selected = false) => {
     const a = toScreen(g.x1, g.z1);
     const b = toScreen(g.x2, g.z2);
+    if (selected) {
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 8;
+      ctx.stroke();
+    }
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(b.x, b.y);
@@ -990,10 +1009,26 @@ function drawZoneOverlay() {
       ctx.textBaseline = 'middle';
       ctx.fillText(label, (a.x + b.x) / 2, (a.y + b.y) / 2 - 12);
     }
+    if (selected) {
+      for (const point of [a, b]) {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 7, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
+    }
   };
   const gates = api.currentGates;
-  if (gates.start) drawGate(gates.start, '#28d17c', 'RAJT');
-  gates.checkpoints.forEach((g, i) => drawGate(g, '#4aa3ff', 'CP' + (i + 1)));
+  if (gates.start) drawGate(gates.start, '#28d17c', 'RAJT', selectedZoneObject?.kind === 'start');
+  gates.checkpoints.forEach((g, i) => drawGate(
+    g,
+    '#4aa3ff',
+    'CP' + (i + 1),
+    selectedZoneObject?.kind === 'checkpoint' && selectedZoneObject.index === i
+  ));
   if (drawingGate) {
     drawGate(drawingGate, getSelectedBrush() === 'start' ? '#28d17c' : '#4aa3ff', null);
   }
@@ -1036,14 +1071,24 @@ function drawZoneOverlay() {
     ctx.arc(s.x, s.y, 9, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(13,202,240,0.85)';
     ctx.fill();
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 2;
+    const selected = selectedZoneObject?.kind === 'spawn' && selectedZoneObject.index === idx;
+    ctx.strokeStyle = selected ? '#ffe66d' : '#ffffff';
+    ctx.lineWidth = selected ? 4 : 2;
     ctx.stroke();
     ctx.fillStyle = '#00232e';
     ctx.font = 'bold 11px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(String(idx + 1), s.x, s.y);
+    if (selected) {
+      ctx.beginPath();
+      ctx.arc(tip.x, tip.y, 6, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffe66d';
+      ctx.fill();
+      ctx.strokeStyle = '#0dcaf0';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
   });
 
   const hotLapSpawn = api.currentHotLapSpawn;
@@ -1065,20 +1110,30 @@ function drawZoneOverlay() {
     ctx.arc(s.x, s.y, 11, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(255,79,154,0.9)';
     ctx.fill();
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 2;
+    const selected = selectedZoneObject?.kind === 'hotlap-spawn';
+    ctx.strokeStyle = selected ? '#ffe66d' : '#ffffff';
+    ctx.lineWidth = selected ? 4 : 2;
     ctx.stroke();
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 10px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('HL', s.x, s.y);
+    if (selected) {
+      ctx.beginPath();
+      ctx.arc(tip.x, tip.y, 6, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffe66d';
+      ctx.fill();
+      ctx.strokeStyle = '#ff4f9a';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
   }
 
   if (zoneCursorWorld) {
     const s = toScreen(zoneCursorWorld.x, zoneCursorWorld.z);
     ctx.beginPath();
-    if (isSpawnTool()) {
+    if (isSpawnTool() || isGateTool()) {
       // Rajtpont eszköznél célkereszt, nem ecset-kör.
       ctx.moveTo(s.x - 10, s.y); ctx.lineTo(s.x + 10, s.y);
       ctx.moveTo(s.x, s.y - 10); ctx.lineTo(s.x, s.y + 10);
@@ -1101,7 +1156,66 @@ function resizeZoneOverlayCanvas() {
 // a kapuknál a vonal két végpontját.
 let aimingSpawn = null;
 let drawingGate = null;
+let selectedZoneObject = null;
+let editingSpawn = null;
+let editingGate = null;
 let zonePanLast = null;
+
+function zonePickTolerance() {
+  const rect = zoneOverlayCanvas.getBoundingClientRect();
+  return Math.max(0.5, (zoneView.height / Math.max(1, rect.height)) * 12);
+}
+
+function beginSpawnInteraction(x, z) {
+  const hotLap = isHotLapSpawnTool();
+  const points = hotLap
+    ? (api.currentHotLapSpawn ? [api.currentHotLapSpawn] : [])
+    : api.currentSpawnPoints;
+  const hit = findSpawnHit(points, x, z, zonePickTolerance());
+  if (hit) {
+    const point = points[hit.index];
+    selectedZoneObject = { kind: hotLap ? 'hotlap-spawn' : 'spawn', index: hit.index };
+    editingSpawn = {
+      point,
+      part: hit.part,
+      startX: x,
+      startZ: z,
+      initial: { x: point.x, z: point.z, heading: point.heading || 0 },
+    };
+    zoneStatusEl.textContent = hotLap
+      ? 'Időmérés rajtpont kijelölve.'
+      : `${hit.index + 1}. rajtpont kijelölve.`;
+    return;
+  }
+
+  const point = addSpawnPointAtWorld(x, z);
+  if (!point) return;
+  const index = hotLap ? 0 : api.currentSpawnPoints.indexOf(point);
+  selectedZoneObject = { kind: hotLap ? 'hotlap-spawn' : 'spawn', index };
+  aimingSpawn = point;
+}
+
+function beginGateInteraction(x, z) {
+  const start = getSelectedBrush() === 'start';
+  const gates = start ? (api.currentGates.start ? [api.currentGates.start] : []) : api.currentGates.checkpoints;
+  const hit = findGateHit(gates, x, z, zonePickTolerance());
+  if (hit) {
+    const gate = gates[hit.index];
+    selectedZoneObject = { kind: start ? 'start' : 'checkpoint', index: hit.index };
+    editingGate = {
+      gate,
+      part: hit.part,
+      startX: x,
+      startZ: z,
+      initial: { x1: gate.x1, z1: gate.z1, x2: gate.x2, z2: gate.z2 },
+    };
+    zoneStatusEl.textContent = start ? 'Rajtvonal kijelölve.' : `CP${hit.index + 1} kijelölve.`;
+    return;
+  }
+
+  selectedZoneObject = null;
+  drawingGate = { x1: x, z1: z, x2: x, z2: z };
+}
 
 function enterZoneEditor() {
   const box = api.currentTrackBox;
@@ -1833,13 +1947,19 @@ function wireEvents() {
   });
 
   document.querySelectorAll('input[name="zoneBrush"]').forEach((el) => {
-    el.addEventListener('change', updateSpawnToolUI);
+    el.addEventListener('change', () => {
+      selectedZoneObject = null;
+      editingSpawn = null;
+      editingGate = null;
+      updateSpawnToolUI();
+    });
   });
   undoSpawnBtn.addEventListener('click', removeLastSpawnPoint);
   clearHotLapSpawnBtn.addEventListener('click', clearHotLapSpawn);
   undoGateBtn.addEventListener('click', removeLastGate);
   clearCheckpointsBtn.addEventListener('click', () => {
     api.currentGates.checkpoints = [];
+    if (selectedZoneObject?.kind === 'checkpoint') selectedZoneObject = null;
     updateSpawnToolUI();
   });
   undoGuideBtn.addEventListener('click', () => { api.currentGuidePath.pop(); updateSpawnToolUI(); });
@@ -1849,11 +1969,11 @@ function wireEvents() {
     if (e.button === 0) {
       const { x, z } = zoneScreenToWorld(e.clientX, e.clientY);
       if (isSpawnTool()) {
-        aimingSpawn = addSpawnPointAtWorld(x, z);
+        beginSpawnInteraction(x, z);
         return;
       }
       if (isGateTool()) {
-        drawingGate = { x1: x, z1: z, x2: x, z2: z };
+        beginGateInteraction(x, z);
         return;
       }
       if (isGuideTool()) {
@@ -1888,6 +2008,35 @@ function wireEvents() {
       }
       return;
     }
+    if (editingSpawn) {
+      if (editingSpawn.part === 'position') {
+        editingSpawn.point.x = editingSpawn.initial.x + zoneCursorWorld.x - editingSpawn.startX;
+        editingSpawn.point.z = editingSpawn.initial.z + zoneCursorWorld.z - editingSpawn.startZ;
+      } else {
+        const dx = zoneCursorWorld.x - editingSpawn.point.x;
+        const dz = zoneCursorWorld.z - editingSpawn.point.z;
+        if (Math.hypot(dx, dz) > 0.5) editingSpawn.point.heading = headingFromDelta(dx, dz);
+      }
+      refreshSpawnMarkers();
+      return;
+    }
+    if (editingGate) {
+      if (editingGate.part === 'move') {
+        const dx = zoneCursorWorld.x - editingGate.startX;
+        const dz = zoneCursorWorld.z - editingGate.startZ;
+        editingGate.gate.x1 = editingGate.initial.x1 + dx;
+        editingGate.gate.z1 = editingGate.initial.z1 + dz;
+        editingGate.gate.x2 = editingGate.initial.x2 + dx;
+        editingGate.gate.z2 = editingGate.initial.z2 + dz;
+      } else if (editingGate.part === 'p1') {
+        editingGate.gate.x1 = zoneCursorWorld.x;
+        editingGate.gate.z1 = zoneCursorWorld.z;
+      } else {
+        editingGate.gate.x2 = zoneCursorWorld.x;
+        editingGate.gate.z2 = zoneCursorWorld.z;
+      }
+      return;
+    }
     if (drawingGate) {
       drawingGate.x2 = zoneCursorWorld.x;
       drawingGate.z2 = zoneCursorWorld.z;
@@ -1911,6 +2060,19 @@ function wireEvents() {
     zonePainting = false;
     zonePanLast = null;
     aimingSpawn = null;
+
+    if (editingSpawn) {
+      editingSpawn.point.x = +editingSpawn.point.x.toFixed(2);
+      editingSpawn.point.z = +editingSpawn.point.z.toFixed(2);
+      editingSpawn.point.heading = +(editingSpawn.point.heading || 0).toFixed(4);
+      editingSpawn = null;
+      refreshSpawnMarkers();
+    }
+
+    if (editingGate) {
+      for (const key of ['x1', 'z1', 'x2', 'z2']) editingGate.gate[key] = +editingGate.gate[key].toFixed(2);
+      editingGate = null;
+    }
 
     if (drawingGate) {
       const len = Math.hypot(drawingGate.x2 - drawingGate.x1, drawingGate.z2 - drawingGate.z1);
