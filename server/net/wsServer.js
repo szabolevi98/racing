@@ -15,6 +15,7 @@ import {
 } from '../db/index.js';
 import { getManifest } from '../assets.js';
 import { recentBlockMs } from '../loopLag.js';
+import { hasCompletePitConfig } from '../../shared/pit.js';
 
 const rooms = new Map();    // kód -> Room
 const players = new Map();  // playerId -> player
@@ -152,13 +153,15 @@ async function handleMessage(player, msg) {
       if (!player.name) return fail(socket, 'Előbb add meg a neved.');
       if (player.roomCode) leaveRoom(player);
       const manifest = await getManifest();
-      if (!manifest.maps.some((m) => m.id === msg.mapId)) return fail(socket, 'Nincs ilyen pálya.');
+      const selectedMap = manifest.maps.find((m) => m.id === msg.mapId);
+      if (!selectedMap) return fail(socket, 'Nincs ilyen pálya.');
       const code = makeRoomCode();
       if (!code) return fail(socket, 'Nem sikerült szobakódot foglalni, próbáld újra.');
       const room = new Room(code, player, {
         mapId: msg.mapId,
         laps: msg.laps,
         ghostMode: msg.ghostMode === true,
+        mandatoryPitStop: msg.mandatoryPitStop === true && hasCompletePitConfig(selectedMap.pit),
         isPublic: msg.isPublic !== false,
       });
       room.add(player, msg.carId);
@@ -328,6 +331,8 @@ async function startRace(room) {
     laps: room.laps,
     mode: room.mode,
     ghostMode: room.ghostMode,
+    mandatoryPitStop: room.mandatoryPitStop,
+    pit: room.mandatoryPitStop ? (map?.pit || null) : null,
     ghost,
     spawns,
     hotLapSpawn: room.mode === GAME_MODE.HOT_LAP ? (map?.hotLapSpawn || null) : null,

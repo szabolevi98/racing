@@ -14,6 +14,7 @@ import {
   localRenderDelayTarget, remoteDetailPhase, remoteDetailUpdateInterval,
   remoteVisualCorrectionHalfLife, remoteVisualPredictionBlend,
 } from '/shared/remoteVisual.js';
+import { createPitState, hasCompletePitConfig, updatePitState } from '/shared/pit.js';
 
 const G = window.__game;
 // Diagnosztika. A step() azért kell, mert a requestAnimationFrame megáll, ha
@@ -65,6 +66,10 @@ let raceLoadActive = false;
 // snapshot `ti` mezője a TAINT kódját küldi (0 = érvényes). A konkrét ok kell,
 // nem csak egy igen/nem — abból a játékos nem tudja, mit rontott el.
 let lapTainted = TAINT.NONE;
+let localPitConfig = null;
+let localPitState = createPitState(false);
+let localPitStopIndex = 0;
+let pitPrevPosition = null;
 let inputTimer = null;
 // A RACE_END után true: a frame() innentől nem írja felül a HUD-ot a
 // kör/játékos szöveggel, különben a showResults() eredménylistája egyetlen
@@ -323,6 +328,7 @@ const $ = (id) => document.getElementById(id);
 const show = (id, on) => $(id).classList.toggle('hidden', !on);
 const setErr = (m) => { $('mpError').textContent = m || ''; };
 const ghostModeCheckbox = $('ghostModeCheckbox');
+const mandatoryPitStopCheckbox = $('mandatoryPitStopCheckbox');
 ghostModeCheckbox.checked = localStorage.getItem('racing.ghostMode') === '1';
 ghostModeCheckbox.addEventListener('change', () => {
   localStorage.setItem('racing.ghostMode', ghostModeCheckbox.checked ? '1' : '0');
@@ -570,6 +576,7 @@ $('mpCreate').addEventListener('click', () => {
     carId,
     laps: Number(document.getElementById('lapCountSelect')?.value) || 3,
     ghostMode: ghostModeCheckbox.checked,
+    mandatoryPitStop: mandatoryPitStopCheckbox.checked,
     isPublic: publicRoomCheckbox.checked,
   });
 });
@@ -839,7 +846,7 @@ function renderRoomList(list, { page = 0, pages = 1, total = list.length } = {})
     return '<div class="mp-browse-row">' +
       '<span class="br-main">' +
         `<span class="br-map">${escapeHtml(map?.label || room.mapId)}</span>` +
-        `<span class="br-meta">${room.laps} kör${room.ghostMode ? ' · ghost' : ''}</span>` +
+        `<span class="br-meta">${room.laps} kör${room.ghostMode ? ' · ghost' : ''}${room.mandatoryPitStop ? ' · kerékcsere' : ''}</span>` +
       '</span>' +
       `<span class="br-players${tele ? ' is-full' : ''}">${room.players}/${room.max}</span>` +
       `<button class="mp-btn ghost compact br-join" data-code="${escapeHtml(room.code)}">Belépés</button>` +
@@ -972,6 +979,7 @@ function onMessage(m) {
       starting = m;
       if (room) {
         room.ghostMode = m.ghostMode === true;
+        room.mandatoryPitStop = m.mandatoryPitStop === true;
         room.mode = m.mode || room.mode;
       }
       hideMultiplayerResults();
@@ -1102,7 +1110,8 @@ function renderRoom() {
   const map = G.manifest?.maps.find((x) => x.id === room.mapId);
   $('mpRoomMap').textContent = map?.label || room.mapId;
   $('mpRoomLaps').textContent = room.laps;
-  $('mpRoomMode').textContent = room.ghostMode ? 'Ghost' : 'Normál';
+  $('mpRoomMode').textContent = (room.ghostMode ? 'Ghost' : 'Normál')
+    + (room.mandatoryPitStop ? ' · kötelező kerékcsere' : '');
   // Publikus szobába a keresőből ismeretlenek is érkezhetnek — ezt látni kell
   // bent is, ne érje meglepetésként a társaságot.
   $('mpRoomVisibility').textContent = room.isPublic ? '🌐 Publikus' : '🔒 Privát';
@@ -1202,12 +1211,20 @@ async function beginRace(info) {
   // a haladás ahelyett, hogy percekig néma maradna a képernyő.
   const myPlayer = info.players.find((p) => p.id === me.id);
   const map = G.manifest.maps.find((m) => m.id === info.mapId);
+  localPitConfig = info.pit || map?.pit || null;
+  localPitStopIndex = Math.max(0, Math.min(7, myPlayer?.slot ?? 0));
+  localPitState = createPitState(
+    info.mode !== GAME_MODE.HOT_LAP
+      && info.mandatoryPitStop === true
+      && hasCompletePitConfig(localPitConfig)
+  );
+  pitPrevPosition = null;
   const car = G.manifest.cars.find((c) => c.id === myPlayer?.carId);
   const otherPlayers = info.players.filter((p) => p.id !== me.id);
 
   const tasks = [];
   if (G.currentMapId !== info.mapId) {
-    tasks.push({ bytes: map.bytes, run: (onP) => G.setTrack('assets/' + map.file, map.id, map.spawns, map.gates, onP, map.hotLapSpawn) });
+    tasks.push({ bytes: map.bytes, run: (onP) => G.setTrack('assets/' + map.file, map.id, map.spawns, map.gates, onP, map.hotLapSpawn, map.pit) });
   }
   if (car) {
     tasks.push({ bytes: car.bytes, run: (onP) => G.setCar('assets/' + car.file, car.id, car.config, onP) });
@@ -1249,6 +1266,10 @@ async function beginRace(info) {
     myPlayer?.slot ?? 0,
     info.mode === GAME_MODE.HOT_LAP ? (info.hotLapSpawn || null) : undefined
   );
+  const placedState = G.getCarState();
+  pitPrevPosition = { x: placedState.p[0], z: placedState.p[2] };
+  G.setPitStopMarker(localPitConfig?.stops?.[localPitStopIndex], localPitState.required);
+  G.renderPitStopHud(localPitState, localPitStopIndex);
   G.enterMultiplayer(frame);
   raceLoadActive = false;
   window.__mp.stage = 'fut';
@@ -1307,6 +1328,11 @@ function clearOtherCars({ preserveGhost = false } = {}) {
   // enterMenu() cleanup hookján halad át, nem feltétlenül a leaveMultiplayer()-en,
   // ezért az ottani külön nullázás ezt az útvonalat nem fedte le.
   G.setMiniMapMarkers([], null);
+  localPitConfig = null;
+  localPitState = createPitState(false);
+  pitPrevPosition = null;
+  G.setPitStopMarker(null, false);
+  G.renderPitStopHud(localPitState, 0);
 }
 
 // Egyetlen játékos kocsijának leszedése — verseny KÖZBEN is, amikor kilép
@@ -1751,6 +1777,15 @@ function onSnapshot(m) {
       myLastLap = c.last ?? null;
       myLastLapInvalid = !!c.li;
       myFinished = !!c.fin;
+      if (c.pc) localPitState.completed = true;
+      if (!localPitState.completed && Number.isFinite(c.pt)) {
+        localPitState.stopElapsedMs = Math.max(localPitState.stopElapsedMs, c.pt);
+      }
+      G.setPitStopMarker(
+        localPitConfig?.stops?.[localPitStopIndex],
+        localPitState.required && !localPitState.completed
+      );
+      G.renderPitStopHud(localPitState, localPitStopIndex);
       if (isHotLap()) {
         // A szerver az egyetlen hiteles időmérő: null a felvezetőn, majd az
         // átlépés szimulációs időpontja. Így nagy pingnél sem a csomag
@@ -2412,7 +2447,17 @@ function sendOneInput(scheduledAt) {
   // egyjátékos updateControls()-ban (web/main.js) — különben itt, a
   // multiplayer bemenetben az S megint csak a gyenge motor-fékezést adná,
   // ugyanaz a hiba térne vissza hálózaton.
-  const { q, v } = G.getCarState();
+  const beforeState = G.getCarState();
+  const { q, v } = beforeState;
+  const previousPitPosition = pitPrevPosition || { x: beforeState.p[0], z: beforeState.p[2] };
+  updatePitState(localPitState, localPitConfig, localPitStopIndex, {
+    fromX: previousPitPosition.x,
+    fromZ: previousPitPosition.z,
+    x: beforeState.p[0],
+    z: beforeState.p[2],
+    now: scheduledAt,
+    speedMps: Math.hypot(v[0], v[2]),
+  });
   const fwdSpeed = forwardSpeed(q[0], q[1], q[2], q[3], v[0], v[1], v[2]);
   const brake = backwardHeld && fwdSpeed > REVERSE_BRAKE_THRESHOLD ? backwardAmount : 0;
   const reverseAmount = backwardHeld && !brake ? backwardAmount : 0;
@@ -2430,8 +2475,22 @@ function sendOneInput(scheduledAt) {
     handbrake: controlsEnabled && !!k['Space'],
   };
   syncRemoteProxies(input.at);
-  G.stepLocalPhysics(input, input.frozen, !controlsEnabled);
+  G.stepLocalPhysics(input, input.frozen, !controlsEnabled, localPitState.required && localPitState.inLane);
   const state = G.getCarState();
+  updatePitState(localPitState, localPitConfig, localPitStopIndex, {
+    fromX: beforeState.p[0],
+    fromZ: beforeState.p[2],
+    x: state.p[0],
+    z: state.p[2],
+    now: scheduledAt + TICK_MS,
+    speedMps: Math.hypot(state.v[0], state.v[2]),
+  });
+  pitPrevPosition = { x: state.p[0], z: state.p[2] };
+  G.setPitStopMarker(
+    localPitConfig?.stops?.[localPitStopIndex],
+    localPitState.required && !localPitState.completed
+  );
+  G.renderPitStopHud(localPitState, localPitStopIndex);
   recordPhysState(scheduledAt, state);
   // Nézői módban NEM a saját kocsink hajtja a sebességmérőt — azt a frame()
   // állítja a nézett kocsiról. Enélkül a két forrás váltogatná egymást: ez a

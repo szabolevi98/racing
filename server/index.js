@@ -7,7 +7,7 @@ import http from 'node:http';
 import 'dotenv/config';
 import { serveStatic } from './static.js';
 import { getManifest } from './assets.js';
-import { saveSpawn, saveGates, saveZonemap, saveCollision, saveBakeConfig } from './devApi.js';
+import { saveSpawn, saveGates, savePit, saveZonemap, saveCollision, saveBakeConfig } from './devApi.js';
 import { attachWebSocket, roomStats } from './net/wsServer.js';
 import { initDb, bestLaps, dbAvailable } from './db/index.js';
 
@@ -76,6 +76,7 @@ async function handleApi(req, res, url) {
   const devRoutes = {
     '/api/dev/spawn': async () => saveSpawn(JSON.parse((await readBody(req)).toString('utf8'))),
     '/api/dev/gates': async () => saveGates(JSON.parse((await readBody(req)).toString('utf8'))),
+    '/api/dev/pit': async () => savePit(JSON.parse((await readBody(req)).toString('utf8'))),
     '/api/dev/zonemap': async () => saveZonemap(JSON.parse((await readBody(req)).toString('utf8'))),
     '/api/dev/collision': async () => saveCollision(url.searchParams.get('mapId'), await readBody(req)),
     '/api/dev/bakeconfig': async () => saveBakeConfig(JSON.parse((await readBody(req)).toString('utf8'))),

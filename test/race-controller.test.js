@@ -132,6 +132,52 @@ test('race controller speed validation invalidates once and keeps the player rac
   }
 });
 
+test('missing mandatory pit stop invalidates only the final lap and still finishes the race', async () => {
+  const room = makeRoom();
+  room.mode = GAME_MODE.MULTIPLAYER;
+  room.mandatoryPitStop = true;
+  const messages = [];
+  const map = {
+    spawns: [{ x: -1, z: 0, heading: 0 }],
+    gates: {
+      start: { x1: 0, z1: -5, x2: 0, z2: 5 },
+      checkpoints: [{ x1: 10, z1: -5, x2: 10, z2: 5 }],
+    },
+    pit: {
+      entry: { x1: 20, z1: -5, x2: 20, z2: 5 },
+      exit: { x1: 30, z1: -5, x2: 30, z2: 5 },
+      stops: Array.from({ length: 8 }, (_, i) => ({ x: 22 + i, z: 0, heading: 0 })),
+    },
+  };
+  const sim = new RaceController(room, {
+    map,
+    broadcast: (type, data) => messages.push({ type, ...data }),
+  });
+  room.sim = sim;
+  await sim.start();
+  try {
+    sim.receiveState('p1', wireState(0, 900, -1), { initial: true, receivedAt: 900 });
+    room.state = ROOM_STATE.COUNTDOWN;
+    sim.releaseAt(1000);
+    sim.pump(1000);
+    sim.receiveState('p1', wireState(1, 1100, 1), { receivedAt: 1100 });
+    sim.receiveState('p1', wireState(2, 2000, 11), { receivedAt: 2000 });
+    sim.receiveState('p1', wireState(3, 3000, -1), { receivedAt: 3000 });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(room.lapsSaved.length, 1);
+    assert.equal(room.lapsSaved[0][3], true, 'the final lap cannot become a best lap');
+    assert.equal(sim.cars.get('p1').race.lap, 1, 'the lap still counts toward race distance');
+    assert.equal(sim.cars.get('p1').race.finished, true, 'the player still finishes normally');
+    assert.equal(
+      messages.find((message) => message.kind === 'lap')?.invalid,
+      true
+    );
+  } finally {
+    sim.stop();
+  }
+});
+
 test('rolling movement validation catches repeated small position cheats', async () => {
   const room = makeRoom();
   const messages = [];

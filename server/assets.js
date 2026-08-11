@@ -193,6 +193,17 @@ async function collectMaps() {
       entry.gates = { start: gates.start ?? null, checkpoints: gates.checkpoints ?? [] };
     }
 
+    // Opcionális boxutca: bejárat, kijárat és pontosan nyolc számozott megállóhely.
+    // A félkész adat is a manifestbe kerül, hogy a dev szerkesztőből folytatható legyen.
+    const pit = await readJson(path.join(mapDir, 'pit.json'));
+    if (pit) {
+      entry.pit = {
+        entry: pit.entry ?? null,
+        exit: pit.exit ?? null,
+        stops: Array.isArray(pit.stops) ? pit.stops.slice(0, 8) : [],
+      };
+    }
+
     // Előre bekészített ütközési háló: minden kliens BITRE ugyanazt a
     // geometriát kapja, ami a multiplayerhez elengedhetetlen.
     try {

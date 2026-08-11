@@ -89,6 +89,30 @@ export async function saveGates(body) {
   return { ok: true, checkpoints: out.checkpoints.length, hasStart: !!out.start };
 }
 
+export async function savePit(body) {
+  const dir = await mapDirOf(body?.mapId);
+  const gate = (g) =>
+    g && ['x1', 'z1', 'x2', 'z2'].every((key) => Number.isFinite(Number(g[key])))
+      ? { x1: round2(g.x1), z1: round2(g.z1), x2: round2(g.x2), z2: round2(g.z2) }
+      : null;
+  const out = {
+    entry: gate(body?.entry),
+    exit: gate(body?.exit),
+    stops: Array.isArray(body?.stops)
+      ? body.stops.slice(0, 8).map(cleanSpawnPoint).filter(Boolean)
+      : [],
+  };
+  await fs.writeFile(path.join(dir, 'pit.json'), JSON.stringify(out, null, 2) + '\n');
+  invalidateManifest();
+  return {
+    ok: true,
+    hasEntry: !!out.entry,
+    hasExit: !!out.exit,
+    stops: out.stops.length,
+    complete: !!out.entry && !!out.exit && out.stops.length === 8,
+  };
+}
+
 export async function saveZonemap(body) {
   const dir = await mapDirOf(body?.mapId);
   const m = /^data:image\/png;base64,(.+)$/.exec(body?.pngBase64 || '');

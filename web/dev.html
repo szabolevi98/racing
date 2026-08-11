@@ -163,6 +163,14 @@
         <input type="radio" class="btn-check" name="zoneBrush" id="brushGuide" value="guide">
         <label class="btn btn-outline-warning btn-sm" for="brushGuide">Vezetővonal</label>
       </div><br>
+      <div class="btn-group mb-2" role="group">
+        <input type="radio" class="btn-check" name="zoneBrush" id="brushPitEntry" value="pit-entry">
+        <label class="btn btn-outline-warning btn-sm" for="brushPitEntry">Boxbejárat</label>
+        <input type="radio" class="btn-check" name="zoneBrush" id="brushPitExit" value="pit-exit">
+        <label class="btn btn-outline-success btn-sm" for="brushPitExit">Boxkijárat</label>
+        <input type="radio" class="btn-check" name="zoneBrush" id="brushPitStop" value="pit-stop">
+        <label class="btn btn-outline-light btn-sm" for="brushPitStop">Boxhely</label>
+      </div><br>
       <span id="brushSizeRow">
         Ecset sugara: <span id="brushSizeLabel">3</span> egység<br>
         <input type="range" id="brushSizeRange" min="0.25" max="60" step="0.25" value="3" class="form-range" style="width:180px;">
@@ -182,6 +190,14 @@
         Checkpointok: <span id="checkpointCount">0</span> &nbsp;
         <button id="undoGateBtn" class="btn btn-sm btn-outline-primary py-0">Utolsó törlése</button> &nbsp;
         <button id="clearCheckpointsBtn" class="btn btn-sm btn-outline-secondary py-0">Összes checkpoint törlése</button><br>
+      </span>
+      <span id="pitToolRow" class="d-none">
+        A meglévőre kattintva szerkesztheted.<br>
+        Bejárat: <span id="pitEntryState">nincs</span> &nbsp;
+        Kijárat: <span id="pitExitState">nincs</span> &nbsp;
+        Boxhelyek: <span id="pitStopCount">0</span> / 8 &nbsp;
+        <button id="undoPitBtn" class="btn btn-sm btn-outline-warning py-0">Aktuális törlése</button><br>
+        <span id="pitConfigState" class="text-secondary">A szabály csak mind a 8 boxhellyel aktív.</span><br>
       </span>
       <span id="guideToolRow" class="d-none">
         Kattints pontonként a pálya közepe mentén, a rajtvonaltól körbe, vissza a rajtvonalig.<br>

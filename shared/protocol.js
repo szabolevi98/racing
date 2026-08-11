@@ -7,7 +7,7 @@ export const C2S = {
   HELLO: 'hello',              // { name, token? }        — belépés névvel
   RESTORE_PROFILE: 'restoreProfile', // { token }         — meglévő profil visszaállítása
   RENAME_PLAYER: 'renamePlayer',     // { name }          — bejelentkezett profil átnevezése
-  CREATE_ROOM: 'createRoom',   // { mapId, carId, laps, ghostMode, isPublic }
+  CREATE_ROOM: 'createRoom',   // { mapId, carId, laps, ghostMode, mandatoryPitStop, isPublic }
   LIST_ROOMS: 'listRooms',     // { page } — a nyitott publikus szobák egy oldala
   START_HOT_LAP: 'startHotLap', // { mapId, carId, ghostPlayerId? }
   JOIN_ROOM: 'joinRoom',       // { code, carId }
@@ -46,6 +46,7 @@ export const TAINT = {
   OFFTRACK: 1,    // mind a négy kerék lehagyta az aszfaltot
   CHECKPOINT: 2,  // kimaradt egy checkpoint
   VALIDATION: 3,  // a kliensállapot szerveroldali hihetőségvizsgálata jelzett
+  PIT_STOP: 4,    // a kötelező kerékcsere kimaradt; csak az utolsó kört rontja el
 };
 
 // Mennyi checkpointot kell ÖSSZESEN érinteni ahhoz, hogy a rajtvonal lezárja a

@@ -11,6 +11,10 @@ import {
   forwardSpeed, REVERSE_BRAKE_THRESHOLD, applySpeedCap, settleFinishedBody,
 } from '/shared/vehicleConfig.js';
 import { TAINT, requiredCheckpoints } from '/shared/protocol.js';
+import {
+  PIT_SPEED_LIMIT_MPS, PIT_STOP_DURATION_MS, createPitState, hasCompletePitConfig,
+  pitLimitedVelocity, updatePitState,
+} from '/shared/pit.js';
 import { restHeightAboveGround } from '/shared/spawnRest.js';
 import { gridSlotPose, hotLapStartPose } from '/shared/grid.js';
 import { classifyPing, shouldWarnAboutPing } from '/shared/ping.js';
@@ -94,6 +98,8 @@ const mapSelect = document.getElementById('mapSelect');
 const carSelect = document.getElementById('carSelect');
 const envSelect = document.getElementById('envSelect');
 const startBtn = document.getElementById('startBtn');
+const mandatoryPitStopCheckbox = document.getElementById('mandatoryPitStopCheckbox');
+const mandatoryPitStopHintEl = document.getElementById('mandatoryPitStopHint');
 const backToMenuLink = document.getElementById('backToMenuLink');
 // A fejlesztői felületnek EGY eleme sincs itt: a markupja a dev.html-ben van,
 // és a dev.js injektálja be, amikor tényleg dev módba lépsz. Elrejteni a
@@ -117,6 +123,8 @@ const highPingAlertEl = document.getElementById('highPingAlert');
 const highPingAlertTextEl = document.getElementById('highPingAlertText');
 const lapInvalidAlertEl = document.getElementById('lapInvalidAlert');
 const lapInvalidAlertTextEl = document.getElementById('lapInvalidAlertText');
+const pitStopAlertEl = document.getElementById('pitStopAlert');
+const pitStopAlertTextEl = document.getElementById('pitStopAlertText');
 let multiplayerLapInvalidReason = TAINT.NONE;
 let serverValidationAlertUntil = 0;
 let serverValidationAlertTimer = null;
@@ -179,6 +187,20 @@ function updateTrackAlert(entry) {
 
 // ---------- Three.js alapok ----------
 const scene = new THREE.Scene();
+const pitStopMarker = new THREE.Group();
+const pitRing = new THREE.Mesh(
+  new THREE.RingGeometry(2.4, 3.1, 40),
+  new THREE.MeshBasicMaterial({ color: 0xffb21c, transparent: true, opacity: 0.9, side: THREE.DoubleSide })
+);
+pitRing.rotation.x = -Math.PI / 2;
+const pitColumn = new THREE.Mesh(
+  new THREE.CylinderGeometry(2.4, 2.4, 4, 32, 1, true),
+  new THREE.MeshBasicMaterial({ color: 0xffb21c, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false })
+);
+pitColumn.position.y = 2;
+pitStopMarker.add(pitRing, pitColumn);
+pitStopMarker.visible = false;
+scene.add(pitStopMarker);
 // Exponenciális köd: a távolsággal fokozatosan sűrűsödik, nem egy éles
 // "fal"-ként vág el mindent egy adott távolságban (mint a lineáris Fog),
 // ezért sokkal életszerűbb, természetes páraréteg-hatást ad.
@@ -647,6 +669,7 @@ let currentHotLapSpawn = null;
 // A checkpointokat SORRENDBEN kell érinteni, utána a rajtvonal zárja a kört —
 // enélkül a rajtvonal előtt oda-vissza hajtva lehetne köröket gyűjteni.
 let currentGates = { start: null, checkpoints: [] };
+let currentPitConfig = { entry: null, exit: null, stops: [] };
 // Durva, kézzel kattintott vezetővonal a checkpont-generáláshoz — csak
 // szerkesztés közbeni segédadat, nem mentjük ki (a generálás UTÁN a
 // tényleges checkpontok már currentGates.checkpoints-ban vannak).
@@ -945,7 +968,7 @@ function refreshFoliageShading() {
   }
 }
 
-async function setTrack(trackUrl, mapId, spawnPoints, gates, onProgress, hotLapSpawn = null) {
+async function setTrack(trackUrl, mapId, spawnPoints, gates, onProgress, hotLapSpawn = null, pit = null) {
   setMenuStatus('Pálya betöltése...');
   currentMapId = mapId || null;
   currentSpawnPoints = spawnPoints || [];
@@ -953,6 +976,11 @@ async function setTrack(trackUrl, mapId, spawnPoints, gates, onProgress, hotLapS
   currentGates = {
     start: (gates && gates.start) || null,
     checkpoints: (gates && gates.checkpoints) || [],
+  };
+  currentPitConfig = {
+    entry: pit?.entry || null,
+    exit: pit?.exit || null,
+    stops: Array.isArray(pit?.stops) ? pit.stops.slice(0, 8) : [],
   };
 
   removeTrackCollider();
@@ -2135,6 +2163,53 @@ function findGroundAt(track, box, x, z) {
   return hits.length ? hits[0].point.y : null;
 }
 
+function updatePitOptionAvailability(entry) {
+  const available = hasCompletePitConfig(entry?.pit);
+  mandatoryPitStopHintEl.textContent = available
+    ? 'Singleplayerben és multiplayerben: 3 másodperc a saját boxhelyen.'
+    : 'Ezen a pályán még nincs kész boxutca; a szabály automatikusan inaktív.';
+  mandatoryPitStopCheckbox.closest('label')?.classList.toggle('is-unavailable', !available);
+}
+
+function setPitStopMarker(stop, visible = true) {
+  if (!stop || !visible || !currentTrack || !currentTrackBox) {
+    pitStopMarker.visible = false;
+    return;
+  }
+  const y = findGroundAt(currentTrack, currentTrackBox, stop.x, stop.z);
+  pitStopMarker.position.set(stop.x, Number.isFinite(y) ? y + 0.08 : 0.08, stop.z);
+  pitStopMarker.rotation.y = Number(stop.heading) || 0;
+  pitStopMarker.visible = true;
+}
+
+function renderPitStopHud(state, stopIndex = 0) {
+  if (!state?.required) {
+    pitStopAlertEl.classList.add('hidden');
+    return;
+  }
+  pitStopAlertEl.classList.remove('hidden');
+  const pill = pitStopAlertTextEl;
+  pill.classList.toggle('done', !!state.completed);
+  if (state.completed) {
+    pill.textContent = '✓ KERÉKCSERE KÉSZ';
+  } else if (state.stopElapsedMs > 0) {
+    pill.textContent = `KERÉKCSERE ${(state.stopElapsedMs / 1000).toFixed(1)} / ${(PIT_STOP_DURATION_MS / 1000).toFixed(1)} mp`;
+  } else if (state.inLane) {
+    pill.textContent = `BOXLIMITER 100 km/h — ÁLLJ MEG A P${stopIndex + 1} BOXHELYEN`;
+  } else {
+    pill.textContent = `⚠ KÖTELEZŐ KERÉKCSERE — P${stopIndex + 1} BOXHELY`;
+  }
+}
+
+function applyPitLimiter(dt, active) {
+  if (!active) return;
+  const velocity = chassisBody.linvel();
+  const limited = pitLimitedVelocity(velocity.x, velocity.z, dt);
+  if (limited.vx !== velocity.x || limited.vz !== velocity.z) {
+    chassisBody.setLinvel({ x: limited.vx, y: velocity.y, z: limited.vz }, true);
+  }
+}
+
 // ---------- Zóna-térkép futásidőben (aszfalt / kifutó / fal) ----------
 // A dev módban festett maszkot itt olvassuk vissza, és tömör (1 bájt/cella)
 // kódtömbbé alakítjuk — így a vezetés közbeni lekérdezés egy sima
@@ -2591,6 +2666,8 @@ const race = {
   invalidUntil: 0,  // performance.now() időbélyeg, ameddig a "kör érvénytelen" üzenet látszik
   hasCrossedStart: false,  // a rajtpont a rajtvonal ELŐTT van, ezért az induláskori
                            // első átlépés csak a kört KEZDI, nem zárja le
+  pit: createPitState(false),
+  pitStopIndex: 0,
 };
 
 // A nagy 3-2-1 kiírás ÉS a hozzá tartozó hang — egy helyen, mert az
@@ -2689,6 +2766,12 @@ function startRace() {
   race.prevZ = pos.z;
   race.invalidUntil = 0;
   race.hasCrossedStart = false;
+  race.pitStopIndex = 0;
+  race.pit = createPitState(
+    race.active && mandatoryPitStopCheckbox.checked && hasCompletePitConfig(currentPitConfig)
+  );
+  setPitStopMarker(currentPitConfig.stops[race.pitStopIndex], race.pit.required);
+  renderPitStopHud(race.pit, race.pitStopIndex);
   lastCheckpointSpawn = { x: spawnPoint.x, z: spawnPoint.z, heading: spawnHeading };
   resultsEl.classList.add('hidden');
   lapInvalidAlertEl.classList.add('hidden');
@@ -2708,6 +2791,7 @@ function lapInvalidText(reason) {
   // lezárását — a szöveg ezt mondja meg, hogy a játékos tudja: nem elég
   // átgurulni a rajtvonalon, tényleg körbe kell menni.
   if (reason === TAINT.CHECKPOINT) return 'Checkpoint kimaradt — a kör csak akkor számít, ha mindegyiken áthaladsz!';
+  if (reason === TAINT.PIT_STOP) return 'Az utolsó kör érvénytelen — kimaradt a kötelező kerékcsere!';
   return 'Kör érvénytelen!';
 }
 
@@ -2757,6 +2841,7 @@ function updateRaceHud() {
 
 function finishRace() {
   race.phase = 'finished';
+  setPitStopMarker(null, false);
   // Az összidő MINDEN kört beleszámol, az érvénytelent is — a versenyóra
   // tényleg eltelt időt mér. A "legjobb kör" viszont csak az érvényesek közül
   // számít, egy levágott sarok ne legyen "gyorsabb" mint egy tiszta kör.
@@ -2819,6 +2904,13 @@ function updateRace(dt) {
   race.prevZ = pos.z;
 
   const now = performance.now();
+  const velocity = chassisBody.linvel();
+  updatePitState(race.pit, currentPitConfig, race.pitStopIndex, {
+    fromX, fromZ, x: pos.x, z: pos.z, now,
+    speedMps: Math.hypot(velocity.x, velocity.z),
+  });
+  setPitStopMarker(currentPitConfig.stops[race.pitStopIndex], race.pit.required && !race.pit.completed);
+  renderPitStopHud(race.pit, race.pitStopIndex);
   const checkpoints = currentGates.checkpoints;
   const startCrossed = crossedGate(currentGates.start, fromX, fromZ, pos.x, pos.z);
 
@@ -2900,6 +2992,10 @@ function updateRace(dt) {
     if (race.passed.size < checkpoints.length) {
       race.lapTainted = true;
       race.taintReason = TAINT.CHECKPOINT;
+    }
+    if (race.lap + 1 >= race.totalLaps && race.pit.required && !race.pit.completed) {
+      race.lapTainted = true;
+      race.taintReason = TAINT.PIT_STOP;
     }
     const invalid = race.lapTainted;
     race.lapTimes.push({ time: now - race.lapStartTime, invalid });
@@ -3152,13 +3248,15 @@ function updateControls(dt = 1 / 60) {
   // A tényleges vezérlés a KÖZÖS applyControls()-ban van — ugyanaz a kód fut
   // itt és a szerveren. A billentyűket normalizált bemenetté fordítjuk, pont
   // olyanná, amilyet a mp.js is küld a hálózaton.
+  const pitOverLimit = race.pit.required && race.pit.inLane
+    && Math.hypot(linvel.x, linvel.z) > PIT_SPEED_LIMIT_MPS;
   applyControls(
     vehicle,
     chassisBody,
     {
-      throttle: forwardAmount || -reverseAmount,
+      throttle: pitOverLimit ? 0 : (forwardAmount || -reverseAmount),
       steer,
-      brake,
+      brake: pitOverLimit ? 1 : brake,
       handbrake,
     },
     { offtrackWheels: wheelsOffTrack(), frozen }
@@ -3524,6 +3622,8 @@ function enterMenu() {
   // (updateRace / a felborulás-figyelő), az viszont menüben már nem fut —
   // tehát ami az utolsó képkockán látszott, az fagy be.
   lapInvalidAlertEl.classList.add('hidden');
+  pitStopAlertEl.classList.add('hidden');
+  setPitStopMarker(null, false);
   clearServerValidationAlert();
   rolloverAlertEl.classList.add('hidden');
   highPingAlertEl.classList.add('hidden');
@@ -3725,6 +3825,7 @@ const devApi = {
   get currentHotLapSpawn() { return currentHotLapSpawn; },
   set currentHotLapSpawn(point) { currentHotLapSpawn = point || null; },
   get currentGates() { return currentGates; },
+  get currentPitConfig() { return currentPitConfig; },
   get currentGuidePath() { return currentGuidePath; },
   set currentGuidePath(p) { currentGuidePath = p; },
   get wheelPivots() { return wheelPivots; },
@@ -3753,6 +3854,10 @@ async function prepareTrackPhysics({ strict = false } = {}) {
   applyTrackCollider(mesh.floor, mesh.wall);
   return mesh;
 }
+
+mandatoryPitStopCheckbox.addEventListener('change', () => {
+  saveLastChoice('mandatoryPitStop', mandatoryPitStopCheckbox.checked ? '1' : '0');
+});
 
 startBtn.addEventListener('click', async () => {
   if (!currentTrack || !currentTrackBox) return;
@@ -4115,8 +4220,10 @@ async function init() {
   if ([...lapCountSelect.options].some((o) => o.value === savedLaps)) {
     lapCountSelect.value = savedLaps;
   }
+  mandatoryPitStopCheckbox.checked = loadLastChoice('mandatoryPitStop', '0') === '1';
   loadLeaderboard(initialMap.id);
   updateTrackAlert(initialMap);
+  updatePitOptionAvailability(initialMap);
 
   const savedViewIdx = CAMERA_VIEWS.findIndex((v) => v.id === loadLastChoice('camera', CAMERA_VIEWS[0].id));
   if (savedViewIdx >= 0) cameraViewIndex = savedViewIdx;
@@ -4132,7 +4239,7 @@ async function init() {
 
   await runLoadTasks([
     { bytes: initialEnv.bytes, run: (onP) => setSkybox('assets/' + initialEnv.file, onP) },
-    { bytes: initialMap.bytes, run: (onP) => setTrack('assets/' + initialMap.file, initialMap.id, initialMap.spawns, initialMap.gates, onP, initialMap.hotLapSpawn) },
+    { bytes: initialMap.bytes, run: (onP) => setTrack('assets/' + initialMap.file, initialMap.id, initialMap.spawns, initialMap.gates, onP, initialMap.hotLapSpawn, initialMap.pit) },
     { bytes: initialCar.bytes, run: (onP) => setCar('assets/' + initialCar.file, initialCar.id, initialCar.config, onP) },
   ]);
 
@@ -4151,12 +4258,13 @@ async function init() {
     const entry = findEntry(manifest.maps, mapSelect.value);
     saveLastChoice('map', entry.id);
     updateTrackAlert(entry);
+    updatePitOptionAvailability(entry);
     // A ranglista a pálya MODELLJÉTŐL függetlenül tölthető, ezért nem várjuk
     // meg a több tíz megabájtos betöltést — mire az kész, ez már ott lesz.
     loadLeaderboard(entry.id);
     showLoadingOverlay(true);
     try {
-      await runLoadTasks([{ bytes: entry.bytes, run: (onP) => setTrack('assets/' + entry.file, entry.id, entry.spawns, entry.gates, onP, entry.hotLapSpawn) }]);
+      await runLoadTasks([{ bytes: entry.bytes, run: (onP) => setTrack('assets/' + entry.file, entry.id, entry.spawns, entry.gates, onP, entry.hotLapSpawn, entry.pit) }]);
     } finally {
       hideLoadingOverlay();
     }
@@ -4251,6 +4359,7 @@ function animate() {
       vehicle.updateVehicle(world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
       world.step();
       applySpeedCap(chassisBody);
+      applyPitLimiter(world.timestep, race.pit.required && race.pit.inLane);
       applyWallConstraint();
       captureCarState();
       physicsAccum -= world.timestep;
@@ -4524,6 +4633,7 @@ window.__game = {
   // A checkpoint-kapuk a részidő-különbséghez kellenek: a mp.js ebből
   // számolja ki, hol tartott a szellem az egyes kapuknál.
   get currentGates() { return currentGates; },
+  get currentPitConfig() { return currentPitConfig; },
   get carLoaded() { return carLoaded; },
   keys,
   getDriveAxes,
@@ -4563,6 +4673,8 @@ window.__game = {
   disposeObject3D,
   setMenuStatus,
   findGroundAt,
+  setPitStopMarker,
+  renderPitStopHud,
   // Kísérlethez: __game.setUnlitFoliage(false/true) — élőben, pálya
   // újratöltése nélkül váltja a lombozat árnyékolását.
   setUnlitFoliage(on) {
@@ -4638,13 +4750,17 @@ window.__game = {
     return true;
   },
   // Egyetlen online szimulációs lépés, beleértve a kifutó-lassítást és a falat.
-  stepLocalPhysics(input, frozen = false, finished = false) {
-    applyControls(vehicle, chassisBody, input, { frozen, offtrackWheels: wheelsOffTrack() });
+  stepLocalPhysics(input, frozen = false, finished = false, pitLimiter = false) {
+    const velocity = chassisBody.linvel();
+    const overPitLimit = pitLimiter && Math.hypot(velocity.x, velocity.z) > PIT_SPEED_LIMIT_MPS;
+    const limitedInput = overPitLimit ? { ...input, throttle: 0, brake: 1 } : input;
+    applyControls(vehicle, chassisBody, limitedInput, { frozen, offtrackWheels: wheelsOffTrack() });
     vehicle.updateVehicle(world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
     world.step();
     // A sebességplafon és a láthatatlan fal a lépés UTÁN, ugyanabban a
     // sorrendben, mint az egyjátékos animate()-ben.
     applySpeedCap(chassisBody);
+    applyPitLimiter(world.timestep, pitLimiter);
     applyWallConstraint();
     if (finished) settleFinishedBody(chassisBody);
   },

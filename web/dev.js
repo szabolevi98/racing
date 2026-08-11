@@ -41,6 +41,7 @@ let brushSizeRange, brushSizeLabel, brushSizeRow;
 let spawnToolRow, zoneSpawnCountEl, undoSpawnBtn;
 let hotLapSpawnToolRow, hotLapSpawnStateEl, clearHotLapSpawnBtn;
 let gateToolRow, startLineStateEl, checkpointCountEl, undoGateBtn, clearCheckpointsBtn;
+let pitToolRow, pitEntryStateEl, pitExitStateEl, pitStopCountEl, pitConfigStateEl, undoPitBtn;
 let guideToolRow, guidePointCountEl, undoGuideBtn, clearGuideBtn, autoCheckpointRow;
 
 // A dev felület markupja + stílusa egy külön HTML-fragmentben él (nem önálló
@@ -118,6 +119,12 @@ function queryElements() {
   checkpointCountEl = $('checkpointCount');
   undoGateBtn = $('undoGateBtn');
   clearCheckpointsBtn = $('clearCheckpointsBtn');
+  pitToolRow = $('pitToolRow');
+  pitEntryStateEl = $('pitEntryState');
+  pitExitStateEl = $('pitExitState');
+  pitStopCountEl = $('pitStopCount');
+  pitConfigStateEl = $('pitConfigState');
+  undoPitBtn = $('undoPitBtn');
   guideToolRow = $('guideToolRow');
   guidePointCountEl = $('guidePointCount');
   undoGuideBtn = $('undoGuideBtn');
@@ -797,12 +804,17 @@ function isHotLapSpawnTool() {
   return getSelectedBrush() === 'hotlap-spawn';
 }
 function isSpawnTool() {
-  return isRegularSpawnTool() || isHotLapSpawnTool();
+  return isRegularSpawnTool() || isHotLapSpawnTool() || getSelectedBrush() === 'pit-stop';
 }
 function isGateTool() {
   const b = getSelectedBrush();
+  return b === 'start' || b === 'checkpoint' || b === 'pit-entry' || b === 'pit-exit';
+}
+function isRaceGateTool() {
+  const b = getSelectedBrush();
   return b === 'start' || b === 'checkpoint';
 }
+function isPitTool() { return getSelectedBrush().startsWith('pit-'); }
 function isGuideTool() {
   return getSelectedBrush() === 'guide';
 }
@@ -817,18 +829,32 @@ function updateSpawnToolUI() {
       && selectedZoneObject.index >= api.currentSpawnPoints.length) selectedZoneObject = null;
   if (selectedZoneObject?.kind === 'start' && !api.currentGates.start) selectedZoneObject = null;
   if (selectedZoneObject?.kind === 'hotlap-spawn' && !api.currentHotLapSpawn) selectedZoneObject = null;
+  if (selectedZoneObject?.kind === 'pit-stop'
+      && selectedZoneObject.index >= api.currentPitConfig.stops.length) selectedZoneObject = null;
+  if (selectedZoneObject?.kind === 'pit-entry' && !api.currentPitConfig.entry) selectedZoneObject = null;
+  if (selectedZoneObject?.kind === 'pit-exit' && !api.currentPitConfig.exit) selectedZoneObject = null;
   brushSizeRow.classList.toggle('d-none', !isPaintTool());
   spawnToolRow.classList.toggle('d-none', !isRegularSpawnTool());
   hotLapSpawnToolRow.classList.toggle('d-none', !isHotLapSpawnTool());
-  gateToolRow.classList.toggle('d-none', !isGateTool());
+  gateToolRow.classList.toggle('d-none', !isRaceGateTool());
+  pitToolRow.classList.toggle('d-none', !isPitTool());
   guideToolRow.classList.toggle('d-none', !isGuideTool());
-  autoCheckpointRow.classList.toggle('d-none', !isGateTool() && !isGuideTool());
+  autoCheckpointRow.classList.toggle('d-none', !isRaceGateTool() && !isGuideTool());
   zoneSpawnCountEl.textContent = String(api.currentSpawnPoints.length);
   devSpawnCountEl.textContent = String(api.currentSpawnPoints.length);
   hotLapSpawnStateEl.textContent = api.currentHotLapSpawn ? 'kész' : 'nincs';
   clearHotLapSpawnBtn.disabled = !api.currentHotLapSpawn;
   startLineStateEl.textContent = api.currentGates.start ? 'kész' : 'nincs';
   checkpointCountEl.textContent = String(api.currentGates.checkpoints.length);
+  pitEntryStateEl.textContent = api.currentPitConfig.entry ? 'kész' : 'nincs';
+  pitExitStateEl.textContent = api.currentPitConfig.exit ? 'kész' : 'nincs';
+  pitStopCountEl.textContent = String(api.currentPitConfig.stops.length);
+  const pitComplete = !!api.currentPitConfig.entry && !!api.currentPitConfig.exit
+    && api.currentPitConfig.stops.length === 8;
+  pitConfigStateEl.textContent = pitComplete
+    ? 'Kész — a kötelező kerékcsere bekapcsolható ezen a pályán.'
+    : 'A szabály csak bejárattal, kijárattal és mind a 8 boxhellyel aktív.';
+  pitConfigStateEl.className = pitComplete ? 'text-success' : 'text-secondary';
   guidePointCountEl.textContent = String(api.currentGuidePath.length);
 }
 
@@ -846,6 +872,17 @@ function addSpawnPointAtWorld(x, z) {
     refreshSpawnMarkers();
     updateSpawnToolUI();
     zoneStatusEl.textContent = '';
+    return point;
+  }
+  if (getSelectedBrush() === 'pit-stop') {
+    if (api.currentPitConfig.stops.length >= 8) {
+      zoneStatusEl.textContent = 'Már megvan mind a 8 boxhely.';
+      return null;
+    }
+    const point = { x: +x.toFixed(2), z: +z.toFixed(2), heading: 0 };
+    api.currentPitConfig.stops.push(point);
+    updateSpawnToolUI();
+    zoneStatusEl.textContent = `${api.currentPitConfig.stops.length}. boxhely lerakva.`;
     return point;
   }
   if (api.currentSpawnPoints.length >= 8) {
@@ -875,7 +912,20 @@ function removeLastSpawnPoint() {
   updateSpawnToolUI();
 }
 
+function removeCurrentPitObject() {
+  const brush = getSelectedBrush();
+  if (brush === 'pit-entry') api.currentPitConfig.entry = null;
+  else if (brush === 'pit-exit') api.currentPitConfig.exit = null;
+  else if (api.currentPitConfig.stops.length) api.currentPitConfig.stops.pop();
+  selectedZoneObject = null;
+  updateSpawnToolUI();
+}
+
 function removeLastGate() {
+  if (isPitTool()) {
+    removeCurrentPitObject();
+    return;
+  }
   if (getSelectedBrush() === 'start') {
     api.currentGates.start = null;
     if (selectedZoneObject?.kind === 'start') selectedZoneObject = null;
@@ -1029,8 +1079,14 @@ function drawZoneOverlay() {
     'CP' + (i + 1),
     selectedZoneObject?.kind === 'checkpoint' && selectedZoneObject.index === i
   ));
+  const pit = api.currentPitConfig;
+  if (pit.entry) drawGate(pit.entry, '#ff9f1c', 'BOX BE', selectedZoneObject?.kind === 'pit-entry');
+  if (pit.exit) drawGate(pit.exit, '#2ecf73', 'BOX KI', selectedZoneObject?.kind === 'pit-exit');
   if (drawingGate) {
-    drawGate(drawingGate, getSelectedBrush() === 'start' ? '#28d17c' : '#4aa3ff', null);
+    const brush = getSelectedBrush();
+    const color = brush === 'start' ? '#28d17c'
+      : (brush === 'pit-entry' ? '#ff9f1c' : (brush === 'pit-exit' ? '#2ecf73' : '#4aa3ff'));
+    drawGate(drawingGate, color, null);
   }
 
   // Kézzel rajzolt vezetővonal a checkpont-generáláshoz — pontok sorban
@@ -1086,6 +1142,41 @@ function drawZoneOverlay() {
       ctx.fillStyle = '#ffe66d';
       ctx.fill();
       ctx.strokeStyle = '#0dcaf0';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+  });
+
+  // Boxhelyek: számozásuk a rajtrács slotjaival egyezik (1→1, ... 8→8).
+  pit.stops.forEach((p, idx) => {
+    const s = toScreen(p.x, p.z);
+    const heading = p.heading || 0;
+    const tip = toScreen(p.x + Math.sin(heading) * 8, p.z + Math.cos(heading) * 8);
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(tip.x, tip.y);
+    ctx.strokeStyle = '#ff9f1c';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, 10, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,159,28,0.9)';
+    ctx.fill();
+    const selected = selectedZoneObject?.kind === 'pit-stop' && selectedZoneObject.index === idx;
+    ctx.strokeStyle = selected ? '#ffffff' : '#412400';
+    ctx.lineWidth = selected ? 4 : 2;
+    ctx.stroke();
+    ctx.fillStyle = '#1f1200';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('P' + (idx + 1), s.x, s.y);
+    if (selected) {
+      ctx.beginPath();
+      ctx.arc(tip.x, tip.y, 6, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.strokeStyle = '#ff9f1c';
       ctx.lineWidth = 2;
       ctx.stroke();
     }
@@ -1168,13 +1259,14 @@ function zonePickTolerance() {
 
 function beginSpawnInteraction(x, z) {
   const hotLap = isHotLapSpawnTool();
+  const pitStop = getSelectedBrush() === 'pit-stop';
   const points = hotLap
     ? (api.currentHotLapSpawn ? [api.currentHotLapSpawn] : [])
-    : api.currentSpawnPoints;
+    : (pitStop ? api.currentPitConfig.stops : api.currentSpawnPoints);
   const hit = findSpawnHit(points, x, z, zonePickTolerance());
   if (hit) {
     const point = points[hit.index];
-    selectedZoneObject = { kind: hotLap ? 'hotlap-spawn' : 'spawn', index: hit.index };
+    selectedZoneObject = { kind: hotLap ? 'hotlap-spawn' : (pitStop ? 'pit-stop' : 'spawn'), index: hit.index };
     editingSpawn = {
       point,
       part: hit.part,
@@ -1184,24 +1276,35 @@ function beginSpawnInteraction(x, z) {
     };
     zoneStatusEl.textContent = hotLap
       ? 'Időmérés rajtpont kijelölve.'
-      : `${hit.index + 1}. rajtpont kijelölve.`;
+      : `${hit.index + 1}. ${pitStop ? 'boxhely' : 'rajtpont'} kijelölve.`;
     return;
   }
 
   const point = addSpawnPointAtWorld(x, z);
   if (!point) return;
-  const index = hotLap ? 0 : api.currentSpawnPoints.indexOf(point);
-  selectedZoneObject = { kind: hotLap ? 'hotlap-spawn' : 'spawn', index };
+  const index = hotLap ? 0 : (pitStop
+    ? api.currentPitConfig.stops.indexOf(point)
+    : api.currentSpawnPoints.indexOf(point));
+  selectedZoneObject = { kind: hotLap ? 'hotlap-spawn' : (pitStop ? 'pit-stop' : 'spawn'), index };
   aimingSpawn = point;
 }
 
 function beginGateInteraction(x, z) {
-  const start = getSelectedBrush() === 'start';
-  const gates = start ? (api.currentGates.start ? [api.currentGates.start] : []) : api.currentGates.checkpoints;
+  const brush = getSelectedBrush();
+  const start = brush === 'start';
+  const pitEntry = brush === 'pit-entry';
+  const pitExit = brush === 'pit-exit';
+  const gates = start
+    ? (api.currentGates.start ? [api.currentGates.start] : [])
+    : (pitEntry
+      ? (api.currentPitConfig.entry ? [api.currentPitConfig.entry] : [])
+      : (pitExit ? (api.currentPitConfig.exit ? [api.currentPitConfig.exit] : []) : api.currentGates.checkpoints));
   const hit = findGateHit(gates, x, z, zonePickTolerance());
   if (hit) {
     const gate = gates[hit.index];
-    selectedZoneObject = { kind: start ? 'start' : 'checkpoint', index: hit.index };
+    if (pitEntry) selectedZoneObject = { kind: 'pit-entry', index: hit.index };
+    else if (pitExit) selectedZoneObject = { kind: 'pit-exit', index: hit.index };
+    else selectedZoneObject = { kind: start ? 'start' : 'checkpoint', index: hit.index };
     editingGate = {
       gate,
       part: hit.part,
@@ -1209,7 +1312,9 @@ function beginGateInteraction(x, z) {
       startZ: z,
       initial: { x1: gate.x1, z1: gate.z1, x2: gate.x2, z2: gate.z2 },
     };
-    zoneStatusEl.textContent = start ? 'Rajtvonal kijelölve.' : `CP${hit.index + 1} kijelölve.`;
+    zoneStatusEl.textContent = start
+      ? 'Rajtvonal kijelölve.'
+      : (pitEntry ? 'Boxbejárat kijelölve.' : (pitExit ? 'Boxkijárat kijelölve.' : `CP${hit.index + 1} kijelölve.`));
     return;
   }
 
@@ -1324,6 +1429,26 @@ function saveGates() {
   }).then((res) => res.json());
 }
 
+function savePitConfig() {
+  if (!api.currentMapId) return Promise.resolve(null);
+  const pit = api.currentPitConfig;
+  return fetch('/api/dev/pit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mapId: api.currentMapId, ...pit }),
+  }).then((res) => res.json()).then((data) => {
+    if (data.ok) {
+      const entry = api.manifest && findEntry(api.manifest.maps, api.currentMapId);
+      if (entry) entry.pit = {
+        entry: pit.entry ? { ...pit.entry } : null,
+        exit: pit.exit ? { ...pit.exit } : null,
+        stops: pit.stops.map((point) => ({ ...point })),
+      };
+    }
+    return data;
+  });
+}
+
 function saveZoneMap() {
   const mapId = api.currentMapId;
   if (!mapId || !zoneMaskCanvas) return;
@@ -1333,6 +1458,9 @@ function saveZoneMap() {
   });
   saveGates().catch((err) => {
     zoneStatusEl.textContent = 'Kapu mentési hiba: ' + err.message;
+  });
+  savePitConfig().catch((err) => {
+    zoneStatusEl.textContent = 'Boxutca mentési hiba: ' + err.message;
   });
   zoneMaskCanvas.toBlob((blob) => {
     const reader = new FileReader();
@@ -1352,7 +1480,7 @@ function saveZoneMap() {
         .then((data) => {
           const gates = api.currentGates;
           zoneStatusEl.textContent = data.ok
-            ? `Elmentve (zóna + ${api.currentSpawnPoints.length} rajtpont + ${gates.checkpoints.length} CP${gates.start ? ' + rajtvonal' : ''}).`
+            ? `Elmentve (zóna + ${api.currentSpawnPoints.length} rajtpont + ${gates.checkpoints.length} CP + ${api.currentPitConfig.stops.length} boxhely).`
             : 'Hiba: ' + (data.error || 'ismeretlen');
           if (data.ok) {
             // A manifestet is frissítjük, hogy a mentett zóna azonnal életbe
@@ -1936,6 +2064,7 @@ function wireEvents() {
     if (api.appState === 'zone-edit' && e.code === 'Backspace' && isSpawnTool()) {
       e.preventDefault();
       if (isHotLapSpawnTool()) clearHotLapSpawn();
+      else if (getSelectedBrush() === 'pit-stop') removeCurrentPitObject();
       else removeLastSpawnPoint();
       return;
     }
@@ -1957,6 +2086,7 @@ function wireEvents() {
   undoSpawnBtn.addEventListener('click', removeLastSpawnPoint);
   clearHotLapSpawnBtn.addEventListener('click', clearHotLapSpawn);
   undoGateBtn.addEventListener('click', removeLastGate);
+  undoPitBtn.addEventListener('click', removeCurrentPitObject);
   clearCheckpointsBtn.addEventListener('click', () => {
     api.currentGates.checkpoints = [];
     if (selectedZoneObject?.kind === 'checkpoint') selectedZoneObject = null;
@@ -2082,7 +2212,10 @@ function wireEvents() {
           x1: +drawingGate.x1.toFixed(2), z1: +drawingGate.z1.toFixed(2),
           x2: +drawingGate.x2.toFixed(2), z2: +drawingGate.z2.toFixed(2),
         };
-        if (getSelectedBrush() === 'start') api.currentGates.start = gate;
+        const brush = getSelectedBrush();
+        if (brush === 'start') api.currentGates.start = gate;
+        else if (brush === 'pit-entry') api.currentPitConfig.entry = gate;
+        else if (brush === 'pit-exit') api.currentPitConfig.exit = gate;
         else api.currentGates.checkpoints.push(gate);
         updateSpawnToolUI();
       }
@@ -2153,7 +2286,7 @@ function wireEvents() {
     try {
       await api.runLoadTasks([{
         bytes: entry.bytes,
-        run: (onP) => setTrack('assets/' + entry.file, entry.id, entry.spawns, entry.gates, onP, entry.hotLapSpawn),
+        run: (onP) => setTrack('assets/' + entry.file, entry.id, entry.spawns, entry.gates, onP, entry.hotLapSpawn, entry.pit),
       }]);
     } finally {
       api.hideLoadingOverlay();

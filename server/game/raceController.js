@@ -13,6 +13,7 @@ import { crossingTime } from '../../shared/gate.js';
 import {
   GHOST_SAMPLE_MS, MAX_GHOST_FRAMES, makeGhostFrame, makeGhostReplay,
 } from '../../shared/ghost.js';
+import { createPitState, hasCompletePitConfig, updatePitState } from '../../shared/pit.js';
 
 const SNAPSHOT_MS = 1000 / SNAPSHOT_RATE;
 const MAX_ABS_POSITION = 100_000;
@@ -98,7 +99,7 @@ function gateMidpoint(gate) {
   return { x: (gate.x1 + gate.x2) / 2, z: (gate.z1 + gate.z2) / 2 };
 }
 
-function createRaceState(x, z) {
+function createRaceState(x, z, pitRequired = false) {
   return {
     lap: 0,
     nextCheckpoint: 0,
@@ -123,6 +124,7 @@ function createRaceState(x, z) {
     prevZ: z,
     prevAt: 0,
     validationAlertLap: -1,
+    pit: createPitState(pitRequired),
   };
 }
 
@@ -169,7 +171,11 @@ export class RaceController {
         movementSamples: [],
         acceptTeleportOnce: true,
         respawn: { x: spawn.x, z: spawn.z, heading: spawn.heading || 0 },
-        race: createRaceState(spawn.x, spawn.z),
+        race: createRaceState(
+          spawn.x,
+          spawn.z,
+          this.room.mandatoryPitStop === true && hasCompletePitConfig(this.map?.pit)
+        ),
       });
       index++;
     }
@@ -309,15 +315,20 @@ export class RaceController {
 
   updateCarProgress(car, now) {
     const gates = this.map?.gates;
-    if (!gates?.start || car.race.finished) return;
-    const checkpoints = gates.checkpoints || [];
     const r = car.race;
+    if (car.race.finished) return;
     const x = car.state.p[0], z = car.state.p[2];
     const fromX = r.prevX, fromZ = r.prevZ;
     const fromAt = r.prevAt || now;
     r.prevX = x;
     r.prevZ = z;
     r.prevAt = now;
+    updatePitState(r.pit, this.map?.pit, this.room.players.get(car.playerId)?.slot ?? 0, {
+      fromX, fromZ, x, z, now,
+      speedMps: Math.hypot(car.state.v[0], car.state.v[2]),
+    });
+    if (!gates?.start) return;
+    const checkpoints = gates.checkpoints || [];
     this.recordGhostFrame(car, now);
 
     if (r.hasCrossedStart) {
@@ -375,6 +386,9 @@ export class RaceController {
       heading: headingFrom(fromX, fromZ, x, z, car.respawn.heading),
     };
     if (r.passed.size < checkpoints.length) r.taintReason = TAINT.CHECKPOINT;
+    if (!this.room.endlessLaps && r.lap + 1 >= this.room.laps && r.pit.required && !r.pit.completed) {
+      r.taintReason = TAINT.PIT_STOP;
+    }
     const invalid = !!r.taintReason;
     const time = crossedAt - r.lapStart;
     const ghost = invalid ? null : this.finishGhostRecording(car, crossedAt);
@@ -470,6 +484,9 @@ export class RaceController {
         li: !!lastLap?.invalid,
         ls: car.race.hasCrossedStart ? Math.round(car.race.lapStart) : null,
         fin: !!car.race.finished,
+        pc: !!car.race.pit.completed,
+        pi: !!car.race.pit.inLane,
+        pt: Math.round(car.race.pit.stopElapsedMs),
         // A legutóbbi checkpoint sorszáma és a kör kezdetétől mért ideje — a
         // delta-kijelző alapja. Minden snapshotban megy, nem egyszeri
         // eseményként: így egy elveszett csomag nem hagy ki egy részidőt.

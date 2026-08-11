@@ -69,6 +69,10 @@
     <input id="ghostModeCheckbox" type="checkbox">
     <span><strong>Ghost mód</strong><small>Többjátékos módban az autók nem ütköznek egymással.</small></span>
   </label>
+  <label class="ghost-mode-option" for="mandatoryPitStopCheckbox">
+    <input id="mandatoryPitStopCheckbox" type="checkbox">
+    <span><strong>Kötelező kerékcsere</strong><small id="mandatoryPitStopHint">Singleplayerben és multiplayerben: 3 másodperc a saját boxhelyen.</small></span>
+  </label>
   <div id="menuStatus" class="text-center mt-3"></div>
  </div>
 </div>
@@ -195,6 +199,9 @@
 
 <div id="lapInvalidAlert" class="top-center-alert hidden">
   <div class="alert-pill warn" id="lapInvalidAlertText">Kör érvénytelen!</div>
+</div>
+<div id="pitStopAlert" class="top-center-alert hidden">
+  <div class="alert-pill warn" id="pitStopAlertText">⚠ KÖTELEZŐ KERÉKCSERE</div>
 </div>
 
 <div id="rolloverAlert" class="top-center-alert hidden">
