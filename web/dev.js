@@ -197,8 +197,8 @@ function enterDevMode() {
 // vizuálisan kormányoznak — így gyorsan végig lehet nézni sok kocsi
 // kerekeit anélkül, hogy tényleg vezetni kéne. A W/S (vagy fel/le nyíl) a
 // következő/előző kocsira vált a legördülő megnyitása nélkül. Magát a
-// kocsiváltást a main.js végzi (a MENÜBEN is működik), mi csak a tesztelő
-// legördülőjét tartjuk szinkronban.
+// kocsiváltást a main.js végzi, mi csak a tesztelő legördülőjét tartjuk
+// szinkronban.
 let carTestWheelAngle = 0;
 let carTestSteerAngle = 0;
 const CARTEST_ROLL_SPEED = 6; // rad/mp — kb. 1 fordulat/mp, jól látható tempó
@@ -2034,8 +2034,8 @@ function wireEvents() {
   devDriveResetBtn.addEventListener('click', resetAllTunables);
   devDriveSaveBtn.addEventListener('click', saveTunablesToFile);
 
-  // A W/S kocsiváltást a main.js kezeli (a menüben is működik) — mi csak az
-  // Escape-et vesszük át, ami kilép a tesztelőből / a vezetéses tesztből.
+  // A keréktesztelő W/S kocsiváltását a main.js kezeli — mi csak az Escape-et
+  // vesszük át, ami kilép a tesztelőből / a vezetéses tesztből.
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Escape' && api.appState === 'cartest') exitCarTester();
     else if (e.code === 'Escape' && devDriveActive) exitDevDrive();

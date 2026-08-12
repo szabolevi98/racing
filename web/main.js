@@ -3744,11 +3744,9 @@ resultsRestartBtn.addEventListener('click', () => {
 });
 
 // ---------- Kocsiváltás billentyűzetről ----------
-// A menüben (kirakat nézet) a W/S és a fel/le nyíl az előző/következő kocsira
-// vált, a legördülő megnyitása nélkül. A dev módbeli autó tesztelő UGYANEZT
-// használja — csak ráakaszt egy hookot, hogy a saját legördülőjét is
-// szinkronban tartsa. Ezért él ez itt és nem a dev modulban: a menüben minden
-// játékosnak működnie kell.
+// A W/S és a fel/le nyíl csak a dev autó-keréktesztelőben vált gyorsan az
+// előző/következő kocsira. A normál menüben ezek vezetési billentyűk, ezért ott
+// nem módosíthatják véletlenül a kiválasztott autót.
 let carSwitching = false;
 let carSwitchHook = null;
 
@@ -3777,7 +3775,7 @@ async function switchCarBy(delta) {
 }
 
 window.addEventListener('keydown', (e) => {
-  if ((appState !== 'cartest' && appState !== 'menu') || e.repeat) return;
+  if (appState !== 'cartest' || e.repeat) return;
   // Ha épp egy szöveges mezőben gépel (pl. a kereshető kocsi-select-ben),
   // a W/S/fel/le a kereséshez kell, nem kocsiváltáshoz.
   if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
