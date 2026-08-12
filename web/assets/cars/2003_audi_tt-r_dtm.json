@@ -3,5 +3,6 @@
   "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
   "yawDegrees": 0,
   "_wheelPattern": "Részletes modell, sarkonként 10 alkatrésszel: gumi, külső és belső felni (outer_rim, inner_rim), kerékagy (hub), féktárcsa (rotor), féknyereg (caliper), embléma (badge) és a forgás-elmosódás (blur). Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 10/10/10/10 alkatrész, nyomtáv 1.61, tengelytáv 2.45, max kilengés 180 fokos forgatásnál 0.36.",
-  "wheelPattern": "blur|tyre|rotor|hub|outer|wheel|caliper\\.003(?![^\\s])|badge\\.001(?![^\\s])|inner_rim\\.005(?![^\\s])"
+  "_wheelPatternJavitas": "2026-08-12: ugyanaz a hiba, mint az 1999-es Viperen — a magában álló 'rim.005' anyag kimaradt, pedig az a felni látható lapja, tehát nem forgott. A minta az 'outer'-rel és egy név szerinti 'inner_rim.005'-tel dolgozott, a sima 'rim'-mel viszont senki. Az 'inner_rim.005' külön ága helyére '(?<!t)rim' került: az mind a négyet elkapja (rim, inner_rim, outer_rim, blur_rim), a 'rubber_trim.005' ablak-régiós anyagot viszont a negatív lookbehind kizárja. Ellenőrizve a modell mind a 60 darabján: pontosan a 11 kerék-darab illeszkedik (mind a [0, 0.32, -0.02] környékén), más semmi.",
+  "wheelPattern": "blur|tyre|rotor|hub|outer|wheel|caliper\\.003(?![^\\s])|badge\\.001(?![^\\s])|(?<!t)rim"
 }
