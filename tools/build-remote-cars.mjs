@@ -17,7 +17,10 @@ const METADATA_FILE = path.join(OUTPUT_DIR, 'manifest.json');
 // konvertálás módja.
 //   2: a `-sp` már nem jár alanyi jogon minden futásnak (elcsúszó textúrák).
 //   3: a geometria- és textúra-tengely külön mérése, kár szerint sorolt fokok.
-export const PIPELINE_VERSION = 3;
+//   4: float UV (`-vtf`) a kvantálás helyett — a gltfpack a saját
+//      KHR_texture_transform-jával felülírta a forrásét, és 71 autó
+//      textúrája csúszott el tőle.
+export const PIPELINE_VERSION = 4;
 const DEFAULT_TARGET_MB = 5;
 
 const RELEASES = {
@@ -330,11 +333,28 @@ async function packOnce(executable, { id, input, geometry, texture }) {
   // azokon átnyúlva vonjon össze csúcsokat — ettől csúszik el a textúra a
   // modellen. Mérve a négy legerősebben tömörített autón: az elhagyása
   // +0,2…1,2% méret, és a célarányt nélküle is eléri (80 504 helyett 81 263
-  // háromszög). Ennyiért nem éri meg. A `-vt 16` (a 12-es alapértelmezés
-  // helyett) ugyanezt védi, csak a kvantálás oldaláról.
+  // háromszög). Ennyiért nem éri meg.
+  //
+  // `-vtf` (float UV) a korábbi `-vt 16` helyett. A gltfpack a kvantált UV-t
+  // egy általa GYÁRTOTT KHR_texture_transform-mal állítja vissza — de ha az
+  // anyagnak MÁR VOLT saját ilyen transzformja, azt felülírja ahelyett, hogy
+  // összefűzné a kettőt. A forrás-anyag skálázása és eltolása így elveszik.
+  //
+  // Mérve az 1999-es Viper karosszériáján (`body.007`): az eredeti transzform
+  // offset [0.0017, -0.048] / scale [0.05, 0.05] helyére offset
+  // [1.994, -138.818] / scale [0.863, 0.964] került, az UV-doboz 131,88
+  // egységgel csúszott el. Csempézett textúránál egész eltolás láthatatlan
+  // lenne, ez viszont tört (~0,88), tehát a kép szemmel láthatóan elmászik.
+  // Ugyanennek a modellnek a saját transzform nélküli anyagai hibátlanok
+  // voltak — pontosan az különbözteti meg a rossz eseteket.
+  //
+  // A 183 autóból 71 használ KHR_texture_transform-ot a forrásban, tehát a
+  // kvantálás megtartása mellett ennyi lenne veszélyben. `-vtf`-fel az
+  // UV-dobozok legnagyobb eltérése 131,88-ról 0,0004-re esett (float-kerekítés).
+  // Ára ezen az autón +12,5% méret (4,65 → 5,23 MB).
   const args = [
     '-i', input, '-o', candidate,
-    '-kn', '-km', '-vt', '16',
+    '-kn', '-km', '-vtf',
     '-si', String(geometry.ratio), '-se', String(geometry.error),
     '-tw', '-tq', String(texture.quality), '-tl', String(texture.limit),
     '-r', reportFile,
