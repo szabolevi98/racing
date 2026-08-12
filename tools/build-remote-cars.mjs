@@ -13,7 +13,11 @@ const OUTPUT_DIR = path.join(CARS_DIR, 'compressed');
 // verzióváltásnál ne keveredjen a régivel.
 const VENDOR_DIR = path.join(ROOT, 'tools', 'vendor', 'gltfpack', 'v1.2');
 const METADATA_FILE = path.join(OUTPUT_DIR, 'manifest.json');
-const PIPELINE_VERSION = 1;
+// A növelése minden autót újrakonvertáltat: nem a forrás avult el, hanem a
+// konvertálás módja.
+//   2: a `-sp` már nem jár alanyi jogon minden futásnak (elcsúszó textúrák).
+//   3: a geometria- és textúra-tengely külön mérése, kár szerint sorolt fokok.
+export const PIPELINE_VERSION = 3;
 const DEFAULT_TARGET_MB = 5;
 
 const RELEASES = {
@@ -39,20 +43,62 @@ const RELEASES = {
   },
 };
 
-// Minőségi sorrend: az első, célméretbe beleférő eredmény győz. Így egy
-// eleve kulturált modellhez alig nyúlunk, a túlméretezett Sketchfab-exportoknál
-// pedig csak annyira erősítünk, amennyire az 5 MB-os remote limit megkívánja.
-export const REMOTE_CAR_PROFILES = Object.freeze([
-  { name: 'lossless', ratio: 1, error: 0.001, quality: 10, textureLimit: 4096 },
-  { name: 'very-high', ratio: 0.85, error: 0.002, quality: 10, textureLimit: 2048 },
-  { name: 'high', ratio: 0.75, error: 0.003, quality: 9, textureLimit: 2048 },
-  { name: 'balanced-high', ratio: 0.65, error: 0.006, quality: 9, textureLimit: 1024 },
-  { name: 'balanced', ratio: 0.5, error: 0.01, quality: 8, textureLimit: 1024 },
-  { name: 'medium', ratio: 0.35, error: 0.015, quality: 8, textureLimit: 1024 },
-  { name: 'compact', ratio: 0.25, error: 0.02, quality: 7, textureLimit: 1024 },
-  { name: 'very-compact', ratio: 0.18, error: 0.03, quality: 7, textureLimit: 768 },
-  { name: 'emergency', ratio: 0.1, error: 0.06, quality: 6, textureLimit: 512, aggressive: true },
-  { name: 'last-resort', ratio: 0.06, error: 0.1, quality: 5, textureLimit: 384, aggressive: true },
+// Két FÜGGETLEN minőségi skála, nem egy összefűzött profil-létra.
+//
+// A korábbi megoldás egyetlen listát járt be, ahol minden fok egyszerre mondott
+// geometria- és textúra-értéket. Ez azért rossz, mert autónként más a szűk
+// keresztmetszet: a BMW 320i-nél a kép 3,25 MB és a geometria 1,71, a Porsche
+// 911 GT1-nél pont fordítva (1,68 / 4,41). A kötegelt fokok emiatt mindkét
+// autónál levágták azt is, ami nem szorított — a Porsche fele felbontású
+// textúrát kapott, pedig nála nem a textúra volt a nagy tétel.
+//
+// Így viszont a kereső minden lépés előtt megnézi a gltfpack riportjából, hol
+// vannak ténylegesen a bájtok, és csak azon az oldalon lép egyet. Lásd
+// pickSettings().
+// A `cost` az elvesztett látványminőség egy közös, önkényes skálán — azért
+// kell, mert a két tengely nem hasonlítható össze bájtban. Egy 4096-os textúra
+// felezése egy 20 méterre lévő ellenfélautón észrevehetetlen (cost 1), a
+// háromszögek harmadolása viszont a sziluettet rontja el (cost 8). A kereső
+// ezen a skálán választ, lásd planSettings().
+// A fokok a KÁR mértéke szerint követik egymást, nem az arány szerint. Ezért
+// fordulhat elő, hogy egy későbbi fok arányszáma nagyobb: egy varratokon is
+// átvágó 50% kevesebbet ront, mint egy erőszakkal levágott 18%.
+export const GEOMETRY_STEPS = Object.freeze([
+  { ratio: 1, error: 0.001, cost: 0 },
+  { ratio: 0.85, error: 0.002, cost: 1 },
+  { ratio: 0.75, error: 0.003, cost: 2 },
+  { ratio: 0.65, error: 0.006, cost: 3 },
+  { ratio: 0.5, error: 0.01, cost: 5 },
+  { ratio: 0.35, error: 0.02, cost: 8 },
+  { ratio: 0.25, error: 0.04, cost: 11 },
+  { ratio: 0.18, error: 0.06, cost: 14 },
+  // A `-sp` innentől engedi a varratokon átnyúló összevonást, amitől a textúra
+  // kissé elcsúszhat. Nem tiltott, csak lefokozott: seam-sűrű modelleknél a
+  // fenti fokok elakadnak (a hibakorlát fog előbb, nem az arány), és ott az
+  // alternatíva nem a szép textúra, hanem a szétvágott sziluett.
+  { ratio: 0.5, error: 0.01, permissive: true, cost: 17 },
+  { ratio: 0.35, error: 0.02, permissive: true, cost: 19 },
+  { ratio: 0.25, error: 0.04, permissive: true, cost: 21 },
+  { ratio: 0.15, error: 0.08, permissive: true, cost: 24 },
+  // Végső eszköz. A gltfpack saját szava rá: "disregarding quality".
+  { ratio: 0.12, error: 0.1, aggressive: true, cost: 30 },
+  { ratio: 0.06, error: 0.15, aggressive: true, cost: 34 },
+]);
+
+// A felbontás előbbre való a kódolási minőségnél: egy 2048-as textúra q7-en
+// még olvasható rajtszámot és feliratot ad, a 1024-re zsugorított q9 viszont
+// már visszahozhatatlanul elvesztette a részletet. Ezért megyünk végig a
+// 2048-as fokokon, mielőtt felezünk.
+export const TEXTURE_STEPS = Object.freeze([
+  { limit: 4096, quality: 10, cost: 0 },
+  { limit: 2048, quality: 9, cost: 1 },
+  { limit: 2048, quality: 8, cost: 2 },
+  { limit: 2048, quality: 7, cost: 4 },
+  { limit: 1024, quality: 8, cost: 7 },
+  { limit: 1024, quality: 7, cost: 9 },
+  { limit: 768, quality: 7, cost: 13 },
+  { limit: 512, quality: 6, cost: 17 },
+  { limit: 384, quality: 5, cost: 21 },
 ]);
 
 function run(executable, args, { quiet = false } = {}) {
@@ -212,6 +258,11 @@ export async function sourceSignature(input, sourceBytes, targetBytes) {
 export function legacySignatureMatches(previousSignature, sourceBytes, targetBytes) {
   const parts = String(previousSignature || '').split(':');
   if (parts.length !== 4 || parts[0] === 'v2') return false;
+  // A régi alak első mezője a pipeline verziója. Ha az azóta változott, a kész
+  // fájl AKKOR SEM érvényes, ha a forrás egy bájtot sem mozdult — nem a forrás
+  // avult el, hanem a konvertálás módja. Enélkül a `-sp` kivétele után 130 autó
+  // csendben megtartotta a régi, elcsúszott textúrájú kimenetét.
+  if (Number(parts[0]) !== PIPELINE_VERSION) return false;
   return Number(parts[1]) === sourceBytes && Number(parts[3]) === targetBytes;
 }
 
@@ -224,6 +275,186 @@ function parseArgs(argv) {
   }
   if (!(options.targetMb > 0)) throw new Error('A --target-mb pozitív szám legyen.');
   return options;
+}
+
+function describeSettings({ geometry, texture }) {
+  const mode = geometry.aggressive ? ' erőszakolt' : geometry.permissive ? ' varratokon át' : '';
+  return `geometria ${Math.round(geometry.ratio * 100)}%${mode} · textúra ${texture.limit}/q${texture.quality}`;
+}
+
+// Windowson a frissen írt fájlt a víruskereső (vagy maga a kilépő gltfpack)
+// még egy pillanatig fogja, és a törlés EBUSY-val elszáll. Ez nem a
+// konvertálás hibája, ezért nem is buktathat el egy autót — csak várunk rá.
+async function removeWithRetry(file, { required = false } = {}) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await fs.rm(file, { force: true });
+      return true;
+    } catch (error) {
+      if (attempt >= 6) {
+        if (required) throw error;
+        return false;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 150 * attempt));
+    }
+  }
+}
+
+async function cleanTempFiles(id) {
+  const stuck = [];
+  for (const item of await fs.readdir(OUTPUT_DIR)) {
+    if (item.startsWith(`.${id}.`) && (item.endsWith('.tmp.glb') || item.endsWith('.report.json'))) {
+      // A takarítás bukása nem érvényteleníti a kész kimenetet: csak szemét
+      // marad, amit a következő futás úgyis felülír.
+      if (!await removeWithRetry(path.join(OUTPUT_DIR, item))) stuck.push(item);
+    }
+  }
+  if (stuck.length) console.warn(`  ⚠ ${stuck.length} ideiglenes fájl zárolva maradt, a következő futás felülírja`);
+}
+
+// Egy gltfpack-futás. A riportot is beolvassa, mert abból derül ki, hogy a
+// bájtok a képekben vagy a geometriában ülnek — a kereső ezen a mérésen dönt.
+async function packOnce(executable, { id, input, geometry, texture }) {
+  // A mód is bekerül, mert ugyanaz az arány több fokon is előfordul (normál és
+  // permisszív) — enélkül a két futás egymás ideiglenes fájljára írna.
+  const mode = geometry.aggressive ? 'a' : geometry.permissive ? 'p' : 'n';
+  const tag = `g${mode}${geometry.ratio}-t${texture.limit}q${texture.quality}`;
+  const candidate = path.join(OUTPUT_DIR, `.${id}.${tag}.tmp.glb`);
+  const reportFile = path.join(OUTPUT_DIR, `.${id}.${tag}.report.json`);
+  // Itt viszont muszáj eltűnnie: egy bent ragadt riportból a kereső a MÚLTKORI
+  // méreteket olvasná ki, és arra tervezne.
+  await removeWithRetry(candidate, { required: true });
+  await removeWithRetry(reportFile, { required: true });
+  // NINCS `-sp`: az "attribute discontinuity" a gltfpack szótárában az
+  // UV-varrat, a permisszív mód pedig engedélyt ad az egyszerűsítőnek, hogy
+  // azokon átnyúlva vonjon össze csúcsokat — ettől csúszik el a textúra a
+  // modellen. Mérve a négy legerősebben tömörített autón: az elhagyása
+  // +0,2…1,2% méret, és a célarányt nélküle is eléri (80 504 helyett 81 263
+  // háromszög). Ennyiért nem éri meg. A `-vt 16` (a 12-es alapértelmezés
+  // helyett) ugyanezt védi, csak a kvantálás oldaláról.
+  const args = [
+    '-i', input, '-o', candidate,
+    '-kn', '-km', '-vt', '16',
+    '-si', String(geometry.ratio), '-se', String(geometry.error),
+    '-tw', '-tq', String(texture.quality), '-tl', String(texture.limit),
+    '-r', reportFile,
+  ];
+  if (geometry.permissive) args.push('-sp');
+  if (geometry.aggressive) args.push('-sa');
+  await run(executable, args, { quiet: true });
+  const stat = await fs.stat(candidate);
+  const report = await readJson(reportFile, {});
+  const buffers = report.data?.buffers || {};
+  return {
+    file: candidate,
+    bytes: stat.size,
+    geometry,
+    texture,
+    triangles: report.render?.triangleCount ?? null,
+    imageBytes: buffers.image ?? 0,
+    geometryBytes: (buffers.vertex ?? 0) + (buffers.index ?? 0),
+  };
+}
+
+// A rács kiszámítása mérésekből.
+//
+// A két tengely FÜGGETLEN: a geometria aránya nem befolyásolja a textúrák
+// méretét és fordítva. Ez nem feltételezés, hanem a riportokból leolvasható —
+// a Porschénál a kép végig pontosan 2,20 MB maradt, miközben a geometria
+// 5,13-ról 1,94-re csökkent; a BMW-nél a geometria végig 2,19, miközben a kép
+// 4,17-ről 2,36-ra ment.
+//
+// Ezért nem kell tapogatózni. Elég mindkét tengelyt EGYSZER végigmérni (a
+// másikat közben a legolcsóbb fokon tartva), utána a teljes 10×9-es rács
+// minden cellája ismert egy összeadással. Ebből választjuk a legkisebb
+// minőségvesztésű cellát, ami befér.
+//
+// Ez azért többet ér egy lépegető keresőnél, mert az mohó: mindig a pillanatnyi
+// legjobb lépést teszi, és nem tudja, hány lépés kell még — így túllő. A
+// Porschét 35%-ra vágta (107 ezer háromszög), pedig 65% is befért volna
+// (201 ezer), csak egy fokkal olcsóbb textúra mellett.
+export function planSettings(imageBytes, geometryBytes, overheadBytes, targetBytes, rejected = new Set()) {
+  let best = null;
+  for (let g = 0; g < GEOMETRY_STEPS.length; g++) {
+    for (let t = 0; t < TEXTURE_STEPS.length; t++) {
+      if (rejected.has(`${g}:${t}`)) continue;
+      // A meg nem mért fokok kimaradnak: azokat a kereső bizonyítottan
+      // fölöslegesnek találta (lásd a mérés leállítását pickSettings-ben).
+      if (imageBytes[t] === undefined || geometryBytes[g] === undefined) continue;
+      if (overheadBytes + imageBytes[t] + geometryBytes[g] > targetBytes) continue;
+      const cost = GEOMETRY_STEPS[g].cost + TEXTURE_STEPS[t].cost;
+      // Azonos áron a több háromszög nyer: a sziluett messziről is látszik.
+      if (!best || cost < best.cost || (cost === best.cost && g < best.g)) best = { g, t, cost };
+    }
+  }
+  return best;
+}
+
+async function pickSettings(executable, { id, input, targetBytes }) {
+  const mb = (n) => (n / 1024 / 1024).toFixed(2);
+  const show = (r) => console.log(`  ${describeSettings(r).padEnd(36)} ${mb(r.bytes)} MB  (kép ${mb(r.imageBytes)} · geo ${mb(r.geometryBytes)})`);
+  const pack = (g, t) => packOnce(executable, { id, input, geometry: GEOMETRY_STEPS[g], texture: TEXTURE_STEPS[t] });
+  const lastG = GEOMETRY_STEPS.length - 1, lastT = TEXTURE_STEPS.length - 1;
+
+  // A legtöbb autó a legjobb beállítással is befér — annak egyetlen futás elég.
+  const finest = await pack(0, 0);
+  show(finest);
+  if (finest.bytes <= targetBytes) return withLimit(finest);
+
+  // A fejrész (JSON, minták, egyéb pufferek) nagyjából állandó. A legfinomabb
+  // futásból vesszük, mert ott a legtöbb a node és így a legnagyobb a JSON —
+  // a becslés inkább legyen óvatos, mint optimista.
+  const overhead = Math.max(0, finest.bytes - finest.imageBytes - finest.geometryBytes);
+
+  // Tengelyenkénti mérés. A másik tengelyt közben a legolcsóbb fokon tartjuk:
+  // azok a futások a leggyorsabbak, és a két tengely függetlensége miatt az
+  // eredményt úgysem befolyásolják.
+  //
+  // A mérést ott hagyjuk abba, ahol bizonyítottan fölösleges. Ha egy fok a
+  // MÁSIK tengely legjobb beállításával is befér, akkor minden nála durvább fok
+  // szigorúan drágább egy már beférő cellánál — azt sosem választanánk. Így a
+  // legtöbb autónál a 17 mérőfutás töredéke is elég.
+  const imageBytes = [finest.imageBytes];
+  const geometryBytes = [finest.geometryBytes];
+  let probes = 0;
+  for (let t = 1; t <= lastT; t++) {
+    if (overhead + imageBytes[t - 1] + finest.geometryBytes <= targetBytes) break;
+    imageBytes[t] = (await pack(lastG, t)).imageBytes;
+    probes++;
+  }
+  for (let g = 1; g <= lastG; g++) {
+    if (overhead + finest.imageBytes + geometryBytes[g - 1] <= targetBytes) break;
+    geometryBytes[g] = (await pack(g, lastT)).geometryBytes;
+    probes++;
+  }
+  console.log(`  ${String(probes).padStart(2)} mérőfutás: kép ${mb(imageBytes.at(-1))}–${mb(imageBytes[0])} MB · geometria ${mb(geometryBytes.at(-1))}–${mb(geometryBytes[0])} MB`);
+  if (process.env.DEBUG_PLAN) {
+    console.log('    kép:', imageBytes.map((n) => mb(n)).join(' '));
+    console.log('    geo:', geometryBytes.map((n) => mb(n)).join(' '));
+    console.log('    fejrész:', mb(overhead), '· cél:', mb(targetBytes));
+  }
+
+  // A becslés nem tökéletes (a kvantálás kerekít), ezért a tervet leellenőrizzük,
+  // és ha mégsem fér be, a következő legolcsóbb cellát vesszük.
+  const rejected = new Set();
+  for (;;) {
+    const plan = planSettings(imageBytes, geometryBytes, overhead, targetBytes, rejected);
+    if (!plan) {
+      const floor = overhead + imageBytes.at(-1) + geometryBytes.at(-1);
+      throw new Error(`${id}: a legerősebb beállítással sem fért be (minimum ${mb(floor)} MB).`);
+    }
+    const result = await pack(plan.g, plan.t);
+    show(result);
+    if (result.bytes <= targetBytes) return withLimit(result);
+    // A becslés optimista volt erre a cellára — kizárjuk, és jöhet a következő
+    // legolcsóbb. A mért tengelyeket NEM írjuk át: azok pontosak, csak a
+    // fejrész-becslés csúszott.
+    rejected.add(`${plan.g}:${plan.t}`);
+  }
+}
+
+function withLimit(result) {
+  return { ...result, limitedBy: result.imageBytes > result.geometryBytes ? 'textúra' : 'geometria' };
 }
 
 async function buildCar(executable, file, options, previous) {
@@ -254,48 +485,48 @@ async function buildCar(executable, file, options, previous) {
     await fs.copyFile(`${output}.tmp`, output);
     await fs.unlink(`${output}.tmp`);
     console.log(`  ✓ eredeti minőség, másolva (${(sourceStat.size / 1024 / 1024).toFixed(2)} MB)`);
-    return { signature, profile: 'copy', bytes: sourceStat.size, sourceBytes: sourceStat.size };
+    return { signature, copied: true, bytes: sourceStat.size, sourceBytes: sourceStat.size };
   }
 
-  let smallest = null;
-  for (const profile of REMOTE_CAR_PROFILES) {
-    const candidate = path.join(OUTPUT_DIR, `.${id}.${profile.name}.tmp.glb`);
-    const reportFile = path.join(OUTPUT_DIR, `.${id}.${profile.name}.report.json`);
-    await fs.rm(candidate, { force: true });
-    await fs.rm(reportFile, { force: true });
-    const args = [
-      '-i', input, '-o', candidate,
-      '-kn', '-km', '-sp', '-vt', '16',
-      '-si', String(profile.ratio), '-se', String(profile.error),
-      '-tw', '-tq', String(profile.quality), '-tl', String(profile.textureLimit),
-      '-r', reportFile,
-    ];
-    if (profile.aggressive) args.push('-sa');
-    await run(executable, args, { quiet: true });
-    const stat = await fs.stat(candidate);
-    const mb = stat.size / 1024 / 1024;
-    console.log(`  ${profile.name.padEnd(14)} ${mb.toFixed(2)} MB`);
-    if (!smallest || stat.size < smallest.bytes) smallest = { file: candidate, bytes: stat.size };
-    if (stat.size <= targetBytes) {
-      await validateCandidate(input, candidate, config, targetBytes);
-      const report = await readJson(reportFile, {});
-      await fs.copyFile(candidate, output);
-      for (const item of await fs.readdir(OUTPUT_DIR)) {
-        if (item.startsWith(`.${id}.`) && (item.endsWith('.tmp.glb') || item.endsWith('.report.json'))) {
-          await fs.rm(path.join(OUTPUT_DIR, item), { force: true });
-        }
-      }
-      console.log(`  ✓ ${profile.name}, ${report.render?.triangleCount?.toLocaleString('hu-HU') || '?'} háromszög`);
-      return {
-        signature,
-        profile: profile.name,
-        bytes: stat.size,
-        sourceBytes: sourceStat.size,
-        triangles: report.render?.triangleCount ?? null,
-      };
+  let found;
+  try {
+    found = await pickSettings(executable, { id, input, targetBytes });
+    await validateCandidate(input, found.file, config, targetBytes);
+    await fs.copyFile(found.file, output);
+  } finally {
+    await cleanTempFiles(id);
+  }
+  console.log(`  ✓ ${describeSettings(found)}, ${found.triangles?.toLocaleString('hu-HU') || '?'} háromszög (a ${found.limitedBy} szorított)`);
+  return {
+    signature,
+    geometry: found.geometry,
+    texture: found.texture,
+    limitedBy: found.limitedBy,
+    bytes: found.bytes,
+    sourceBytes: sourceStat.size,
+    triangles: found.triangles,
+    imageBytes: found.imageBytes,
+    geometryBytes: found.geometryBytes,
+  };
+}
+
+// A nyilvántartást autónként kiírjuk, hogy egy megszakadt futás se dobja el az
+// addig elvégzett munkát. Ugyanezt a fájlt viszont a futó dev szerver is
+// olvassa (az /api/assets-hez), és Windowson a párhuzamos olvasás néha épp a
+// kiírás pillanatában nyitja meg — a writeFile ilyenkor UNKNOWN hibával száll
+// el. Ideiglenes fájlba írunk és átnevezünk, néhány újrapróbálkozással.
+async function writeMetadata(next) {
+  const temporary = `${METADATA_FILE}.tmp`;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await fs.writeFile(temporary, `${JSON.stringify(next, null, 2)}\n`);
+      await fs.rename(temporary, METADATA_FILE);
+      return;
+    } catch (error) {
+      if (attempt >= 5) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 100 * attempt));
     }
   }
-  throw new Error(`${id}: egyik profil sem fért ${options.targetMb} MB alá (minimum ${(smallest.bytes / 1024 / 1024).toFixed(2)} MB).`);
 }
 
 export async function buildRemoteCars(argv = process.argv.slice(2)) {
@@ -319,11 +550,13 @@ export async function buildRemoteCars(argv = process.argv.slice(2)) {
     console.log(`\n[${index + 1}/${files.length}]`);
     try {
       next.cars[id] = await buildCar(executable, file, options, metadata.cars?.[id]);
-      await fs.writeFile(METADATA_FILE, `${JSON.stringify(next, null, 2)}\n`);
     } catch (error) {
       failures.push({ id, error: error.message });
       console.error(`  ✗ ${error.message}`);
     }
+    // A nyilvántartás írása KÍVÜL van a fenti try-on: egy fájlütközés nem a
+    // kocsi konvertálásának a hibája, és nem is szabad annak jelenteni.
+    await writeMetadata(next);
   }
 
   if (failures.length) {

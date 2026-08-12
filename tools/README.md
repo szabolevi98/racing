@@ -7,9 +7,8 @@ npm run cars:compress
 ```
 
 A parancs az összes eredeti `web/assets/cars/*.glb` autóból legfeljebb 5 MB-os
-változatot készít a `web/assets/cars/compressed/` mappába. Modellenként a
-legjobb minőségű, limitbe beleférő profilt választja; a már naprakész fájlokat
-kihagyja. A hivatalos `gltfpack` binárist a `tools/vendor/gltfpack/<verzió>/` mappában
+változatot készít a `web/assets/cars/compressed/` mappába; a már naprakész
+fájlokat kihagyja. A hivatalos `gltfpack` binárist a `tools/vendor/gltfpack/<verzió>/` mappában
 tartjuk, verziózva és a repóba commitolva — így a konvertálás hálózat nélkül is
 fut. Ha a binárisod platformjára még nincs ott (a repóban a Windowsos van),
 első futáskor automatikusan letölti, és SHA-256 ellenőrzés után ide teszi.
@@ -30,6 +29,29 @@ Az eredeti GLB-ket a script soha nem írja felül. A játék az eredetit haszná
 a saját autóhoz, a compressed változatot pedig multiplayer-ellenfélnél és
 Hot Lap ghostnál. Mindkettő ugyanazt az eredeti JSON-konfigurációt kapja, ezért
 a `wheelPattern` és a kerékanimáció is megmarad.
+
+### Hogyan választ beállítást
+
+Két külön skála van, egy a geometriára és egy a textúrákra — nem egy
+összefűzött profil-létra. Ez azért fontos, mert autónként más szorít: a
+BMW 320i-nél a kép 4,17 MB és a geometria 2,19, a Porsche 911 GT1-nél pont
+fordítva (2,20 / 5,13). Egy kötegelt létra mindkettőnél levágná azt is, ami
+nem szorít.
+
+A két tengely nem hat egymásra: a geometria aránya nem változtatja a textúrák
+méretét és fordítva. Ezért a script mindkét tengelyt egyszer végigméri, utána
+a teljes rács minden cellája ismert egy összeadással, és a legkisebb
+minőségvesztésű beférő cellát választja. A skálák `cost` mezője mondja meg, mi
+mennyit ér: egy 4096-os textúra felezése egy 20 méterre lévő ellenfélautón
+észrevehetetlen (1), a háromszögek harmadolása viszont a sziluettet rontja (8).
+
+A nyilvántartás minden autónál rögzíti, melyik oldal szorított (`limitedBy`),
+így utólag látszik, hol van a tartalék.
+
+A `-sp` (permissive simplification) **szándékosan nincs** a gltfpack-hívásban:
+az UV-varratokon átnyúlva vonna össze csúcsokat, amitől a textúra láthatóan
+elcsúszik a modellen. Mérve négy autón: az elhagyása +0,2…1,2% méret, és a
+célarányt nélküle is eléri. A `-vt 16` ugyanezt védi a kvantálás oldaláról.
 
 ## Kerék-configok automatikus elkészítése
 
