@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { RaceController, sanitizeClientCarState } from '../server/game/raceController.js';
-import { ROOM_STATE, GAME_MODE, S2C, TAINT } from '../shared/protocol.js';
+import { ROOM_STATE, GAME_MODE, S2C, TAINT, TICK_MS } from '../shared/protocol.js';
 
 const wireState = (seq, t, x, z = 0, extra = {}) => ({
   seq, t,
@@ -112,9 +112,9 @@ test('race controller speed validation invalidates once and keeps the player rac
     sim.receiveState('p1', wireState(1, 1100, 1), { receivedAt: 1100 });
 
     assert.equal(sim.receiveState(
-      'p1', wireState(2, 1200, 2, 0, { v: [112, 0, 0] }), { receivedAt: 1200 }
+      'p1', wireState(2, 1200, 2, 0, { v: [160, 0, 0] }), { receivedAt: 1200 }
     ), true, 'suspicious state is relayed instead of kicking the player');
-    sim.receiveState('p1', wireState(3, 1300, 3, 0, { v: [112, 0, 0] }), { receivedAt: 1300 });
+    sim.receiveState('p1', wireState(3, 1300, 3, 0, { v: [160, 0, 0] }), { receivedAt: 1300 });
     assert.equal(sim.cars.get('p1').race.taintReason, TAINT.VALIDATION);
     assert.equal(
       messages.filter((message) => message.kind === 'validation').length,
@@ -208,6 +208,48 @@ test('rolling movement validation catches repeated small position cheats', async
     }
     assert.equal(sim.cars.get('p1').race.taintReason, TAINT.VALIDATION);
     assert.equal(messages.filter((message) => message.kind === 'validation').length, 1);
+  } finally {
+    sim.stop();
+  }
+});
+
+test('high speed and packets bunched by a ping spike stay valid', async () => {
+  const room = makeRoom();
+  const messages = [];
+  const sim = new RaceController(room, {
+    map: {
+      spawns: [{ x: -1, z: 0, heading: 0 }],
+      gates: {
+        start: { x1: 0, z1: -5, x2: 0, z2: 5 },
+        checkpoints: [{ x1: 1000, z1: -5, x2: 1000, z2: 5 }],
+      },
+    },
+    broadcast: (type, data) => messages.push({ type, ...data }),
+  });
+  await sim.start();
+  try {
+    sim.receiveState('p1', wireState(0, 900, -1), { initial: true, receivedAt: 900 });
+    room.state = ROOM_STATE.COUNTDOWN;
+    sim.releaseAt(1000);
+    sim.pump(1000);
+    sim.receiveState('p1', wireState(1, 1100, 1), { receivedAt: 1100 });
+
+    // 450 km/h-s rövid fizikai kilengés, minden harmadik kliensállapot jut át.
+    // A ping után ezek szinte egyszerre érkeznek meg a szerverhez.
+    const speed = 125;
+    let seq = 1;
+    let x = 1;
+    for (let i = 1; i <= 20; i++) {
+      seq += 3;
+      x += speed * 3 * TICK_MS / 1_000;
+      sim.receiveState(
+        'p1', wireState(seq, 1100 + i * 50, x, 0, { v: [speed, 0, 0] }),
+        { receivedAt: 1200 + i }
+      );
+    }
+
+    assert.equal(sim.cars.get('p1').race.taintReason, TAINT.NONE);
+    assert.equal(messages.some((message) => message.kind === 'validation'), false);
   } finally {
     sim.stop();
   }

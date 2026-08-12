@@ -21,8 +21,11 @@ const SNAPSHOT_MS = 1000 / SNAPSHOT_RATE;
 const MAX_ABS_POSITION = 100_000;
 const MAX_LINEAR_SPEED = 180; // Durva csomagszűrés; a játékszabály szerinti határ lejjebb van.
 const MAX_ANGULAR_SPEED = 100;
-const MAX_VALID_HORIZONTAL_SPEED = 400 / 3.6;
-const MAX_PLAUSIBLE_MOVEMENT_SPEED = 120; // 432 km/h: kis tartalék ütközésre és hálózati jitterre.
+// A kliens fizikai végsebessége 378 km/h. A szerver ennél szándékosan jóval
+// megengedőbb: egy rövid ütközési kilengés ne tegye tönkre az egész kört.
+const MAX_VALID_HORIZONTAL_SPEED = 500 / 3.6;
+const MAX_PLAUSIBLE_MOVEMENT_SPEED = 150; // 540 km/h a pozícióalapú, tartós ellenőrzéshez.
+const MAX_MOVEMENT_SEQUENCE_GAP = 12;
 const MOVEMENT_PACKET_GRACE_METERS = 3;
 const MOVEMENT_WINDOW_GRACE_METERS = 8;
 const MOVEMENT_WINDOW_MIN_MS = 500;
@@ -63,15 +66,25 @@ function horizontalDistance(a, b) {
   return Math.hypot(b.p[0] - a.p[0], b.p[2] - a.p[2]);
 }
 
-function hasImplausibleMovement(car, next, receivedAt) {
-  if (!car.lastStateAt || receivedAt <= car.lastStateAt) return false;
-  const elapsedMs = receivedAt - car.lastStateAt;
+function nextMovementTime(car, seq, receivedAt) {
+  if (!car.lastMovementAt || !car.lastStateAt) return receivedAt;
+  const receivedDelta = Math.max(0, receivedAt - car.lastStateAt);
+  const sequenceDelta = Math.max(1, Math.min(MAX_MOVEMENT_SEQUENCE_GAP, seq - car.lastSeq));
+  // Pingkiugrás után több, egymást követő fizikai állapot egyszerre érkezhet be.
+  // A sorszám csak korlátozott időt adhat hozzá, ezért nem használható tetszőleges
+  // teleport elfedésére, a szabályos 60 Hz-es mozgást viszont nem tömörítjük össze.
+  return car.lastMovementAt + Math.max(receivedDelta, sequenceDelta * TICK_MS);
+}
+
+function hasImplausibleMovement(car, next, movementAt) {
+  if (!car.lastMovementAt || movementAt <= car.lastMovementAt) return false;
+  const elapsedMs = movementAt - car.lastMovementAt;
   const packetLimit = MOVEMENT_PACKET_GRACE_METERS
     + MAX_PLAUSIBLE_MOVEMENT_SPEED * elapsedMs / 1_000;
   if (horizontalDistance(car.state, next) > packetLimit) return true;
 
   for (const sample of car.movementSamples) {
-    const windowMs = receivedAt - sample.at;
+    const windowMs = movementAt - sample.at;
     if (windowMs < MOVEMENT_WINDOW_MIN_MS) continue;
     if (windowMs > MOVEMENT_WINDOW_MAX_MS) continue;
     const windowLimit = MOVEMENT_WINDOW_GRACE_METERS
@@ -81,9 +94,9 @@ function hasImplausibleMovement(car, next, receivedAt) {
   return false;
 }
 
-function recordMovementSample(car, state, receivedAt) {
-  car.movementSamples.push({ p: [...state.p], at: receivedAt });
-  const keepAfter = receivedAt - MOVEMENT_WINDOW_MAX_MS;
+function recordMovementSample(car, state, movementAt) {
+  car.movementSamples.push({ p: [...state.p], at: movementAt });
+  const keepAfter = movementAt - MOVEMENT_WINDOW_MAX_MS;
   while (car.movementSamples.length > 1 && car.movementSamples[0].at < keepAfter) {
     car.movementSamples.shift();
   }
@@ -172,6 +185,7 @@ export class RaceController {
         },
         lastSeq: 0,
         lastStateAt: 0,
+        lastMovementAt: 0,
         movementSamples: [],
         acceptTeleportOnce: true,
         pendingReset: null,
@@ -203,8 +217,9 @@ export class RaceController {
     const state = sanitizeClientCarState(raw);
     if (!state) return false;
 
-    // A kliens `t` mezője csak hálózati diagnosztika lehet: köridőt és
-    // hihetőségvizsgálatot kizárólag a szerver monoton beérkezési ideje vezérel.
+    // A kliens `t` mezője csak hálózati diagnosztika lehet: a köridőt kizárólag
+    // a szerver monoton beérkezési ideje vezérli. A mozgásvizsgálat a szerveridő
+    // mellett a korlátozott csomagsorszám-különbséget is figyelembe veszi.
     const eventTime = Math.max(car.lastStateAt || -Infinity, receivedAt);
     if (!initial && car.pendingReset) {
       const distanceToTarget = Math.hypot(
@@ -221,16 +236,18 @@ export class RaceController {
       car.pendingReset = null;
       car.acceptTeleportOnce = distanceToTarget <= RESET_ACK_RADIUS_METERS;
     }
+    const movementAt = initial ? eventTime : nextMovementTime(car, seq, eventTime);
     const validationFailed = !initial && (
       exceedsSpeedLimit(state)
-      || (!car.acceptTeleportOnce && hasImplausibleMovement(car, state, eventTime))
+      || (!car.acceptTeleportOnce && hasImplausibleMovement(car, state, movementAt))
     );
 
     car.state = state;
     car.lastSeq = Math.max(car.lastSeq, seq);
     car.lastStateAt = eventTime;
+    car.lastMovementAt = movementAt;
     car.acceptTeleportOnce = false;
-    recordMovementSample(car, state, eventTime);
+    recordMovementSample(car, state, movementAt);
 
     if (initial || this.room.state !== ROOM_STATE.RACING || eventTime < this.startAt) {
       car.race.prevX = state.p[0];
@@ -297,7 +314,8 @@ export class RaceController {
     car.race.prevX = x;
     car.race.prevZ = z;
     car.race.prevAt = car.lastStateAt || Date.now();
-    car.movementSamples = [{ p: [...car.state.p], at: car.race.prevAt }];
+    car.lastMovementAt = car.race.prevAt;
+    car.movementSamples = [{ p: [...car.state.p], at: car.lastMovementAt }];
     car.acceptTeleportOnce = true;
     car.pendingReset = { x, z, expiresAt: Date.now() + RESET_ACK_TIMEOUT_MS };
     this.broadcast(S2C.CAR_RESET, { playerId, respawn: { x, z, heading } });
