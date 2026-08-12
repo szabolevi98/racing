@@ -7,7 +7,11 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CARS_DIR = path.join(ROOT, 'web', 'assets', 'cars');
 const OUTPUT_DIR = path.join(CARS_DIR, 'compressed');
-const CACHE_DIR = path.join(ROOT, 'tools', '.cache', 'gltfpack', 'v1.2');
+// A gltfpack binárist a repóban tartjuk (tools/vendor/), nem eldobható
+// gyorsítótárban: így a konvertálás hálózat nélkül is fut, és nem függ attól,
+// hogy a GitHub-kiadás elérhető marad-e. A verzió a mappanévben van, hogy
+// verzióváltásnál ne keveredjen a régivel.
+const VENDOR_DIR = path.join(ROOT, 'tools', 'vendor', 'gltfpack', 'v1.2');
 const METADATA_FILE = path.join(OUTPUT_DIR, 'manifest.json');
 const PIPELINE_VERSION = 1;
 const DEFAULT_TARGET_MB = 5;
@@ -93,11 +97,11 @@ async function download(url, attempts = 4) {
 async function ensureGltfpack() {
   const release = RELEASES[`${process.platform}-${process.arch}`];
   if (!release) throw new Error(`Nem támogatott platform: ${process.platform}-${process.arch}`);
-  const executable = path.join(CACHE_DIR, release.executable);
+  const executable = path.join(VENDOR_DIR, release.executable);
   if (await fileExists(executable)) return executable;
 
-  await fs.mkdir(CACHE_DIR, { recursive: true });
-  const archive = path.join(CACHE_DIR, release.archive);
+  await fs.mkdir(VENDOR_DIR, { recursive: true });
+  const archive = path.join(VENDOR_DIR, release.archive);
   const url = `https://github.com/zeux/meshoptimizer/releases/download/v1.2/${release.archive}`;
   let bytes = await fileExists(archive) ? await fs.readFile(archive) : null;
   let digest = bytes ? createHash('sha256').update(bytes).digest('hex') : null;
@@ -117,9 +121,9 @@ async function ensureGltfpack() {
   if (digest !== release.sha256) throw new Error(`gltfpack SHA-256 eltérés: ${digest}`);
 
   if (process.platform === 'win32') {
-    await run('tar.exe', ['-xf', archive, '-C', CACHE_DIR], { quiet: true });
+    await run('tar.exe', ['-xf', archive, '-C', VENDOR_DIR], { quiet: true });
   } else {
-    await run('unzip', ['-o', archive, '-d', CACHE_DIR], { quiet: true });
+    await run('unzip', ['-o', archive, '-d', VENDOR_DIR], { quiet: true });
     await fs.chmod(executable, 0o755);
   }
   if (!await fileExists(executable)) throw new Error('A gltfpack kicsomagolása nem sikerült.');

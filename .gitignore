@@ -24,8 +24,11 @@ Thumbs.db
 # Node
 /node_modules/
 .env
-/tools/.cache/
-/web/assets/cars/compressed/manifest.json
+
+# A gltfpack binárisa a repóban van (tools/vendor/), hogy a konvertálás
+# hálózat nélkül is fusson. A letöltött ZIP viszont csak köztes lépés a
+# kicsomagolásig — abból a bináris már megvan, tehát felesleges tárolni.
+/tools/vendor/**/*.zip
 
 # Feltöltéshez összecsomagolt assetek. Ezek gigabájtosak, és a bennük lévő
 # fájlok amúgy is ki vannak zárva külön — egy `git add -A` viszont a csomagot

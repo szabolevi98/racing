@@ -9,8 +9,10 @@ npm run cars:compress
 A parancs az összes eredeti `web/assets/cars/*.glb` autóból legfeljebb 5 MB-os
 változatot készít a `web/assets/cars/compressed/` mappába. Modellenként a
 legjobb minőségű, limitbe beleférő profilt választja; a már naprakész fájlokat
-kihagyja. A hivatalos `gltfpack` binárist első futáskor automatikusan letölti,
-és SHA-256 ellenőrzés után a `tools/.cache/` mappában tartja.
+kihagyja. A hivatalos `gltfpack` binárist a `tools/vendor/gltfpack/<verzió>/` mappában
+tartjuk, verziózva és a repóba commitolva — így a konvertálás hálózat nélkül is
+fut. Ha a binárisod platformjára még nincs ott (a repóban a Windowsos van),
+első futáskor automatikusan letölti, és SHA-256 ellenőrzés után ide teszi.
 
 Egy vagy több konkrét autó újragenerálása:
 

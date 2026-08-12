@@ -1,0 +1,1269 @@
+{
+  "version": 1,
+  "targetMb": 5,
+  "generatedAt": "2026-08-12T18:49:40.823Z",
+  "cars": {
+    "2008_bmw_sauber_f1.08": {
+      "signature": "1:41196616:1785691169823:5242880",
+      "profile": "balanced",
+      "bytes": 4713360,
+      "sourceBytes": 41196616,
+      "triangles": 86387
+    },
+    "1937_auto_union_type-c_streamliner": {
+      "signature": "1:16146796:1785785517987:5242880",
+      "profile": "balanced-high",
+      "bytes": 4626752,
+      "sourceBytes": 16146796,
+      "triangles": 131047
+    },
+    "1949_ferrari_166_fl": {
+      "signature": "1:8204968:1785785462750:5242880",
+      "profile": "lossless",
+      "bytes": 3558476,
+      "sourceBytes": 8204968,
+      "triangles": 87634
+    },
+    "1962_ferrari_250_gto": {
+      "signature": "1:2957480:1785369406000:5242880",
+      "profile": "copy",
+      "bytes": 2957480,
+      "sourceBytes": 2957480
+    },
+    "1965_honda_ra272": {
+      "signature": "1:7720808:1785785486666:5242880",
+      "profile": "lossless",
+      "bytes": 3442132,
+      "sourceBytes": 7720808,
+      "triangles": 83523
+    },
+    "1967_ferrari_312": {
+      "signature": "1:7645792:1785681872810:5242880",
+      "profile": "lossless",
+      "bytes": 3485988,
+      "sourceBytes": 7645792,
+      "triangles": 78364
+    },
+    "1968_alfa_romeo_t332_long_tail": {
+      "signature": "1:17449176:1786046786578:5242880",
+      "profile": "balanced",
+      "bytes": 4327696,
+      "sourceBytes": 17449176,
+      "triangles": 85228
+    },
+    "1968_porsche_908_lh": {
+      "signature": "1:8397880:1785682625530:5242880",
+      "profile": "lossless",
+      "bytes": 2725600,
+      "sourceBytes": 8397880,
+      "triangles": 149851
+    },
+    "1972_lotus_72d": {
+      "signature": "1:3436772:1785682245343:5242880",
+      "profile": "copy",
+      "bytes": 3436772,
+      "sourceBytes": 3436772
+    },
+    "1975_fittipaldi_fd02": {
+      "signature": "1:21022140:1786046465115:5242880",
+      "profile": "balanced-high",
+      "bytes": 4407756,
+      "sourceBytes": 21022140,
+      "triangles": 35373
+    },
+    "1977_melkus_mt77": {
+      "signature": "1:12549472:1785784857883:5242880",
+      "profile": "lossless",
+      "bytes": 4939520,
+      "sourceBytes": 12549472,
+      "triangles": 78820
+    },
+    "1977_renault_alpine_a442": {
+      "signature": "1:8143720:1785682665703:5242880",
+      "profile": "lossless",
+      "bytes": 2931328,
+      "sourceBytes": 8143720,
+      "triangles": 91986
+    },
+    "1978_brabham_bt46b": {
+      "signature": "1:15815760:1785785552176:5242880",
+      "profile": "high",
+      "bytes": 4755108,
+      "sourceBytes": 15815760,
+      "triangles": 94616
+    },
+    "1979_williams_fw07": {
+      "signature": "1:18935080:1785684626376:5242880",
+      "profile": "balanced-high",
+      "bytes": 5130696,
+      "sourceBytes": 18935080,
+      "triangles": 274931
+    },
+    "1981_lotus_88": {
+      "signature": "1:6348444:1785784868077:5242880",
+      "profile": "lossless",
+      "bytes": 2502736,
+      "sourceBytes": 6348444,
+      "triangles": 38452
+    },
+    "1982_mercedes_w201": {
+      "signature": "1:26259584:1785785939856:5242880",
+      "profile": "balanced",
+      "bytes": 5189520,
+      "sourceBytes": 26259584,
+      "triangles": 92938
+    },
+    "1982_nimrod_nrac2": {
+      "signature": "1:7678560:1786046652642:5242880",
+      "profile": "lossless",
+      "bytes": 3436136,
+      "sourceBytes": 7678560,
+      "triangles": 41338
+    },
+    "1982_rondeau_m482": {
+      "signature": "1:8038468:1786046610494:5242880",
+      "profile": "lossless",
+      "bytes": 3465480,
+      "sourceBytes": 8038468,
+      "triangles": 56030
+    },
+    "1982_sauber_shs_c6": {
+      "signature": "1:14499456:1786046615864:5242880",
+      "profile": "high",
+      "bytes": 4950664,
+      "sourceBytes": 14499456,
+      "triangles": 93249
+    },
+    "1982_toleman_tg183": {
+      "signature": "1:20553248:1785786025685:5242880",
+      "profile": "balanced-high",
+      "bytes": 3842092,
+      "sourceBytes": 20553248,
+      "triangles": 85142
+    },
+    "1983_brabham_bt52": {
+      "signature": "1:18868416:1785684676593:5242880",
+      "profile": "balanced-high",
+      "bytes": 4974288,
+      "sourceBytes": 18868416,
+      "triangles": 97950
+    },
+    "1983_mclaren_mp41": {
+      "signature": "1:11969728:1785684611141:5242880",
+      "profile": "very-high",
+      "bytes": 5031500,
+      "sourceBytes": 11969728,
+      "triangles": 110226
+    },
+    "1983_sauber_c7": {
+      "signature": "1:11525564:1786046624037:5242880",
+      "profile": "lossless",
+      "bytes": 4929628,
+      "sourceBytes": 11525564,
+      "triangles": 63819
+    },
+    "1983_williams_fw08c": {
+      "signature": "1:10927724:1785684618032:5242880",
+      "profile": "lossless",
+      "bytes": 5119604,
+      "sourceBytes": 10927724,
+      "triangles": 135772
+    },
+    "1986_tyrrell_015": {
+      "signature": "1:17576472:1785684663435:5242880",
+      "profile": "balanced-high",
+      "bytes": 2708508,
+      "sourceBytes": 17576472,
+      "triangles": 46221
+    },
+    "1987_aston_martin_amr1": {
+      "signature": "1:20696224:1786046628490:5242880",
+      "profile": "balanced",
+      "bytes": 4410812,
+      "sourceBytes": 20696224,
+      "triangles": 141706
+    },
+    "1987_mercedes_sauber_c9": {
+      "signature": "1:6736868:1785682897536:5242880",
+      "profile": "lossless",
+      "bytes": 2416956,
+      "sourceBytes": 6736868,
+      "triangles": 92684
+    },
+    "1987_mercedes_sauber_c9_gt_michelin": {
+      "signature": "1:15347588:1785682157724:5242880",
+      "profile": "balanced-high",
+      "bytes": 4963428,
+      "sourceBytes": 15347588,
+      "triangles": 133630
+    },
+    "1987_peugeot_205_pikes_peak": {
+      "signature": "1:20690420:1785785091115:5242880",
+      "profile": "balanced",
+      "bytes": 4145380,
+      "sourceBytes": 20690420,
+      "triangles": 54567
+    },
+    "1987_porsche_ruf_ctr_yellow_bird_race_version": {
+      "signature": "1:12359996:1785785957850:5242880",
+      "profile": "lossless",
+      "bytes": 5025760,
+      "sourceBytes": 12359996,
+      "triangles": 150708
+    },
+    "1988_jaguar_xjr-9": {
+      "signature": "1:14787368:1785682874012:5242880",
+      "profile": "lossless",
+      "bytes": 4735724,
+      "sourceBytes": 14787368,
+      "triangles": 218067
+    },
+    "1988_lamborghini_countach": {
+      "signature": "1:13363536:1785681456504:5242880",
+      "profile": "very-high",
+      "bytes": 5220084,
+      "sourceBytes": 13363536,
+      "triangles": 172973
+    },
+    "1988_mclaren_mp44": {
+      "signature": "1:6202864:1785691365951:5242880",
+      "profile": "lossless",
+      "bytes": 2793444,
+      "sourceBytes": 6202864,
+      "triangles": 95395
+    },
+    "1989_nissan_r89c_lm": {
+      "signature": "1:5622384:1785786131687:5242880",
+      "profile": "lossless",
+      "bytes": 1947468,
+      "sourceBytes": 5622384,
+      "triangles": 91787
+    },
+    "1989_porsche_962c_takefuji": {
+      "signature": "1:24392808:1785682807688:5242880",
+      "profile": "medium",
+      "bytes": 4923412,
+      "sourceBytes": 24392808,
+      "triangles": 63198
+    },
+    "1990_benetton_b190": {
+      "signature": "1:9293776:1785684634254:5242880",
+      "profile": "lossless",
+      "bytes": 4596300,
+      "sourceBytes": 9293776,
+      "triangles": 67290
+    },
+    "1990_jaguar_xjr-12": {
+      "signature": "1:26536356:1785784970972:5242880",
+      "profile": "balanced",
+      "bytes": 4670636,
+      "sourceBytes": 26536356,
+      "triangles": 82067
+    },
+    "1990_life_f190": {
+      "signature": "1:10239436:1785684647365:5242880",
+      "profile": "lossless",
+      "bytes": 4462748,
+      "sourceBytes": 10239436,
+      "triangles": 116045
+    },
+    "1991_brun_c91": {
+      "signature": "1:6846116:1786046632122:5242880",
+      "profile": "lossless",
+      "bytes": 2860328,
+      "sourceBytes": 6846116,
+      "triangles": 34747
+    },
+    "1991_jordan_191": {
+      "signature": "1:19416304:1785684683791:5242880",
+      "profile": "balanced",
+      "bytes": 3920732,
+      "sourceBytes": 19416304,
+      "triangles": 66092
+    },
+    "1991_konrad_km-011": {
+      "signature": "1:13190872:1786046620119:5242880",
+      "profile": "lossless",
+      "bytes": 4505336,
+      "sourceBytes": 13190872,
+      "triangles": 41827
+    },
+    "1991_mazda_787b": {
+      "signature": "1:6398472:1785682915262:5242880",
+      "profile": "lossless",
+      "bytes": 2652928,
+      "sourceBytes": 6398472,
+      "triangles": 50402
+    },
+    "1991_toyota_eagle_mkiii": {
+      "signature": "1:25970924:1786206524310:5242880",
+      "profile": "medium",
+      "bytes": 4330108,
+      "sourceBytes": 25970924,
+      "triangles": 109708
+    },
+    "1991_toyota_ts010": {
+      "signature": "1:1188484:1785682648054:5242880",
+      "profile": "copy",
+      "bytes": 1188484,
+      "sourceBytes": 1188484
+    },
+    "1992_brm_p351": {
+      "signature": "1:6240156:1786046605898:5242880",
+      "profile": "lossless",
+      "bytes": 2384780,
+      "sourceBytes": 6240156,
+      "triangles": 22857
+    },
+    "1992_mazda_mxr-01": {
+      "signature": "1:13397116:1785784959615:5242880",
+      "profile": "balanced",
+      "bytes": 4139372,
+      "sourceBytes": 13397116,
+      "triangles": 23500
+    },
+    "1992_williams_fw14": {
+      "signature": "1:9648340:1785684690225:5242880",
+      "profile": "lossless",
+      "bytes": 4192272,
+      "sourceBytes": 9648340,
+      "triangles": 56835
+    },
+    "1994_ferrari_412_t1": {
+      "signature": "1:22487032:1785691771556:5242880",
+      "profile": "balanced-high",
+      "bytes": 4133612,
+      "sourceBytes": 22487032,
+      "triangles": 133232
+    },
+    "1994_mercedes_w202_amg_dtm": {
+      "signature": "1:12525708:1785786185325:5242880",
+      "profile": "lossless",
+      "bytes": 3660868,
+      "sourceBytes": 12525708,
+      "triangles": 153191
+    },
+    "1994_nissan_300zx": {
+      "signature": "1:13760180:1786379157680:5242880",
+      "profile": "very-high",
+      "bytes": 5228628,
+      "sourceBytes": 13760180,
+      "triangles": 122788
+    },
+    "1995_mclaren_f1_gtr_gulf": {
+      "signature": "1:11046116:1785682144226:5242880",
+      "profile": "lossless",
+      "bytes": 4924756,
+      "sourceBytes": 11046116,
+      "triangles": 153350
+    },
+    "1996_bmw_320i_stw_custom_livery": {
+      "signature": "1:14606200:1786046326349:5242880",
+      "profile": "high",
+      "bytes": 4269424,
+      "sourceBytes": 14606200,
+      "triangles": 78588
+    },
+    "1996_bmw_320i_stw_fina": {
+      "signature": "1:16645940:1785785060328:5242880",
+      "profile": "high",
+      "bytes": 5227796,
+      "sourceBytes": 16645940,
+      "triangles": 78588
+    },
+    "1996_opel_calibra_v6_4x4-itc_dtm": {
+      "signature": "1:18157520:1785682753900:5242880",
+      "profile": "balanced",
+      "bytes": 4294140,
+      "sourceBytes": 18157520,
+      "triangles": 122195
+    },
+    "1996_porsche_911_gt1": {
+      "signature": "1:17769184:1785682052409:5242880",
+      "profile": "balanced-high",
+      "bytes": 5048312,
+      "sourceBytes": 17769184,
+      "triangles": 200890
+    },
+    "1997_benetton_b197": {
+      "signature": "1:9479044:1785690866418:5242880",
+      "profile": "lossless",
+      "bytes": 4433336,
+      "sourceBytes": 9479044,
+      "triangles": 74378
+    },
+    "1997_ferrari_f310": {
+      "signature": "1:6164644:1785690860863:5242880",
+      "profile": "lossless",
+      "bytes": 3275668,
+      "sourceBytes": 6164644,
+      "triangles": 54165
+    },
+    "1997_mclaren_f1_gtr_longtail": {
+      "signature": "1:4562252:1785682558093:5242880",
+      "profile": "copy",
+      "bytes": 4562252,
+      "sourceBytes": 4562252
+    },
+    "1997_mclaren_mp412": {
+      "signature": "1:11099472:1785690855177:5242880",
+      "profile": "very-high",
+      "bytes": 5110560,
+      "sourceBytes": 11099472,
+      "triangles": 53294
+    },
+    "1997_mercedes-benz_clk_gtr": {
+      "signature": "1:14796804:1785682486711:5242880",
+      "profile": "high",
+      "bytes": 4785432,
+      "sourceBytes": 14796804,
+      "triangles": 162582
+    },
+    "1997_mercedes_clk_gtr_gt1": {
+      "signature": "1:3511428:1785786393255:5242880",
+      "profile": "copy",
+      "bytes": 3511428,
+      "sourceBytes": 3511428
+    },
+    "1997_mercedes_clk_gtr_gt1_2": {
+      "signature": "1:18900336:1786298451716:5242880",
+      "profile": "balanced-high",
+      "bytes": 4868112,
+      "sourceBytes": 18900336,
+      "triangles": 114429
+    },
+    "1997_nissan_r390_gt1_lm": {
+      "signature": "1:10362488:1785682657332:5242880",
+      "profile": "lossless",
+      "bytes": 3347232,
+      "sourceBytes": 10362488,
+      "triangles": 138483
+    },
+    "1997_toyota_castrol_toms_supra": {
+      "signature": "1:7541304:1785682594096:5242880",
+      "profile": "lossless",
+      "bytes": 2503924,
+      "sourceBytes": 7541304,
+      "triangles": 104174
+    },
+    "1997_tvr_cerbera_speed_12": {
+      "signature": "1:14639176:1786045610199:5242880",
+      "profile": "balanced-high",
+      "bytes": 3715008,
+      "sourceBytes": 14639176,
+      "triangles": 42084
+    },
+    "1997_williams_fw19": {
+      "signature": "1:4476884:1785684592298:5242880",
+      "profile": "copy",
+      "bytes": 4476884,
+      "sourceBytes": 4476884
+    },
+    "1998_mercedes-benz_clk_lm": {
+      "signature": "1:3642320:1785785716607:5242880",
+      "profile": "copy",
+      "bytes": 3642320,
+      "sourceBytes": 3642320
+    },
+    "1998_toyota_tacoma_pikes_peak": {
+      "signature": "1:9814244:1786206497666:5242880",
+      "profile": "lossless",
+      "bytes": 4407964,
+      "sourceBytes": 9814244,
+      "triangles": 51146
+    },
+    "1999_dodge_viper_gts-r_oreca": {
+      "signature": "1:12917392:1785682177599:5242880",
+      "profile": "high",
+      "bytes": 4626028,
+      "sourceBytes": 12917392,
+      "triangles": 136073
+    },
+    "1999_pagani_zonda_c12": {
+      "signature": "1:21695116:1785682398252:5242880",
+      "profile": "balanced",
+      "bytes": 4559612,
+      "sourceBytes": 21695116,
+      "triangles": 164086
+    },
+    "1999_toyota_ts020_gt-one": {
+      "signature": "1:3874584:1785682603653:5242880",
+      "profile": "copy",
+      "bytes": 3874584,
+      "sourceBytes": 3874584
+    },
+    "2000_lamborghini_nomad_diablo_gt1": {
+      "signature": "1:10351128:1785682104772:5242880",
+      "profile": "lossless",
+      "bytes": 4942652,
+      "sourceBytes": 10351128,
+      "triangles": 141676
+    },
+    "2001_bmw_m3_gtr_e46": {
+      "signature": "1:3954256:1784294556000:5242880",
+      "profile": "copy",
+      "bytes": 3954256,
+      "sourceBytes": 3954256
+    },
+    "2002_bar_004": {
+      "signature": "1:31174836:1785687738106:5242880",
+      "profile": "balanced-high",
+      "bytes": 3484044,
+      "sourceBytes": 31174836,
+      "triangles": 63342
+    },
+    "2002_ferrari_f2002": {
+      "signature": "1:30563936:1785687754400:5242880",
+      "profile": "balanced",
+      "bytes": 3831276,
+      "sourceBytes": 30563936,
+      "triangles": 59262
+    },
+    "2002_jaguar_r3": {
+      "signature": "1:16646452:1785687731992:5242880",
+      "profile": "balanced-high",
+      "bytes": 3279900,
+      "sourceBytes": 16646452,
+      "triangles": 59280
+    },
+    "2002_jordan_ej12": {
+      "signature": "1:24833156:1785687781038:5242880",
+      "profile": "balanced-high",
+      "bytes": 3462592,
+      "sourceBytes": 24833156,
+      "triangles": 65581
+    },
+    "2002_mclaren_mp4-17": {
+      "signature": "1:30207016:1785687789773:5242880",
+      "profile": "balanced",
+      "bytes": 4221664,
+      "sourceBytes": 30207016,
+      "triangles": 42110
+    },
+    "2002_mercedes_clk_dtm_d2": {
+      "signature": "1:11401264:1785785400966:5242880",
+      "profile": "lossless",
+      "bytes": 5190332,
+      "sourceBytes": 11401264,
+      "triangles": 115304
+    },
+    "2002_minardi_ps02": {
+      "signature": "1:16882184:1785684774855:5242880",
+      "profile": "high",
+      "bytes": 4974948,
+      "sourceBytes": 16882184,
+      "triangles": 80660
+    },
+    "2002_renault_r202": {
+      "signature": "1:11928688:1785687687702:5242880",
+      "profile": "very-high",
+      "bytes": 4838148,
+      "sourceBytes": 11928688,
+      "triangles": 94168
+    },
+    "2002_sauber_c21": {
+      "signature": "1:13008460:1785684785797:5242880",
+      "profile": "high",
+      "bytes": 4730880,
+      "sourceBytes": 13008460,
+      "triangles": 83395
+    },
+    "2002_toyota_tf102": {
+      "signature": "1:22918720:1785687724444:5242880",
+      "profile": "balanced-high",
+      "bytes": 4036948,
+      "sourceBytes": 22918720,
+      "triangles": 72749
+    },
+    "2002_tvr_cerbera_speed_6_gt3_fia_n-gt": {
+      "signature": "1:4330696:1786046051182:5242880",
+      "profile": "copy",
+      "bytes": 4330696,
+      "sourceBytes": 4330696
+    },
+    "2002_williams_fw24": {
+      "signature": "1:16158764:1785687717076:5242880",
+      "profile": "very-high",
+      "bytes": 4875740,
+      "sourceBytes": 16158764,
+      "triangles": 133134
+    },
+    "2003_audi_tt-r_dtm": {
+      "signature": "1:14586828:1785785374137:5242880",
+      "profile": "high",
+      "bytes": 4813056,
+      "sourceBytes": 14586828,
+      "triangles": 125031
+    },
+    "2003_audi_tt": {
+      "signature": "1:2517844:1785786158851:5242880",
+      "profile": "copy",
+      "bytes": 2517844,
+      "sourceBytes": 2517844
+    },
+    "2003_opel_astra_v8_coupe_dtm": {
+      "signature": "1:12429572:1785682768797:5242880",
+      "profile": "very-high",
+      "bytes": 4831820,
+      "sourceBytes": 12429572,
+      "triangles": 133195
+    },
+    "2003_renault_r23": {
+      "signature": "1:5379992:1785691589030:5242880",
+      "profile": "lossless",
+      "bytes": 2981984,
+      "sourceBytes": 5379992,
+      "triangles": 110721
+    },
+    "2004_audi_a4_r9_dtm_a": {
+      "signature": "1:15590328:1786046181669:5242880",
+      "profile": "balanced-high",
+      "bytes": 3406092,
+      "sourceBytes": 15590328,
+      "triangles": 69401
+    },
+    "2004_ferrari_f2004": {
+      "signature": "1:15505684:1785529854905:5242880",
+      "profile": "balanced-high",
+      "bytes": 5008800,
+      "sourceBytes": 15505684,
+      "triangles": 170541
+    },
+    "2005__toyota_tf105": {
+      "signature": "1:14893656:1786046707116:5242880",
+      "profile": "balanced-high",
+      "bytes": 5002292,
+      "sourceBytes": 14893656,
+      "triangles": 88648
+    },
+    "2005_bar_007": {
+      "signature": "1:14090704:1786046766091:5242880",
+      "profile": "high",
+      "bytes": 4813680,
+      "sourceBytes": 14090704,
+      "triangles": 96788
+    },
+    "2005_ferrari_f2005": {
+      "signature": "1:12398228:1786046780800:5242880",
+      "profile": "very-high",
+      "bytes": 5097564,
+      "sourceBytes": 12398228,
+      "triangles": 133457
+    },
+    "2005_jordan_ej15": {
+      "signature": "1:10919640:1786046773114:5242880",
+      "profile": "lossless",
+      "bytes": 4767332,
+      "sourceBytes": 10919640,
+      "triangles": 113284
+    },
+    "2005_maserati_mc12_gt1_redbull": {
+      "signature": "1:11917556:1785785171158:5242880",
+      "profile": "lossless",
+      "bytes": 5180524,
+      "sourceBytes": 11917556,
+      "triangles": 162458
+    },
+    "2005_mclaren_mp4-20": {
+      "signature": "1:13072920:1786046760495:5242880",
+      "profile": "high",
+      "bytes": 4627516,
+      "sourceBytes": 13072920,
+      "triangles": 80849
+    },
+    "2005_mercedes-benz_amg_c-class_w203_dtm": {
+      "signature": "1:20510668:1785785018660:5242880",
+      "profile": "very-high",
+      "bytes": 5075876,
+      "sourceBytes": 20510668,
+      "triangles": 83131
+    },
+    "2005_minardi_ps05": {
+      "signature": "1:8453948:1786046755848:5242880",
+      "profile": "lossless",
+      "bytes": 3735904,
+      "sourceBytes": 8453948,
+      "triangles": 76944
+    },
+    "2005_red_bull_rb1": {
+      "signature": "1:8996528:1786046693662:5242880",
+      "profile": "lossless",
+      "bytes": 3912840,
+      "sourceBytes": 8996528,
+      "triangles": 92104
+    },
+    "2005_renault_r25": {
+      "signature": "1:10379172:1786046718639:5242880",
+      "profile": "lossless",
+      "bytes": 4912244,
+      "sourceBytes": 10379172,
+      "triangles": 93516
+    },
+    "2005_sauber_c24": {
+      "signature": "1:10920440:1786046713258:5242880",
+      "profile": "lossless",
+      "bytes": 5038824,
+      "sourceBytes": 10920440,
+      "triangles": 76413
+    },
+    "2005_williams_fw27": {
+      "signature": "1:10432984:1786046701696:5242880",
+      "profile": "lossless",
+      "bytes": 5174372,
+      "sourceBytes": 10432984,
+      "triangles": 66368
+    },
+    "2006_bmw_sauber_f1.06": {
+      "signature": "1:8141440:1785691606806:5242880",
+      "profile": "lossless",
+      "bytes": 3501636,
+      "sourceBytes": 8141440,
+      "triangles": 91010
+    },
+    "2006_courage_lc70": {
+      "signature": "1:6534204:1786298600034:5242880",
+      "profile": "lossless",
+      "bytes": 2692380,
+      "sourceBytes": 6534204,
+      "triangles": 37837
+    },
+    "2006_ferrari_f2006": {
+      "signature": "1:24046628:1785684538750:5242880",
+      "profile": "balanced",
+      "bytes": 4579824,
+      "sourceBytes": 24046628,
+      "triangles": 101964
+    },
+    "2006_mazda_rx-7_gt300_re_amemiya": {
+      "signature": "1:2425536:1785682698185:5242880",
+      "profile": "copy",
+      "bytes": 2425536,
+      "sourceBytes": 2425536
+    },
+    "2006_mclaren_mp421": {
+      "signature": "1:28122448:1785680954524:5242880",
+      "profile": "balanced",
+      "bytes": 4324672,
+      "sourceBytes": 28122448,
+      "triangles": 89532
+    },
+    "2006_midland_m16": {
+      "signature": "1:27740672:1785684507256:5242880",
+      "profile": "balanced-high",
+      "bytes": 5122960,
+      "sourceBytes": 27740672,
+      "triangles": 110106
+    },
+    "2006_mosler_mt900_gt3": {
+      "signature": "1:36822040:1786206517315:5242880",
+      "profile": "compact",
+      "bytes": 5005232,
+      "sourceBytes": 36822040,
+      "triangles": 104956
+    },
+    "2006_redbull_rb2": {
+      "signature": "1:23300680:1785684486993:5242880",
+      "profile": "balanced-high",
+      "bytes": 4731908,
+      "sourceBytes": 23300680,
+      "triangles": 110395
+    },
+    "2006_renault_r26": {
+      "signature": "1:23235072:1785684496681:5242880",
+      "profile": "balanced",
+      "bytes": 4175956,
+      "sourceBytes": 23235072,
+      "triangles": 87007
+    },
+    "2006_scuderia_toro_rosso_str1": {
+      "signature": "1:12893680:1785691009067:5242880",
+      "profile": "high",
+      "bytes": 4230152,
+      "sourceBytes": 12893680,
+      "triangles": 44640
+    },
+    "2006_super_aguri_sa06": {
+      "signature": "1:25831056:1785684477293:5242880",
+      "profile": "balanced-high",
+      "bytes": 4955216,
+      "sourceBytes": 25831056,
+      "triangles": 111441
+    },
+    "2006_toyota_tf106": {
+      "signature": "1:22787764:1785684527947:5242880",
+      "profile": "balanced-high",
+      "bytes": 5077816,
+      "sourceBytes": 22787764,
+      "triangles": 111163
+    },
+    "2006_williams_fw28": {
+      "signature": "1:21946136:1785684465634:5242880",
+      "profile": "balanced-high",
+      "bytes": 5040100,
+      "sourceBytes": 21946136,
+      "triangles": 109727
+    },
+    "2007_porsche_996_gt300_yunker_power_taisan": {
+      "signature": "1:4700348:1785784945484:5242880",
+      "profile": "copy",
+      "bytes": 4700348,
+      "sourceBytes": 4700348
+    },
+    "2008_audi_a4_dtm_r14_redbull": {
+      "signature": "1:13678720:1785785178954:5242880",
+      "profile": "very-high",
+      "bytes": 5121024,
+      "sourceBytes": 13678720,
+      "triangles": 150687
+    },
+    "2008_ferrari_f2008": {
+      "signature": "1:21566104:1785691452785:5242880",
+      "profile": "balanced-high",
+      "bytes": 3693308,
+      "sourceBytes": 21566104,
+      "triangles": 113238
+    },
+    "2008_force_india_vjm01": {
+      "signature": "1:29383828:1785691015721:5242880",
+      "profile": "balanced",
+      "bytes": 4323424,
+      "sourceBytes": 29383828,
+      "triangles": 82459
+    },
+    "2008_honda_ra106": {
+      "signature": "1:26823044:1785684521647:5242880",
+      "profile": "balanced-high",
+      "bytes": 5047496,
+      "sourceBytes": 26823044,
+      "triangles": 111247
+    },
+    "2008_honda_ra108": {
+      "signature": "1:25021008:1785691193427:5242880",
+      "profile": "balanced",
+      "bytes": 4868144,
+      "sourceBytes": 25021008,
+      "triangles": 88677
+    },
+    "2008_mclaren_mp423": {
+      "signature": "1:28560076:1785691543088:5242880",
+      "profile": "balanced-high",
+      "bytes": 4208152,
+      "sourceBytes": 28560076,
+      "triangles": 81398
+    },
+    "2008_redbull_rb3": {
+      "signature": "1:22650340:1785691202320:5242880",
+      "profile": "balanced",
+      "bytes": 4614800,
+      "sourceBytes": 22650340,
+      "triangles": 85424
+    },
+    "2008_renault_r28": {
+      "signature": "1:23340404:1785691432206:5242880",
+      "profile": "balanced",
+      "bytes": 4296556,
+      "sourceBytes": 23340404,
+      "triangles": 86235
+    },
+    "2008_super_aguri_sa08": {
+      "signature": "1:24474616:1785691184814:5242880",
+      "profile": "balanced-high",
+      "bytes": 5003708,
+      "sourceBytes": 24474616,
+      "triangles": 110228
+    },
+    "2008_toro_rosso_str3": {
+      "signature": "1:28604600:1785691020329:5242880",
+      "profile": "balanced",
+      "bytes": 4566360,
+      "sourceBytes": 28604600,
+      "triangles": 86514
+    },
+    "2008_williams_fw30": {
+      "signature": "1:18166120:1785691177078:5242880",
+      "profile": "balanced-high",
+      "bytes": 3617340,
+      "sourceBytes": 18166120,
+      "triangles": 111604
+    },
+    "2009_audi_r10_tdi": {
+      "signature": "1:20342960:1786298620800:5242880",
+      "profile": "balanced-high",
+      "bytes": 4608680,
+      "sourceBytes": 20342960,
+      "triangles": 132428
+    },
+    "2009_audi_r15_tdi": {
+      "signature": "1:3505988:1786298605542:5242880",
+      "profile": "copy",
+      "bytes": 3505988,
+      "sourceBytes": 3505988
+    },
+    "2009_bmw_m3_gt2_nurburgring": {
+      "signature": "1:11758812:1785785981783:5242880",
+      "profile": "very-high",
+      "bytes": 5237664,
+      "sourceBytes": 11758812,
+      "triangles": 82011
+    },
+    "2009_brawn_gp": {
+      "signature": "1:7360932:1785691002229:5242880",
+      "profile": "lossless",
+      "bytes": 3304500,
+      "sourceBytes": 7360932,
+      "triangles": 35252
+    },
+    "2009_renault_r29": {
+      "signature": "1:32333464:1785684569883:5242880",
+      "profile": "compact",
+      "bytes": 4539108,
+      "sourceBytes": 32333464,
+      "triangles": 110571
+    },
+    "2010_mercedes_sls_amg": {
+      "signature": "1:14357384:1785682212236:5242880",
+      "profile": "high",
+      "bytes": 4803708,
+      "sourceBytes": 14357384,
+      "triangles": 133794
+    },
+    "2010_pagani_zonda_cinque": {
+      "signature": "1:18997080:1736603874000:5242880",
+      "profile": "balanced-high",
+      "bytes": 5217660,
+      "sourceBytes": 18997080,
+      "triangles": 162066
+    },
+    "2010_redbull_rb6": {
+      "signature": "1:8428744:1785691442094:5242880",
+      "profile": "lossless",
+      "bytes": 4221376,
+      "sourceBytes": 8428744,
+      "triangles": 42360
+    },
+    "2011_al_mercedes_benz_c-klasse_dtm_w204": {
+      "signature": "1:16477456:1785784991312:5242880",
+      "profile": "high",
+      "bytes": 5136096,
+      "sourceBytes": 16477456,
+      "triangles": 149781
+    },
+    "2011_audi_r15_tdi_plus": {
+      "signature": "1:20757624:1786298615664:5242880",
+      "profile": "balanced-high",
+      "bytes": 4787540,
+      "sourceBytes": 20757624,
+      "triangles": 183078
+    },
+    "2011_audi_r18_ultra": {
+      "signature": "1:24106144:1785785098116:5242880",
+      "profile": "balanced",
+      "bytes": 4544560,
+      "sourceBytes": 24106144,
+      "triangles": 153567
+    },
+    "2011_bmw_m3_gt2_le_mans": {
+      "signature": "1:10501780:1785785992749:5242880",
+      "profile": "lossless",
+      "bytes": 4904964,
+      "sourceBytes": 10501780,
+      "triangles": 95803
+    },
+    "2011_bmw_z4_gt3": {
+      "signature": "1:25358660:1785680885720:5242880",
+      "profile": "medium",
+      "bytes": 4221044,
+      "sourceBytes": 25358660,
+      "triangles": 195870
+    },
+    "2011_ferrari_150o_italia": {
+      "signature": "1:6095984:1785690849438:5242880",
+      "profile": "lossless",
+      "bytes": 2679288,
+      "sourceBytes": 6095984,
+      "triangles": 44845
+    },
+    "2011_hrt_f111": {
+      "signature": "1:11247460:1785690788334:5242880",
+      "profile": "lossless",
+      "bytes": 5120900,
+      "sourceBytes": 11247460,
+      "triangles": 44618
+    },
+    "2011_mclaren_mp4-26": {
+      "signature": "1:8349004:1785690781462:5242880",
+      "profile": "very-high",
+      "bytes": 3709104,
+      "sourceBytes": 8349004,
+      "triangles": 38435
+    },
+    "2011_mercedes_mgp_w02": {
+      "signature": "1:11992720:1785690815841:5242880",
+      "profile": "lossless",
+      "bytes": 4537308,
+      "sourceBytes": 11992720,
+      "triangles": 44598
+    },
+    "2011_redbull_rb7": {
+      "signature": "1:14079996:1785691565141:5242880",
+      "profile": "very-high",
+      "bytes": 3285088,
+      "sourceBytes": 14079996,
+      "triangles": 47194
+    },
+    "2011_renault_r31": {
+      "signature": "1:11321312:1785690795326:5242880",
+      "profile": "very-high",
+      "bytes": 3692260,
+      "sourceBytes": 11321312,
+      "triangles": 38662
+    },
+    "2011_sauber_c30": {
+      "signature": "1:11646248:1785690841893:5242880",
+      "profile": "very-high",
+      "bytes": 3110892,
+      "sourceBytes": 11646248,
+      "triangles": 38632
+    },
+    "2011_toro_rosso_str6": {
+      "signature": "1:12470724:1785690807550:5242880",
+      "profile": "very-high",
+      "bytes": 3356924,
+      "sourceBytes": 12470724,
+      "triangles": 38054
+    },
+    "2012_caterham_lola_sp300r": {
+      "signature": "1:6002592:1786298609882:5242880",
+      "profile": "lossless",
+      "bytes": 3464832,
+      "sourceBytes": 6002592,
+      "triangles": 30247
+    },
+    "2012_hpd_arx-03b": {
+      "signature": "1:15252224:1786298625514:5242880",
+      "profile": "balanced-high",
+      "bytes": 4171404,
+      "sourceBytes": 15252224,
+      "triangles": 122921
+    },
+    "2012_red_bull_rb8": {
+      "signature": "1:10814460:1785684456039:5242880",
+      "profile": "high",
+      "bytes": 4546944,
+      "sourceBytes": 10814460,
+      "triangles": 49564
+    },
+    "2014_mercedes_sls_safety_car": {
+      "signature": "1:18113736:1785785591512:5242880",
+      "profile": "lossless",
+      "bytes": 4169984,
+      "sourceBytes": 18113736,
+      "triangles": 174203
+    },
+    "2014_mercedes_w05_hybrid": {
+      "signature": "1:10815612:1785688494736:5242880",
+      "profile": "lossless",
+      "bytes": 3742788,
+      "sourceBytes": 10815612,
+      "triangles": 106964
+    },
+    "2014_redbull_rb10": {
+      "signature": "1:5016712:1785688487184:5242880",
+      "profile": "copy",
+      "bytes": 5016712,
+      "sourceBytes": 5016712
+    },
+    "2015_audi_r8_lms_ultra": {
+      "signature": "1:2254480:1785682707744:5242880",
+      "profile": "copy",
+      "bytes": 2254480,
+      "sourceBytes": 2254480
+    },
+    "2015_ferrari_458_italia": {
+      "signature": "1:2991176:1785682679903:5242880",
+      "profile": "copy",
+      "bytes": 2991176,
+      "sourceBytes": 2991176
+    },
+    "2015_ford-riley_daytona_prototype": {
+      "signature": "1:16231008:1785785743732:5242880",
+      "profile": "balanced",
+      "bytes": 4243384,
+      "sourceBytes": 16231008,
+      "triangles": 156749
+    },
+    "2015_sauber_c34": {
+      "signature": "1:5457696:1785688481896:5242880",
+      "profile": "lossless",
+      "bytes": 3092856,
+      "sourceBytes": 5457696,
+      "triangles": 54248
+    },
+    "2016_mclaren_mp431": {
+      "signature": "1:3159024:1785691478398:5242880",
+      "profile": "copy",
+      "bytes": 3159024,
+      "sourceBytes": 3159024
+    },
+    "2016_redbull_rb12": {
+      "signature": "1:22869428:1785684655112:5242880",
+      "profile": "balanced-high",
+      "bytes": 3937776,
+      "sourceBytes": 22869428,
+      "triangles": 101891
+    },
+    "2018_ferrari_sf71h": {
+      "signature": "1:27584048:1785784926565:5242880",
+      "profile": "medium",
+      "bytes": 4515380,
+      "sourceBytes": 27584048,
+      "triangles": 105316
+    },
+    "2018_lexus_rc_f_gt3": {
+      "signature": "1:33389264:1786379114372:5242880",
+      "profile": "compact",
+      "bytes": 4497172,
+      "sourceBytes": 33389264,
+      "triangles": 80504
+    },
+    "2018_mercedes_c-coupe_dtm": {
+      "signature": "1:20107588:1785785135482:5242880",
+      "profile": "balanced",
+      "bytes": 4054364,
+      "sourceBytes": 20107588,
+      "triangles": 95100
+    },
+    "2018_redbull_rb14": {
+      "signature": "1:18318464:1783210936000:5242880",
+      "profile": "high",
+      "bytes": 4496316,
+      "sourceBytes": 18318464,
+      "triangles": 112217
+    },
+    "2018_renault_r.s.18": {
+      "signature": "1:25428184:1785688468948:5242880",
+      "profile": "balanced-high",
+      "bytes": 4812344,
+      "sourceBytes": 25428184,
+      "triangles": 109531
+    },
+    "2019_aston_martin_vantage_dtm": {
+      "signature": "1:12452804:1785785052668:5242880",
+      "profile": "very-high",
+      "bytes": 4824264,
+      "sourceBytes": 12452804,
+      "triangles": 81983
+    },
+    "2019_audi_rs5_dtm": {
+      "signature": "1:18475900:1785785110439:5242880",
+      "profile": "balanced-high",
+      "bytes": 5029864,
+      "sourceBytes": 18475900,
+      "triangles": 110421
+    },
+    "2019_bmw_m4_dtm": {
+      "signature": "1:17110028:1785785129397:5242880",
+      "profile": "balanced-high",
+      "bytes": 5104204,
+      "sourceBytes": 17110028,
+      "triangles": 109815
+    },
+    "2020_mclaren_mcl35": {
+      "signature": "1:2840028:1766488978000:5242880",
+      "profile": "copy",
+      "bytes": 2840028,
+      "sourceBytes": 2840028
+    },
+    "2020_tatuus_ft-60": {
+      "signature": "1:17057932:1785687948442:5242880",
+      "profile": "balanced-high",
+      "bytes": 4957708,
+      "sourceBytes": 17057932,
+      "triangles": 101788
+    },
+    "2023_cadillac_v-series.r": {
+      "signature": "1:31542396:1785786303433:5242880",
+      "profile": "balanced",
+      "bytes": 4478492,
+      "sourceBytes": 31542396,
+      "triangles": 220224
+    },
+    "2023_lamborghini_huracan_gt3_evo2": {
+      "signature": "1:27571416:1785682124258:5242880",
+      "profile": "medium",
+      "bytes": 5163676,
+      "sourceBytes": 27571416,
+      "triangles": 112302
+    },
+    "2024_ferrari_499p": {
+      "signature": "1:38513092:1786298315730:5242880",
+      "profile": "medium",
+      "bytes": 4748980,
+      "sourceBytes": 38513092,
+      "triangles": 161974
+    },
+    "2024_ford_mustang_gt3": {
+      "signature": "1:38502856:1785786282556:5242880",
+      "profile": "compact",
+      "bytes": 4193652,
+      "sourceBytes": 38502856,
+      "triangles": 83537
+    },
+    "2024_honda_civic_super_gt_arta": {
+      "signature": "1:25776980:1785786231523:5242880",
+      "profile": "balanced-high",
+      "bytes": 4399364,
+      "sourceBytes": 25776980,
+      "triangles": 208038
+    },
+    "2024_redbull_rb20": {
+      "signature": "1:31007168:1785687941514:5242880",
+      "profile": "balanced",
+      "bytes": 4974900,
+      "sourceBytes": 31007168,
+      "triangles": 182512
+    },
+    "2026_aston_martin_amr26": {
+      "signature": "1:33698328:1785687823261:5242880",
+      "profile": "balanced-high",
+      "bytes": 5187520,
+      "sourceBytes": 33698328,
+      "triangles": 179202
+    },
+    "2026_bmw_m3_touring_24h_shell_helix": {
+      "signature": "1:40259540:1785785535070:5242880",
+      "profile": "medium",
+      "bytes": 4052720,
+      "sourceBytes": 40259540,
+      "triangles": 197005
+    },
+    "2026_dacia_logan_ollis_garage_racing": {
+      "signature": "1:23803260:1785785447710:5242880",
+      "profile": "balanced",
+      "bytes": 4688260,
+      "sourceBytes": 23803260,
+      "triangles": 99584
+    },
+    "2026_haas_vf-26": {
+      "signature": "1:28401172:1785687891822:5242880",
+      "profile": "balanced",
+      "bytes": 4200020,
+      "sourceBytes": 28401172,
+      "triangles": 137887
+    },
+    "2026_red_bull_racing_rb22": {
+      "signature": "1:27945828:1785687906680:5242880",
+      "profile": "balanced",
+      "bytes": 4272048,
+      "sourceBytes": 27945828,
+      "triangles": 137896
+    },
+    "2026_williams_fw48": {
+      "signature": "1:30328964:1785687899411:5242880",
+      "profile": "balanced",
+      "bytes": 4367548,
+      "sourceBytes": 30328964,
+      "triangles": 137894
+    }
+  }
+}
