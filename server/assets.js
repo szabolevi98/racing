@@ -198,8 +198,8 @@ async function collectMaps() {
     const pit = await readJson(path.join(mapDir, 'pit.json'));
     if (pit) {
       entry.pit = {
-        entry: pit.entry ?? null,
-        exit: pit.exit ?? null,
+        entries: Array.isArray(pit.entries) ? pit.entries : [],
+        exits: Array.isArray(pit.exits) ? pit.exits : [],
         stops: Array.isArray(pit.stops) ? pit.stops.slice(0, 8) : [],
       };
     }

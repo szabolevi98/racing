@@ -13,7 +13,7 @@ import {
 import { TAINT, requiredCheckpoints } from '/shared/protocol.js';
 import {
   PIT_SPEED_LIMIT_MPS, PIT_STOP_DURATION_MS, createPitState, hasCompletePitConfig,
-  pitLimitedVelocity, updatePitState,
+  normalizePitConfig, pitLimitedVelocity, updatePitState,
 } from '/shared/pit.js';
 import { restHeightAboveGround } from '/shared/spawnRest.js';
 import { gridSlotPose, hotLapStartPose } from '/shared/grid.js';
@@ -670,7 +670,7 @@ let currentHotLapSpawn = null;
 // A checkpointokat SORRENDBEN kell érinteni, utána a rajtvonal zárja a kört —
 // enélkül a rajtvonal előtt oda-vissza hajtva lehetne köröket gyűjteni.
 let currentGates = { start: null, checkpoints: [] };
-let currentPitConfig = { entry: null, exit: null, stops: [] };
+let currentPitConfig = { entries: [], exits: [], stops: [] };
 // Durva, kézzel kattintott vezetővonal a checkpont-generáláshoz — csak
 // szerkesztés közbeni segédadat, nem mentjük ki (a generálás UTÁN a
 // tényleges checkpontok már currentGates.checkpoints-ban vannak).
@@ -978,11 +978,7 @@ async function setTrack(trackUrl, mapId, spawnPoints, gates, onProgress, hotLapS
     start: (gates && gates.start) || null,
     checkpoints: (gates && gates.checkpoints) || [],
   };
-  currentPitConfig = {
-    entry: pit?.entry || null,
-    exit: pit?.exit || null,
-    stops: Array.isArray(pit?.stops) ? pit.stops.slice(0, 8) : [],
-  };
+  currentPitConfig = normalizePitConfig(pit);
 
   removeTrackCollider();
   if (currentTrack) {

@@ -831,8 +831,10 @@ function updateSpawnToolUI() {
   if (selectedZoneObject?.kind === 'hotlap-spawn' && !api.currentHotLapSpawn) selectedZoneObject = null;
   if (selectedZoneObject?.kind === 'pit-stop'
       && selectedZoneObject.index >= api.currentPitConfig.stops.length) selectedZoneObject = null;
-  if (selectedZoneObject?.kind === 'pit-entry' && !api.currentPitConfig.entry) selectedZoneObject = null;
-  if (selectedZoneObject?.kind === 'pit-exit' && !api.currentPitConfig.exit) selectedZoneObject = null;
+  if (selectedZoneObject?.kind === 'pit-entry'
+      && selectedZoneObject.index >= api.currentPitConfig.entries.length) selectedZoneObject = null;
+  if (selectedZoneObject?.kind === 'pit-exit'
+      && selectedZoneObject.index >= api.currentPitConfig.exits.length) selectedZoneObject = null;
   brushSizeRow.classList.toggle('d-none', !isPaintTool());
   spawnToolRow.classList.toggle('d-none', !isRegularSpawnTool());
   hotLapSpawnToolRow.classList.toggle('d-none', !isHotLapSpawnTool());
@@ -846,10 +848,10 @@ function updateSpawnToolUI() {
   clearHotLapSpawnBtn.disabled = !api.currentHotLapSpawn;
   startLineStateEl.textContent = api.currentGates.start ? 'kész' : 'nincs';
   checkpointCountEl.textContent = String(api.currentGates.checkpoints.length);
-  pitEntryStateEl.textContent = api.currentPitConfig.entry ? 'kész' : 'nincs';
-  pitExitStateEl.textContent = api.currentPitConfig.exit ? 'kész' : 'nincs';
+  pitEntryStateEl.textContent = String(api.currentPitConfig.entries.length);
+  pitExitStateEl.textContent = String(api.currentPitConfig.exits.length);
   pitStopCountEl.textContent = String(api.currentPitConfig.stops.length);
-  const pitComplete = !!api.currentPitConfig.entry && !!api.currentPitConfig.exit
+  const pitComplete = api.currentPitConfig.entries.length > 0 && api.currentPitConfig.exits.length > 0
     && api.currentPitConfig.stops.length === 8;
   pitConfigStateEl.textContent = pitComplete
     ? 'Kész — a kötelező kerékcsere bekapcsolható ezen a pályán.'
@@ -914,8 +916,15 @@ function removeLastSpawnPoint() {
 
 function removeCurrentPitObject() {
   const brush = getSelectedBrush();
-  if (brush === 'pit-entry') api.currentPitConfig.entry = null;
-  else if (brush === 'pit-exit') api.currentPitConfig.exit = null;
+  if (brush === 'pit-entry') {
+    const index = selectedZoneObject?.kind === 'pit-entry'
+      ? selectedZoneObject.index : api.currentPitConfig.entries.length - 1;
+    if (index >= 0) api.currentPitConfig.entries.splice(index, 1);
+  } else if (brush === 'pit-exit') {
+    const index = selectedZoneObject?.kind === 'pit-exit'
+      ? selectedZoneObject.index : api.currentPitConfig.exits.length - 1;
+    if (index >= 0) api.currentPitConfig.exits.splice(index, 1);
+  }
   else if (api.currentPitConfig.stops.length) api.currentPitConfig.stops.pop();
   selectedZoneObject = null;
   updateSpawnToolUI();
@@ -1080,8 +1089,14 @@ function drawZoneOverlay() {
     selectedZoneObject?.kind === 'checkpoint' && selectedZoneObject.index === i
   ));
   const pit = api.currentPitConfig;
-  if (pit.entry) drawGate(pit.entry, '#ff9f1c', 'BOX BE', selectedZoneObject?.kind === 'pit-entry');
-  if (pit.exit) drawGate(pit.exit, '#2ecf73', 'BOX KI', selectedZoneObject?.kind === 'pit-exit');
+  pit.entries.forEach((gate, index) => drawGate(
+    gate, '#ff9f1c', 'BOX BE' + (index + 1),
+    selectedZoneObject?.kind === 'pit-entry' && selectedZoneObject.index === index
+  ));
+  pit.exits.forEach((gate, index) => drawGate(
+    gate, '#2ecf73', 'BOX KI' + (index + 1),
+    selectedZoneObject?.kind === 'pit-exit' && selectedZoneObject.index === index
+  ));
   if (drawingGate) {
     const brush = getSelectedBrush();
     const color = brush === 'start' ? '#28d17c'
@@ -1297,8 +1312,8 @@ function beginGateInteraction(x, z) {
   const gates = start
     ? (api.currentGates.start ? [api.currentGates.start] : [])
     : (pitEntry
-      ? (api.currentPitConfig.entry ? [api.currentPitConfig.entry] : [])
-      : (pitExit ? (api.currentPitConfig.exit ? [api.currentPitConfig.exit] : []) : api.currentGates.checkpoints));
+      ? api.currentPitConfig.entries
+      : (pitExit ? api.currentPitConfig.exits : api.currentGates.checkpoints));
   const hit = findGateHit(gates, x, z, zonePickTolerance());
   if (hit) {
     const gate = gates[hit.index];
@@ -1440,8 +1455,8 @@ function savePitConfig() {
     if (data.ok) {
       const entry = api.manifest && findEntry(api.manifest.maps, api.currentMapId);
       if (entry) entry.pit = {
-        entry: pit.entry ? { ...pit.entry } : null,
-        exit: pit.exit ? { ...pit.exit } : null,
+        entries: pit.entries.map((gate) => ({ ...gate })),
+        exits: pit.exits.map((gate) => ({ ...gate })),
         stops: pit.stops.map((point) => ({ ...point })),
       };
     }
@@ -2214,8 +2229,8 @@ function wireEvents() {
         };
         const brush = getSelectedBrush();
         if (brush === 'start') api.currentGates.start = gate;
-        else if (brush === 'pit-entry') api.currentPitConfig.entry = gate;
-        else if (brush === 'pit-exit') api.currentPitConfig.exit = gate;
+        else if (brush === 'pit-entry') api.currentPitConfig.entries.push(gate);
+        else if (brush === 'pit-exit') api.currentPitConfig.exits.push(gate);
         else api.currentGates.checkpoints.push(gate);
         updateSpawnToolUI();
       }

@@ -2,19 +2,43 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   PIT_SPEED_LIMIT_MPS, PIT_STOP_DURATION_MS, createPitState, hasCompletePitConfig,
-  pitLimitedVelocity, updatePitState,
+  normalizePitConfig, pitLimitedVelocity, updatePitState,
 } from '../shared/pit.js';
 
 const pit = {
-  entry: { x1: 0, z1: -5, x2: 0, z2: 5 },
-  exit: { x1: 20, z1: -5, x2: 20, z2: 5 },
+  entries: [{ x1: 0, z1: -5, x2: 0, z2: 5 }],
+  exits: [{ x1: 20, z1: -5, x2: 20, z2: 5 }],
   stops: Array.from({ length: 8 }, (_, i) => ({ x: 5 + i, z: 0, heading: 0 })),
 };
 
 test('mandatory pit stop only activates with a complete 8-stall configuration', () => {
   assert.equal(hasCompletePitConfig(pit), true);
-  assert.equal(hasCompletePitConfig({ ...pit, exit: null }), false);
+  assert.equal(hasCompletePitConfig({ ...pit, exits: [] }), false);
   assert.equal(hasCompletePitConfig({ ...pit, stops: pit.stops.slice(0, 7) }), false);
+});
+
+test('multiple pit entry and exit gates stay available after normalization', () => {
+  const multiple = normalizePitConfig({
+    entries: [pit.entries[0], { x1: 2, z1: -5, x2: 2, z2: 5 }],
+    exits: [pit.exits[0], { x1: 22, z1: -5, x2: 22, z2: 5 }],
+    stops: pit.stops,
+  });
+  assert.equal(multiple.entries.length, 2);
+  assert.equal(multiple.exits.length, 2);
+  assert.equal(hasCompletePitConfig(multiple), true);
+});
+
+test('crossing any configured entry and exit controls the pit lane state', () => {
+  const multiple = {
+    entries: [pit.entries[0], { x1: 2, z1: -5, x2: 2, z2: 5 }],
+    exits: [pit.exits[0], { x1: 22, z1: -5, x2: 22, z2: 5 }],
+    stops: pit.stops,
+  };
+  const state = createPitState(true);
+  updatePitState(state, multiple, 0, { fromX: 1, fromZ: 0, x: 3, z: 0, speedMps: 20, now: 1000 });
+  assert.equal(state.inLane, true, 'the second entry also enables the limiter');
+  updatePitState(state, multiple, 0, { fromX: 21, fromZ: 0, x: 23, z: 0, speedMps: 20, now: 2000 });
+  assert.equal(state.inLane, false, 'the second exit also disables the limiter');
 });
 
 test('pit state requires entry crossing and three continuous stopped seconds in assigned stall', () => {

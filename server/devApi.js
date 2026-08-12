@@ -96,8 +96,8 @@ export async function savePit(body) {
       ? { x1: round2(g.x1), z1: round2(g.z1), x2: round2(g.x2), z2: round2(g.z2) }
       : null;
   const out = {
-    entry: gate(body?.entry),
-    exit: gate(body?.exit),
+    entries: Array.isArray(body?.entries) ? body.entries.map(gate).filter(Boolean) : [],
+    exits: Array.isArray(body?.exits) ? body.exits.map(gate).filter(Boolean) : [],
     stops: Array.isArray(body?.stops)
       ? body.stops.slice(0, 8).map(cleanSpawnPoint).filter(Boolean)
       : [],
@@ -106,10 +106,10 @@ export async function savePit(body) {
   invalidateManifest();
   return {
     ok: true,
-    hasEntry: !!out.entry,
-    hasExit: !!out.exit,
+    entries: out.entries.length,
+    exits: out.exits.length,
     stops: out.stops.length,
-    complete: !!out.entry && !!out.exit && out.stops.length === 8,
+    complete: out.entries.length > 0 && out.exits.length > 0 && out.stops.length === 8,
   };
 }
 

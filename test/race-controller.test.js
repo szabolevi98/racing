@@ -145,8 +145,8 @@ test('missing mandatory pit stop invalidates only the final lap and still finish
       checkpoints: [{ x1: 10, z1: -5, x2: 10, z2: 5 }],
     },
     pit: {
-      entry: { x1: 20, z1: -5, x2: 20, z2: 5 },
-      exit: { x1: 30, z1: -5, x2: 30, z2: 5 },
+      entries: [{ x1: 20, z1: -5, x2: 20, z2: 5 }],
+      exits: [{ x1: 30, z1: -5, x2: 30, z2: 5 }],
       stops: Array.from({ length: 8 }, (_, i) => ({ x: 22 + i, z: 0, heading: 0 })),
     },
   };

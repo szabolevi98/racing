@@ -28,6 +28,8 @@ test('dev editor exposes and persists pit entry, exit and eight numbered stalls'
   assert.match(devHtml, /value="pit-stop"/);
   assert.match(dev, /fetch\('\/api\/dev\/pit'/);
   assert.match(dev, /api\.currentPitConfig\.stops\.length >= 8/);
+  assert.match(dev, /api\.currentPitConfig\.entries\.push\(gate\)/);
+  assert.match(dev, /api\.currentPitConfig\.exits\.push\(gate\)/);
   assert.match(dev, /'P' \+ \(idx \+ 1\)/);
 });
 

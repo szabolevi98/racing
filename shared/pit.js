@@ -30,22 +30,32 @@ export function cleanPitStop(point) {
   };
 }
 
+export function pitEntryGates(raw) {
+  return Array.isArray(raw?.entries) ? raw.entries.map(cleanPitGate).filter(Boolean) : [];
+}
+
+export function pitExitGates(raw) {
+  return Array.isArray(raw?.exits) ? raw.exits.map(cleanPitGate).filter(Boolean) : [];
+}
+
 export function normalizePitConfig(raw) {
   return {
-    entry: cleanPitGate(raw?.entry),
-    exit: cleanPitGate(raw?.exit),
+    entries: pitEntryGates(raw),
+    exits: pitExitGates(raw),
     stops: Array.isArray(raw?.stops)
       ? raw.stops.slice(0, PIT_STOP_COUNT).map(cleanPitStop).filter(Boolean)
       : [],
   };
 }
 
+function hasCompleteNormalizedPit(pit) {
+  return pit.entries.length > 0
+    && pit.exits.length > 0
+    && pit.stops.length === PIT_STOP_COUNT;
+}
+
 export function hasCompletePitConfig(raw) {
-  return validGate(raw?.entry)
-    && validGate(raw?.exit)
-    && Array.isArray(raw?.stops)
-    && raw.stops.length === PIT_STOP_COUNT
-    && raw.stops.every(validStop);
+  return hasCompleteNormalizedPit(normalizePitConfig(raw));
 }
 
 export function createPitState(required = false) {
@@ -59,18 +69,24 @@ export function createPitState(required = false) {
 }
 
 export function updatePitState(state, pitConfig, assignedStopIndex, sample) {
-  if (!state?.required || !hasCompletePitConfig(pitConfig)) return state;
-  const pit = pitConfig;
+  if (!state?.required) return state;
+  const pit = normalizePitConfig(pitConfig);
+  if (!hasCompleteNormalizedPit(pit)) return state;
   const fromX = Number(sample?.fromX), fromZ = Number(sample?.fromZ);
   const x = Number(sample?.x), z = Number(sample?.z);
   const now = Number(sample?.now);
   const speed = Math.max(0, Number(sample?.speedMps) || 0);
 
-  if (gateCrossingFraction(pit.entry, fromX, fromZ, x, z) !== null) state.inLane = true;
-  if (gateCrossingFraction(pit.exit, fromX, fromZ, x, z) !== null) {
-    state.inLane = false;
-    state.stopStartedAt = null;
-    state.stopElapsedMs = 0;
+  const crossings = [
+    ...pit.entries.map((gate) => ({ type: 'entry', at: gateCrossingFraction(gate, fromX, fromZ, x, z) })),
+    ...pit.exits.map((gate) => ({ type: 'exit', at: gateCrossingFraction(gate, fromX, fromZ, x, z) })),
+  ].filter((crossing) => crossing.at !== null).sort((a, b) => a.at - b.at);
+  for (const crossing of crossings) {
+    state.inLane = crossing.type === 'entry';
+    if (!state.inLane) {
+      state.stopStartedAt = null;
+      state.stopElapsedMs = 0;
+    }
   }
 
   const stopIndex = Math.max(0, Math.min(PIT_STOP_COUNT - 1, Number(assignedStopIndex) || 0));
