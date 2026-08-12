@@ -174,6 +174,47 @@ async function readJson(file, fallback = null) {
   try { return JSON.parse(await fs.readFile(file, 'utf8')); } catch { return fallback; }
 }
 
+// Az aláírás dönti el, kell-e újrakonvertálni. A forrás TARTALMÁBÓL képezzük,
+// nem a módosítási idejéből.
+//
+// Az mtime azért volt rossz alap, mert a git nem őrzi meg: friss klón vagy egy
+// másik gépről átmásolt GLB mind a checkout idejét kapja, tehát a
+// nyilvántartás ott egyetlen konvertálást sem spórolt volna meg. A tartalom
+// viszont ugyanaz marad, bárhonnan is jött a fájl — a commitolt manifest így
+// tényleg használható más gépen is.
+//
+// Az ár elenyésző: a teljes, 2,7 GB-os készlet hashelése 6 másodperc, miközben
+// egyetlen autó konvertálása is percekben mérhető. A méret ugyan majdnem
+// mindig változik szerkesztéskor, de a "majdnem" itt csendes hibát jelentene:
+// egy azonos méretű újraexportot nem vennénk észre.
+export async function sourceSignature(input, sourceBytes, targetBytes) {
+  const hash = createHash('sha256');
+  const handle = await fs.open(input, 'r');
+  try {
+    const buffer = Buffer.allocUnsafe(1024 * 1024);
+    for (;;) {
+      const { bytesRead } = await handle.read(buffer, 0, buffer.length, null);
+      if (!bytesRead) break;
+      hash.update(buffer.subarray(0, bytesRead));
+    }
+  } finally {
+    await handle.close();
+  }
+  return `v2:${PIPELINE_VERSION}:${sourceBytes}:${targetBytes}:${hash.digest('hex')}`;
+}
+
+// Átmenet a régi, mtime-alapú aláírásról: `<pipeline>:<méret>:<mtime>:<cél>`.
+//
+// Enélkül a formátumváltás egyszerűen elavulttá tenne minden bejegyzést, és
+// mind a 183 autó újrakonvertálódna — pedig a kész fájlok érvényesek. Ha a
+// méret és a célméret egyezik, elfogadjuk a meglévő kimenetet, és csak az
+// aláírást írjuk át az új formára.
+export function legacySignatureMatches(previousSignature, sourceBytes, targetBytes) {
+  const parts = String(previousSignature || '').split(':');
+  if (parts.length !== 4 || parts[0] === 'v2') return false;
+  return Number(parts[1]) === sourceBytes && Number(parts[3]) === targetBytes;
+}
+
 function parseArgs(argv) {
   const options = { force: false, targetMb: DEFAULT_TARGET_MB, ids: [] };
   for (const arg of argv) {
@@ -191,12 +232,17 @@ async function buildCar(executable, file, options, previous) {
   const output = path.join(OUTPUT_DIR, file);
   const sourceStat = await fs.stat(input);
   const targetBytes = Math.floor(options.targetMb * 1024 * 1024);
-  const signature = `${PIPELINE_VERSION}:${sourceStat.size}:${Math.trunc(sourceStat.mtimeMs)}:${targetBytes}`;
-  if (!options.force && previous?.signature === signature && await fileExists(output)) {
+  const signature = await sourceSignature(input, sourceStat.size, targetBytes);
+  const reusable = previous
+    && (previous.signature === signature
+      || legacySignatureMatches(previous.signature, sourceStat.size, targetBytes));
+  if (!options.force && reusable && await fileExists(output)) {
     const outputStat = await fs.stat(output);
     if (outputStat.size <= targetBytes) {
       console.log(`↷ ${id}: naprakész (${(outputStat.size / 1024 / 1024).toFixed(2)} MB)`);
-      return previous;
+      // Régi formátumú bejegyzésnél az aláírást frissítjük, konvertálás nélkül:
+      // a kimenet érvényes, csak a nyilvántartás formája avult el.
+      return previous.signature === signature ? previous : { ...previous, signature };
     }
   }
 

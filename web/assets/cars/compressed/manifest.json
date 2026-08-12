@@ -1,17 +1,17 @@
 {
   "version": 1,
   "targetMb": 5,
-  "generatedAt": "2026-08-12T18:49:40.823Z",
+  "generatedAt": "2026-08-12T18:55:22.739Z",
   "cars": {
     "2008_bmw_sauber_f1.08": {
-      "signature": "1:41196616:1785691169823:5242880",
+      "signature": "v2:1:41196616:5242880:053203ef9a6dbcd1e218761c0e6e868b30e208db12e8809d8a9872706892abf7",
       "profile": "balanced",
       "bytes": 4713360,
       "sourceBytes": 41196616,
       "triangles": 86387
     },
     "1937_auto_union_type-c_streamliner": {
-      "signature": "1:16146796:1785785517987:5242880",
+      "signature": "v2:1:16146796:5242880:317ced0d8ab8a9eac6971a7219324c152d1a93ee0831a2f7bea343b8fa327b95",
       "profile": "balanced-high",
       "bytes": 4626752,
       "sourceBytes": 16146796,
