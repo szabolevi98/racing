@@ -8,6 +8,7 @@
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "cars:compress": "node tools/build-remote-cars.mjs",
+    "cars:wheels": "node tools/build-car-wheels.mjs",
     "test": "node --test"
   },
   "engines": {

@@ -31,11 +31,34 @@ a saját autóhoz, a compressed változatot pedig multiplayer-ellenfélnél és
 Hot Lap ghostnál. Mindkettő ugyanazt az eredeti JSON-konfigurációt kapja, ezért
 a `wheelPattern` és a kerékanimáció is megmarad.
 
+## Kerék-configok automatikus elkészítése
+
+```bash
+npm run cars:wheels
+```
+
+Végigmegy az összes autón, és megírja a hiányzó `wheelPattern`-eket. A **már
+meglévő configokhoz nem nyúl**: azok kézzel szerzett tudást hordoznak, élőben
+jelentett hibák javításait (kimaradt futófelület-anyag, szándékosan kikerült
+kormánykerék-anyag), amit egy vak újragenerálás csendben eldobna.
+
+Egy konkrét autó újragenerálása — a korábbi megjegyzés ilyenkor is megmarad a
+fájlban, referenciaként:
+
+```bash
+npm run cars:wheels -- 2024_ford_mustang_gt3 --force
+```
+
+A `yawDegrees` mindig 0 (előre néző modellt feltételezve); ha egy kocsi
+hátrafelé áll, azt a JSON-ban kézzel kell átírni, és az újragenerálás
+megtartja. A futás végén kilistázza az alacsony pontszámú javaslatokat — azokat
+érdemes élőben megnézni a kocsi-tesztelőben.
+
 Offline (Node.js, függőség nélküli) GLB-elemzők, amikkel egy új autó
 `wheelPattern`-jét meg lehet határozni anélkül, hogy a böngészőben kellene
 kézzel vadászni a mesh-neveket.
 
-## Használat
+## Egyetlen autó vizsgálata
 
 ```bash
 node tools/propose.mjs 2024_ford_mustang_gt3
