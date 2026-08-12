@@ -192,47 +192,46 @@
 </div>
 
 <!-- Checkpointonkénti különbség a viszonyítási körhöz képest. Rövid életű. -->
-<div id="splitDeltaAlert" class="hidden" role="status" aria-live="off">
-  <span id="splitDeltaValue" class="sd-value num">+0.00</span>
-  <span id="splitDeltaRef" class="sd-ref"></span>
-</div>
+<div id="alertStack">
+  <div id="splitDeltaAlert" class="hidden" role="status" aria-live="off">
+    <span id="splitDeltaValue" class="sd-value num">+0.00</span>
+    <span id="splitDeltaRef" class="sd-ref"></span>
+  </div>
 
-<div id="lapInvalidAlert" class="top-center-alert hidden">
-  <div class="alert-pill warn" id="lapInvalidAlertText">Kör érvénytelen!</div>
-</div>
-<div id="pitStopAlert" class="top-center-alert hidden">
-  <div class="alert-pill warn" id="pitStopAlertText">⚠ KÖTELEZŐ KERÉKCSERE</div>
-</div>
+  <div id="lapInvalidAlert" class="top-center-alert hidden">
+    <div class="alert-pill warn" id="lapInvalidAlertText">Kör érvénytelen!</div>
+  </div>
+  <div id="pitStopAlert" class="top-center-alert hidden">
+    <div class="alert-pill warn" id="pitStopAlertText">⚠ KÖTELEZŐ KERÉKCSERE</div>
+  </div>
+  <div id="rolloverAlert" class="top-center-alert hidden">
+    <div class="alert-pill danger" id="rolloverAlertText"></div>
+  </div>
+  <div id="highPingAlert" class="top-center-alert hidden">
+    <div class="alert-pill danger" id="highPingAlertText"></div>
+  </div>
 
-<div id="rolloverAlert" class="top-center-alert hidden">
-  <div class="alert-pill danger" id="rolloverAlertText"></div>
-</div>
+  <!-- Célba érés után: kit nézünk, és hogyan váltunk. Csak többjátékosban. -->
+  <div id="spectateBar" class="hidden">
+    <span class="spec-eye" aria-hidden="true">👁</span>
+    <span class="spec-who"><span class="spec-lbl">Nézőben</span><span id="spectateName" class="spec-name">—</span></span>
+    <button id="spectateNext" class="spec-next" type="button" aria-label="Következő játékos">
+      Következő <kbd>V</kbd>
+    </button>
+  </div>
 
-<div id="highPingAlert" class="top-center-alert hidden">
-  <div class="alert-pill danger" id="highPingAlertText"></div>
+  <!-- Az első befutó után indul; mindenki látja, a célba értek is. -->
+  <div id="finishTimer" class="hidden" role="status" aria-live="off">
+    <span class="ft-label">A verseny véget ér</span>
+    <span id="finishTimerValue" class="ft-value num">60.0</span>
+  </div>
 </div>
 
 <div id="fullscreenHint" class="hidden" role="status">
   Nyomj <kbd>F11</kbd>-et a teljes képernyőhöz
 </div>
 
-<!-- Célba érés után: kit nézünk, és hogyan váltunk. Csak többjátékosban,
-     és csak amíg van kit nézni. -->
-<div id="spectateBar" class="hidden">
-  <span class="spec-eye" aria-hidden="true">👁</span>
-  <span class="spec-who"><span class="spec-lbl">Nézőben</span><span id="spectateName" class="spec-name">—</span></span>
-  <button id="spectateNext" class="spec-next" type="button" aria-label="Következő játékos">
-    Következő <kbd>V</kbd>
-  </button>
-</div>
-
 <div id="countdown" class="hidden">3</div>
-
-<!-- Az első befutó után indul; mindenki látja, a célba értek is. -->
-<div id="finishTimer" class="hidden" role="status" aria-live="off">
-  <span class="ft-label">A verseny véget ér</span>
-  <span id="finishTimerValue" class="ft-value num">60.0</span>
-</div>
 
 <div id="results" class="hidden">
   <div class="panel results-card">

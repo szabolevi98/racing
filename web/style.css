@@ -744,28 +744,20 @@ kbd.k {
 /* ============================================================
    Figyelmeztetések, visszaszámlálás, eredmény
    ============================================================ */
-.top-center-alert {
-  position: fixed; left: 50%; transform: translateX(-50%); z-index: 15; pointer-events: none;
+#alertStack {
+  position: fixed; top: 16px; left: 50%; z-index: 24;
+  transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  width: min(620px, calc(100vw - 16px));
+  pointer-events: none;
 }
-/* A képernyő tetején több doboz osztozik, és többük EGYSZERRE is látszhat.
-   Ezért egy közös sáv-kiosztás van, nem dobozonkénti tetszőleges érték:
-     1. hely (16)  — részidő-különbség ÉS a nézői sáv. A kettő sosem egyszerre:
-                     nézőben már célba értünk, tehát nincs több checkpoint.
-     2. hely (66)  — a futam hátralévő ideje
-     3. hely (116) — kör érvénytelen
-     4. hely (174) — borulás
-     5. hely (232) — magas ping
-   A delta kapta a legfelső helyet: ez villan fel a leggyakrabban, és vezetés
-   közben egyetlen pillantásra kell leolvasni. */
-#lapInvalidAlert { top: 116px; }
-#pitStopAlert { top: 68px; }
+.top-center-alert { flex: none; max-width: 100%; pointer-events: none; }
+/* A rejtett elemek kiesnek a flexből, ezért az első látható jelzés mindig
+   ugyanott kezdődik, a többi pedig a tényleges magassága alapján csúszik le. */
 #pitStopAlert .alert-pill.done { color: var(--ok); border-color: rgba(65, 211, 146, .45); }
-#rolloverAlert { top: 174px; }
-#highPingAlert { top: 232px; }
 
 /* Részidő-különbség: zöld ha jobbak vagyunk, piros ha rosszabbak. */
 #splitDeltaAlert {
-  position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 24;
   display: flex; align-items: baseline; gap: 8px;
   padding: 5px 14px; border-radius: 10px;
   background: rgba(10, 10, 12, 0.82); border: 1px solid var(--line);
@@ -783,7 +775,8 @@ kbd.k {
 #splitDeltaAlert.is-slower .sd-value { color: #ff6b6b; }
 
 @media (max-height: 640px) {
-  #splitDeltaAlert { top: 8px; padding: 4px 11px; }
+  #alertStack { top: 8px; gap: 6px; }
+  #splitDeltaAlert { padding: 4px 11px; }
   #splitDeltaAlert .sd-value { font-size: 16px; }
 }
 .alert-pill {
@@ -820,11 +813,8 @@ kbd.k {
 
 @media (hover: none) and (pointer: coarse), (max-width: 900px) {
   #fullscreenHint { display: none !important; }
-  .top-center-alert { width: min(360px, calc(100vw - 16px)); }
-  #lapInvalidAlert { top: 84px; }
-  #pitStopAlert { top: 48px; }
-  #rolloverAlert { top: 122px; }
-  #highPingAlert { top: 160px; }
+  #alertStack { width: min(360px, calc(100vw - 16px)); gap: 6px; }
+  .top-center-alert { width: 100%; }
   .alert-pill {
     width: fit-content; max-width: 100%; margin-inline: auto;
     padding: 6px 11px; border-radius: 18px;
@@ -832,11 +822,9 @@ kbd.k {
   }
 }
 
-/* A futam hátralévő ideje az első befutó után. Felül középen, mert a HUD
-   panelek a sarkokban ülnek, a képernyő közepét pedig a 3-2-1 használja —
-   így egyik sem takarja a másikat. Nem fogad egeret: az autó fölött lebeg. */
+/* A futam hátralévő ideje az első befutó után. A közös veremben nem takarja
+   el a többi jelzést. Nem fogad egeret: az autó fölött lebeg. */
 #finishTimer {
-  position: fixed; top: 66px; left: 50%; transform: translateX(-50%); z-index: 24;
   /* Középre, nem alapvonalra: a kis nagybetűs címke alapvonala a nagy szám
      alapvonalához igazodva jóval lejjebb ülne, mint a doboz közepe. */
   display: flex; align-items: center; gap: 10px;
@@ -858,18 +846,14 @@ kbd.k {
 #finishTimer.is-urgent { border-color: rgba(255, 90, 90, 0.55); }
 #finishTimer.is-urgent .ft-value { color: #ff6b6b; }
 
-/* Nézői sáv: a célba ért játékos ebből tudja, kit néz, és ezzel vált.
-   A visszaszámláló ALÁ kerül, mert a kettő jellemzően EGYÜTT látszik (aki
-   célba ért, arra fut a 60 másodperc is). Alul nem lehet: ott mobilon a
-   vezérlőgombok ülnek, azok pedig célba érés után is a helyükön maradnak,
-   csak letiltva. */
+/* Nézői sáv: a célba ért játékos ebből tudja, kit néz, és ezzel vált. Ez az
+   egyetlen interaktív elem a veremben, ezért külön visszakapja az egéreseményt. */
 #spectateBar {
-  position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 24;
   display: flex; align-items: center; gap: 10px;
   padding: 6px 8px 6px 14px; border-radius: 10px;
   background: rgba(10, 10, 12, 0.82); border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: 0 6px 26px rgba(0, 0, 0, 0.5);
-  white-space: nowrap; max-width: min(92vw, 460px);
+  white-space: nowrap; max-width: min(92vw, 460px); pointer-events: auto;
 }
 #spectateBar .spec-eye { font-size: 14px; line-height: 1; }
 #spectateBar .spec-who { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
@@ -898,13 +882,13 @@ kbd.k {
   #spectateBar .spec-next { padding: 9px 14px; }
 }
 @media (max-height: 640px) {
-  #spectateBar { top: 8px; padding: 4px 6px 4px 10px; gap: 8px; }
+  #spectateBar { padding: 4px 6px 4px 10px; gap: 8px; }
   #spectateBar .spec-name { font-size: 12px; }
   #spectateBar .spec-lbl { font-size: 8px; }
 }
 
 @media (max-height: 640px) {
-  #finishTimer { top: 46px; padding: 5px 12px; gap: 8px; }
+  #finishTimer { padding: 5px 12px; gap: 8px; }
   #finishTimer .ft-label { font-size: 8px; }
   #finishTimer .ft-value { font-size: 16px; min-width: 48px; }
 }

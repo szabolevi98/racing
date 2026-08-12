@@ -43,3 +43,20 @@ test('reset waits for the first start crossing and pauses state packets in fligh
   assert.match(mp, /!multiplayerStartCrossed \|\| resetPending/);
   assert.match(mp, /const shouldSend = !raceEnded && !resetPending/);
 });
+
+test('driving alerts share one dynamic stacking container', () => {
+  const stackStart = html.indexOf('id="alertStack"');
+  const stackEnd = html.indexOf('id="fullscreenHint"');
+  assert.ok(stackStart >= 0 && stackEnd > stackStart);
+  for (const id of [
+    'splitDeltaAlert', 'lapInvalidAlert', 'pitStopAlert', 'rolloverAlert',
+    'highPingAlert', 'spectateBar', 'finishTimer',
+  ]) {
+    const position = html.indexOf(`id="${id}"`);
+    assert.ok(position > stackStart && position < stackEnd, `${id} must be inside alertStack`);
+  }
+  const css = fs.readFileSync(new URL('../web/style.css', import.meta.url), 'utf8');
+  assert.match(css, /#alertStack\s*\{[\s\S]*?display:\s*flex;\s*flex-direction:\s*column/);
+  assert.doesNotMatch(css, /#highPingAlert\s*\{\s*top:/);
+  assert.doesNotMatch(css, /#lapInvalidAlert\s*\{\s*top:/);
+});
