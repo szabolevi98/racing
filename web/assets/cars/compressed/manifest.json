@@ -1,7 +1,7 @@
 {
   "version": 3,
   "targetMb": 5,
-  "generatedAt": "2026-08-12T21:07:28.490Z",
+  "generatedAt": "2026-08-12T21:20:08.035Z",
   "cars": {
     "2008_bmw_sauber_f1.08": {
       "signature": "v2:3:41196616:5242880:053203ef9a6dbcd1e218761c0e6e868b30e208db12e8809d8a9872706892abf7",
@@ -43,23 +43,10 @@
       "geometryBytes": 3243200
     },
     "1949_ferrari_166_fl": {
-      "signature": "v2:3:8204968:5242880:ecaeaae233c32238633819202d5b590fa6059419910c5d8cf946889ae309f511",
-      "geometry": {
-        "ratio": 1,
-        "error": 0.001,
-        "cost": 0
-      },
-      "texture": {
-        "limit": 4096,
-        "quality": 10,
-        "cost": 0
-      },
-      "limitedBy": "textúra",
+      "signature": "v2:3:3558476:5242880:66c0d6e05a5544dfb1ffb69e11c4a1848bd941a923b20687d0773033cbfe9e27",
+      "copied": true,
       "bytes": 3558476,
-      "sourceBytes": 8204968,
-      "triangles": 87634,
-      "imageBytes": 1869948,
-      "geometryBytes": 1652052
+      "sourceBytes": 3558476
     },
     "1962_ferrari_250_gto": {
       "signature": "v2:3:2957480:5242880:4f4757c3c7dc5c5a248e345818763c25e890e8d77e5e6a130256504d437bfd66",
