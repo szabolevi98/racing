@@ -23,7 +23,18 @@ test('remote wheel steering and rolling survive buffering and reach wheel pivots
   assert.match(mp, /st: \(a\.st \?\? 0\) \+ /);
   assert.match(mp, /wr: \(a\.wr \?\? 0\) \+ /);
   assert.match(mp, /createRemoteWheelRig\(model, car\.config\?\.wheelPattern, group\)/);
-  assert.match(mp, /\.rotation\.set\(s\.wr \?\? 0, source\?\.steer \? \(s\.st \?\? 0\) : 0, 0\)/);
+  assert.match(mp, /visualSteerAngle: 0/);
+  assert.match(mp, /moveRemoteSteerTowards\(o\.visualSteerAngle \?\? 0, targetSteer, dt\)/);
+  assert.match(mp, /if \(detailDue\) pivot\.rotation\.x = s\.wr \?\? 0/);
+  assert.match(mp, /if \(source\?\.steer\) pivot\.rotation\.y = o\.visualSteerAngle/);
+});
+
+test('remote wheel steering is visually smoothed every frame without unthrottling wheel roll', () => {
+  assert.match(mp, /shouldBrakeFinishedVelocity, STEER_VISUAL_SPEED/);
+  assert.match(mp, /const maxDelta = STEER_VISUAL_SPEED \* dt/);
+  assert.match(mp, /const firstRenderedFrame = !o\.renderReady/);
+  assert.match(mp, /o\.visualSteerAngle = firstRenderedFrame\s*\? targetSteer\s*:/);
+  assert.doesNotMatch(mp, /if \(detailDue\) \{\s*for \(let i = 0; i < o\.wheelRig\.pivots\.length/);
 });
 
 // A ritkításnak csak akkor van értelme, ha a mezőny NEM ugyanabban a

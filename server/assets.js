@@ -88,6 +88,16 @@ async function collectCars() {
     try {
       entry.bytes = (await fs.stat(path.join(carsDir, file))).size;
     } catch { /* nem kritikus, a kliens ilyenkor egyenlő súlyra esik vissza */ }
+    // Az eredeti modell marad a játékos saját autója. Ha az automatikus
+    // konvertáló elkészítette a könnyített párját, ellenfélnél és ghostnál ezt
+    // tölti le a kliens. A config továbbra is az eredeti autóé, így a
+    // wheelPattern és az iránykorrekció változatlan marad.
+    const remotePath = path.join(carsDir, 'compressed', file);
+    try {
+      const remoteStat = await fs.stat(remotePath);
+      entry.remoteFile = `cars/compressed/${file}`;
+      entry.remoteBytes = remoteStat.size;
+    } catch { /* nincs remote változat: a kliens biztonságosan az eredetire esik vissza */ }
     // Opcionális kocsi-beállítások: <id>.json — a modell előre-iránya és a
     // kerék-mesh-ek felismerése. Ha nincs, a játék az alapértelmezésekkel megy.
     const config = await readJson(path.join(carsDir, `${id}.json`));

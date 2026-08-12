@@ -24,6 +24,8 @@ Thumbs.db
 # Node
 /node_modules/
 .env
+/tools/.cache/
+/web/assets/cars/compressed/manifest.json
 
 # Feltöltéshez összecsomagolt assetek. Ezek gigabájtosak, és a bennük lévő
 # fájlok amúgy is ki vannak zárva külön — egy `git add -A` viszont a csomagot

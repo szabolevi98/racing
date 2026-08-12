@@ -5,7 +5,7 @@ import {
   PLAYER_TOKEN_LENGTH, sanitizeName, sanitizePlayerToken,
 } from '/shared/protocol.js';
 import {
-  forwardSpeed, REVERSE_BRAKE_THRESHOLD, shouldBrakeFinishedVelocity,
+  forwardSpeed, REVERSE_BRAKE_THRESHOLD, shouldBrakeFinishedVelocity, STEER_VISUAL_SPEED,
 } from '/shared/vehicleConfig.js';
 import { raceClockTimes } from '/shared/raceClock.js';
 import { ghostCheckpointSplits } from '/shared/gate.js';
@@ -1243,11 +1243,11 @@ async function beginRace(info) {
   }
   otherPlayers.forEach((p) => {
     const otherCar = G.manifest.cars.find((c) => c.id === p.carId) || G.manifest.cars[0];
-    tasks.push({ bytes: otherCar?.bytes, run: (onP) => addOtherCar(p, onP, loadGeneration) });
+    tasks.push({ bytes: otherCar?.remoteBytes ?? otherCar?.bytes, run: (onP) => addOtherCar(p, onP, loadGeneration) });
   });
   if (ghostReplay && !reuseGhost) {
     const replayCar = G.manifest.cars.find((c) => c.id === ghostReplay.carId) || G.manifest.cars[0];
-    tasks.push({ bytes: replayCar?.bytes, run: (onP) => addGhostCar(ghostReplay, onP, loadGeneration) });
+    tasks.push({ bytes: replayCar?.remoteBytes ?? replayCar?.bytes, run: (onP) => addGhostCar(ghostReplay, onP, loadGeneration) });
   }
 
   G.showLoadingOverlay(true);
@@ -1420,14 +1420,14 @@ async function addOtherCar(p, onProgress, loadGeneration) {
     group, label, wheelRig: group.userData.wheelRig || { pivots: [], sources: [] },
     engineAudio: G.createRemoteEngine(), buf: [], color: p.color, name: p.name, lap: 0, cp: 0,
     rank: 0, gap: null, bestLap: null, lastLap: null, lastLapInvalid: false, finished: false,
-    detailPhase: remoteDetailPhase(p.id), audioDt: 0,
+    detailPhase: remoteDetailPhase(p.id), audioDt: 0, visualSteerAngle: 0,
   });
 }
 
 async function loadRemoteCarVisual(car, fallbackColor, onProgress, translucent = false) {
   const group = new THREE.Group();
   try {
-    const gltf = await G.loadGLTF('assets/' + car.file, onProgress);
+    const gltf = await G.loadGLTF('assets/' + (car.remoteFile || car.file), onProgress);
     const model = gltf.scene;
     // Ugyanaz a normalizálás, mint a saját kocsinál: a hossz-tengely Z-re
     // forgatva, és a fizikai kasztni hosszára skálázva — enélkül a többiek
@@ -1950,6 +1950,18 @@ function blendRemoteStates(delayed, current, amount) {
   };
 }
 
+// A hálózatról kapott fizikai kormányállás digitális irányításnál
+// egyik snapshotról a másikra nagyot ugorhat. A saját autóhoz hasonlóan csak
+// a látható kerék közelít fokozatosan; a fizika és a hálózati állapot nem
+// változik. A kormányzott pivotok olcsó Y-forgatása minden képkockán fut,
+// miközben a gördülés továbbra is megtartja a távolságalapú ritkítást.
+function moveRemoteSteerTowards(current, target, dt) {
+  const maxDelta = STEER_VISUAL_SPEED * dt;
+  const diff = target - current;
+  if (Math.abs(diff) <= maxDelta) return target;
+  return current + Math.sign(diff) * maxDelta;
+}
+
 function updateGhostPlayback(nowServer) {
   if (!ghostCar) return;
   if (!myLapStartedAt || myFinished || raceEnded) {
@@ -2200,7 +2212,8 @@ function frame(dt = 1 / 60) {
     const predictionBlend = remoteVisualPredictionBlend(Math.sqrt(distSq));
     const s = blendRemoteStates(delayedState, currentState, predictionBlend);
     if (!s) continue;
-    if (!o.renderReady) {
+    const firstRenderedFrame = !o.renderReady;
+    if (firstRenderedFrame) {
       o.group.position.set(s.p[0], s.p[1], s.p[2]);
       o.group.quaternion.set(s.q[0], s.q[1], s.q[2], s.q[3]);
       o.renderReady = true;
@@ -2217,11 +2230,15 @@ function frame(dt = 1 / 60) {
       const qr = slerp(q0, s.q, alpha);
       o.group.quaternion.set(qr[0], qr[1], qr[2], qr[3]);
     }
-    if (detailDue) {
-      for (let i = 0; i < o.wheelRig.pivots.length; i++) {
-        const source = o.wheelRig.sources[i];
-        o.wheelRig.pivots[i].rotation.set(s.wr ?? 0, source?.steer ? (s.st ?? 0) : 0, 0);
-      }
+    const targetSteer = s.st ?? 0;
+    o.visualSteerAngle = firstRenderedFrame
+      ? targetSteer
+      : moveRemoteSteerTowards(o.visualSteerAngle ?? 0, targetSteer, dt);
+    for (let i = 0; i < o.wheelRig.pivots.length; i++) {
+      const pivot = o.wheelRig.pivots[i];
+      const source = o.wheelRig.sources[i];
+      if (detailDue) pivot.rotation.x = s.wr ?? 0;
+      if (source?.steer) pivot.rotation.y = o.visualSteerAngle;
     }
     const kmh = Math.hypot(s.v?.[0] || 0, s.v?.[2] || 0) * 3.6;
     if (o === watchedEntry) G.setSpeed(kmh);

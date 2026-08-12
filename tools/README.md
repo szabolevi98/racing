@@ -1,5 +1,34 @@
 # Kocsi-modell elemző eszközök
 
+## Multiplayer/ghost modellek automatikus készítése
+
+```bash
+npm run cars:compress
+```
+
+A parancs az összes eredeti `web/assets/cars/*.glb` autóból legfeljebb 5 MB-os
+változatot készít a `web/assets/cars/compressed/` mappába. Modellenként a
+legjobb minőségű, limitbe beleférő profilt választja; a már naprakész fájlokat
+kihagyja. A hivatalos `gltfpack` binárist első futáskor automatikusan letölti,
+és SHA-256 ellenőrzés után a `tools/.cache/` mappában tartja.
+
+Egy vagy több konkrét autó újragenerálása:
+
+```bash
+npm run cars:compress -- 2008_bmw_sauber_f1.08 --force
+```
+
+Más célméret tesztelése:
+
+```bash
+npm run cars:compress -- --target-mb=4
+```
+
+Az eredeti GLB-ket a script soha nem írja felül. A játék az eredetit használja
+a saját autóhoz, a compressed változatot pedig multiplayer-ellenfélnél és
+Hot Lap ghostnál. Mindkettő ugyanazt az eredeti JSON-konfigurációt kapja, ezért
+a `wheelPattern` és a kerékanimáció is megmarad.
+
 Offline (Node.js, függőség nélküli) GLB-elemzők, amikkel egy új autó
 `wheelPattern`-jét meg lehet határozni anélkül, hogy a böngészőben kellene
 kézzel vadászni a mesh-neveket.
