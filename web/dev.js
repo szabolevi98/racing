@@ -31,6 +31,7 @@ let bakeCollisionBtn, bakeStatusEl, bakeDebrisFilterCheck, bakeSmoothCheck, open
 let bakeCanopyCheck, bakeCanopyHeight, bakeAsphaltCheck, bakeAsphaltIterations, bakeAsphaltRadius;
 let roughnessStatusEl;
 let carTesterBtn, carTesterHudEl, carTesterBackBtn, carTesterCarSelectEl;
+let carTesterCompressedEl, carTesterFileInfoEl;
 let devDriveBtn, devDriveHudEl, devDriveBackBtn, devDriveResetBtn, devDriveSaveBtn, devDriveSlidersEl;
 let openMaterialPickerBtn, generateCheckpointsBtn, autoCheckpointCountEl;
 let materialPickerPanelEl, materialPickerGridEl, generateAsphaltBtn;
@@ -84,6 +85,8 @@ function queryElements() {
   carTesterHudEl = $('carTesterHud');
   carTesterBackBtn = $('carTesterBackBtn');
   carTesterCarSelectEl = $('carTesterCarSelect');
+  carTesterCompressedEl = $('carTesterCompressed');
+  carTesterFileInfoEl = $('carTesterFileInfo');
   devDriveBtn = $('devDriveBtn');
   devDriveHudEl = $('devDriveHud');
   devDriveBackBtn = $('devDriveBackBtn');
@@ -214,6 +217,28 @@ function populateCarTesterSelect() {
   });
 }
 
+// Melyik fájl van épp a képernyőn, és mennyi. A méret azért kell, mert a
+// tömörítés minőségi profilokból választ: egy 4,9 MB-os autó a létra alján
+// járt, ott a legvalószínűbb a látható romlás.
+function showCarTesterFile(entry) {
+  if (!carTesterFileInfoEl || !entry) return;
+  const compressed = carTesterCompressedEl.checked && entry.remoteFile;
+  if (compressed) {
+    const mb = (entry.remoteBytes ?? 0) / (1024 * 1024);
+    carTesterFileInfoEl.textContent = `tömörített · ${mb.toFixed(1)} MB`;
+  } else if (carTesterCompressedEl.checked) {
+    carTesterFileInfoEl.textContent = 'nincs tömörített változat — az eredeti látszik';
+  } else {
+    carTesterFileInfoEl.textContent = `eredeti · ${((entry.bytes ?? 0) / (1024 * 1024)).toFixed(1)} MB`;
+  }
+}
+
+function reloadCarTesterCar() {
+  const manifest = api.manifest;
+  if (!manifest || api.appState !== 'cartest') return;
+  api.switchCarTo(findEntry(manifest.cars, carTesterCarSelectEl.value));
+}
+
 function enterCarTester() {
   if (!api.manifest) return;
   api.appState = 'cartest';
@@ -224,6 +249,11 @@ function enterCarTester() {
   devSpawnMarkers.forEach((m) => { m.visible = false; });
   populateCarTesterSelect();
   carTesterCarSelectEl.value = carSelect.value;
+  api.setCarTesterCompressed(carTesterCompressedEl.checked);
+  showCarTesterFile(findEntry(api.manifest.cars, carTesterCarSelectEl.value));
+  // Belépéskor a szintén betöltött kocsi még az eredeti; ha a pipa a legutóbbi
+  // menetből bent maradt, most kell átváltani rá.
+  if (carTesterCompressedEl.checked) reloadCarTesterCar();
   // A szabad kamerás dev nézetben a köd csak zavarna a pálya áttekintésénél
   // (enterDevMode ezért nullázza) — közelről néző autó-tesztelőben viszont
   // pont úgy kell kinéznie a kocsinak, mint rendes vezetés közben.
@@ -231,11 +261,18 @@ function enterCarTester() {
 }
 
 function exitCarTester() {
+  // A tömörített modell a tesztelőé: vezetni mindig az eredetit kell, ezért
+  // kilépéskor vissza kell tölteni — különben a menüből indított futam a
+  // gyengébb ellenfél-modellel menne.
+  const wasCompressed = carTesterCompressedEl.checked;
+  const entry = api.manifest && findEntry(api.manifest.cars, carTesterCarSelectEl.value);
   carTesterHudEl.classList.add('hidden');
   api.appState = 'dev';
+  api.setCarTesterCompressed(false);
   devHudEl.classList.remove('hidden');
   devSpawnMarkers.forEach((m) => { m.visible = true; });
   scene.fog.density = 0;
+  if (wasCompressed && entry) api.switchCarTo(entry);
 }
 
 function updateCarTest(dt) {
@@ -2043,11 +2080,17 @@ function wireEvents() {
 
   // Kocsiváltás közben a tesztelő legördülője le van tiltva, utána szinkronba
   // kerül a ténylegesen betöltött kocsival.
+  carTesterCompressedEl.addEventListener('change', () => {
+    api.setCarTesterCompressed(carTesterCompressedEl.checked);
+    reloadCarTesterCar();
+  });
+
   api.setCarSwitchHook({
     begin: () => { carTesterCarSelectEl.disabled = true; },
     end: (entry) => {
       carTesterCarSelectEl.value = entry.id;
       carTesterCarSelectEl.disabled = false;
+      showCarTesterFile(entry);
     },
   });
 

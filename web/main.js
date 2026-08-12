@@ -3750,6 +3750,13 @@ resultsRestartBtn.addEventListener('click', () => {
 let carSwitching = false;
 let carSwitchHook = null;
 
+// A dev keréktesztelő átkapcsolható a tömörített modellekre: azokat kapja
+// multiplayerben az ellenfél és a Hot Lap ghost. Érdemes végignézni őket, mert
+// a gltfpack összevonhatja az anyagneveket, amitől a wheelPattern nem talál —
+// az eredetin tökéletes kerék a tömörítetten állhat. Csak a tesztelőben hat,
+// hogy egy bent felejtett pipa ne befolyásolja a valódi vezetést.
+let carTesterCompressed = false;
+
 async function switchCarTo(entry) {
   if (!manifest || carSwitching || !entry) return;
   carSwitching = true;
@@ -3757,8 +3764,11 @@ async function switchCarTo(entry) {
   carSelect.value = entry.id;
   saveLastChoice('car', entry.id);
   showLoadingOverlay(true);
+  const remote = carTesterCompressed && appState === 'cartest' && entry.remoteFile;
+  const file = remote ? entry.remoteFile : entry.file;
+  const bytes = remote ? (entry.remoteBytes ?? entry.bytes) : entry.bytes;
   try {
-    await runLoadTasks([{ bytes: entry.bytes, run: (onP) => setCar('assets/' + entry.file, entry.id, entry.config, onP) }]);
+    await runLoadTasks([{ bytes, run: (onP) => setCar('assets/' + file, entry.id, entry.config, onP) }]);
   } finally {
     hideLoadingOverlay();
     carSwitching = false;
@@ -3842,6 +3852,8 @@ const devApi = {
   showLoadingOverlay, hideLoadingOverlay, runLoadTasks,
   switchCarTo,
   setCarSwitchHook(hook) { carSwitchHook = hook; },
+  // A keréktesztelő "Tömörített modell" pipája — lásd switchCarTo().
+  setCarTesterCompressed(on) { carTesterCompressed = !!on; },
   selectMap(mapId) { mapSelect.value = mapId; },
   get appState() { return appState; },
   set appState(v) { appState = v; },
