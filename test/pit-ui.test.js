@@ -49,14 +49,17 @@ test('driving alerts share one dynamic stacking container', () => {
   const stackEnd = html.indexOf('id="fullscreenHint"');
   assert.ok(stackStart >= 0 && stackEnd > stackStart);
   for (const id of [
-    'splitDeltaAlert', 'lapInvalidAlert', 'pitStopAlert', 'rolloverAlert',
+    'lapInvalidAlert', 'pitStopAlert', 'rolloverAlert',
     'highPingAlert', 'spectateBar', 'finishTimer',
   ]) {
     const position = html.indexOf(`id="${id}"`);
     assert.ok(position > stackStart && position < stackEnd, `${id} must be inside alertStack`);
   }
+  assert.ok(html.indexOf('id="splitDeltaAlert"') < stackStart, 'delta must stay above alertStack');
   const css = fs.readFileSync(new URL('../web/style.css', import.meta.url), 'utf8');
   assert.match(css, /#alertStack\s*\{[\s\S]*?display:\s*flex;\s*flex-direction:\s*column/);
+  assert.match(css, /#alertStack\s*\{[\s\S]*?top:\s*66px/);
+  assert.match(css, /#splitDeltaAlert\s*\{[\s\S]*?position:\s*fixed;\s*top:\s*16px/);
   assert.doesNotMatch(css, /#highPingAlert\s*\{\s*top:/);
   assert.doesNotMatch(css, /#lapInvalidAlert\s*\{\s*top:/);
 });
