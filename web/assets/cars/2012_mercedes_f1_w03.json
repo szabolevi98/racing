@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "Alapértelmezés 0 (előre néző modellt feltételezve). Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
+  "yawDegrees": 0,
+  "_wheelPattern": "Kézzel javítva az automatikus felismerés után: az első felni blur eleme is a kerék-pivothoz tartozik.",
+  "wheelPattern": "tyre|tread|brake|rim|blur"
+}

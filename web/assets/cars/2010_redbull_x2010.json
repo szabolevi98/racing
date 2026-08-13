@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "Alapértelmezés 0 (előre néző modellt feltételezve). Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
+  "yawDegrees": 0,
+  "_wheelPattern": "Kézzel javítva az automatikus felismerés után: csak a wheel1/wheel2/wheel3 teljes anyagnevek tartoznak a kerékhez. A tág minta a cockpit x1_wheel.* elemeit, a spind02 pedig egy futóműdarabot is tévesen forgatott.",
+  "wheelPattern": "wheel1(?![^\\s])|wheel2(?![^\\s])|wheel3(?![^\\s])"
+}
