@@ -13,7 +13,7 @@ export const C2S = {
   JOIN_ROOM: 'joinRoom',       // { code, carId }
   LEAVE_ROOM: 'leaveRoom',
   SET_CAR: 'setCar',           // { carId }
-  SET_READY: 'setReady',       // { ready }
+  SET_READY: 'setReady',       // { ready, state? } — ready=true mellett a kezdőállapot kötelező
   START_RACE: 'startRace',     // csak a szoba tulajdonosa
   STATE: 'state',              // { seq, t, p, q, v, w, st, wr, th, offtrack }
   RESET: 'reset',              // az "R": multi = checkpoint, Hot Lap = teljes újrakezdés

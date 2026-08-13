@@ -4,6 +4,7 @@ import http from 'node:http';
 import WebSocket from 'ws';
 import { attachWebSocket, roomStats } from '../server/net/wsServer.js';
 import { getManifest } from '../server/assets.js';
+import { C2S, S2C } from '../shared/protocol.js';
 
 function waitFor(ws, predicate, timeoutMs = 5_000) {
   return new Promise((resolve, reject) => {
@@ -125,6 +126,79 @@ test('invalid JSON cannot bypass the connection-wide rate limit', async () => {
     await waitForStats({ rooms: 0, players: 0 });
   } finally {
     if (ws.readyState === WebSocket.OPEN) ws.close();
+    await new Promise((resolve) => wss.close(resolve));
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('movement waits for a canonical ready state and keeps its server grid position', async () => {
+  const server = http.createServer();
+  const wss = attachWebSocket(server);
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const ws = new WebSocket(`ws://127.0.0.1:${server.address().port}/ws`);
+  try {
+    await new Promise((resolve, reject) => {
+      ws.once('open', resolve);
+      ws.once('error', reject);
+    });
+    const welcomePromise = waitFor(ws, (message) => message.type === S2C.WELCOME);
+    ws.send(JSON.stringify({ type: C2S.HELLO, name: 'ReadyAudit' }));
+    const welcome = await welcomePromise;
+
+    const manifest = await getManifest();
+    const roomPromise = waitFor(ws, (message) => message.type === S2C.ROOM_STATE && message.room?.code);
+    ws.send(JSON.stringify({
+      type: C2S.CREATE_ROOM,
+      mapId: manifest.maps[0].id,
+      carId: manifest.cars[0].id,
+      laps: 2,
+      isPublic: false,
+    }));
+    await roomPromise;
+
+    const startingPromise = waitFor(ws, (message) => message.type === S2C.RACE_STARTING);
+    ws.send(JSON.stringify({ type: C2S.START_RACE }));
+    await startingPromise;
+    await waitFor(ws, (message) => message.type === S2C.SNAPSHOT
+      && message.cars?.some((car) => car.id === welcome.playerId && car.rd === false));
+
+    const arbitraryState = {
+      seq: 1,
+      p: [999, 1, 999],
+      q: [0, 0, 0, 1],
+      v: [0, 0, 0],
+      w: [0, 0, 0],
+      st: 0,
+      wr: 0,
+      th: 0,
+    };
+    // Ready előtt a normál STATE nem teheti jelenlévővé és nem mozdíthatja el.
+    ws.send(JSON.stringify({ type: C2S.STATE, ...arbitraryState }));
+    await waitFor(ws, (message) => message.type === S2C.SNAPSHOT
+      && message.cars?.some((car) => car.id === welcome.playerId && car.rd === false));
+
+    const missingStateError = waitFor(ws, (message) => message.type === S2C.ERROR
+      && /kezdőállapot szükséges/i.test(message.message));
+    ws.send(JSON.stringify({ type: C2S.SET_READY, ready: true }));
+    await missingStateError;
+
+    const presentPromise = waitFor(ws, (message) => message.type === S2C.SNAPSHOT
+      && message.cars?.some((car) => car.id === welcome.playerId && car.rd === true));
+    ws.send(JSON.stringify({
+      type: C2S.SET_READY,
+      ready: true,
+      state: arbitraryState,
+    }));
+    const present = await presentPromise;
+    const serverCar = present.cars.find((car) => car.id === welcome.playerId);
+    assert.notEqual(serverCar.p[0], 999);
+    assert.notEqual(serverCar.p[2], 999);
+  } finally {
+    if (ws.readyState === WebSocket.OPEN) ws.close();
+    if (ws.readyState !== WebSocket.CLOSED) {
+      await new Promise((resolve) => ws.once('close', resolve));
+    }
+    await waitForStats({ rooms: 0, players: 0 });
     await new Promise((resolve) => wss.close(resolve));
     await new Promise((resolve) => server.close(resolve));
   }

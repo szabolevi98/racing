@@ -299,14 +299,25 @@ async function handleMessage(player, msg) {
     case C2S.SET_READY: {
       const room = rooms.get(player.roomCode);
       if (!room) return;
-      if (room.state !== ROOM_STATE.LOADING) {
+      const ready = msg.ready === true;
+      const loading = room.state === ROOM_STATE.LOADING;
+      const lateReady = ready
+        && !player.ready
+        && !!room.sim
+        && (room.state === ROOM_STATE.COUNTDOWN || room.state === ROOM_STATE.RACING);
+      // Egy már elfogadott ready csomag megismétlődhet hálózati/UI okból. Ne
+      // írjuk felül vele a kanonikus kezdőállapotot, és ne mutassunk hibát sem.
+      if (ready && player.ready) return;
+      if (!loading && !lateReady) {
         return fail(socket, 'Készenléti állapot csak a verseny betöltésekor küldhető.');
       }
       // Kliensfizikánál a betöltés végén már a pályára helyezett, helyes Y
       // pozíciót is elküldjük. Ha a nagyon gyors kliens megelőzte a vezérlő
-      // elkészültét, ideiglenesen a playeren tartjuk, és startRace átveszi.
-      const ready = msg.ready === true;
-      if (ready && msg.state) {
+      // elkészültét, ideiglenesen a playeren tartjuk, és startRace átveszi. A
+      // 30 másodperces időkorlát után elkészülő kliens ugyanezt biztonságosan
+      // megteheti COUNTDOWN/RACING alatt, ha még egy állapotát sem fogadtuk el.
+      if (ready) {
+        if (!msg.state) return fail(socket, 'A készenléthez kezdőállapot szükséges.');
         const initialState = sanitizeClientCarState(msg.state);
         if (!initialState) return fail(socket, 'Hibás kezdőállapot.');
         initialState.seq = Math.trunc(Number(msg.state.seq) || 0);
@@ -318,11 +329,17 @@ async function handleMessage(player, msg) {
         } else {
           player.pendingInitialState = initialState;
         }
+      } else {
+        // Ha betöltés közben visszavonja a készenlétet, a korábban félretett
+        // állapot se kerülhessen később automatikusan az új vezérlőbe.
+        player.pendingInitialState = null;
       }
       player.ready = ready;
-      pushRoomState(room);
       // Verseny előtti betöltés: ez volt az utolsó, akire vártunk?
-      maybeBeginCountdown(room);
+      if (loading) {
+        pushRoomState(room);
+        maybeBeginCountdown(room);
+      }
       return;
     }
 
@@ -338,6 +355,10 @@ async function handleMessage(player, msg) {
 
     case C2S.STATE: {
       const room = rooms.get(player.roomCode);
+      // Normál mozgást csak a kanonizált SET_READY kezdőállapot után fogadunk.
+      // Így a betöltési időkorlát kivárásával sem lehet az első STATE csomagot
+      // egyszeri, tetszőleges rajtrács-teleportként felhasználni.
+      if (!player.ready) return;
       room?.sim?.receiveState?.(player.id, msg);
       return;
     }
