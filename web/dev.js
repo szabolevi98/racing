@@ -38,7 +38,8 @@ let materialPickerPanelEl, materialPickerGridEl, generateAsphaltBtn;
 let closeMaterialPickerBtn, materialPickerStatusEl;
 let asphaltAdditiveCheck, asphaltModeHintEl;
 let closeZoneEditorBtn, saveZoneBtn, zoneEditorEl, zoneOverlayCanvas, zoneStatusEl;
-let brushSizeRange, brushSizeLabel, brushSizeRow;
+let brushSizeRange, brushSizeLabel, brushSizeRow, paintModeRow;
+let polygonToolRow, polygonPointCountEl, undoPolygonPointBtn, fillPolygonBtn, clearPolygonBtn;
 let spawnToolRow, zoneSpawnCountEl, undoSpawnBtn;
 let hotLapSpawnToolRow, hotLapSpawnStateEl, clearHotLapSpawnBtn;
 let gateToolRow, startLineStateEl, checkpointCountEl, undoGateBtn, clearCheckpointsBtn;
@@ -111,6 +112,12 @@ function queryElements() {
   brushSizeRange = $('brushSizeRange');
   brushSizeLabel = $('brushSizeLabel');
   brushSizeRow = $('brushSizeRow');
+  paintModeRow = $('paintModeRow');
+  polygonToolRow = $('polygonToolRow');
+  polygonPointCountEl = $('polygonPointCount');
+  undoPolygonPointBtn = $('undoPolygonPointBtn');
+  fillPolygonBtn = $('fillPolygonBtn');
+  clearPolygonBtn = $('clearPolygonBtn');
   spawnToolRow = $('spawnToolRow');
   zoneSpawnCountEl = $('zoneSpawnCount');
   undoSpawnBtn = $('undoSpawnBtn');
@@ -819,6 +826,7 @@ const MAX_MASK_PIXELS = 20e6;      // ~80 MB canvas — efölött arányosan dur
 let zoneBounds = null;       // {minX, maxX, minZ, maxZ} — a maszk világ-lefedettsége
 let zoneMaskCanvas = null;   // offscreen: maga a festett maszk, világ-rácsban
 let zonePainting = false;
+let zonePolygonPoints = [];
 let previousAppStateBeforeZone = 'dev';
 
 // Az élő felülnézeti kamera állapota (világegységben).
@@ -830,6 +838,15 @@ let zoneCursorWorld = null;  // az ecset-előnézethez
 function getSelectedBrush() {
   const checked = document.querySelector('input[name="zoneBrush"]:checked');
   return checked ? checked.value : '0';
+}
+
+function getSelectedPaintMode() {
+  const checked = document.querySelector('input[name="zonePaintMode"]:checked');
+  return checked ? checked.value : 'brush';
+}
+
+function isPolygonPaintMode() {
+  return isPaintTool() && getSelectedPaintMode() === 'polygon';
 }
 
 // A rajtrács-pontok lerakása is itt, a felülnézeti szerkesztőben történik —
@@ -872,7 +889,11 @@ function updateSpawnToolUI() {
       && selectedZoneObject.index >= api.currentPitConfig.entries.length) selectedZoneObject = null;
   if (selectedZoneObject?.kind === 'pit-exit'
       && selectedZoneObject.index >= api.currentPitConfig.exits.length) selectedZoneObject = null;
-  brushSizeRow.classList.toggle('d-none', !isPaintTool());
+  const paintTool = isPaintTool();
+  const polygonMode = paintTool && getSelectedPaintMode() === 'polygon';
+  paintModeRow.classList.toggle('d-none', !paintTool);
+  brushSizeRow.classList.toggle('d-none', !paintTool || polygonMode);
+  polygonToolRow.classList.toggle('d-none', !polygonMode);
   spawnToolRow.classList.toggle('d-none', !isRegularSpawnTool());
   hotLapSpawnToolRow.classList.toggle('d-none', !isHotLapSpawnTool());
   gateToolRow.classList.toggle('d-none', !isRaceGateTool());
@@ -895,6 +916,10 @@ function updateSpawnToolUI() {
     : 'A szabály csak bejárattal, kijárattal és mind a 8 boxhellyel aktív.';
   pitConfigStateEl.className = pitComplete ? 'text-success' : 'text-secondary';
   guidePointCountEl.textContent = String(api.currentGuidePath.length);
+  polygonPointCountEl.textContent = String(zonePolygonPoints.length);
+  undoPolygonPointBtn.disabled = zonePolygonPoints.length === 0;
+  fillPolygonBtn.disabled = zonePolygonPoints.length < 3;
+  clearPolygonBtn.disabled = zonePolygonPoints.length === 0;
 }
 
 // A rajtpont iránya (heading): az autó "előre" iránya a világ +Z, ezért a
@@ -1050,6 +1075,59 @@ function paintAtWorld(x, z) {
   ctx.restore();
 }
 
+function clearZonePolygon() {
+  zonePolygonPoints = [];
+  updateSpawnToolUI();
+}
+
+function applyZonePolygon() {
+  if (!zoneMaskCanvas || zonePolygonPoints.length < 3) {
+    zoneStatusEl.textContent = 'A kitöltéshez legalább 3 pont kell.';
+    return false;
+  }
+  const ctx = zoneMaskCanvas.getContext('2d');
+  const brush = getSelectedBrush();
+  const first = zoneWorldToMaskPixel(zonePolygonPoints[0].x, zonePolygonPoints[0].z);
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(first.u, first.v);
+  for (let i = 1; i < zonePolygonPoints.length; i++) {
+    const point = zoneWorldToMaskPixel(zonePolygonPoints[i].x, zonePolygonPoints[i].z);
+    ctx.lineTo(point.u, point.v);
+  }
+  ctx.closePath();
+  if (brush === '0') {
+    // Aszfalt = ugyanaz a törlés, mint az ecsetnél, csak a kijelölt
+    // sokszög teljes területén.
+    ctx.globalCompositeOperation = 'destination-out';
+  } else {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = brush === '1' ? OFFTRACK_COLOR : WALL_COLOR;
+  }
+  ctx.fill();
+  ctx.restore();
+  const pointCount = zonePolygonPoints.length;
+  zonePolygonPoints = [];
+  updateSpawnToolUI();
+  zoneStatusEl.textContent = `${pointCount} pontos terület kitöltve.`;
+  return true;
+}
+
+function addZonePolygonPoint(x, z) {
+  // Három ponttól az első pontra kattintás lezárja a kijelölést. A
+  // tolerancia képernyőmérethez igazodik, ezért zoomtól függetlenül könnyű
+  // eltalálni, ugyanúgy, mint a meglévő kapuk fogópontjait.
+  if (zonePolygonPoints.length >= 3) {
+    const first = zonePolygonPoints[0];
+    if (Math.hypot(x - first.x, z - first.z) <= zonePickTolerance()) {
+      applyZonePolygon();
+      return;
+    }
+  }
+  zonePolygonPoints.push({ x: +x.toFixed(2), z: +z.toFixed(2) });
+  updateSpawnToolUI();
+}
+
 // A maszkot és az ecset-előnézetet a 3D kép TETEJÉRE rajzoljuk, ugyanazzal a
 // vetítéssel, amivel a felülnézeti kamera dolgozik.
 function drawZoneOverlay() {
@@ -1159,6 +1237,38 @@ function drawZoneOverlay() {
       ctx.arc(s.x, s.y, 4, 0, Math.PI * 2);
       ctx.fillStyle = '#ffc107';
       ctx.fill();
+    });
+  }
+
+  // Pontonként felvett zónaterület. Az utolsó ponttól a kurzorig futó
+  // előnézet megmutatja a következő oldalt; három ponttól az első pont
+  // nagyobb karikát kap, jelezve, hogy rákattintva lezárható.
+  if (isPolygonPaintMode() && zonePolygonPoints.length) {
+    const polygonColor = getSelectedBrush() === '0' ? '#ffffff'
+      : (getSelectedBrush() === '1' ? '#ffa500' : '#dc143c');
+    ctx.beginPath();
+    zonePolygonPoints.forEach((p, i) => {
+      const s = toScreen(p.x, p.z);
+      if (i === 0) ctx.moveTo(s.x, s.y); else ctx.lineTo(s.x, s.y);
+    });
+    if (zoneCursorWorld) {
+      const hover = toScreen(zoneCursorWorld.x, zoneCursorWorld.z);
+      ctx.lineTo(hover.x, hover.y);
+    }
+    ctx.strokeStyle = polygonColor;
+    ctx.lineWidth = 3;
+    ctx.setLineDash([8, 5]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    zonePolygonPoints.forEach((p, i) => {
+      const s = toScreen(p.x, p.z);
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, i === 0 && zonePolygonPoints.length >= 3 ? 7 : 4, 0, Math.PI * 2);
+      ctx.fillStyle = polygonColor;
+      ctx.fill();
+      ctx.strokeStyle = '#111820';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
     });
   }
 
@@ -1276,7 +1386,7 @@ function drawZoneOverlay() {
   if (zoneCursorWorld) {
     const s = toScreen(zoneCursorWorld.x, zoneCursorWorld.z);
     ctx.beginPath();
-    if (isSpawnTool() || isGateTool()) {
+    if (isSpawnTool() || isGateTool() || isGuideTool() || isPolygonPaintMode()) {
       // Rajtpont eszköznél célkereszt, nem ecset-kör.
       ctx.moveTo(s.x - 10, s.y); ctx.lineTo(s.x + 10, s.y);
       ctx.moveTo(s.x, s.y - 10); ctx.lineTo(s.x, s.y + 10);
@@ -1381,6 +1491,7 @@ function enterZoneEditor() {
   api.appState = 'zone-edit';
 
   zoneBounds = { minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z };
+  zonePolygonPoints = [];
 
   // A maszk felbontását a világ mérete szabja meg (cél ~2 egység/pixel),
   // maximált oldalhosszal, hogy a memória/PNG-méret kordában maradjon.
@@ -1416,6 +1527,8 @@ function enterZoneEditor() {
 }
 
 function exitZoneEditor() {
+  zonePainting = false;
+  zonePolygonPoints = [];
   zoneEditorEl.classList.add('hidden');
   api.appState = previousAppStateBeforeZone;
   if (api.appState === 'dev') {
@@ -2135,12 +2248,26 @@ function wireEvents() {
 
   document.querySelectorAll('input[name="zoneBrush"]').forEach((el) => {
     el.addEventListener('change', () => {
+      zonePolygonPoints = [];
       selectedZoneObject = null;
       editingSpawn = null;
       editingGate = null;
       updateSpawnToolUI();
     });
   });
+  document.querySelectorAll('input[name="zonePaintMode"]').forEach((el) => {
+    el.addEventListener('change', () => {
+      zonePainting = false;
+      zonePolygonPoints = [];
+      updateSpawnToolUI();
+    });
+  });
+  undoPolygonPointBtn.addEventListener('click', () => {
+    zonePolygonPoints.pop();
+    updateSpawnToolUI();
+  });
+  fillPolygonBtn.addEventListener('click', applyZonePolygon);
+  clearPolygonBtn.addEventListener('click', clearZonePolygon);
   undoSpawnBtn.addEventListener('click', removeLastSpawnPoint);
   clearHotLapSpawnBtn.addEventListener('click', clearHotLapSpawn);
   undoGateBtn.addEventListener('click', removeLastGate);
@@ -2167,6 +2294,10 @@ function wireEvents() {
       if (isGuideTool()) {
         api.currentGuidePath.push({ x, z });
         updateSpawnToolUI();
+        return;
+      }
+      if (isPolygonPaintMode()) {
+        addZonePolygonPoint(x, z);
         return;
       }
       zonePainting = true;
