@@ -139,6 +139,7 @@ const splitDeltaEl = document.getElementById('splitDeltaAlert');
 const splitDeltaValueEl = document.getElementById('splitDeltaValue');
 const splitDeltaRefEl = document.getElementById('splitDeltaRef');
 const waitingPlayersAlertEl = document.getElementById('waitingPlayersAlert');
+const waitingPlayersAlertTextEl = document.getElementById('waitingPlayersAlertText');
 // Elég röviden látszania: a következő checkpointig úgyis új adat jön, és
 // vezetés közben egy tartósan kint lévő doboz csak takar.
 const SPLIT_DELTA_VISIBLE_MS = 2600;
@@ -150,7 +151,10 @@ function hideSplitDelta() {
   splitDeltaEl.classList.add('hidden');
 }
 
-function setWaitingPlayersAlert(visible) {
+function setWaitingPlayersAlert(visible, waiting = []) {
+  waitingPlayersAlertTextEl.textContent = waiting.length
+    ? `Várakozás a többiekre: ${waiting.join(', ')}…`
+    : 'Várakozás a többiekre…';
   waitingPlayersAlertEl.classList.toggle('hidden', !visible);
 }
 
@@ -2285,22 +2289,20 @@ function frame(dt = 1 / 60) {
   // tűnnie, azt pedig már nem érné el a kiugrás után.
   updateSpectateBar();
 
-  // A jobb felső HUD mellett középen is jelezzük, mert a mozdulatlan rajtnál
-  // sokan nem néznek a köridő-panelre. Hot Lapban nincs másik játékos,
-  // akire várni kellene, ezért ott nem villantjuk fel.
-  setWaitingPlayersAlert(!raceEnded && !isHotLap() && !starting?.startsAt);
+  // A mozdulatlan rajtnál középen, név szerint jelezzük, kire várunk. Hot
+  // Lapban nincs másik játékos, ezért ott nem villantjuk fel.
+  const waitingPlayers = room?.players.filter((p) => !p.ready).map((p) => p.name) || [];
+  setWaitingPlayersAlert(
+    !raceEnded && !isHotLap() && !starting?.startsAt,
+    waitingPlayers
+  );
 
   if (raceEnded) return;
 
   // Amíg nincs rajtidő, a többiek betöltésére várunk. Ezt ki KELL írni:
   // különben a játékos egy néma, mozdulatlan képet lát, és azt hiszi, beragadt.
   if (!starting?.startsAt) {
-    const waiting = room?.players.filter((p) => !p.ready).map((p) => p.name) || [];
-    G.setHud(
-      '<div class="hud-note"><strong>Várakozás a többiekre…</strong>' +
-      (waiting.length ? `<br>Még tölt: ${escapeHtml(waiting.join(', '))}` : '') +
-      '</div>'
-    );
+    G.setHud('');
     G.setStandings('');
     return;
   }
