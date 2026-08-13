@@ -25,6 +25,9 @@ import {
   createRemoteEngine, updateRemoteEngine, stopRemoteEngine, updateAudioListener,
 } from './audio.js';
 import {
+  NET_DIAG_EVENT, NET_DIAG_INCIDENT, netDiagnostics,
+} from './netDiagnostics.js';
+import {
   ZONE_ASPHALT, ZONE_OFFTRACK, ZONE_WALL, decodeZoneCodes, sampleZone,
   wallProbes, wheelProbes,
   carTouchesWall as sharedCarTouchesWall,
@@ -3222,6 +3225,16 @@ window.addEventListener('keydown', (e) => {
   toggleMuted();
 });
 
+// Netcode-riport: nincs állandó HUD-gomb. Az F9 az aktuális 30 másodperces
+// ablakot és a legutóbbi automatikusan megőrzött hibapillanatokat egy JSON-ba
+// tölti le. A fájl/JSON csak ekkor készül, vezetés közben kizárólag a fix
+// méretű numerikus körpuffer íródik.
+window.addEventListener('keydown', (e) => {
+  if (e.code !== 'F9' || e.repeat || !netDiagnostics.hasData()) return;
+  e.preventDefault();
+  if (netDiagnostics.download()) console.info('Netcode-riport letöltve (F9).');
+});
+
 // A LÁTHATÓ kerék-kormányzás simán közelít a célértékhez, nem ugrik rá
 // azonnal — valóságosabb, mint a korábbi azonnali végállás-váltás, de elég
 // gyors ahhoz, hogy gyors ide-oda kormányzásnál se maradjon el az input
@@ -4388,14 +4401,74 @@ function tickFpsCounter(nowMs) {
   }
 }
 
+// A képkockákat nem egyenként tároljuk: 250 ms-os ablakonként egy átlag és
+// maximum elég a mikrolag felismeréséhez, és így a puffer nagy része a valódi
+// hálózati állapotoknak marad. Az első multiplayer-képkockát kihagyjuk, mert
+// annak dt-jében még a pálya/modell betöltési ideje is benne lehet.
+const NET_PERF_SAMPLE_MS = 250;
+let netPerfActive = false;
+let netPerfStartedAt = 0;
+let netPerfFrameCount = 0;
+let netPerfFrameTotalMs = 0;
+let netPerfFrameMaxMs = 0;
+let netPerfLastPhysicsSteps = 0;
+
+function sampleNetPerformance(nowMs, rawFrameMs) {
+  if (appState !== 'mp') {
+    netPerfActive = false;
+    return;
+  }
+  const mp = window.__mp;
+  if (!netPerfActive) {
+    netPerfActive = true;
+    netPerfStartedAt = nowMs;
+    netPerfFrameCount = 0;
+    netPerfFrameTotalMs = 0;
+    netPerfFrameMaxMs = 0;
+    netPerfLastPhysicsSteps = mp?.physSteps ?? 0;
+    return;
+  }
+  netPerfFrameCount++;
+  netPerfFrameTotalMs += rawFrameMs;
+  netPerfFrameMaxMs = Math.max(netPerfFrameMaxMs, rawFrameMs);
+  const elapsed = nowMs - netPerfStartedAt;
+  if (elapsed < NET_PERF_SAMPLE_MS) return;
+
+  const physicsSteps = mp?.physSteps ?? netPerfLastPhysicsSteps;
+  netDiagnostics.record(
+    NET_DIAG_EVENT.PERFORMANCE,
+    netPerfFrameCount ? netPerfFrameTotalMs / netPerfFrameCount : 0,
+    netPerfFrameMaxMs,
+    elapsed > 0 ? (netPerfFrameCount * 1000) / elapsed : 0,
+    physicsSteps - netPerfLastPhysicsSteps,
+    mp?.physicsTimerLatenessMs,
+    mp?.physicsTimerJitterMs,
+    mp?.predDelayMs,
+    mp?.interpDelayMs,
+  );
+  // Csak fókuszban lévő játéknál tekintjük automatikus incidensnek. Egy
+  // háttérfülről való visszatérés hosszú képkockája önmagában nem netcode-hiba.
+  if (netPerfFrameMaxMs >= 250 && !document.hidden && document.hasFocus()) {
+    netDiagnostics.captureIncident(NET_DIAG_INCIDENT.FRAME_STALL);
+  }
+  netPerfStartedAt = nowMs;
+  netPerfFrameCount = 0;
+  netPerfFrameTotalMs = 0;
+  netPerfFrameMaxMs = 0;
+  netPerfLastPhysicsSteps = physicsSteps;
+}
+
 
 function animate() {
   requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.1);
+  const rawDt = clock.getDelta();
+  const dt = Math.min(rawDt, 0.1);
   // Minden állapotban mérünk (menü, vezetés, mp, dev), nem csak vezetés
   // közben — az fps-doboz a #hud-on belül van, tehát csak driving/mp-ben
   // LÁTSZIK, de a számláló futása nem függ ettől.
-  tickFpsCounter(performance.now());
+  const frameNow = performance.now();
+  tickFpsCounter(frameNow);
+  sampleNetPerformance(frameNow, rawDt * 1000);
   // MINDEN állapotban, a zone-edit korai kilépése ELŐTT — lásd
   // syncMiniMapVisibility: ez teszi fölöslegessé az állapotonkénti kapcsolgatást.
   syncMiniMapVisibility();

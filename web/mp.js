@@ -16,6 +16,10 @@ import {
 } from '/shared/remoteVisual.js';
 import { createPitState, hasCompletePitConfig, updatePitState } from '/shared/pit.js';
 import { smoothPing } from '/shared/ping.js';
+import {
+  NET_DIAG_CONNECTION, NET_DIAG_EVENT, NET_DIAG_INCIDENT, NET_DIAG_RACE_STAGE,
+  netDiagnostics,
+} from './netDiagnostics.js';
 
 const G = window.__game;
 // Diagnosztika. A step() azért kell, mert a requestAnimationFrame megáll, ha
@@ -40,6 +44,8 @@ window.__mp = {
   get interpDelayMs() { return +interpDelayMs.toFixed(1); },
   get predDelayMs() { return +predDelayMs.toFixed(1); },
   get physSteps() { return physSteps; },
+  get physicsTimerLatenessMs() { return +physicsTimerLatenessMs.toFixed(1); },
+  get physicsTimerJitterMs() { return +physicsTimerJitterMs.toFixed(1); },
   // A szerver legutóbbi ellenőrzött állapota a saját kocsinkról.
   get lastSelf() { return lastSnapshot?.cars?.find((c) => c.id === me.id) || null; },
   // A helyi fizika és a kirajzolási interpoláció pozíciója diagnosztikához.
@@ -77,6 +83,7 @@ let inputTimer = null;
 // képkockányi ideig látszana csak, mielőtt a következő frame() lenullázná.
 let raceEnded = false;
 let finishedDriving = false;
+let raceRunningDiagnosticRecorded = false;
 let lastEvents = [];
 // Mikor zárul le magától a futam az első befutó után, a SZERVER órája szerint
 // (vagy null, ha még senki sem ért célba). A snapshotokból frissül, a
@@ -145,6 +152,7 @@ const waitingPlayersAlertTextEl = document.getElementById('waitingPlayersAlertTe
 // vezetés közben egy tartósan kint lévő doboz csak takar.
 const SPLIT_DELTA_VISIBLE_MS = 2600;
 let splitDeltaTimer = null;
+let lastWaitingDiagnostic = '';
 
 function hideSplitDelta() {
   if (splitDeltaTimer) clearTimeout(splitDeltaTimer);
@@ -157,6 +165,16 @@ function setWaitingPlayersAlert(visible, waiting = []) {
     ? `Várakozás a többiekre: ${waiting.join(', ')}…`
     : 'Várakozás a rajtra…';
   waitingPlayersAlertEl.classList.toggle('hidden', !visible);
+  const diagnostic = visible ? `1:${waiting.length}` : '0';
+  if (diagnostic !== lastWaitingDiagnostic) {
+    lastWaitingDiagnostic = diagnostic;
+    netDiagnostics.record(
+      NET_DIAG_EVENT.WAITING,
+      visible,
+      waiting.length,
+      visible && waiting.length === 0,
+    );
+  }
 }
 
 function showSplitDelta(deltaMs, label) {
@@ -888,6 +906,29 @@ $('mpBrowseList').addEventListener('click', (e) => {
 
 let pendingAuthentication = null;
 
+const ROOM_STATE_DIAG_CODE = Object.freeze({
+  [ROOM_STATE.LOBBY]: 1,
+  [ROOM_STATE.LOADING]: 2,
+  [ROOM_STATE.COUNTDOWN]: 3,
+  [ROOM_STATE.RACING]: 4,
+  [ROOM_STATE.FINISHED]: 5,
+});
+
+function recordRoomDiagnostic(value) {
+  if (!value) return;
+  const players = Array.isArray(value.players) ? value.players : [];
+  const self = players.find((player) => player.id === me.id);
+  netDiagnostics.record(
+    NET_DIAG_EVENT.ROOM,
+    ROOM_STATE_DIAG_CODE[value.state] || 0,
+    players.length,
+    players.reduce((count, player) => count + (player.ready ? 1 : 0), 0),
+    !!self?.ready,
+    value.laps,
+    value.mode === GAME_MODE.HOT_LAP ? 2 : 1,
+  );
+}
+
 function authenticate(type, data) {
   pendingAuthentication = { type, data };
   if (ws?.readyState === WebSocket.OPEN) {
@@ -899,8 +940,10 @@ function authenticate(type, data) {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const socket = new WebSocket(`${proto}://${location.host}/ws`);
   ws = socket;
+  netDiagnostics.record(NET_DIAG_EVENT.CONNECTION, NET_DIAG_CONNECTION.CONNECTING);
   socket.addEventListener('open', () => {
     if (ws !== socket) return;
+    netDiagnostics.record(NET_DIAG_EVENT.CONNECTION, NET_DIAG_CONNECTION.OPEN);
     setErr('');
     const auth = pendingAuthentication;
     if (auth) send(auth.type, auth.data);
@@ -910,12 +953,28 @@ function authenticate(type, data) {
     if (ws !== socket) return;
     // A feldolgozást késleltetjük, nem a JSON-elemzést — így a szimulátor
     // költsége nem torzítja a mért időt.
-    const m = JSON.parse(ev.data);
+    let m;
+    try {
+      m = JSON.parse(ev.data);
+    } catch {
+      // A hibás csomag szövegét nem mentjük el: lehet benne felhasználói adat.
+      netDiagnostics.record(NET_DIAG_EVENT.SERVER_ERROR, G.appState === 'mp');
+      return;
+    }
     delayed('down', () => onMessage(m));
   });
-  socket.addEventListener('close', () => {
+  socket.addEventListener('close', (event) => {
     if (ws !== socket) return;
     const wasLoggingOut = loggingOut;
+    const connectionWasInRace = G.appState === 'mp' || !!starting;
+    netDiagnostics.record(
+      NET_DIAG_EVENT.CONNECTION,
+      NET_DIAG_CONNECTION.CLOSED,
+      Number(event.code) || 0,
+    );
+    if (!wasLoggingOut && connectionWasInRace) {
+      netDiagnostics.captureIncident(NET_DIAG_INCIDENT.CONNECTION_LOST);
+    }
     loggingOut = false;
     ws = null;
     setErr(wasLoggingOut ? '' : 'A kapcsolat megszakadt.');
@@ -934,7 +993,12 @@ function authenticate(type, data) {
     if (G.appState === 'mp') G.leaveMultiplayer();
   });
   socket.addEventListener('error', () => {
-    if (ws === socket) setErr('Nem sikerült csatlakozni a szerverhez.');
+    if (ws !== socket) return;
+    netDiagnostics.record(NET_DIAG_EVENT.CONNECTION, NET_DIAG_CONNECTION.ERROR);
+    if (G.appState === 'mp' || starting) {
+      netDiagnostics.captureIncident(NET_DIAG_INCIDENT.CONNECTION_LOST);
+    }
+    setErr('Nem sikerült csatlakozni a szerverhez.');
   });
 }
 
@@ -974,6 +1038,7 @@ function onMessage(m) {
       // különben azonnal letörölné.
       const entered = !room;
       room = m.room;
+      recordRoomDiagnostic(room);
       if (entered) setErr('');
       if (room?.mode !== GAME_MODE.HOT_LAP) renderRoom();
       updateResultsActions();
@@ -1009,6 +1074,13 @@ function onMessage(m) {
         room.mode = m.mode || room.mode;
       }
       hideMultiplayerResults();
+      netDiagnostics.record(
+        NET_DIAG_EVENT.RACE,
+        NET_DIAG_RACE_STAGE.LOADING,
+        0,
+        m.laps,
+        Array.isArray(m.players) ? m.players.length : 0,
+      );
       beginRace(m).catch((err) => {
         // A játékos vagy a kapcsolat közben kilépett, és már másik életciklus
         // az aktuális. Az elkéső régi betöltés nem nyithatja vissza a lobbyt.
@@ -1034,6 +1106,13 @@ function onMessage(m) {
       // Mindenki betöltött (vagy lejárt a türelmi idő): innen számol a 3-2-1.
       if (starting) starting.startsAt = m.startsAt;
       setWaitingPlayersAlert(false);
+      netDiagnostics.record(
+        NET_DIAG_EVENT.RACE,
+        NET_DIAG_RACE_STAGE.COUNTDOWN,
+        Number(m.startsAt) - serverNow(),
+        room?.laps,
+        room?.players?.length,
+      );
       // Hot Lapnál ez még csak a felvezető kezdete. A mért kör hiteles
       // kezdőidejét az első rajtvonal-átlépés után a snapshot `ls` mezője adja.
       myLapStartedAt = isHotLap() ? 0 : m.startsAt;
@@ -1046,7 +1125,14 @@ function onMessage(m) {
     case S2C.CAR_RESET:
       if (m.playerId === me.id) {
         resetPending = false;
-        if (G.resetMultiplayerCar(m.respawn || {})) resetPredState();
+        const reset = G.resetMultiplayerCar(m.respawn || {});
+        netDiagnostics.record(
+          NET_DIAG_EVENT.CAR_RESET,
+          m.respawn?.x,
+          m.respawn?.z,
+          reset,
+        );
+        if (reset) resetPredState();
       }
       break;
 
@@ -1056,9 +1142,18 @@ function onMessage(m) {
       // megfagyva ott maradna a verseny végéig.
       if (m.kind === 'left') removeOtherCar(m.playerId);
       if (m.kind === 'validation' && m.playerId === me.id) {
+        netDiagnostics.record(NET_DIAG_EVENT.VALIDATION, lapTainted, myLap, myCp);
+        netDiagnostics.captureIncident(NET_DIAG_INCIDENT.SERVER_VALIDATION);
         G.showServerValidationAlert?.();
       }
       if (m.kind === 'lap' && m.playerId === me.id) {
+        netDiagnostics.record(
+          NET_DIAG_EVENT.LAP,
+          m.lap,
+          m.timeMs,
+          !!m.invalid,
+          lapTainted,
+        );
         myLapTimes.push({ time: m.timeMs, invalid: !!m.invalid });
         if (isHotLap() && myLapTimes.length > 64) {
           myLapTimes.splice(0, myLapTimes.length - 64);
@@ -1079,6 +1174,13 @@ function onMessage(m) {
       break;
 
     case S2C.RACE_END:
+      netDiagnostics.record(
+        NET_DIAG_EVENT.RACE,
+        NET_DIAG_RACE_STAGE.ENDED,
+        0,
+        room?.laps,
+        room?.players?.length,
+      );
       showResults(m.results);
       break;
 
@@ -1099,14 +1201,26 @@ function onMessage(m) {
         //    figyelőnk vak, mert a mi szálunk közben szabad volt — ez az, ami
         //    verseny indításakor a több száz milliszekundumos pinget okozta.
         const sentAt = Number(m.t);
+        const pongNow = performance.now();
         const loadingSample = raceLoadActive || sentAt < pingValidAfter;
         const stalledHere = lastStallAt > sentAt
-          || performance.now() - lastHeartbeatAt > STALL_THRESHOLD_MS;
+          || pongNow - lastHeartbeatAt > STALL_THRESHOLD_MS;
         if (!Number.isFinite(sentAt) || loadingSample || stalledHere || m.blockedMs > SERVER_BLOCK_IGNORE_MS) {
           window.__mp.pingDiscarded++;
+          const discardReason = !Number.isFinite(sentAt)
+            ? 1
+            : loadingSample ? 2 : stalledHere ? 3 : 4;
+          netDiagnostics.record(
+            NET_DIAG_EVENT.PING_DISCARDED,
+            discardReason,
+            Number.isFinite(sentAt) ? Math.max(0, pongNow - sentAt) : 0,
+            Number(m.blockedMs) || 0,
+            loadingSample,
+            stalledHere,
+          );
           break;
         }
-        const rtt = Math.max(0, performance.now() - sentAt);
+        const rtt = Math.max(0, pongNow - sentAt);
         if (pingNeedsFreshSample) {
           // A betöltés előtti, esetleg már felugrott átlagot az első tiszta minta
           // azonnal leváltja. Különben a régi EWMA még sok másodpercig 900-at
@@ -1136,10 +1250,20 @@ function onMessage(m) {
           }
         }
         G.setPingMs(pingRttMs);
+        netDiagnostics.record(
+          NET_DIAG_EVENT.PING,
+          rtt,
+          pingRttMs,
+          pingJitterMs,
+          Number(m.blockedMs) || 0,
+          clockOffsetMs,
+        );
+        if (rtt >= 500) netDiagnostics.captureIncident(NET_DIAG_INCIDENT.HIGH_PING);
       }
       break;
 
     case S2C.ERROR:
+      netDiagnostics.record(NET_DIAG_EVENT.SERVER_ERROR, G.appState === 'mp');
       setErr(m.message);
       updateResultsActions();
       break;
@@ -1197,6 +1321,12 @@ function isHotLap() {
 
 async function beginRace(info) {
   const loadGeneration = ++raceLoadGeneration;
+  const myPlayer = info.players.find((player) => player.id === me.id);
+  netDiagnostics.setContext({
+    mode: info.mode,
+    mapId: info.mapId,
+    carId: myPlayer?.carId,
+  });
   const ghostReplay = info.ghost?.replay?.frames?.length ? info.ghost : null;
   const reuseGhost = !!ghostReplay && !!ghostCar
     && ghostCar.playerId === ghostReplay.playerId
@@ -1221,6 +1351,7 @@ async function beginRace(info) {
   window.__mp.stage = 'start';
   raceEnded = false;
   finishedDriving = false;
+  raceRunningDiagnosticRecorded = false;
   finishDeadlineAt = null;
   resetSpectate();
   resetSplitTracking();
@@ -1255,7 +1386,6 @@ async function beginRace(info) {
   // A saját kocsi, a pálya és a többi játékos kocsija — mind egyszerre, EGY
   // fájlméret szerint súlyozott betöltés-sávon, hogy szar neten is látszódjon
   // a haladás ahelyett, hogy percekig néma maradna a képernyő.
-  const myPlayer = info.players.find((p) => p.id === me.id);
   const map = G.manifest.maps.find((m) => m.id === info.mapId);
   localPitConfig = info.pit || map?.pit || null;
   localPitStopIndex = Math.max(0, Math.min(7, myPlayer?.slot ?? 0));
@@ -1321,6 +1451,13 @@ async function beginRace(info) {
   raceLoadActive = false;
   pingValidAfter = performance.now();
   window.__mp.stage = 'fut';
+  netDiagnostics.record(
+    NET_DIAG_EVENT.RACE,
+    NET_DIAG_RACE_STAGE.READY,
+    0,
+    info.laps,
+    info.players.length,
+  );
   // Megvagyunk: innentől a szerveren rajtunk nem áll a rajt. A visszaszámlálás
   // csak akkor indul, ha MINDENKI jelentkezett (vagy lejár a türelmi idő) —
   // enélkül egy lassan töltő játékos a 3-2-1-ből csak az 1-et látta.
@@ -1766,6 +1903,8 @@ function onSnapshot(m) {
 
   const startAfterSnapshot = awaitingFirstSnapshot;
   awaitingFirstSnapshot = false;
+  let selfDiagnosticCar = null;
+  let selfDiagnosticState = null;
   for (const c of m.cars) {
     const entry = c.id === me.id ? null : others.get(c.id);
     // Amíg a játékos tölt, a szerver csak egy rajtrács-helyfoglalót küld róla,
@@ -1801,11 +1940,13 @@ function onSnapshot(m) {
       entry.finished = !!c.fin;
     }
     if (c.id === me.id) {
+      selfDiagnosticCar = c;
       if (Number.isFinite(c.ls)) multiplayerStartCrossed = true;
       // Nézői módban a nézett kocsié megy a kijelzőre (lásd frame()), a
       // sajátunké nem írhatja felül.
       if (!spectateId) {
         const speedState = G.getCarState();
+        selfDiagnosticState = speedState;
         G.setSpeed(Math.hypot(speedState.v[0], speedState.v[2]) * 3.6);
       }
       // Kör lezárult: a most befejezett kör részidői lesznek a viszonyítás.
@@ -1846,6 +1987,25 @@ function onSnapshot(m) {
       }
       lapTainted = c.ti || TAINT.NONE;
     }
+  }
+  if (selfDiagnosticCar) {
+    selfDiagnosticState ||= G.getCarState();
+    const echoX = Number(selfDiagnosticCar.p?.[0]);
+    const echoZ = Number(selfDiagnosticCar.p?.[2]);
+    const echoDistance = Number.isFinite(echoX) && Number.isFinite(echoZ)
+      ? Math.hypot(selfDiagnosticState.p[0] - echoX, selfDiagnosticState.p[2] - echoZ)
+      : 0;
+    netDiagnostics.record(
+      NET_DIAG_EVENT.SNAPSHOT_IN,
+      transit,
+      snapshotJitterMs,
+      interpDelayMs,
+      selfDiagnosticCar.seq,
+      selfDiagnosticCar.rd !== false,
+      m.cars.length,
+      echoDistance,
+      ws?.bufferedAmount || 0,
+    );
   }
   if (startAfterSnapshot) startInputLoop();
 }
@@ -2552,6 +2712,16 @@ function sendOneInput(scheduledAt) {
     brake: controlsEnabled ? brake : finishedBraking,
     handbrake: controlsEnabled && !!k['Space'],
   };
+  if (!input.frozen && !raceRunningDiagnosticRecorded) {
+    raceRunningDiagnosticRecorded = true;
+    netDiagnostics.record(
+      NET_DIAG_EVENT.RACE,
+      NET_DIAG_RACE_STAGE.RUNNING,
+      0,
+      room?.laps,
+      room?.players?.length,
+    );
+  }
   syncRemoteProxies(input.at);
   G.stepLocalPhysics(input, input.frozen, !controlsEnabled, localPitState.required && localPitState.inLane);
   const state = G.getCarState();
@@ -2577,13 +2747,25 @@ function sendOneInput(scheduledAt) {
   if (!spectateId) G.setSpeed(Math.hypot(state.v[0], state.v[2]) * 3.6);
   if (shouldSend) {
     const wheels = G.getWheelNetworkState?.() || { st: 0, wr: 0 };
+    const offtrack = !!G.isCarFullyOffTrack?.();
+    netDiagnostics.record(
+      NET_DIAG_EVENT.STATE_OUT,
+      input.seq,
+      state.p[0],
+      state.p[2],
+      Math.hypot(state.v[0], state.v[2]),
+      ws?.bufferedAmount || 0,
+      offtrack,
+      physicsTimerLatenessMs,
+      physicsTimerJitterMs,
+    );
     send(C2S.STATE, {
       seq: input.seq,
       t: serverNow() + (scheduledAt - performance.now()),
       ...state,
       ...wheels,
       th: input.throttle,
-      offtrack: !!G.isCarFullyOffTrack?.(),
+      offtrack,
     });
   }
 }

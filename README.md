@@ -114,6 +114,7 @@ pontosan 8 boxhely szükséges. Bejáratból és kijáratból több vonal is meg
 - jobb egérgomb + húzás: körbenézés
 - `R`: visszahelyezés az utolsó szabályosan érintett checkpoint környékére
 - `M`: némítás
+- `F9`: az aktuális multiplayer netcode-riport letöltése
 
 Az `R` csak az első rajtvonal-átlépés után használható. Ha a checkpointot aszfalton
 lépte át az autó, oda kerül vissza, ahol áthaladt; pályán kívüli átlépésnél a
@@ -169,6 +170,13 @@ __mp.interpDelayMs
 __mp.rawPos
 __mp.interpPos
 ```
+
+Multiplayer közben a kliens egy fix méretű körpufferben őrzi az utolsó 30
+másodperc ping-, snapshot-, állapotküldési, fizikaidőzítési és képkocka-adatait.
+Az `F9` egy JSON-riportba tölti le ezeket és a legutóbbi automatikusan megőrzött
+pingtüske-, főszálakadás-, kapcsolatvesztés- vagy szervervalidációs pillanatokat.
+A riport nem tartalmaz játékosnevet, szobakódot, belépési tokent vagy szerveres
+üzenetszöveget; fájl- és JSON-készítés csak az `F9` megnyomásakor történik.
 
 ## Fejlesztői mód
 
