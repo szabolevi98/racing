@@ -138,6 +138,7 @@ function splitReference() {
 const splitDeltaEl = document.getElementById('splitDeltaAlert');
 const splitDeltaValueEl = document.getElementById('splitDeltaValue');
 const splitDeltaRefEl = document.getElementById('splitDeltaRef');
+const waitingPlayersAlertEl = document.getElementById('waitingPlayersAlert');
 // Elég röviden látszania: a következő checkpointig úgyis új adat jön, és
 // vezetés közben egy tartósan kint lévő doboz csak takar.
 const SPLIT_DELTA_VISIBLE_MS = 2600;
@@ -147,6 +148,10 @@ function hideSplitDelta() {
   if (splitDeltaTimer) clearTimeout(splitDeltaTimer);
   splitDeltaTimer = null;
   splitDeltaEl.classList.add('hidden');
+}
+
+function setWaitingPlayersAlert(visible) {
+  waitingPlayersAlertEl.classList.toggle('hidden', !visible);
 }
 
 function showSplitDelta(deltaMs, label) {
@@ -1015,6 +1020,7 @@ function onMessage(m) {
     case S2C.RACE_COUNTDOWN:
       // Mindenki betöltött (vagy lejárt a türelmi idő): innen számol a 3-2-1.
       if (starting) starting.startsAt = m.startsAt;
+      setWaitingPlayersAlert(false);
       // Hot Lapnál ez még csak a felvezető kezdete. A mért kör hiteles
       // kezdőidejét az első rajtvonal-átlépés után a snapshot `ls` mezője adja.
       myLapStartedAt = isHotLap() ? 0 : m.startsAt;
@@ -1391,6 +1397,7 @@ G.setMultiplayerCleanupHook(cleanupMultiplayerForMenu);
 function cancelRaceLoad() {
   raceLoadGeneration++;
   raceLoadActive = false;
+  setWaitingPlayersAlert(false);
   G.hideLoadingOverlay();
 }
 
@@ -2278,6 +2285,11 @@ function frame(dt = 1 / 60) {
   // tűnnie, azt pedig már nem érné el a kiugrás után.
   updateSpectateBar();
 
+  // A jobb felső HUD mellett középen is jelezzük, mert a mozdulatlan rajtnál
+  // sokan nem néznek a köridő-panelre. Hot Lapban nincs másik játékos,
+  // akire várni kellene, ezért ott nem villantjuk fel.
+  setWaitingPlayersAlert(!raceEnded && !isHotLap() && !starting?.startsAt);
+
   if (raceEnded) return;
 
   // Amíg nincs rajtidő, a többiek betöltésére várunk. Ezt ki KELL írni:
@@ -2548,6 +2560,7 @@ function stopInputLoop() {
 function showResults(results) {
   const hotLap = isHotLap();
   raceEnded = true;
+  setWaitingPlayersAlert(false);
   finishedDriving = true;
   G.setMultiplayerControlsEnabled(false);
   // Ne tartsa ki az eredménypanel alatt az utolsó, esetleg magas fordulatot.

@@ -51,7 +51,7 @@ test('driving alerts share one dynamic stacking container', () => {
   const stackEnd = html.indexOf('id="fullscreenHint"');
   assert.ok(stackStart >= 0 && stackEnd > stackStart);
   for (const id of [
-    'lapInvalidAlert', 'pitStopAlert', 'rolloverAlert',
+    'waitingPlayersAlert', 'lapInvalidAlert', 'pitStopAlert', 'rolloverAlert',
     'highPingAlert', 'spectateBar', 'finishTimer',
   ]) {
     const position = html.indexOf(`id="${id}"`);
@@ -64,4 +64,11 @@ test('driving alerts share one dynamic stacking container', () => {
   assert.match(css, /#splitDeltaAlert\s*\{[\s\S]*?position:\s*fixed;\s*top:\s*16px/);
   assert.doesNotMatch(css, /#highPingAlert\s*\{\s*top:/);
   assert.doesNotMatch(css, /#lapInvalidAlert\s*\{\s*top:/);
+});
+
+test('multiplayer loading also shows the centered waiting alert', () => {
+  assert.match(html, /id="waitingPlayersAlert"[\s\S]*?Várakozás a többiekre…/);
+  assert.match(mp, /setWaitingPlayersAlert\(!raceEnded && !isHotLap\(\) && !starting\?\.startsAt\)/);
+  assert.match(mp, /case S2C\.RACE_COUNTDOWN:[\s\S]*?setWaitingPlayersAlert\(false\)/);
+  assert.match(mp, /function cancelRaceLoad\(\) \{[\s\S]*?setWaitingPlayersAlert\(false\)/);
 });
