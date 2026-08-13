@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "A 'BGPFRONTTAP' explicit 'FRONT'-ot tartalmaz, z=+1.35-nél van - +Z előre.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "Spanyol elnevezésű kerék-anyagok: FRENOS (fék), BBSGRISFONDO/BBSGRISRADIOS (BBS felni-alap/küllő), RIM_BLUR_L/R, TYRELAT/TYRETREAD, BGPFRONTTAP (első kupak). FIGYELEM: van 'BRAWNWHEEL' anyag is (kormánykerék) - a minta ezt nem fogja meg.",
-  "wheelPattern": "FRENOS|BBSGRISFONDO|BBSGRISRADIOS|RIM_BLUR_L|RIM_BLUR_R|TYRELAT|TYRETREAD|BGPFRONTTAP"
-}

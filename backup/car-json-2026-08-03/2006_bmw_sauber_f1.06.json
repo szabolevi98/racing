@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "TESZT: névből egyértelmű (Tyrelf='Tyre left front', Rimlr='Rim left rear') kerék-anyagok, bár csak 1-1 példány van belőlük (feltehetően mind a 4 kereket lefedő összeolvasztott mesh, elnevezés csak az egyik sarokra utal). Plusz 3 generikus 'Circle...' anyag pontosan ugyanazon a pozíción - valószínűleg további kerék-rétegek (tárcsa/agy).",
-  "wheelPattern": "Tyrelf0021Mtl|Rimlr0010011Mtl|Circle002sub11Mtl|Circle002sub01Mtl|Circle0100011Mtl"
-}

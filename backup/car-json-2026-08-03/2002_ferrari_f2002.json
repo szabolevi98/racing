@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "JAVÍTVA (a felhasználó jelezte: 'gumi forog, felnik nem'). Kimaradt a felni SZILÁRD alapja - egy sorszám nélküli, generikus 'material' anyagú mesh ugyanott, ugyanakkora méretben, mint a Rim_Decals/Rim_Spokes (amik csak matrica/küllő RÉTEGEK a szilárd felni felett). A ' material$' (szóköz+material+sorvég) forma zárja ki a hasonló nevű 'material_33'/'material_34' apró kokpit-anyagokat. Közös 2002-es F1 kerék-kit (ua. mint Renault R202, Toyota TF102). FIGYELEM: van 'FERRARIWHL'/'FERRARIWHEEL'/'FERWHEEL' anyag is (kormánykerék) - a minta szándékosan nem 'WHL'/'WHEEL'-lel keres.",
-  "wheelPattern": "Rim_Decals|Rim_Spokes|Brake_Disk|Tyre|Caliper| material$"
-}

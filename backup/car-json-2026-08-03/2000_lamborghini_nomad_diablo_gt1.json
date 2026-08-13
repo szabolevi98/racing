@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "Az eleje +Z: a 'Material_34.001'/'Material_31.001' (vékony, széles csík, feltehetően hátsó lámpasáv/diffúzor) z=-2.23-nál van, a '02_-_Default.001' (feltehetően első lökhárító/lámpák) pedig z=+1.95-nél.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "Tiszta, névvel ellátott kerék-anyagok: wheel_black, rim/outer_rim/inner_rim (a 'rim' minta mindet fogja), Tyre, hub.001, rotor, caliper - mind egy mesh-be összeolvasztva mind a 4 kerék, geometria-szétvágással. CSAPDA: van 4 db 'NRGHUB_2/3/4/5' nevű anyag is a pilótafülkében (nitro-gomb, y=0.69, teljesen más magasság mint a kerekek y=0.40) - a puszta 'hub' minta ezeket is elkapná ('NRGHUB' tartalmazza), ezért PONTOSAN 'hub.001'-et használunk (az alátörésjel miatt 'NRGHUB_2.001' nem illeszkedik rá).",
-  "wheelPattern": "wheel_black|rim|Tyre|hub.001|rotor|caliper"
-}

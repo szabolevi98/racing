@@ -1,5 +1,6 @@
-// Fejlesztői mentő végpontok: a dev módban rajzolt rajtrács, kapuk,
-// zóna-maszk és ütközési háló kiírása a pálya mappájába.
+// Fejlesztői mentő végpontok: a dev módban szerkesztett rajtrács és Hot Lap-
+// rajtpont, kapuk, boxutca, zóna-maszk, ütközési háló és sütési beállítások
+// kiírása a pálya mappájába.
 //
 // (A korábbi assets/save_*.php fájlok portja.)
 //

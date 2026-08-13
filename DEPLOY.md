@@ -19,7 +19,7 @@ A játék él a `https://racing.levente.net`-en. A gépen:
 | Kód | `/opt/racing`, root birtokában, a `racing` user olvassa |
 | Service | `racing.service`, `systemctl status racing` |
 | DB | `racing` adatbázis + `racing` user; a jelszó a `/root/.racing-db-pass`-ban és a `.env`-ben van, máshol nem |
-| Tanúsítvány | Let's Encrypt, 2026-11-02-ig, automatikus megújítással |
+| Tanúsítvány | Let's Encrypt, automatikus megújítással (`certbot certificates`) |
 | Deploy key | `/root/.ssh/racing_deploy`, a GitHubon read-only deploy key-ként |
 
 A gépen **hat másik oldal is fut** (levente.net, auth, cloudexus, politics,
@@ -33,11 +33,14 @@ ugyanazt a válaszkódot adja.
   A `levente.net` maga Cloudflare-en megy, de ez az aldomain **nem** — ami itt
   előny: a 100+ MB-os pályaletöltések és a WebSocket közvetlenül mennek, nincs
   köztes szolgáltatói limit, és a certbot HTTP-ellenőrzése is gond nélkül fut.
-- **A `wss://` a kódban megoldott.** Nincs vele semmi teendő: a kliens magától
-  dönt (`web/mp.js:205`), `location.protocol === 'https:' ? 'wss' : 'ws'`.
+- **A `wss://` a kódban megoldott.** Nincs vele semmi teendő: a kliens a
+  `web/mp.js`-ben magától dönt,
+  `location.protocol === 'https:' ? 'wss' : 'ws'` alapján.
   Amint HTTPS-en szolgálod ki az oldalt, a WebSocket is titkosítva megy.
-- **Nincs build-lépés.** A `package.json`-ban csak `start` és `dev` van, a
-  kliens nyers ES-modulokat használ. Amit felviszel, az fut.
+- **Nincs kliens-build-lépés.** A kliens nyers ES-modulokat használ, tehát amit
+  felviszel, az fut. A további npm scriptek (`test`, `cars:optimize`,
+  `cars:compress`, `cars:wheels`) teszteléshez és offline autófeldolgozáshoz
+  vannak, nem szükségesek a szerver indulásához.
 
 ## Mi az a reverse proxy — röviden
 
@@ -62,9 +65,11 @@ a Node folyamat. Cserébe elindul bootoláskor, újraindul összeomlás után, a
 
 ## Előfeltételek
 
-- ~6 GB szabad lemez: a kód elenyésző, az **assetek 5,0 GB** (kocsik 2,2 GB,
-  pályák 571 MB, égboltok 131 MB)
-- **Node 20+** — ez még nincs a gépen, az 1. lépés telepíti
+- legalább ~5 GB szabad lemez a publikus assetekhez. A jelenlegi készlet kb.
+  **4,7 GB** (autók 3,1 GB, pályák 1,5 GB, égboltok 132 MB). A nem publikus
+  `car-masters/` további kb. 1,4 GB, de az éles játék futásához nem szükséges;
+  csak akkor kell a VPS-re, ha ott is akarsz autómodelleket újragenerálni.
+- **Node 20+** — az éles gépen jelenleg Node 22 fut.
 
 ## 1. Node telepítése
 
@@ -79,8 +84,8 @@ node -v          # v22.x kell, minimum v20
 ## 2. A kód és az assetek felvitele
 
 Ez két külön menet, mert a nagy binárisok **nincsenek** a gitben (`.gitignore`:
-`*.glb`, `*.hdr`, `*.bin`, textúrák). A gitben csak a kód és a kézzel készített,
-pótolhatatlan adat van (`zonemap.png`, `spawn.json`, `gates.json`).
+`*.glb`, `*.gltf`, `*.hdr`, `*.exr`, `*.bin`, pályatextúrák). A gitben a kód és
+a kézzel készített, pótolhatatlan metaadat marad.
 
 A repo **privát**, ezért a VPS-nek olvasási jogot kell adni hozzá. Erre a
 *deploy key* való: egy kulcs, ami **csak ehhez az egy repóhoz** ad hozzáférést,
@@ -116,22 +121,31 @@ git clone git@github.com:szabolevi98/racing.git /opt/racing
 cd /opt/racing && npm ci --omit=dev
 ```
 
-A klónozás a **pálya-metaadatokat magával hozza** (`zonemap.png`, `spawn.json`,
-`gates.json`, kocsi-JSON-ok) — csak a nagy binárisok hiányoznak utána.
+A klónozás a **pálya-metaadatokat magával hozza** (`zonemap.png/json`,
+`spawn.json`, `hotlap_spawn.json`, `gates.json`, `pit.json`, `bake.json`, valamint
+a kocsi-JSON-ok) — csak a gitignore-os nagy binárisok hiányoznak utána.
 
-Az assetek a **te gépedről** mennek fel (5,0 GB, egyszeri). Git Bashból, a
-62222-es porton:
+Az assetek a **te gépedről** mennek fel (jelenleg kb. 4,7 GB, első telepítéskor
+egyszeri művelet). Ha van telepített `rsync`, a 62222-es porton:
 
 ```bash
-rsync -avP -e "ssh -p 62222" /d/xampp/htdocs/racing/web/assets/ \
+rsync -avP -e "ssh -p 62222 -i ~/.ssh/levente" /d/xampp/htdocs/racing/web/assets/ \
   root@169.58.43.205:/opt/racing/web/assets/
 ```
 
-A Git Bashban **nincs `rsync`**, ezért ott `scp` kell (`-P 62222`, nagy P-vel).
-Az `scp` viszont nem folytatható, ha megszakad, ami 5 GB-nál nem mindegy —
-Windowsra a WinSCP a jobb választás.
+A jelenlegi Windows/Git Bash környezetben **nincs `rsync`**, ezért ott `scp`
+kell (`-P 62222`, nagy P-vel), és a működő klienskulcsot explicit meg kell adni:
 
-> **Érdemes a minimál készlettel kezdeni**, nem az 5 GB-tal: egy pálya + egy
+```bash
+scp -P 62222 -i ~/.ssh/levente <helyi-fájlok> \
+  root@169.58.43.205:/opt/racing/web/assets/<célmappa>/
+```
+
+Az `scp` nem folytatható, ha megszakad, ami több GB-nál nem mindegy; teljes első
+feltöltéshez a WinSCP kényelmesebb. Egy új pályánál vagy autónál viszont általában
+csak néhány konkrét fájlt kell másolni.
+
+> **Érdemes a minimál készlettel kezdeni**, nem a teljes csomaggal: egy pálya + egy
 > égbolt + egy kocsi (~125 MB) elég ahhoz, hogy a teljes lánc ellenőrizhető
 > legyen, a maradék pedig utána mehet fel, miközben a játék már él.
 
@@ -140,8 +154,12 @@ Két csapda, amibe élesben bele is futottunk:
 - Az **égbolt-mappák nincsenek a gitben** (nincs bennük metaadat), ezért az
   `scp` „dest open ... Failure"-rel elhasal. Előbb `mkdir -p
   /opt/racing/web/assets/skybox/<id>`.
-- Az asset-manifestet a szerver **cache-eli** (`server/assets.js`). Új asset
-  feltöltése után `systemctl restart racing`, különben nem jelenik meg.
+- Az asset-manifestet a szerver **cache-eli** (`server/assets.js`). Új vagy
+  módosított asset feltöltése után `systemctl restart racing`, különben az új
+  fájl, méret és tartalomverzió nem jelenik meg.
+- Új pályánál a `<pálya-id>.glb` mellett a `collision.bin` fájlt is fel kell
+  tölteni. Új autónál a játékosmodell mellett a
+  `web/assets/cars/compressed/<autó-id>.glb` remote/ghost változat se maradjon ki.
 
 Feltöltés után a jogosultságokat is rendezni kell, hogy a `racing` user olvassa:
 
@@ -182,7 +200,8 @@ Plusz `DB_USER=racing`.
 > ⚠️ Az `ALLOW_DEV_WRITES` alapból **BE van kapcsolva**: a kód
 > `process.env.ALLOW_DEV_WRITES !== '0'` (`server/index.js`). Ha elfelejted
 > kikapcsolni, a dev mentések élnek — azok jogosultság-ellenőrzés nélkül írnak
-> lemezre, tehát bárki felülírhatná a zónatérképeket és az ütközési hálókat.
+> lemezre, tehát bárki felülírhatná a rajtpontokat, kapukat, boxutcát,
+> zónatérképet, ütközési hálót és sütési beállításokat.
 
 > A `HOST=127.0.0.1` nélkül a Node **minden interfészen** figyel, vagyis a
 > 3000-es port kívülről közvetlenül is elérhető lenne, megkerülve a proxyt és
@@ -221,7 +240,8 @@ sudo useradd -r -s /usr/sbin/nologin racing
 
 # A kód MARAD a root birtokában, a racing felhasználó csak olvassa.
 # Így a szolgáltatás nem tudja átírni a saját kódját, és a későbbi
-# `sudo git pull` sem ütközik a git "dubious ownership" védelmébe (az akkor
+# a rootként futtatott `git pull` sem ütközik a git "dubious ownership"
+# védelmébe (az akkor
 # szólal meg, ha rootként futtatod egy más birtokolta repóban).
 # Ez azért elég, mert élesben az app SEMMIT nem ír lemezre: az egyetlen író
 # útvonal a devApi.js, amit az ALLOW_DEV_WRITES=0 kikapcsol.
@@ -287,9 +307,11 @@ Ez **csak ezt az egy hostot** érinti: legyártja a tanúsítványt, létrehoz e
 `*:443`-as VirtualHostot (`racing.levente.net-le-ssl.conf`), beállítja a
 http → https átirányítást és az automatikus megújítást.
 
-Utána a 443-as blokkba **kézzel kell** beírni a proxy-szabályokat: a certbot a
-`:80`-as vhostot másolja át, amiben csak a DocumentRoot volt. A
-`racing.levente.net-le-ssl.conf`-ban a `SSLCertificateFile` sorok ELÉ:
+Utána ellenőrizd a certbot által létrehozott 443-as blokkot. A fenti `:80`-as
+vhostból az általános HTTP-proxy átkerülhet, de a külön WebSocket-szabály még
+nincs benne. A `racing.levente.net-le-ssl.conf`-ban a
+`SSLCertificateFile` sorok ELÉ kerüljenek az alábbi szabályok; ha a certbot már
+bemásolta a `/` szabályt, cseréld le erre a teljes, helyes sorrendű blokkra:
 
 ```apache
     # FIGYELEM: a /ws-nek a "/" ELŐTT kell állnia
@@ -316,19 +338,21 @@ karbantartani ugyanazt.
 
 ## Ellenőrzés
 
-Ezek élesben lefutottak, a jobb oldali érték a mért eredmény.
+Ezeket élesítés után érdemes lefuttatni. A jobb oldali oszlop a helyes eredmény
+típusát mutatja; a fájlméreteket ne égesd be, mert minden assetfrissítésnél
+változhatnak.
 
 | Mit | Parancs | Eredmény |
 |---|---|---|
-| Főoldal | `curl -I https://racing.levente.net/` | 200, 8320 byte |
+| Főoldal | `curl -I https://racing.levente.net/` | 200 |
 | Átirányítás | `curl -I http://racing.levente.net/` | 301 → https |
-| Tanúsítvány | `openssl s_client -connect racing.levente.net:443` | Let's Encrypt, 2026-11-02 |
+| Tanúsítvány | `certbot certificates` | érvényes, automatikus megújítás bekapcsolva |
 | **WebSocket** | Upgrade-fejlécekkel a `/ws`-re | **101 Switching Protocols** |
 | Manifest | `curl https://racing.levente.net/api/assets` | 200, mindhárom asset-típus |
-| Nagy `.glb` | `curl -r 0-99 .../bugatti....glb` | 206, `model/gltf-binary` |
-| `collision.bin` | `curl .../collision.bin` | 200, 5 150 708 byte |
+| Nagy `.glb` | `curl -r 0-99 <asset-url>` | 206, `model/gltf-binary` |
+| `collision.bin` | `curl -I <collision-url>` | 200, helyes `Content-Length` |
 | Cache | `curl -I .../2004_ferrari_f2004.glb` | `immutable`, 1 év, `Content-Length` megvan |
-| **A 6 másik oldal** | mindegyikre `curl -I` | változatlan (200/302/200/200/301/301) |
+| **A 6 másik oldal** | mindegyikre `curl -I` | az élesítés előtti válaszkódok változatlanok |
 
 A **101 Switching Protocols** a legfontosabb sor: ez bizonyítja, hogy a
 `proxy_wstunnel` és a `/ws` szabály sorrendje jó, tehát a többjátékos működik.
@@ -357,21 +381,63 @@ Böngészőből még érdemes: a menü betölt, a legördülők tele vannak, **T
 
 ## Amivel számolni kell
 
-Az **első** betöltés minden új játékosnál nagy: egy pálya 63–148 MB, plusz a
-kocsi. A nagy fájlok egy éves cache-t kapnak, tehát a második indulás azonnali,
-de a sávszélesség-számlát az elsők adják. Az assetek zsugorítása (Draco
-geometria, KTX2 textúrák) egyelőre szándékosan kimarad.
+Az **első** betöltés minden új játékosnál nagy: egy pálya jelenleg nagyjából
+60–150 MB, plusz a saját autó. A saját játékosmodell legfeljebb 15 MB, a
+multiplayer-ellenfelek és az időmérő szellem optimalizált modellje legfeljebb
+5 MB. A nagy fájlok tartalomverziózott, egyéves cache-t kapnak, ezért a következő
+betöltés lényegesen gyorsabb. A pályamodellek további Draco/KTX2 zsugorítása
+egyelőre szándékosan kimarad.
 
-Frissítés később:
+## Rendszeres frissítés
+
+### Csak Gitben követett fájlok változtak
+
+A helyi gépről használt működő SSH-kulcsot explicit meg kell adni; az
+alapértelmezett kulcs nem működik:
 
 ```bash
-cd /opt/racing && sudo git pull && sudo npm ci --omit=dev
-sudo chmod -R a+rX /opt/racing        # az új fájlok is olvashatók legyenek
-sudo systemctl restart racing
+ssh -p 62222 -i ~/.ssh/levente root@169.58.43.205 \
+  'cd /opt/racing && git pull --ff-only && systemctl restart racing && systemctl is-active racing'
 ```
 
-Ez a deploy key-jel megy, jelszó nélkül (a `sudo` miatt a root kulcsát
-használja, amivel a klónozás is történt).
+Ha a `package.json` vagy `package-lock.json` is változott, a restart előtt:
 
-Az assetek nem változnak `git pull`-lal — azokat külön kell rsync-elni, ha új
-pálya vagy kocsi kerül be.
+```bash
+ssh -p 62222 -i ~/.ssh/levente root@169.58.43.205 \
+  'cd /opt/racing && npm ci --omit=dev'
+```
+
+A VPS a GitHubhoz a saját `/root/.ssh/racing_deploy` read-only deploy key-jét
+használja. Ez nem ugyanaz, mint a helyi gépről a VPS-hez használt
+`~/.ssh/levente` kulcs.
+
+### Új vagy módosított nagy asset is van
+
+A `git pull` nem viszi fel a gitignore-os GLB, BIN, HDR, EXR és pályatextúra
+fájlokat. Előbb hozd létre a célmappát, majd töltsd fel a konkrét fájlokat:
+
+```bash
+ssh -p 62222 -i ~/.ssh/levente root@169.58.43.205 \
+  'mkdir -p /opt/racing/web/assets/maps/<pálya-id>'
+
+scp -P 62222 -i ~/.ssh/levente \
+  web/assets/maps/<pálya-id>/<pálya-id>.glb \
+  web/assets/maps/<pálya-id>/collision.bin \
+  root@169.58.43.205:/opt/racing/web/assets/maps/<pálya-id>/
+```
+
+Autónál az eredeti/játékosmodell és a `compressed/` remote modell is szükséges.
+Feltöltés után érdemes SHA-256-tal vagy legalább fájlmérettel összehasonlítani a
+helyi és távoli példányt. Ezután jöhet a fenti `git pull --ff-only` és restart.
+
+### Élesítés utáni gyors ellenőrzés
+
+```bash
+curl -I https://racing.levente.net/
+curl https://racing.levente.net/api/status
+curl https://racing.levente.net/api/assets
+```
+
+Az első két kérésnek 200-at kell adnia, a manifestben pedig szerepelnie kell az
+új pályának vagy autónak a helyes fájlmérettel. A közvetlen asset URL-t is
+ellenőrizd, ne csak a sikeres `git pull` kimenetére hagyatkozz.

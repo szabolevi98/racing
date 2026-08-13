@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "VÉGLEG MEGOLDVA (korábban lezárt korlátozásnak jelölve, most újranézve mégis javítható lett). A 'side'/'tread' egy-egy példánya (kb 3.4x0.6x4.0, ill. hasonló) a kocsi KÖZEPÉN, szétvágatlanul ült. Kiderült: az exportáló a mesh-t 16 bites indexpuffer-korlát miatt VÉLETLENSZERŰEN darabolta (nem sarok szerint) - ez a konkrét darab egy ÁTLÓS párt (első-bal + hátsó-jobb) tartalmazott egybe-sütve, a másik 2 sarok negyede üres volt benne. A régi splitMergedWheelMesh ilyenkor teljesen feladta a vágást (ha BÁRMELYIK negyed üres, visszaadta az eredeti, egyben hagyott darabot) - ezt javítottuk a kódban: most az üres negyedet egyszerűen elhagyja, a megmaradó (valódi) sarok-darabokat pedig megtartja. Ezután VISSZAKERÜLHETETT a mintába a 'side'/'tread' (' side$' anchorral, hogy a 'side_left'/'side_right' karosszéria-panelek ne jöjjenek be). Élőben ellenőrizve: 4 szimmetrikus sarok, semmi nem leng ki (max elmozdulás 180 fokos forgatásnál: 0.22, normális féknyereg-excentricitás).",
-  "wheelPattern": "calliper|BMW_BRAKES| brake$| side$|tread"
-}

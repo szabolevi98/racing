@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "Élőben ellenőrizve: a kerekek z=+1.49 (elöl) és z=-1.52 (hátul) - +Z előre.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "FONTOS: a python inspect_glb.py script ennél a fájlnál teljesen félreolvasta a geometriát (minden mesh-nél kb 0 méretet és pozíciót adott vissza, feltehetően multi-primitive mesh-ek vagy valami más export-sajátosság miatt) - élő böngészős vizsgálattal (window.__debug.THREE + Box3) derült ki a valós felépítés. A modell mindössze 17 anyagot használ 155 mesh-re szétosztva, mind 'discs'/'discs_N' néven, anyagnév alapján semmi köze a kerekekhez. A négy kerék pontosan 'discs_6' (felni) és 'discs_7' (gumi) anyagú - ez a két név KIZÁRÓLAG a 4 keréknél fordul elő (ellenőrizve). A 'discs' és 'discs_1' anyagot NEM szabad használni, mert a karosszéria nagy részein (alváz, orr stb.) is előfordulnak, azokat is befognák.",
-  "wheelPattern": "discs_6|discs_7"
-}

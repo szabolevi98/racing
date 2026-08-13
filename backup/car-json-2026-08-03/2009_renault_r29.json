@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "Tiszta kerék-anyagok: gp_2009_TREAD, gp_2009_TYRES, EXT_disc, gp_2009_hub, RIM/RIM_BLUR/RIM_BLURRED, metal_caliper, CALIPER_COVER. FIGYELEM: van egy csomó 'sw_*' anyag is (kormánykerék: sw_handles, sw_chrome, sw_plastic, sw_brown, sw_blacks, sw_plate, sw_buttons) - a minta szándékosan nem 'sw_'-vel keres.",
-  "wheelPattern": "gp_2009_TREAD|gp_2009_TYRES|EXT_disc|gp_2009_hub|RIM|metal_caliper|CALIPER_COVER"
-}

@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "GYORS becslés. A 4 sarok már eleve külön mesh-csoport, hosszú, összetett anyagnevekkel (generictyre101/lmswheel101/lmsdisc101/treadslick101 - mind az 'Audir8lmsaudir8lms...' prefix után), sorszámmal a 4 saroknál. Nincs ütközés a 'misc101Mtl' (nem-kerék) résszel, mert az nem tartalmazza ezeket a szavakat.",
-  "wheelPattern": "generictyre|lmswheel101|lmsdisc101|treadslick101"
-}

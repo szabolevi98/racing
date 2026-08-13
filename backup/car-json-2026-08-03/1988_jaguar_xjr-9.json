@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "JAVÍTVA (a felhasználó jelezte: 'első kerekek furán mozognak hatalmasat, mindkettő máshogy'). Az anyagnév ('tyre') alapján TÉVESEN bekerült egy első lökhárító-jelvény mesh is (szülő-lánc: FRONT_BUMPER -> ... -> tyre anyag - vicces véletlen, hogy pont ezt az anyagot használja). A valódi 4 gumi szülő node-lánca mindig tartalmazza a 'WHEEL_RR/LF/RF/LR' nevet - DE a puszta 'WHEEL_' minta ÚJABB hibát hozott: a kormánykerék ('STEERING_WHEEL_...') és egy belső anyag is tartalmazza a 'WHEEL_' szót, ezért azok is bekerültek. A 4 pontos sarok-node-nevet (WHEEL_RR/WHEEL_LF/WHEEL_RF/WHEEL_LR) kell külön felsorolni.",
-  "wheelPattern": "WHEEL_RR|WHEEL_LF|WHEEL_RF|WHEEL_LR|Vehicle_Exterior_mm_rotor|Vehicle_Exterior_mm_wheel"
-}

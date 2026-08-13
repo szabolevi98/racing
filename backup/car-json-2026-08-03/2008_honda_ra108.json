@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "Ua. 2008-as kit mint a Force India VJM01/Toro Rosso STR3: brake.020, calliper.015, disk.015, RIM_BLUR.010, rim.015, tread.015, side.015. CSAPDA: 'brakefluid.015' (kokpit) és 'side_left.015'/'side_right.015'/'sideleft'/'sideright' NEM kerekek - a pontos sorszám és a ' side(.|sorvég)' forma zárja ki őket.",
-  "wheelPattern": "brake.020|calliper.015|disk.015|RIM_BLUR.010|rim.015|tread.015| side(\\.|$)"
-}

@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "GYORS becslés - ugyanaz a kerék-kit-család, mint a bevált 2006 McLaren MP4/21-nél, ott +Z volt az eleje. Ellenőrizd élőben.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "JAVÍTVA (a felhasználó jelezte: 'gumi forog, felnik nem'). Kimaradt a 'blur1'/'blur2' réteg, ugyanaz a hiba mint a többi 2006-os kit-testvérnél. Közös 2006-os F1 kerék-kit: brake, calliper, disk, SUARIM, SUASPOKES, side, tread, SUAHUB. FIGYELEM: van egy 'SA06WHEEL' anyag is (kormánykerék) - a minta szándékosan nem 'WHEEL'-lel keres.",
-  "wheelPattern": "brake|calliper|disk|blur1|blur2|SUARIM|SUASPOKES|side|tread|SUAHUB"
-}

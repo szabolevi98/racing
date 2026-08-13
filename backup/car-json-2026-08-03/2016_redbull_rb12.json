@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "Tiszta kerék-anyagok: Brake_Disk, Tyre, Rim/Rim_Blurred/Rim_Blurred_Spokes, mind egy helyen (kb 0,0.33,-0.30). FIGYELEM: a 'redbull_wheel_hub' anyag NEM ide tartozik - z=+1.75, y=0.50-nél van, a kokpit magasságában, valószínűleg a kormánykerék közepe - szándékosan kihagyva.",
-  "wheelPattern": "Brake_Disk|Tyre|Rim"
-}

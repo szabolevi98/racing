@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "TOVÁBB JAVÍTVA (felhasználó jelezte: 'gumi forog, felnik nem'). Ugyanaz a hiba mint a testvér Ferrari F310-nél: kimaradt több felni-réteg (METALBACK, ARRWBBS, ARRWSHADES1, BLACKSHADES) - mindegyik egy összeolvasztott, a teljes kocsit lefedő (kb 3.3-3.8 egység), 4 kerékre szétvágandó darab, ugyanott ülve mint a RIM1BLACK/RIM3BLACK. Korábban JAVÍTVA (a felhasználó jelezte: 'első kerekek amikor fordulnak nem az egész kerék fordul, a futófelület egy helyben marad'). Kimaradt a 'THREAD_FRONT'/'THREAD_SOFT' anyag (a valódi futófelület-mintázat). Tiszta kerék-anyagok (WILLBCALIPER, DISK, RIM_BLUR/RIM3BLACK/RIM1BLACK/RIM_BLURRED, METALBACK, ARRWBBS, ARRWSHADES1, BLACKSHADES, MICHTYRE elöl, BRIDGETYRE hátul), geometria-szétvágással. FIGYELEM: van egy csomó kormánykerék-anyag is (WHEELBACKSIDE, WILWCENTER, WILLHANDLES, WILLPADLLES) - a minta szándékosan nem 'WHEEL'-lel keres, hogy ezeket ne fogja meg. A 'WILLAXLE' (tengely-struktúra, nem látható kerék) is szándékosan kimaradt.",
-  "wheelPattern": "WILLBCALIPER|DISK.001|RIM_BLUR|RIM3BLACK|RIM1BLACK|RIM_BLURRED|MICHTYRE|BRIDGETYRE|THREAD_FRONT|THREAD_SOFT|METALBACK|ARRWBBS|ARRWSHADES1|BLACKSHADES"
-}

@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "Egyedi elnevezésű kerék-anyagok: Tyre, Brake_Disk, brake__brake_png, goldhat__brake_png (arany fékbura?), rim__rim_png, RIM_BLUR/RIM_BLURRED, Caliper/Caliper_Logo. FIGYELEM: van 'c_mclaren_08_steeringwheel' anyag is (kormánykerék) - a minta ezt nem fogja meg.",
-  "wheelPattern": "Tyre|Brake_Disk|brake__brake_png|goldhat__brake_png|rim__rim_png|RIM_BLUR|RIM_BLURRED|Caliper"
-}

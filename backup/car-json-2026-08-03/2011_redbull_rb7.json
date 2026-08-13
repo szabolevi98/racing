@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "Élőben ellenőrizve (a python inspect_glb.py script erre is kb. nulla méretet/pozíciót adott, ua. hiba mint más 2011-es kocsiknál). A 4 sarok már eleve külön mesh-csoport: rb_rims, BRAKE, Tyre_thread, tyre_side. FIGYELEM: van egy 'c_redbull_10_steeringwheel' anyag is (kormánykerék) - a minta ezt nem fogja meg.",
-  "wheelPattern": "rb_rims|BRAKE|Tyre_thread|tyre_side"
-}

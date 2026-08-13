@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "GYORS becslés. A 'wheel.001' (elöl, z=+1.47) és a puszta 'wheel' (hátul, z=-1.83) külön anyaggal - alapértelmezésként +Z előre.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "Élőben megerősítve MŰKÖDIK. Tiszta kerék-anyagok: wheel/wheel.001 (elöl/hátul külön), tread, tyre. CSAPDA: 'RBRWHEEL10' anyag is van (kormánykerék, a kokpitban) - ez TARTALMAZZA a 'wheel' szót nagybetűvel, ezért a puszta 'wheel' minta rosszul elkapná - a ' wheel(.|sorvég)' forma zárja ki (a kormánykerék anyagban a 'WHEEL' elé 'RBR' jön, nem szóköz). Élőben ellenőrizve: 4 szimmetrikus sarok (3/3/3/3, ±0.63 X, ±1.46 Z).",
-  "wheelPattern": " wheel(\\.|$)|tread|tyre"
-}

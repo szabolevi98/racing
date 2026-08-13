@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - a python inspect_glb.py script erre a fájlra kb. nulla méretet/pozíciót adott vissza minden mesh-re (ua. hiba mint a Mercedes W05-nél), a kerék-mintát élőben ellenőriztem (jó), de az irányt nem. Alapértelmezés 0, nézd meg élőben.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "Élőben megerősítve MŰKÖDIK a script hibája ellenére: névvel ellátott kerék-anyagok, hasonlóak a 2006-os F1 kit-hez: MCLHUB, MCLRIM/MCLRIM_BLUR, MCLSPOKES/MCLSPOKES_OP/MCLSPOKES_BLUR, DISK, TREAD06, MICH06 (Michelin). FIGYELEM: van egy 'TR06WHEEL0' anyag is (kormánykerék) - a minta ezt nem fogja meg. Élőben ellenőrizve: 4 szimmetrikus sarok (11/11/11/11, ±0.7 X, ±1.44 Z).",
-  "wheelPattern": "MCLHUB|MCLRIM|MCLSPOKES|DISK|TREAD06|MICH06"
-}

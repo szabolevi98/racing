@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "Élőben megerősítve MŰKÖDIK (a Sauber C34-nél bevált Y-tartomány-módszerrel találtam meg, miután a felhasználó kérdésére újranéztem ezt is). A modell 13 mesh-ből áll, generikus 'material_0..12' néven, a legtöbb a teljes kocsit lefedő karosszéria-blokk. A 'material_10'/'material_11'/'material_12' viszont mindhárom nagyon alacsony Y-tartományú (sosem éri el a 0.1-et), és pontosan a teljes 4-kerekes fesztávnak megfelelő méretű (x=±0.78, z=-1.9..1.4) - gumi+felni+küllő rétegek, karosszéria nélkül. Geometria-szétvágással 4 szimmetrikus, 3-3 darabos sarokra esik szét (±0.64 X, 1.44/-1.44 Z).",
-  "wheelPattern": "material_10|material_11|material_12"
-}

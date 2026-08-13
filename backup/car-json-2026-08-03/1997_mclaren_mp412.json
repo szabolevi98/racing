@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "A 'MICHTYRE' (Michelin) z=+1.47-nél, a 'BRIDGETYRE' (Bridgestone) z=-1.60-nál - ugyanaz a minta mint a Williams FW19-nél, ott +Z volt az eleje.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "JAVÍTVA (a felhasználó jelezte: 'első kerekek amikor fordulnak nem az egész kerék fordul, a futófelület egy helyben marad'). Kimaradt a 'THREAD_FRONT'/'THREAD_SOFT' anyag (a valódi futófelület-mintázat, külön mesh a MICHTYRE/BRIDGETYRE tests-gumitól). Közös '97-es F1 kerék-kit (ua. mint a Williams FW19, Benetton B197, Ferrari F310). FIGYELEM: van 'WHEELBACK' anyag is (kormánykerék) - a minta ezt nem fogja meg.",
-  "wheelPattern": "MICHTYRE|RIM_BLUR|RIM_BLURRED|rim__rim_png|brake__brake_png|goldhat__brake_png|BRIDGETYRE|THREAD_FRONT|THREAD_SOFT"
-}

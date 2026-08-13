@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "JAVÍTVA (ua. javítás mint a Jaguar R3/Jordan EJ12/Williams FW24-nél: 'gumi forog, felnik nem'). Kimaradt a felni LÁTHATÓ festék/AO rétege (METALBLACK/BAROZ/DKGREYSHADES) - enélkül a felni statikusan maradt a kasztnin. Közös 2002-es F1 kerék-kit (ua. mint Jaguar R3, Jordan EJ12, Williams FW24, más sorszámmal). FIGYELEM: van egy 'BARWHL' anyag is (kormánykerék) - a minta szándékosan nem 'WHL'-lel keres.",
-  "wheelPattern": "Tyre|Brake_Disk|BAR_HUB|METALBLACK|DKGREYQRIM|BAROZ|DKGREYSHADES|RIM_BLUR|Caliper"
-}

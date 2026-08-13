@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "Az eleje +Z: a 'Light.023' (hátsó lámpa) anyagú mesh z=-2.53-nál van, tehát a hátulja -Z.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "Tiszta, névvel ellátott kerék-anyagok: brake, calliper, disk, blur1/blur2 (forgás-elmosás textúra), MCLRIM, MCLSPOKES, side, tread, MCLHUB - mind egy mesh-be összeolvasztva mind a 4 kerék (bal/jobb ÉS elöl/hátul), a splitMergedWheelMesh vágja szét. Élőben ellenőrizve: 4 majdnem szimmetrikus sarok (11/10/11/11 darab) - a modell saját exportjában van egy-egy apró extra 'side'/'tread' darab csak az egyik oldalon/saroknál (nem a mi hibánk), ez nem látszik vizuálisan. Ez a kocsi buktatta le, hogy a findWheelCentreOffset/buildWheelPivots min/max-átlaga egyetlen eltévedt kis darabtól (a 'tread' duplikátum z=-1.95-nél) teljesen félrecsúszhat - lásd main.js, most már mediánt használ.",
-  "wheelPattern": "brake|calliper|disk|blur1|blur2|MCLRIM|MCLSPOKES|side|tread|MCLHUB"
-}

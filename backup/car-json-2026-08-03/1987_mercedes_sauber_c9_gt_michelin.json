@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés (van 'EXT_rearlights' anyag, de a pozícióját nem néztem meg) - alapértelmezés 0. Ellenőrizd élőben.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "GYORS becslés. Tiszta, névvel ellátott kerék-anyagok (EXT_caliper_metal, EXT_rim_metal, EXT_rim, rim_blur_alpha, EXT_tire, EXT_brakedisk), mind egy helyen (kb 0,0.35,-0.12), geometria-szétvágással.",
-  "wheelPattern": "caliper|rim|tire|brakedisk"
-}

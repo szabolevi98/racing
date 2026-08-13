@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "Explicit 'FRONT_RIMS' anyag z=+1.95-nél, 'REAR_RIMS' pedig z=-1.60-nál - egyértelműen +Z előre.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "JAVÍTVA (felhasználó jelezte: 'felni nem forog, gumi igen'). Kimaradt a 'FLASKS' (felni-közép dísztárcsa) és a 'baked_FIX_ROUE' (kerékanya, 'roue' = kerék franciául). A NODE-NEVEK árulják el, hogy ezek a kerékhez tartoznak: FLASK_LF/RF/RR/LR es LF/RF/RR/LR_FIX_ROUE, mindegyik a TIRE_LF/RF/RR/LR szülő alatt - vagyis mind a 4 kerék-egység része. CSAPDA: a 'SUSPENSIONS' anyag szintén kerék-közelben és kerék-méretben (0.49x0.57x0.59) van 12 példányban, de a node-nevei (ARM_RR_DOWN, rr_up_susp, lf_ecope = légterelő) elárulják, hogy lengőkar/légterelő - ezek NEM forognak a kerékkel, szándékosan kimaradnak. A 'STICKERS' is kerék-közelben van, de az az ecope (légterelő) matricája, nem a keréké. A 4 sarok már eleve külön mesh-csoport: brakes_in, FRONT_RIMS (elöl)/REAR_RIMS (hátul), TIRE_SIDES, TIRE_TREAD, FLASKS, baked_FIX_ROUE. A 'stickers_wheel' (apró matrica) szándékosan kimaradt. Élőben ellenőrizve: 4 sarok, saronként 5-6 alkatrész, semmi nem leng ki (max elmozdulás 180 fokos forgatásnál: 0.02).",
-  "wheelPattern": "brakes_in|FRONT_RIMS|REAR_RIMS|TIRE_SIDES|TIRE_TREAD|FLASKS|baked_FIX_ROUE"
-}

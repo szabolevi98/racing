@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "Közös modern F1 kerék-kit (ua. mint Aston Martin AMR26, Haas VF-26, Williams FW48): a 4 sarok már eleve külön mesh-csoport (discs, redbull_wheel_hub, TIRE_SIDES, TIRE_TREAD).",
-  "wheelPattern": "discs|redbull_wheel_hub|TIRE_SIDES|TIRE_TREAD"
-}

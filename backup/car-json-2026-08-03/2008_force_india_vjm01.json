@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "JAVÍTVA (a felhasználó jelezte: 'gumi forog, felnik nem'). Kimaradt a felni SZILÁRD alapja, egy sorszám nélküli generikus 'material' anyag ugyanott. Tiszta kerék-anyagok: brake.001, calliper, disk, RIM_BLUR, tread, side, material. CSAPDA: van 'side_left'/'side_right' anyag is (orr-elem oldalpanel) - a puszta 'side' minta ezeket is elkapná, ezért ' side(.|sorvég)' alakot használok.",
-  "wheelPattern": "brake.001|calliper|disk|RIM_BLUR|tread| side(\\.|$)| material$"
-}

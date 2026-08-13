@@ -1,9 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-
-  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
-  "yawDegrees": 0,
-
-  "_wheelPattern": "Közös 2002-es F1 kerék-kit (ua. mint Ferrari F2002, Toyota TF102, más sorszámmal): Rim/Rim_Decals/Rim_Spokes, Brake_Disk, Tyre, Caliper/Caliper_Logo. Nincs látható kormánykerék-anyag a listában.",
-  "wheelPattern": "Rim|Brake_Disk|Tyre|Caliper"
-}
