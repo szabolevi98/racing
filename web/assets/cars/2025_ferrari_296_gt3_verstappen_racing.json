@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "Alapértelmezés 0. Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
+  "yawDegrees": 0,
+  "_wheelPattern": "Geometriailag ellenőrizve: 4 szimmetrikus sarok, nyomtáv 1.56, tengelytáv 2.48, 24 kerék/felni/fék alkatrész.",
+  "wheelPattern": "wheel|caliper|disc"
+}

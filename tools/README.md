@@ -1,14 +1,32 @@
 # Kocsi-modell elemző eszközök
 
+## Nagy játékosmodellek optimalizálása
+
+```bash
+npm run cars:optimize
+```
+
+A parancs a 20 MB fölötti `web/assets/cars/*.glb` autókat teljes minőségben
+elmenti a webrooton kívüli `car-masters/` mappába, majd legfeljebb 15 MB-os
+játékosmodellt készít belőlük az eredeti helyükre. A 20 MB alatti autókat nem
+duplázza: azok jelenlegi GLB-je egyszerre forrás és játékosmodell.
+
+A 15 MB-os kereső először az eredeti textúrát és teljes geometriát próbálja.
+Enyhe geometriai egyszerűsítés, majd WebP csak akkor következik, ha szükséges;
+autónként azt az utat választja, amely a legkevesebb látható részletet áldozza
+fel. A masterek nem publikus webes assetek és játék közben nem töltődnek le.
+
 ## Multiplayer/ghost modellek automatikus készítése
 
 ```bash
 npm run cars:compress
 ```
 
-A parancs az összes eredeti `web/assets/cars/*.glb` autóból legfeljebb 5 MB-os
-változatot készít a `web/assets/cars/compressed/` mappába; a már naprakész
-fájlokat kihagyja. A hivatalos `gltfpack` binárist a `tools/vendor/gltfpack/<verzió>/` mappában
+A parancs minden autónál a `car-masters/` forrást használja, ha létezik;
+egyébként közvetlenül a `web/assets/cars/*.glb` modellből készít legfeljebb
+5 MB-os változatot a `web/assets/cars/compressed/` mappába. Így a remote modell
+sosem egy már veszteséges 15 MB-os fájlból tömörül újra. A naprakész fájlokat
+kihagyja. A hivatalos `gltfpack` binárist a `tools/vendor/gltfpack/<verzió>/` mappában
 tartjuk, verziózva és a repóba commitolva — így a konvertálás hálózat nélkül is
 fut. Ha a binárisod platformjára még nincs ott (a repóban a Windowsos van),
 első futáskor automatikusan letölti, és SHA-256 ellenőrzés után ide teszi.
@@ -25,9 +43,9 @@ Más célméret tesztelése:
 npm run cars:compress -- --target-mb=4
 ```
 
-Az eredeti GLB-ket a script soha nem írja felül. A játék az eredetit használja
-a saját autóhoz, a compressed változatot pedig multiplayer-ellenfélnél és
-Hot Lap ghostnál. Mindkettő ugyanazt az eredeti JSON-konfigurációt kapja, ezért
+A játék a legfeljebb 15 MB-os modellt használja a saját autóhoz, a compressed
+változatot pedig multiplayer-ellenfélnél és Hot Lap ghostnál. Mindkettő ugyanazt
+a JSON-konfigurációt kapja, ezért
 a `wheelPattern` és a kerékanimáció is megmarad.
 
 ### Hogyan választ beállítást

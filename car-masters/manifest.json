@@ -1,0 +1,997 @@
+{
+  "version": 4,
+  "targetMb": 15,
+  "generatedAt": "2026-08-13T10:14:21.203Z",
+  "cars": {
+    "2008_bmw_sauber_f1.08": {
+      "signature": "v2:4:41196616:15728640:053203ef9a6dbcd1e218761c0e6e868b30e208db12e8809d8a9872706892abf7",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 9,
+        "cost": 2
+      },
+      "limitedBy": "geometria",
+      "bytes": 14281260,
+      "sourceBytes": 41196616,
+      "triangles": 172834,
+      "imageBytes": 4447918,
+      "geometryBytes": 9800760
+    },
+    "2024_ferrari_499p": {
+      "signature": "v2:4:38513092:15728640:ea6bc2af40412a28f6f3de7143c63b1f6127aecc9969321df0e9ea47ed36ab8a",
+      "geometry": {
+        "ratio": 0.85,
+        "error": 0.002,
+        "cost": 1
+      },
+      "texture": {
+        "preserve": true,
+        "cost": 0
+      },
+      "limitedBy": "geometria",
+      "bytes": 14794016,
+      "sourceBytes": 38513092,
+      "triangles": 394547,
+      "imageBytes": 6942769,
+      "geometryBytes": 7703086
+    },
+    "2026_bmw_m3_touring_24h_shell_helix": {
+      "signature": "v2:4:40259540:15728640:ce1196ae3abe1c17b123533f4fafaceaecb1cf91a2433e263db1ebfc4f0d6201",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "preserve": true,
+        "cost": 0
+      },
+      "limitedBy": "geometria",
+      "bytes": 12003112,
+      "sourceBytes": 40259540,
+      "triangles": 565045,
+      "imageBytes": 2140244,
+      "geometryBytes": 9636662
+    },
+    "1975_fittipaldi_fd02": {
+      "signature": "v2:4:21022140:15728640:d8e6688018913f90afa2cb7335f5bab224a3b4790f518ef909015fc1f075bd02",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "textúra",
+      "bytes": 8786680,
+      "sourceBytes": 21022140,
+      "triangles": 54130,
+      "imageBytes": 7494284,
+      "geometryBytes": 1224544
+    },
+    "1982_mercedes_w201": {
+      "signature": "v2:4:26259584:15728640:f31f963703261b1bce79a708c1d24f327793d31e29f76bf02afcbd5c0bf4f976",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "textúra",
+      "bytes": 12547616,
+      "sourceBytes": 26259584,
+      "triangles": 185750,
+      "imageBytes": 7418716,
+      "geometryBytes": 5054516
+    },
+    "1989_porsche_962c_takefuji": {
+      "signature": "v2:4:24392808:15728640:9a81f53a4012ee87f1fc52706871cc362b9f917c7a0ca034919bbc0b4a4ff19a",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "textúra",
+      "bytes": 10874860,
+      "sourceBytes": 24392808,
+      "triangles": 180997,
+      "imageBytes": 5783120,
+      "geometryBytes": 5048182
+    },
+    "1990_jaguar_xjr-12": {
+      "signature": "v2:4:26536356:15728640:80c1f33868b49c82d082964c7b87a62f42342a2c71fefccbf1667f3063261f75",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "textúra",
+      "bytes": 9226796,
+      "sourceBytes": 26536356,
+      "triangles": 164370,
+      "imageBytes": 5227610,
+      "geometryBytes": 3956872
+    },
+    "1991_toyota_eagle_mkiii": {
+      "signature": "v2:4:25970924:15728640:8ed2e516b8d46bc579541f98708a1c4ada0d6453433cc45eb8fa3d5cf6326002",
+      "geometry": {
+        "ratio": 0.85,
+        "error": 0.002,
+        "cost": 1
+      },
+      "texture": {
+        "preserve": true,
+        "cost": 0
+      },
+      "limitedBy": "textúra",
+      "bytes": 15349352,
+      "sourceBytes": 25970924,
+      "triangles": 268101,
+      "imageBytes": 7673006,
+      "geometryBytes": 7622014
+    },
+    "1994_ferrari_412_t1": {
+      "signature": "v2:4:22487032:15728640:fae502457d0887a80f0ccde51b3e2142e8c52738c4d12f5938166d75911642d6",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 7820896,
+      "sourceBytes": 22487032,
+      "triangles": 205436,
+      "imageBytes": 3673134,
+      "geometryBytes": 4094216
+    },
+    "1999_pagani_zonda_c12": {
+      "signature": "v2:4:21695116:15728640:d1b2f2e71f213b3fc2b6bdba037ceaa5207de374409970547b4909423fed2ebb",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "preserve": true,
+        "cost": 0
+      },
+      "limitedBy": "geometria",
+      "bytes": 11018580,
+      "sourceBytes": 21695116,
+      "triangles": 327831,
+      "imageBytes": 3473716,
+      "geometryBytes": 7463466
+    },
+    "2002_audi_tt-r": {
+      "signature": "v2:4:32459844:15728640:dab25360049d882281976c3af72b05a5bdcb23f1c1762777a3768875ab38fc19",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 13818724,
+      "sourceBytes": 32459844,
+      "triangles": 278820,
+      "imageBytes": 2424338,
+      "geometryBytes": 11357340
+    },
+    "2002_bar_004": {
+      "signature": "v2:4:31174836:15728640:4e2554a9f6312008920d0ac3c8634828765fe86ee7122e3c9184ae38295a0420",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "textúra",
+      "bytes": 15144620,
+      "sourceBytes": 31174836,
+      "triangles": 97862,
+      "imageBytes": 12809296,
+      "geometryBytes": 2287292
+    },
+    "2002_ferrari_f2002": {
+      "signature": "v2:4:30563936:15728640:37370180aeb56f1e6a3c93ad97c701b24a6bfa96849edc2e778659c6d7909220",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "textúra",
+      "bytes": 15549544,
+      "sourceBytes": 30563936,
+      "triangles": 118613,
+      "imageBytes": 12207724,
+      "geometryBytes": 3288386
+    },
+    "2002_jordan_ej12": {
+      "signature": "v2:4:24833156:15728640:716f3fa074ac3a88a5534662006882c7f857d58e0bc14afe1838b58d3288255e",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 9,
+        "cost": 2
+      },
+      "limitedBy": "textúra",
+      "bytes": 13281216,
+      "sourceBytes": 24833156,
+      "triangles": 101627,
+      "imageBytes": 10873434,
+      "geometryBytes": 2355762
+    },
+    "2002_mclaren_mp4-17": {
+      "signature": "v2:4:30207016:15728640:98f3ab29c3dd4d28cf73bda25c6d04a2d61ae28fe6f7e160bfb45b3b244147d7",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 9,
+        "cost": 2
+      },
+      "limitedBy": "textúra",
+      "bytes": 13252352,
+      "sourceBytes": 30207016,
+      "triangles": 88365,
+      "imageBytes": 11193328,
+      "geometryBytes": 2009882
+    },
+    "2002_toyota_tf102": {
+      "signature": "v2:4:22918720:15728640:baf3fe2ef8dcd7d9bfc5e5aafe8efe6beedbb0be7938a377cc7fb83e8bb9a6b4",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "textúra",
+      "bytes": 10854860,
+      "sourceBytes": 22918720,
+      "triangles": 112113,
+      "imageBytes": 7523458,
+      "geometryBytes": 3288962
+    },
+    "2006_ferrari_f2006": {
+      "signature": "v2:4:24046628:15728640:cf32049f1f2812563428cb04664260df6552583cf1ec3695f9d1c25d7ada55ea",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "preserve": true,
+        "cost": 0
+      },
+      "limitedBy": "geometria",
+      "bytes": 14766864,
+      "sourceBytes": 24046628,
+      "triangles": 204037,
+      "imageBytes": 6990680,
+      "geometryBytes": 7736454
+    },
+    "2006_mclaren_mp421": {
+      "signature": "v2:4:28122448:15728640:b14579380d3252f978679ddb9c5fcf06e0c5d90ff5831bce30aab80a1625d277",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 13197764,
+      "sourceBytes": 28122448,
+      "triangles": 178691,
+      "imageBytes": 6444610,
+      "geometryBytes": 6714798
+    },
+    "2006_midland_m16": {
+      "signature": "v2:4:27740672:15728640:031fbba837e7890705538ebe803b82332550bff6f687b7967e004fd56c7472f8",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 11102432,
+      "sourceBytes": 27740672,
+      "triangles": 169384,
+      "imageBytes": 4495614,
+      "geometryBytes": 6567352
+    },
+    "2006_mosler_mt900_gt3": {
+      "signature": "v2:4:36822040:15728640:684b660a12d37878dda5d4cc410f6c09843fa315bf5424d5242f6db90b53b8c4",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 9,
+        "cost": 2
+      },
+      "limitedBy": "geometria",
+      "bytes": 14716316,
+      "sourceBytes": 36822040,
+      "triangles": 425073,
+      "imageBytes": 4041042,
+      "geometryBytes": 10572822
+    },
+    "2006_redbull_rb2": {
+      "signature": "v2:4:23300680:15728640:e3b3a40fa8e6f0a065832e881857d78b2615900727144bdfa805ef0455c40e61",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "preserve": true,
+        "cost": 0
+      },
+      "limitedBy": "textúra",
+      "bytes": 15665736,
+      "sourceBytes": 23300680,
+      "triangles": 169829,
+      "imageBytes": 9047878,
+      "geometryBytes": 6581494
+    },
+    "2006_renault_r26": {
+      "signature": "v2:4:23235072:15728640:dba2ce45394f138f7a4afc9e9417879fa57d609c693ace2907198d306f6d8b4c",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "preserve": true,
+        "cost": 0
+      },
+      "limitedBy": "textúra",
+      "bytes": 15549608,
+      "sourceBytes": 23235072,
+      "triangles": 173648,
+      "imageBytes": 8620559,
+      "geometryBytes": 6892128
+    },
+    "2006_super_aguri_sa06": {
+      "signature": "v2:4:25831056:15728640:d0d4e625b172f48a856efce3ded235d7f88f9f409501764eb79d88ffe754c6d9",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 10974580,
+      "sourceBytes": 25831056,
+      "triangles": 171516,
+      "imageBytes": 4349598,
+      "geometryBytes": 6588688
+    },
+    "2006_toyota_tf106": {
+      "signature": "v2:4:22787764:15728640:b02d4b2d3a7c6c516538639784c18665e457a579e8b7747daa01287b3e33cd27",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "preserve": true,
+        "cost": 0
+      },
+      "limitedBy": "textúra",
+      "bytes": 15123864,
+      "sourceBytes": 22787764,
+      "triangles": 171040,
+      "imageBytes": 8688551,
+      "geometryBytes": 6398324
+    },
+    "2006_williams_fw28": {
+      "signature": "v2:4:21946136:15728640:868fb5a77a3b4a0af28b336b9c7b61e27f5191fcfd132b04f05026ebb1aa8f3e",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "preserve": true,
+        "cost": 0
+      },
+      "limitedBy": "textúra",
+      "bytes": 14096044,
+      "sourceBytes": 21946136,
+      "triangles": 168805,
+      "imageBytes": 7524014,
+      "geometryBytes": 6538786
+    },
+    "2008_ferrari_f2008": {
+      "signature": "v2:4:21566104:15728640:54c558e7e1368c9041ae17790c0721df412c9a359344e5acd28e9d8fbfe5d16a",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "preserve": true,
+        "cost": 0
+      },
+      "limitedBy": "textúra",
+      "bytes": 13885012,
+      "sourceBytes": 21566104,
+      "triangles": 174216,
+      "imageBytes": 9802055,
+      "geometryBytes": 4060856
+    },
+    "2008_force_india_vjm01": {
+      "signature": "v2:4:29383828:15728640:2ddc1cc200e3ffb9db51ea681a7756b8e3ab90a1c72fce8083cdc64e39cdd411",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "textúra",
+      "bytes": 14387196,
+      "sourceBytes": 29383828,
+      "triangles": 164943,
+      "imageBytes": 8061084,
+      "geometryBytes": 6296122
+    },
+    "2008_honda_ra106": {
+      "signature": "v2:4:26823044:15728640:0a474c58912f263bc10666adae7bf87d71c4496e5758f53d251965944832d5d0",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 11519432,
+      "sourceBytes": 26823044,
+      "triangles": 171196,
+      "imageBytes": 4928232,
+      "geometryBytes": 6553428
+    },
+    "2008_honda_ra108": {
+      "signature": "v2:4:25021008:15728640:ed6ac5433971ca1b300c8807a4127b79eb8480337195bb7a3ae9aa82c6df9ff4",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 10460528,
+      "sourceBytes": 25021008,
+      "triangles": 177368,
+      "imageBytes": 3778464,
+      "geometryBytes": 6644736
+    },
+    "2008_mclaren_mp423": {
+      "signature": "v2:4:28560076:15728640:28b5278cba718fcd330644dbe450cf59e17bf938185391aaa4769be083360c6b",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "textúra",
+      "bytes": 9644760,
+      "sourceBytes": 28560076,
+      "triangles": 125327,
+      "imageBytes": 5759954,
+      "geometryBytes": 3772282
+    },
+    "2008_redbull_rb3": {
+      "signature": "v2:4:22650340:15728640:90a30b84b5956dff0e2d5f1e5dc1c7a1ba79746414b800b0ab01cbdce9fed974",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "preserve": true,
+        "cost": 0
+      },
+      "limitedBy": "textúra",
+      "bytes": 15625580,
+      "sourceBytes": 22650340,
+      "triangles": 170861,
+      "imageBytes": 9136728,
+      "geometryBytes": 6461502
+    },
+    "2008_renault_r28": {
+      "signature": "v2:4:23340404:15728640:b13a0c8b0d1a44c4ba9a1fa6c5433b2f5def37012728d627856d107032728969",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 13231228,
+      "sourceBytes": 23340404,
+      "triangles": 172476,
+      "imageBytes": 6545444,
+      "geometryBytes": 6654712
+    },
+    "2008_super_aguri_sa08": {
+      "signature": "v2:4:24474616:15728640:1b4b178e4a7e99e048ce36221c89897ffb05ef3d9c8430a5afdead2336574fbe",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 12049628,
+      "sourceBytes": 24474616,
+      "triangles": 169615,
+      "imageBytes": 5623724,
+      "geometryBytes": 6395322
+    },
+    "2008_toro_rosso_str3": {
+      "signature": "v2:4:28604600:15728640:ef75e169ceb0c24db4e5cfdd84aad1911831f569cb0f89fcc59ad2ae2bf45b02",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "textúra",
+      "bytes": 15336560,
+      "sourceBytes": 28604600,
+      "triangles": 173037,
+      "imageBytes": 8752098,
+      "geometryBytes": 6554302
+    },
+    "2009_renault_r29": {
+      "signature": "v2:4:32333464:15728640:3419474d00149bdbf6841f974c0b316b69284c80475d9e86e64674cc6614ebab",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 14398488,
+      "sourceBytes": 32333464,
+      "triangles": 448529,
+      "imageBytes": 5335142,
+      "geometryBytes": 9008366
+    },
+    "2011_audi_r18_ultra": {
+      "signature": "v2:4:24106144:15728640:c2d8dbb0dc97f2679a341f21a2e50cbc3b7b84fed28920c6d75ee984f17113f5",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "preserve": true,
+        "cost": 0
+      },
+      "limitedBy": "geometria",
+      "bytes": 14143188,
+      "sourceBytes": 24106144,
+      "triangles": 306952,
+      "imageBytes": 6646346,
+      "geometryBytes": 7424264
+    },
+    "2011_bmw_z4_gt3": {
+      "signature": "v2:4:25358660:15728640:86b75740f56138917a2b07b80f55ac609924ede96d8b26eadbe2260a6795d11f",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "preserve": true,
+        "cost": 0
+      },
+      "limitedBy": "geometria",
+      "bytes": 13742364,
+      "sourceBytes": 25358660,
+      "triangles": 559979,
+      "imageBytes": 1988843,
+      "geometryBytes": 11683778
+    },
+    "2016_redbull_rb12": {
+      "signature": "v2:4:22869428:15728640:cfb70c5958da91562effbad80998198070c2a079226b8d6ac08d8ec36ed4ba56",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "textúra",
+      "bytes": 10046584,
+      "sourceBytes": 22869428,
+      "triangles": 156801,
+      "imageBytes": 6590480,
+      "geometryBytes": 3419942
+    },
+    "2018_ferrari_sf71h": {
+      "signature": "v2:4:27584048:15728640:abc69269ad448345eda4a91c4e7c567d3ec692ab1e202fd9b05a1a044d928c55",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 14124632,
+      "sourceBytes": 27584048,
+      "triangles": 301191,
+      "imageBytes": 6586678,
+      "geometryBytes": 7467766
+    },
+    "2018_lexus_rc_f_gt3": {
+      "signature": "v2:4:33389264:15728640:fccf4c65e30adbb8108fb4d90a500d87ec909d05d7a8d3939177896be071be66",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 12859528,
+      "sourceBytes": 33389264,
+      "triangles": 323649,
+      "imageBytes": 5543082,
+      "geometryBytes": 7122214
+    },
+    "2018_renault_r.s.18": {
+      "signature": "v2:4:25428184:15728640:9525f81b765930f3e6ebea94868c5fb60494f7ad5acffafa680968cbeedbc788",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 11482812,
+      "sourceBytes": 25428184,
+      "triangles": 168541,
+      "imageBytes": 5613178,
+      "geometryBytes": 5843834
+    },
+    "2023_cadillac_v-series.r": {
+      "signature": "v2:4:31542396:15728640:354e074961f37997735df4c5d2861fb0d0dc29261ab34598b020bdb663216398",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "preserve": true,
+        "cost": 0
+      },
+      "limitedBy": "geometria",
+      "bytes": 14171276,
+      "sourceBytes": 31542396,
+      "triangles": 440584,
+      "imageBytes": 6437303,
+      "geometryBytes": 7619026
+    },
+    "2023_lamborghini_huracan_gt3_evo2": {
+      "signature": "v2:4:27571416:15728640:06af566cb65a97b460e1d2e0f2f8add5eb8c2fbdbcd6682b406f7d3b787a26c8",
+      "geometry": {
+        "ratio": 0.85,
+        "error": 0.002,
+        "cost": 1
+      },
+      "texture": {
+        "preserve": true,
+        "cost": 0
+      },
+      "limitedBy": "textúra",
+      "bytes": 15686648,
+      "sourceBytes": 27571416,
+      "triangles": 272972,
+      "imageBytes": 8934441,
+      "geometryBytes": 6682488
+    },
+    "2024_alpine_racing_a424": {
+      "signature": "v2:4:51811420:15728640:eb27ae8ee83afd301271f9db9700b0f6b0a3da2b3361087ab5cde6b17edaf3f2",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 2048,
+        "quality": 8,
+        "cost": 2
+      },
+      "limitedBy": "geometria",
+      "bytes": 15508140,
+      "sourceBytes": 51811420,
+      "triangles": 471685,
+      "imageBytes": 4542788,
+      "geometryBytes": 10879858
+    },
+    "2024_ford_mustang_gt3": {
+      "signature": "v2:4:38502856:15728640:1a35d0e28fd9a90ea9e9139cda4b29d8f710f1d05c41c71f904e19c0aa3005d7",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "textúra",
+      "bytes": 14720972,
+      "sourceBytes": 38502856,
+      "triangles": 330674,
+      "imageBytes": 7323486,
+      "geometryBytes": 7238604
+    },
+    "2024_honda_civic_super_gt_arta": {
+      "signature": "v2:4:25776980:15728640:82350ff358d9dea3a198d24a8f98b04bb7003cb17d83deea7419b7ec63e2a0a8",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "textúra",
+      "bytes": 13971416,
+      "sourceBytes": 25776980,
+      "triangles": 324620,
+      "imageBytes": 8763380,
+      "geometryBytes": 5149352
+    },
+    "2024_redbull_rb20": {
+      "signature": "v2:4:31007168:15728640:d8f0659362e189e4faddccbf4acfea33d47f8e342881485c83ae0b80858424a9",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 12305240,
+      "sourceBytes": 31007168,
+      "triangles": 365130,
+      "imageBytes": 4958702,
+      "geometryBytes": 7162752
+    },
+    "2025_ferrari_296_gt3_verstappen_racing": {
+      "signature": "v2:4:61940452:15728640:d04edc358eefc56d459feb69e7b189ab82688be771d1cbe5117b016200439a77",
+      "geometry": {
+        "ratio": 0.75,
+        "error": 0.003,
+        "cost": 2
+      },
+      "texture": {
+        "limit": 2048,
+        "quality": 8,
+        "cost": 2
+      },
+      "limitedBy": "geometria",
+      "bytes": 15658284,
+      "sourceBytes": 61940452,
+      "triangles": 348334,
+      "imageBytes": 6602150,
+      "geometryBytes": 8861384
+    },
+    "2026_aston_martin_amr26": {
+      "signature": "v2:4:33698328:15728640:1317f1dc398ccdc9ee58f576c69261d8bc82953508526f458163fe70af7e9cb5",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 10667140,
+      "sourceBytes": 33698328,
+      "triangles": 275868,
+      "imageBytes": 4744218,
+      "geometryBytes": 5734180
+    },
+    "2026_dacia_logan_ollis_garage_racing": {
+      "signature": "v2:4:23803260:15728640:b20a483cfbd668eada651d59070bbebdcc86a0f1b695b018acf087a6de456502",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "textúra",
+      "bytes": 11831756,
+      "sourceBytes": 23803260,
+      "triangles": 199041,
+      "imageBytes": 6015000,
+      "geometryBytes": 5744486
+    },
+    "2026_haas_vf-26": {
+      "signature": "v2:4:28401172:15728640:01c7694af763c7d02b0d970fac56d53ccf892070ab727f297ae3c130d11af125",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "preserve": true,
+        "cost": 0
+      },
+      "limitedBy": "textúra",
+      "bytes": 15673144,
+      "sourceBytes": 28401172,
+      "triangles": 275868,
+      "imageBytes": 9324975,
+      "geometryBytes": 6165032
+    },
+    "2026_red_bull_racing_rb22": {
+      "signature": "v2:4:27945828:15728640:1d88aee652b6cbc3b95018abf4faa946c32629146bcc6c1caba51242a6c482f2",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "preserve": true,
+        "cost": 0
+      },
+      "limitedBy": "textúra",
+      "bytes": 14763148,
+      "sourceBytes": 27945828,
+      "triangles": 275868,
+      "imageBytes": 8407535,
+      "geometryBytes": 6172700
+    },
+    "2026_williams_fw48": {
+      "signature": "v2:4:30328964:15728640:f1339b63618c5cec8ab0c2c3eea3d292043e739a51bf8d13db416255db6f0ef1",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 9997520,
+      "sourceBytes": 30328964,
+      "triangles": 275868,
+      "imageBytes": 3361942,
+      "geometryBytes": 6449256
+    }
+  }
+}

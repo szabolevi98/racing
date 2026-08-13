@@ -6,13 +6,15 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CARS_DIR = path.join(ROOT, 'web', 'assets', 'cars');
-const OUTPUT_DIR = path.join(CARS_DIR, 'compressed');
+const COMPRESSED_DIR = path.join(CARS_DIR, 'compressed');
+// A teljes minőségű források szándékosan a webrooton kívül vannak: a játék és
+// a publikus statikus kiszolgáló csak a 15 MB-os és az 5 MB-os változatot látja.
+const MASTERS_DIR = path.join(ROOT, 'car-masters');
 // A gltfpack binárist a repóban tartjuk (tools/vendor/), nem eldobható
 // gyorsítótárban: így a konvertálás hálózat nélkül is fut, és nem függ attól,
 // hogy a GitHub-kiadás elérhető marad-e. A verzió a mappanévben van, hogy
 // verzióváltásnál ne keveredjen a régivel.
 const VENDOR_DIR = path.join(ROOT, 'tools', 'vendor', 'gltfpack', 'v1.2');
-const METADATA_FILE = path.join(OUTPUT_DIR, 'manifest.json');
 // A növelése minden autót újrakonvertáltat: nem a forrás avult el, hanem a
 // konvertálás módja.
 //   2: a `-sp` már nem jár alanyi jogon minden futásnak (elcsúszó textúrák).
@@ -22,6 +24,8 @@ const METADATA_FILE = path.join(OUTPUT_DIR, 'manifest.json');
 //      textúrája csúszott el tőle.
 export const PIPELINE_VERSION = 4;
 const DEFAULT_TARGET_MB = 5;
+const DEFAULT_PRIMARY_TARGET_MB = 15;
+const DEFAULT_MASTER_THRESHOLD_MB = 20;
 
 const RELEASES = {
   'win32-x64': {
@@ -103,6 +107,10 @@ export const TEXTURE_STEPS = Object.freeze([
   { limit: 512, quality: 6, cost: 17 },
   { limit: 384, quality: 5, cost: 21 },
 ]);
+
+const PRIMARY_PRESERVED_TEXTURE = Object.freeze({ preserve: true, cost: 0 });
+const PRIMARY_WEBP_Q10 = Object.freeze({ limit: 4096, quality: 10, cost: 1 });
+const PRIMARY_WEBP_Q9 = Object.freeze({ limit: 4096, quality: 9, cost: 2 });
 
 function run(executable, args, { quiet = false } = {}) {
   return new Promise((resolve, reject) => {
@@ -270,19 +278,24 @@ export function legacySignatureMatches(previousSignature, sourceBytes, targetByt
 }
 
 function parseArgs(argv) {
-  const options = { force: false, targetMb: DEFAULT_TARGET_MB, ids: [] };
+  const options = { force: false, primary: false, targetMb: null, masterThresholdMb: DEFAULT_MASTER_THRESHOLD_MB, ids: [] };
   for (const arg of argv) {
     if (arg === '--force') options.force = true;
+    else if (arg === '--primary') options.primary = true;
     else if (arg.startsWith('--target-mb=')) options.targetMb = Number(arg.slice(12));
+    else if (arg.startsWith('--master-threshold-mb=')) options.masterThresholdMb = Number(arg.slice(22));
     else options.ids.push(arg.replace(/\.glb$/i, ''));
   }
+  options.targetMb ??= options.primary ? DEFAULT_PRIMARY_TARGET_MB : DEFAULT_TARGET_MB;
   if (!(options.targetMb > 0)) throw new Error('A --target-mb pozitív szám legyen.');
+  if (!(options.masterThresholdMb > options.targetMb)) throw new Error('--master-threshold-mb must exceed --target-mb.');
   return options;
 }
 
 function describeSettings({ geometry, texture }) {
   const mode = geometry.aggressive ? ' erőszakolt' : geometry.permissive ? ' varratokon át' : '';
-  return `geometria ${Math.round(geometry.ratio * 100)}%${mode} · textúra ${texture.limit}/q${texture.quality}`;
+  const textureLabel = texture.preserve ? 'eredeti textúra' : `textúra ${texture.limit}/q${texture.quality}`;
+  return `geometria ${Math.round(geometry.ratio * 100)}%${mode} · ${textureLabel}`;
 }
 
 // Windowson a frissen írt fájlt a víruskereső (vagy maga a kilépő gltfpack)
@@ -303,13 +316,13 @@ async function removeWithRetry(file, { required = false } = {}) {
   }
 }
 
-async function cleanTempFiles(id) {
+async function cleanTempFiles(id, outputDir) {
   const stuck = [];
-  for (const item of await fs.readdir(OUTPUT_DIR)) {
+  for (const item of await fs.readdir(outputDir)) {
     if (item.startsWith(`.${id}.`) && (item.endsWith('.tmp.glb') || item.endsWith('.report.json'))) {
       // A takarítás bukása nem érvényteleníti a kész kimenetet: csak szemét
       // marad, amit a következő futás úgyis felülír.
-      if (!await removeWithRetry(path.join(OUTPUT_DIR, item))) stuck.push(item);
+      if (!await removeWithRetry(path.join(outputDir, item))) stuck.push(item);
     }
   }
   if (stuck.length) console.warn(`  ⚠ ${stuck.length} ideiglenes fájl zárolva maradt, a következő futás felülírja`);
@@ -317,13 +330,14 @@ async function cleanTempFiles(id) {
 
 // Egy gltfpack-futás. A riportot is beolvassa, mert abból derül ki, hogy a
 // bájtok a képekben vagy a geometriában ülnek — a kereső ezen a mérésen dönt.
-async function packOnce(executable, { id, input, geometry, texture }) {
+async function packOnce(executable, { id, input, outputDir, geometry, texture }) {
   // A mód is bekerül, mert ugyanaz az arány több fokon is előfordul (normál és
   // permisszív) — enélkül a két futás egymás ideiglenes fájljára írna.
   const mode = geometry.aggressive ? 'a' : geometry.permissive ? 'p' : 'n';
-  const tag = `g${mode}${geometry.ratio}-t${texture.limit}q${texture.quality}`;
-  const candidate = path.join(OUTPUT_DIR, `.${id}.${tag}.tmp.glb`);
-  const reportFile = path.join(OUTPUT_DIR, `.${id}.${tag}.report.json`);
+  const textureTag = texture.preserve ? 'source' : `${texture.limit}q${texture.quality}`;
+  const tag = `g${mode}${geometry.ratio}-t${textureTag}`;
+  const candidate = path.join(outputDir, `.${id}.${tag}.tmp.glb`);
+  const reportFile = path.join(outputDir, `.${id}.${tag}.report.json`);
   // Itt viszont muszáj eltűnnie: egy bent ragadt riportból a kereső a MÚLTKORI
   // méreteket olvasná ki, és arra tervezne.
   await removeWithRetry(candidate, { required: true });
@@ -356,9 +370,9 @@ async function packOnce(executable, { id, input, geometry, texture }) {
     '-i', input, '-o', candidate,
     '-kn', '-km', '-vtf',
     '-si', String(geometry.ratio), '-se', String(geometry.error),
-    '-tw', '-tq', String(texture.quality), '-tl', String(texture.limit),
     '-r', reportFile,
   ];
+  if (!texture.preserve) args.push('-tw', '-tq', String(texture.quality), '-tl', String(texture.limit));
   if (geometry.permissive) args.push('-sp');
   if (geometry.aggressive) args.push('-sa');
   await run(executable, args, { quiet: true });
@@ -410,10 +424,10 @@ export function planSettings(imageBytes, geometryBytes, overheadBytes, targetByt
   return best;
 }
 
-async function pickSettings(executable, { id, input, targetBytes }) {
+async function pickSettings(executable, { id, input, outputDir, targetBytes }) {
   const mb = (n) => (n / 1024 / 1024).toFixed(2);
   const show = (r) => console.log(`  ${describeSettings(r).padEnd(36)} ${mb(r.bytes)} MB  (kép ${mb(r.imageBytes)} · geo ${mb(r.geometryBytes)})`);
-  const pack = (g, t) => packOnce(executable, { id, input, geometry: GEOMETRY_STEPS[g], texture: TEXTURE_STEPS[t] });
+  const pack = (g, t) => packOnce(executable, { id, input, outputDir, geometry: GEOMETRY_STEPS[g], texture: TEXTURE_STEPS[t] });
   const lastG = GEOMETRY_STEPS.length - 1, lastT = TEXTURE_STEPS.length - 1;
 
   // A legtöbb autó a legjobb beállítással is befér — annak egyetlen futás elég.
@@ -473,14 +487,37 @@ async function pickSettings(executable, { id, input, targetBytes }) {
   }
 }
 
+async function pickPrimarySettings(executable, { id, input, outputDir, targetBytes }) {
+  const mb = (n) => (n / 1024 / 1024).toFixed(2);
+  // A sorrend szándékos, és a három jóváhagyott próbamodellt reprodukálja:
+  // 1) teljes geometria + forrástextúra; 2) enyhe geometriai egyszerűsítés;
+  // 3) csak ezután WebP, ha azzal több geometria őrizhető meg.
+  const trials = [
+    { geometry: GEOMETRY_STEPS[0], texture: PRIMARY_PRESERVED_TEXTURE },
+    { geometry: GEOMETRY_STEPS[1], texture: PRIMARY_PRESERVED_TEXTURE },
+    { geometry: GEOMETRY_STEPS[0], texture: PRIMARY_WEBP_Q10 },
+    { geometry: GEOMETRY_STEPS[2], texture: PRIMARY_PRESERVED_TEXTURE },
+    { geometry: GEOMETRY_STEPS[0], texture: PRIMARY_WEBP_Q9 },
+  ];
+  for (const trial of trials) {
+    const result = await packOnce(executable, { id, input, outputDir, ...trial });
+    console.log(`  ${describeSettings(result).padEnd(36)} ${mb(result.bytes)} MB`);
+    if (result.bytes <= targetBytes) return withLimit(result);
+  }
+  // Ritka, különösen nagy/nehéz modell: innen a teljes adaptív kereső veszi át,
+  // ugyanazzal a minőségköltség-alapú döntéssel, mint a remote modelleknél.
+  return pickSettings(executable, { id, input, outputDir, targetBytes });
+}
+
 function withLimit(result) {
   return { ...result, limitedBy: result.imageBytes > result.geometryBytes ? 'textúra' : 'geometria' };
 }
 
-async function buildCar(executable, file, options, previous) {
+async function buildCar(executable, file, options, previous, { sourceDir, outputDir }) {
   const id = file.replace(/\.glb$/i, '');
-  const input = path.join(CARS_DIR, file);
-  const output = path.join(OUTPUT_DIR, file);
+  const master = path.join(MASTERS_DIR, file);
+  const input = !options.primary && await fileExists(master) ? master : path.join(sourceDir, file);
+  const output = path.join(outputDir, file);
   const sourceStat = await fs.stat(input);
   const targetBytes = Math.floor(options.targetMb * 1024 * 1024);
   const signature = await sourceSignature(input, sourceStat.size, targetBytes);
@@ -510,11 +547,13 @@ async function buildCar(executable, file, options, previous) {
 
   let found;
   try {
-    found = await pickSettings(executable, { id, input, targetBytes });
+    found = options.primary
+      ? await pickPrimarySettings(executable, { id, input, outputDir, targetBytes })
+      : await pickSettings(executable, { id, input, outputDir, targetBytes });
     await validateCandidate(input, found.file, config, targetBytes);
     await fs.copyFile(found.file, output);
   } finally {
-    await cleanTempFiles(id);
+    await cleanTempFiles(id, outputDir);
   }
   console.log(`  ✓ ${describeSettings(found)}, ${found.triangles?.toLocaleString('hu-HU') || '?'} háromszög (a ${found.limitedBy} szorított)`);
   return {
@@ -535,12 +574,12 @@ async function buildCar(executable, file, options, previous) {
 // olvassa (az /api/assets-hez), és Windowson a párhuzamos olvasás néha épp a
 // kiírás pillanatában nyitja meg — a writeFile ilyenkor UNKNOWN hibával száll
 // el. Ideiglenes fájlba írunk és átnevezünk, néhány újrapróbálkozással.
-async function writeMetadata(next) {
-  const temporary = `${METADATA_FILE}.tmp`;
+async function writeMetadata(next, metadataFile) {
+  const temporary = `${metadataFile}.tmp`;
   for (let attempt = 1; ; attempt++) {
     try {
       await fs.writeFile(temporary, `${JSON.stringify(next, null, 2)}\n`);
-      await fs.rename(temporary, METADATA_FILE);
+      await fs.rename(temporary, metadataFile);
       return;
     } catch (error) {
       if (attempt >= 5) throw error;
@@ -551,17 +590,40 @@ async function writeMetadata(next) {
 
 export async function buildRemoteCars(argv = process.argv.slice(2)) {
   const options = parseArgs(argv);
-  await fs.mkdir(OUTPUT_DIR, { recursive: true });
-  const files = (await fs.readdir(CARS_DIR, { withFileTypes: true }))
+  await fs.mkdir(COMPRESSED_DIR, { recursive: true });
+  await fs.mkdir(MASTERS_DIR, { recursive: true });
+
+  if (options.primary) {
+    const thresholdBytes = options.masterThresholdMb * 1024 * 1024;
+    const rootFiles = (await fs.readdir(CARS_DIR, { withFileTypes: true }))
+      .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.glb'))
+      .filter((entry) => !entry.name.toLowerCase().includes('_test'));
+    for (const entry of rootFiles) {
+      const id = entry.name.replace(/\.glb$/i, '');
+      if (options.ids.length && !options.ids.includes(id)) continue;
+      const original = path.join(CARS_DIR, entry.name);
+      const master = path.join(MASTERS_DIR, entry.name);
+      if ((await fs.stat(original)).size > thresholdBytes && !await fileExists(master)) {
+        await fs.copyFile(original, master);
+        console.log(`master mentve: ${entry.name}`);
+      }
+    }
+  }
+
+  const sourceDir = options.primary ? MASTERS_DIR : CARS_DIR;
+  const outputDir = options.primary ? CARS_DIR : COMPRESSED_DIR;
+  const metadataFile = path.join(options.primary ? MASTERS_DIR : COMPRESSED_DIR, 'manifest.json');
+  const files = (await fs.readdir(sourceDir, { withFileTypes: true }))
     .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.glb'))
     .map((entry) => entry.name)
     .filter((file) => !file.toLowerCase().endsWith('_compressed.glb'))
+    .filter((file) => !file.toLowerCase().includes('_test'))
     .filter((file) => !options.ids.length || options.ids.includes(file.replace(/\.glb$/i, '')))
     .sort();
   if (!files.length) throw new Error('Nincs feldolgozható autó a megadott szűréssel.');
 
   const executable = await ensureGltfpack();
-  const metadata = await readJson(METADATA_FILE, { version: PIPELINE_VERSION, cars: {} });
+  const metadata = await readJson(metadataFile, { version: PIPELINE_VERSION, cars: {} });
   const next = { version: PIPELINE_VERSION, targetMb: options.targetMb, generatedAt: new Date().toISOString(), cars: { ...metadata.cars } };
   const failures = [];
   for (let index = 0; index < files.length; index++) {
@@ -569,14 +631,14 @@ export async function buildRemoteCars(argv = process.argv.slice(2)) {
     const id = file.replace(/\.glb$/i, '');
     console.log(`\n[${index + 1}/${files.length}]`);
     try {
-      next.cars[id] = await buildCar(executable, file, options, metadata.cars?.[id]);
+      next.cars[id] = await buildCar(executable, file, options, metadata.cars?.[id], { sourceDir, outputDir });
     } catch (error) {
       failures.push({ id, error: error.message });
       console.error(`  ✗ ${error.message}`);
     }
     // A nyilvántartás írása KÍVÜL van a fenti try-on: egy fájlütközés nem a
     // kocsi konvertálásának a hibája, és nem is szabad annak jelenteni.
-    await writeMetadata(next);
+    await writeMetadata(next, metadataFile);
   }
 
   if (failures.length) {
@@ -584,7 +646,8 @@ export async function buildRemoteCars(argv = process.argv.slice(2)) {
     process.exitCode = 1;
   } else {
     const total = Object.values(next.cars).reduce((sum, car) => sum + (car.bytes || 0), 0);
-    console.log(`\nKész: ${files.length} autó, összesen ${(total / 1024 / 1024).toFixed(1)} MB a compressed mappában.`);
+    const label = options.primary ? 'játékosmodellek' : 'compressed mappa';
+    console.log(`\nKész: ${files.length} autó, összesen ${(total / 1024 / 1024).toFixed(1)} MB (${label}).`);
   }
 }
 

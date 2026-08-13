@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "Alapértelmezés 0. Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
+  "yawDegrees": 0,
+  "_wheelPattern": "Generikus anyagnevek, geometriailag ellenőrizve: 4 sarok, nyomtáv 1.38, tengelytáv 2.68, 31 alkatrész. Az eltérő bal/jobb pivottávolság a forrásmodell enyhe aszimmetriája.",
+  "wheelPattern": "mat_13\\.001(?![^\\s])|mat_33\\.001(?![^\\s])|mat_62\\.001(?![^\\s])|mat_32\\.001(?![^\\s])|mat_63\\.001(?![^\\s])"
+}
