@@ -989,22 +989,19 @@ async function setTrack(trackUrl, mapId, spawnPoints, gates, onProgress, hotLapS
 
   const gltf = await loadGLTF(trackUrl, onProgress);
   const track = gltf.scene;
-  const dsSeen = new Set();
+  const materialSeen = new Set();
   track.traverse((obj) => {
     if (obj.isMesh) {
       obj.castShadow = true;
       obj.receiveShadow = true;
-      // A modellben helyenként fordított normálvektorú háromszögek vannak,
-      // ezért kétoldalas renderelés kell (enélkül egyes foltokon átlátszana
-      // a háttér). FONTOS: a transzparenciához NEM szabad hozzányúlni itt —
-      // több anyag (pl. a gumicsík/groove overlay az aszfalton) szándékosan
-      // alfa-blend átlátszó, ha ezt kikapcsoljuk, azok szilárd, hibás
-      // foltokká válnak.
+      // Az oldalbeállítást (FrontSide/DoubleSide) a GLB anyaga határozza meg;
+      // itt nem kényszerítjük egységesen kétoldalasra a teljes pályát.
+      // A transzparenciához továbbra sem nyúlunk: több anyag (pl. a
+      // gumicsík/groove overlay az aszfalton) szándékosan alfa-blend átlátszó.
       const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
       mats.forEach((m) => {
-        if (m && !dsSeen.has(m.uuid)) {
-          dsSeen.add(m.uuid);
-          m.side = THREE.DoubleSide;
+        if (m && !materialSeen.has(m.uuid)) {
+          materialSeen.add(m.uuid);
 
           // A lombozat/kerítés alfa-keverve érkezik, aminek az alapértelmezése
           // depthWrite = false — vagyis NEM ír a mélységi pufferbe. A Three.js
