@@ -1,5 +1,23 @@
 # Kocsi-modell elemző eszközök
 
+## Teljes asset-ellenőrzés
+
+```bash
+npm run verify:assets
+```
+
+Csak olvassa a fájlokat, nem módosít semmit. Ellenőrzi az összes asset-JSON
+szintaxisát, a normál/compressed/master autók és manifestjeik egyezését,
+a tartalomalapú konverziós aláírásokat, a méretkorlátokat és a kerék-regexeket.
+Az aktív pályáknál vizsgálja a modellt, a nyolc rajtpontot, a rajt- és
+checkpointvonalakat, az opcionális boxkonfigurációt és zónatérképet, valamint a
+multiplayerhez szükséges `collision.bin` formátumát. A környezeteknél HDR/EXR
+fájlt keres. Hibánál nem nulla kilépési kódot ad, ezért deploy előtti ellenőrzésbe
+vagy teljes assetkészlettel futó CI-folyamatba is beilleszthető.
+
+A nagy GLB/BIN/HDR fájlok nincsenek Gitben, ezért egy assetek nélküli friss
+klónban a hiányukat helyesen hibának jelenti.
+
 ## Nagy játékosmodellek optimalizálása
 
 ```bash

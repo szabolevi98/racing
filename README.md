@@ -39,6 +39,18 @@ Tesztek:
 npm test
 ```
 
+A teljes helyi assetkészlet ellenőrzése deploy előtt:
+
+```bash
+npm run verify:assets
+```
+
+Ez ellenőrzi többek között a JSON-okat, az autómodellek és manifestek
+összhangját, a compressed méretkorlátot, a kerék-regexeket, valamint az aktív
+pályák rajtpontjait, kapuit, zónatérképét és ütközési fájlját. A nagy modellek
+gitignore-osak, ezért teljes assetkészlet nélküli friss klónban a parancs
+szándékosan hibát jelez.
+
 ## Játékmódok
 
 ### Egyjátékos
