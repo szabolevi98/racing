@@ -1,12 +1,23 @@
 // Szerver által rögzített Hot Lap / multiplayer szellemkör formátuma.
 //
-// A fizika 60 Hz-en fut, de a vizuális visszajátszáshoz 10 minta/mp bőven elég:
-// a kliens a minták között interpolál. Egy 90 másodperces kör így körülbelül
-// 900 kis tömb, nem pedig több ezer teljes szerver-snapshot.
+// A fizika 60 Hz-en fut, az új szellemkörökből pedig 20 mintát őrzünk meg
+// másodpercenként. Nagy sebességnél ez felezi a két felvett pozíció közötti
+// távolságot a régi 10 Hz-hez képest; a kliens a minták között továbbra is
+// képkockánként interpolál.
 export const GHOST_VERSION = 1;
-export const GHOST_SAMPLE_RATE = 10;
+export const LEGACY_GHOST_SAMPLE_RATE = 10;
+export const GHOST_SAMPLE_RATE = 20;
 export const GHOST_SAMPLE_MS = 1000 / GHOST_SAMPLE_RATE;
-export const MAX_GHOST_FRAMES = 12_000; // legfeljebb 20 percnyi kör
+export const GHOST_SUPPORTED_SAMPLE_RATES = Object.freeze([
+  LEGACY_GHOST_SAMPLE_RATE,
+  GHOST_SAMPLE_RATE,
+]);
+const MAX_GHOST_SECONDS = 20 * 60;
+export const MAX_GHOST_FRAMES = MAX_GHOST_SECONDS * GHOST_SAMPLE_RATE;
+
+function maxGhostFrames(sampleRate) {
+  return MAX_GHOST_SECONDS * sampleRate;
+}
 
 const round = (value, digits) => {
   const scale = 10 ** digits;
@@ -32,7 +43,13 @@ export function makeGhostReplay(frames) {
 // korlátlan méretű payloadot juttatni a kliensre.
 export function sanitizeGhostReplay(value) {
   if (!value || Number(value.version) !== GHOST_VERSION || !Array.isArray(value.frames)) return null;
-  if (value.frames.length < 2 || value.frames.length > MAX_GHOST_FRAMES) return null;
+  const sampleRate = Number(value.sampleRate);
+  // A korábbi 10 Hz-es rekordok az adatbázisban maradnak. Nem mintavételezzük
+  // újra őket (attól nem keletkezne új részlet), hanem a saját frekvenciájukkal
+  // fogadjuk el és adjuk tovább. A lejátszó az első mező időbélyegét használja,
+  // ezért a 10 és 20 Hz-es körök ugyanazzal a kóddal játszhatók vissza.
+  if (!GHOST_SUPPORTED_SAMPLE_RATES.includes(sampleRate)) return null;
+  if (value.frames.length < 2 || value.frames.length > maxGhostFrames(sampleRate)) return null;
 
   let previousTime = -1;
   const frames = [];
@@ -44,5 +61,5 @@ export function sanitizeGhostReplay(value) {
     previousTime = frame[0];
     frames.push(frame);
   }
-  return { version: GHOST_VERSION, sampleRate: GHOST_SAMPLE_RATE, frames };
+  return { version: GHOST_VERSION, sampleRate, frames };
 }

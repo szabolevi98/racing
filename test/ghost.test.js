@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  GHOST_SAMPLE_RATE, MAX_GHOST_FRAMES, makeGhostFrame, makeGhostReplay, sanitizeGhostReplay,
+  GHOST_SAMPLE_RATE, LEGACY_GHOST_SAMPLE_RATE, MAX_GHOST_FRAMES,
+  makeGhostFrame, makeGhostReplay, sanitizeGhostReplay,
 } from '../shared/ghost.js';
 
 test('ghost frames use a compact rounded server pose', () => {
@@ -25,4 +26,19 @@ test('ghost replay accepts ordered finite frames and rejects unsafe payloads', (
   assert.equal(sanitizeGhostReplay({ ...replay, frames: [...frames].reverse() }), null);
   assert.equal(sanitizeGhostReplay({ ...replay, frames: [[0, NaN, 1, 2, 0, 0, 0, 1], frames[1]] }), null);
   assert.equal(sanitizeGhostReplay({ ...replay, frames: Array(MAX_GHOST_FRAMES + 1).fill(frames[0]) }), null);
+});
+
+test('new ghosts use 20 Hz while existing 10 Hz ghosts remain playable', () => {
+  assert.equal(GHOST_SAMPLE_RATE, 20);
+  const oldReplay = {
+    version: 1,
+    sampleRate: LEGACY_GHOST_SAMPLE_RATE,
+    frames: [
+      [0, 0, 1, 2, 0, 0, 0, 1],
+      [100, 0, 1, 3, 0, 0.1, 0, 0.995],
+    ],
+  };
+
+  assert.deepEqual(sanitizeGhostReplay(oldReplay), oldReplay);
+  assert.equal(sanitizeGhostReplay({ ...oldReplay, sampleRate: 15 }), null);
 });

@@ -68,7 +68,8 @@ saját körhöz viszonyít.
 
 A szellemkocsi nem vesz részt a fizikában, így nem lehet vele ütközni. Ugyanazt a
 legfeljebb 5 MB-os optimalizált modellt használja, mint a multiplayer ellenfelei,
-de sima, szemcsézés nélküli áttetszőséggel jelenik meg.
+de sima, szemcsézés nélküli áttetszőséggel jelenik meg. Az új szellemkörök 20 Hz-en
+rögzülnek; a korábbi 10 Hz-es rekordok változatlanul visszajátszhatók.
 
 ### Többjátékos
 
