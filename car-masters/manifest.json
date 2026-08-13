@@ -805,25 +805,6 @@
       "imageBytes": 8934441,
       "geometryBytes": 6682488
     },
-    "2024_alpine_racing_a424": {
-      "signature": "v2:4:51811420:15728640:eb27ae8ee83afd301271f9db9700b0f6b0a3da2b3361087ab5cde6b17edaf3f2",
-      "geometry": {
-        "ratio": 1,
-        "error": 0.001,
-        "cost": 0
-      },
-      "texture": {
-        "limit": 2048,
-        "quality": 8,
-        "cost": 2
-      },
-      "limitedBy": "geometria",
-      "bytes": 15508140,
-      "sourceBytes": 51811420,
-      "triangles": 471685,
-      "imageBytes": 4542788,
-      "geometryBytes": 10879858
-    },
     "2024_ford_mustang_gt3": {
       "signature": "v2:4:38502856:15728640:1a35d0e28fd9a90ea9e9139cda4b29d8f710f1d05c41c71f904e19c0aa3005d7",
       "geometry": {

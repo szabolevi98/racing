@@ -3575,25 +3575,6 @@
       "imageBytes": 2818446,
       "geometryBytes": 1663756
     },
-    "2024_alpine_racing_a424": {
-      "signature": "v2:4:51811420:5242880:eb27ae8ee83afd301271f9db9700b0f6b0a3da2b3361087ab5cde6b17edaf3f2",
-      "geometry": {
-        "ratio": 0.25,
-        "error": 0.04,
-        "cost": 11
-      },
-      "texture": {
-        "limit": 1024,
-        "quality": 7,
-        "cost": 9
-      },
-      "limitedBy": "geometria",
-      "bytes": 4968712,
-      "sourceBytes": 51811420,
-      "triangles": 115932,
-      "imageBytes": 1633086,
-      "geometryBytes": 3250488
-    },
     "2025_ferrari_296_gt3_verstappen_racing": {
       "signature": "v2:4:61940452:5242880:d04edc358eefc56d459feb69e7b189ab82688be771d1cbe5117b016200439a77",
       "geometry": {
