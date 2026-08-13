@@ -1051,6 +1051,9 @@ function onMessage(m) {
       }
       if (m.kind === 'lap' && m.playerId === me.id) {
         myLapTimes.push({ time: m.timeMs, invalid: !!m.invalid });
+        if (isHotLap() && myLapTimes.length > 64) {
+          myLapTimes.splice(0, myLapTimes.length - 64);
+        }
         // A következő kör kezdete nem a csomag megérkezési ideje: nagy
         // pingnél az késő lenne. Az előző hiteles rajtponthoz adjuk hozzá a
         // szerver által mért köridőt, így az Aktuális óra nem ugrik.
@@ -1246,10 +1249,10 @@ async function beginRace(info) {
 
   const tasks = [];
   if (G.currentMapId !== info.mapId) {
-    tasks.push({ bytes: map.bytes, run: (onP) => G.setTrack('assets/' + map.file, map.id, map.spawns, map.gates, onP, map.hotLapSpawn, map.pit) });
+    tasks.push({ bytes: map.bytes, run: (onP) => G.setTrack(G.assetUrl(map), map.id, map.spawns, map.gates, onP, map.hotLapSpawn, map.pit) });
   }
   if (car) {
-    tasks.push({ bytes: car.bytes, run: (onP) => G.setCar('assets/' + car.file, car.id, car.config, onP) });
+    tasks.push({ bytes: car.bytes, run: (onP) => G.setCar(G.assetUrl(car), car.id, car.config, onP) });
   }
   otherPlayers.forEach((p) => {
     const otherCar = G.manifest.cars.find((c) => c.id === p.carId) || G.manifest.cars[0];
@@ -1438,7 +1441,7 @@ async function addOtherCar(p, onProgress, loadGeneration) {
 async function loadRemoteCarVisual(car, fallbackColor, onProgress, translucent = false) {
   const group = new THREE.Group();
   try {
-    const gltf = await G.loadGLTF('assets/' + (car.remoteFile || car.file), onProgress);
+    const gltf = await G.loadGLTF(G.assetUrl(car, true), onProgress);
     const model = gltf.scene;
     // Ugyanaz a normalizálás, mint a saját kocsinál: a hossz-tengely Z-re
     // forgatva, és a fizikai kasztni hosszára skálázva — enélkül a többiek
@@ -2334,7 +2337,9 @@ function frame(dt = 1 / 60) {
     hotLap: isHotLap(),
   });
   const validTimes = myLapTimes.filter((lap) => !lap.invalid).map((lap) => lap.time);
-  const bestTime = validTimes.length ? Math.min(...validTimes) : NaN;
+  const bestTime = Number.isFinite(myBestLap)
+    ? myBestLap
+    : validTimes.length ? Math.min(...validTimes) : NaN;
   // Időmérésben nincs körszám-korlát, tehát nincs mihez viszonyítani: csak a
   // sorszám megy ki, „/ 1" nélkül.
   const korSzamlalo = isHotLap()
@@ -2357,7 +2362,7 @@ function frame(dt = 1 / 60) {
     // a megfutott körök száma többet mond.
     (isHotLap()
       ? `<div class="t-row"><span class="lbl">Megtett kör</span>` +
-        `<span class="t-val num">${myLapTimes.length}</span></div>`
+        `<span class="t-val num">${myLap}</span></div>`
       : `<div class="t-row"><span class="lbl">Összes</span>` +
         `<span class="t-val num">${G.formatTime(totalTime)}</span></div>`)
   );

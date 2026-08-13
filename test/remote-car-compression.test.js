@@ -143,7 +143,8 @@ test('legacy timestamp signatures are reused only within the same pipeline', () 
 test('manifest and multiplayer use compressed visuals with original fallback', () => {
   assert.match(assets, /entry\.remoteFile = `cars\/compressed\/\$\{file\}`/);
   assert.match(assets, /entry\.remoteBytes = remoteStat\.size/);
-  assert.match(multiplayer, /car\.remoteFile \|\| car\.file/);
+  assert.match(assets, /entry\.remoteV = fileVersion\(remoteStat\)/);
+  assert.match(multiplayer, /G\.assetUrl\(car, true\)/);
   assert.match(multiplayer, /remoteBytes \?\? otherCar\?\.bytes/);
   assert.match(multiplayer, /remoteBytes \?\? replayCar\?\.bytes/);
   assert.match(multiplayer, /createRemoteWheelRig\(model, car\.config\?\.wheelPattern, group\)/);

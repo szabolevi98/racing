@@ -10,7 +10,10 @@ import {
 } from '../../shared/protocol.js';
 import { gridSlotPose, hotLapStartPose } from '../../shared/grid.js';
 import { crossingTime, gateRespawnPoint } from '../../shared/gate.js';
-import { sampleZone, ZONE_ASPHALT } from '../../shared/zone.js';
+import {
+  allWheelsOffTrack, sampleZone, wheelProbes, ZONE_ASPHALT,
+} from '../../shared/zone.js';
+import { WHEEL_POSITIONS } from '../../shared/vehicleConfig.js';
 import {
   GHOST_SAMPLE_MS, MAX_GHOST_FRAMES, makeGhostFrame, makeGhostReplay,
 } from '../../shared/ghost.js';
@@ -28,10 +31,14 @@ const MAX_PLAUSIBLE_MOVEMENT_SPEED = 150; // 540 km/h a pozícióalapú, tartós
 const MAX_MOVEMENT_SEQUENCE_GAP = 12;
 const MOVEMENT_PACKET_GRACE_METERS = 3;
 const MOVEMENT_WINDOW_GRACE_METERS = 8;
-const MOVEMENT_WINDOW_MIN_MS = 500;
 const MOVEMENT_WINDOW_MAX_MS = 1_500;
+// A csomagsorszám segíthet a hálózaton összetorlódott állapotok időzítésében, de
+// nem gyárthat korlátlanul a szerver órája elé futó „virtuális időt”.
+const MAX_MOVEMENT_CLOCK_LEAD_MS = 1_000;
 const RESET_ACK_RADIUS_METERS = 2;
 const RESET_ACK_TIMEOUT_MS = 5_000;
+const HOT_LAP_HISTORY_LIMIT = 64;
+const SERVER_WHEEL_PROBES = wheelProbes(WHEEL_POSITIONS);
 
 const roundArray = (values, digits) => values.map((value) => +value.toFixed(digits));
 
@@ -73,19 +80,20 @@ function nextMovementTime(car, seq, receivedAt) {
   // Pingkiugrás után több, egymást követő fizikai állapot egyszerre érkezhet be.
   // A sorszám csak korlátozott időt adhat hozzá, ezért nem használható tetszőleges
   // teleport elfedésére, a szabályos 60 Hz-es mozgást viszont nem tömörítjük össze.
-  return car.lastMovementAt + Math.max(receivedDelta, sequenceDelta * TICK_MS);
+  const projected = car.lastMovementAt + Math.max(receivedDelta, sequenceDelta * TICK_MS);
+  return Math.min(projected, receivedAt + MAX_MOVEMENT_CLOCK_LEAD_MS);
 }
 
 function hasImplausibleMovement(car, next, movementAt) {
-  if (!car.lastMovementAt || movementAt <= car.lastMovementAt) return false;
-  const elapsedMs = movementAt - car.lastMovementAt;
+  if (!car.lastMovementAt) return false;
+  const elapsedMs = Math.max(0, movementAt - car.lastMovementAt);
   const packetLimit = MOVEMENT_PACKET_GRACE_METERS
     + MAX_PLAUSIBLE_MOVEMENT_SPEED * elapsedMs / 1_000;
   if (horizontalDistance(car.state, next) > packetLimit) return true;
 
   for (const sample of car.movementSamples) {
     const windowMs = movementAt - sample.at;
-    if (windowMs < MOVEMENT_WINDOW_MIN_MS) continue;
+    if (windowMs < 0) continue;
     if (windowMs > MOVEMENT_WINDOW_MAX_MS) continue;
     const windowLimit = MOVEMENT_WINDOW_GRACE_METERS
       + MAX_PLAUSIBLE_MOVEMENT_SPEED * windowMs / 1_000;
@@ -106,6 +114,13 @@ function exceedsSpeedLimit(state) {
   return Math.hypot(state.v[0], state.v[2]) > MAX_VALID_HORIZONTAL_SPEED;
 }
 
+function stateBody(state) {
+  return {
+    translation: () => ({ x: state.p[0], y: state.p[1], z: state.p[2] }),
+    rotation: () => ({ x: state.q[0], y: state.q[1], z: state.q[2], w: state.q[3] }),
+  };
+}
+
 function headingFrom(fromX, fromZ, toX, toZ, fallback) {
   const dx = toX - fromX, dz = toZ - fromZ;
   if (Math.abs(dx) < 1e-4 && Math.abs(dz) < 1e-4) return fallback;
@@ -121,6 +136,7 @@ function createRaceState(x, z, pitRequired = false) {
     hasCrossedStart: false,
     lapStart: 0,
     lapTimes: [],
+    bestLapTime: null,
     ghostFrames: null,
     lastGhostSampleAt: 0,
     progressKey: -1,
@@ -217,9 +233,9 @@ export class RaceController {
     const state = sanitizeClientCarState(raw);
     if (!state) return false;
 
-    // A kliens `t` mezője csak hálózati diagnosztika lehet: a köridőt kizárólag
-    // a szerver monoton beérkezési ideje vezérli. A mozgásvizsgálat a szerveridő
-    // mellett a korlátozott csomagsorszám-különbséget is figyelembe veszi.
+    // A kliens `t` mezője csak hálózati diagnosztika lehet. A szerver saját,
+    // monoton idővonalát a beérkezési időből és a korlátozott sorszámkülönbségből
+    // építi; ugyanaz hajtja a mozgásvizsgálatot és a körórát is.
     const eventTime = Math.max(car.lastStateAt || -Infinity, receivedAt);
     if (!initial && car.pendingReset) {
       const distanceToTarget = Math.hypot(
@@ -242,6 +258,13 @@ export class RaceController {
       || (!car.acceptTeleportOnce && hasImplausibleMovement(car, state, movementAt))
     );
 
+    // A zónatérkép a szerveren is rendelkezésre áll. Ha van, nem hisszük el a
+    // kliens `offtrack` bitjét: ugyanazzal a négy kerékponttal számolunk, mint a
+    // böngésző. Zónatérkép nélküli pályán marad a régi kompatibilis jelzés.
+    if (this.zoneRuntime) {
+      state.offtrack = allWheelsOffTrack(this.zoneRuntime, stateBody(state), SERVER_WHEEL_PROBES);
+    }
+
     car.state = state;
     car.lastSeq = Math.max(car.lastSeq, seq);
     car.lastStateAt = eventTime;
@@ -252,12 +275,15 @@ export class RaceController {
     if (initial || this.room.state !== ROOM_STATE.RACING || eventTime < this.startAt) {
       car.race.prevX = state.p[0];
       car.race.prevZ = state.p[2];
-      car.race.prevAt = eventTime;
+      car.race.prevAt = movementAt;
       return true;
     }
     const wasOnMeasuredLap = car.race.hasCrossedStart;
     if (validationFailed && wasOnMeasuredLap) this.flagServerValidation(car);
-    this.updateCarProgress(car, eventTime);
+    // Ugyanaz az idővonal hajtja a mozgásvizsgálatot és a körórát. Korábban a
+    // sorszám időt adott a mozgásnak, a kapuk viszont a közel azonos beérkezési
+    // időből számoltak; egy csomagköteg így akár 0 ms-os érvényes kört adott.
+    this.updateCarProgress(car, movementAt);
     // Ha pont a szabálytalan szakasz metszette először a rajtvonalat, már az
     // így elkezdett kör legyen érvénytelen. Célba érésnél az előzetes jelölés
     // viszont már a lezárt körre került, ezért ott nem jelölünk még egyet.
@@ -265,6 +291,27 @@ export class RaceController {
       this.flagServerValidation(car);
     }
     return true;
+  }
+
+  // A kliensnek csak a pálya talajmagasságát kell közölnie. Az X/Z helyet és
+  // az irányt a szerver által kiosztott rajtpozícióból tartjuk meg, így a
+  // betöltés végi ready csomag nem lehet tiszta rajtrács-teleport.
+  receiveInitialState(playerId, raw, { receivedAt = Date.now() } = {}) {
+    const car = this.cars.get(playerId);
+    const state = sanitizeClientCarState(raw);
+    if (!car || !state || this.stopped) return false;
+    return this.receiveState(playerId, {
+      ...state,
+      seq: Math.trunc(Number(raw?.seq) || 0),
+      p: [car.state.p[0], Math.max(-1_000, Math.min(10_000, state.p[1])), car.state.p[2]],
+      q: [...car.state.q],
+      v: [0, 0, 0],
+      w: [0, 0, 0],
+      st: 0,
+      wr: 0,
+      th: 0,
+      offtrack: false,
+    }, { initial: true, receivedAt });
   }
 
   flagServerValidation(car) {
@@ -445,6 +492,10 @@ export class RaceController {
     r.progressKey = splitKey;
     r.splits.set(splitKey, crossedAt);
     r.lapTimes.push({ time, invalid });
+    if (!invalid && (r.bestLapTime === null || time < r.bestLapTime)) r.bestLapTime = time;
+    if (this.room.endlessLaps && r.lapTimes.length > HOT_LAP_HISTORY_LIMIT) {
+      r.lapTimes.splice(0, r.lapTimes.length - HOT_LAP_HISTORY_LIMIT);
+    }
     r.lap++;
     r.nextCheckpoint = 0;
     r.passed.clear();
@@ -452,6 +503,12 @@ export class RaceController {
     r.lapStart = crossedAt;
     // Új kör: a delta-kijelző ne az előző kör utolsó részidejét hasonlítgassa.
     r.lastSplitIndex = -1;
+    if (this.room.endlessLaps) {
+      // Hot Lapban egyetlen autó van, ezért a régi körök abszolút splitjeire
+      // nincs szükség a mezőnyréshez. A jelenlegi rajtvonal-bejegyzés elég.
+      r.splits.clear();
+      r.splits.set(r.progressKey, crossedAt);
+    }
     if (this.room.endlessLaps || r.lap < this.room.laps) this.beginGhostRecording(car, crossedAt);
     this.room.recordLap(
       this.room.players.get(car.playerId), r.lap, time, invalid, ghost, this.raceId
@@ -500,8 +557,7 @@ export class RaceController {
     const rankById = new Map(ordered.map((car, index) => [car.playerId, index + 1]));
     const leader = ordered[0] || null;
     const cars = [...this.cars.values()].map((car) => {
-      const validLaps = car.race.lapTimes.filter((lap) => !lap.invalid);
-      const bestLap = validLaps.length ? Math.min(...validLaps.map((lap) => lap.time)) : null;
+      const bestLap = car.race.bestLapTime;
       const lastLap = car.race.lapTimes.at(-1) || null;
       let gapMs = null;
       if (leader === car) gapMs = 0;

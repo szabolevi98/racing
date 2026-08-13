@@ -369,3 +369,82 @@ test('multiplayer respawn keeps an asphalt crossing and uses gate middle off tra
     sim.stop();
   }
 });
+
+test('bunched sequence numbers cannot produce a zero-time valid lap', async () => {
+  const room = makeRoom();
+  const map = {
+    spawns: [{ x: 0, z: -1, heading: 0 }],
+    gates: {
+      start: { x1: -5, z1: 0, x2: 5, z2: 0 },
+      checkpoints: [{ x1: -5, z1: 20, x2: 5, z2: 20 }],
+    },
+  };
+  const sim = new RaceController(room, { map, broadcast: () => {} });
+  await sim.start();
+  try {
+    room.state = ROOM_STATE.RACING;
+    sim.releaseAt(0);
+    sim.receiveState('p1', wireState(0, 1000, 0, -1), { initial: true, receivedAt: 1000 });
+    sim.receiveState('p1', wireState(12, 1000, 0, 1), { receivedAt: 1000 });
+    sim.receiveState('p1', wireState(24, 1000, 0, 21), { receivedAt: 1000 });
+    sim.receiveState('p1', wireState(36, 1000, 0, -1), { receivedAt: 1000 });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const lap = sim.cars.get('p1').race.lapTimes[0];
+    assert.ok(lap.time >= 400, `a sorszám idővonala is számítson, kapott: ${lap.time} ms`);
+    assert.equal(lap.invalid, false);
+  } finally {
+    sim.stop();
+  }
+});
+
+test('ready initial state keeps the server-assigned grid position', async () => {
+  const room = makeRoom();
+  const sim = new RaceController(room, {
+    map: { spawns: [{ x: 5, z: 6, heading: 0.75 }], gates: null },
+    broadcast: () => {},
+  });
+  await sim.start();
+  try {
+    const assigned = [...sim.cars.get('p1').state.p];
+    assert.equal(sim.receiveInitialState('p1', wireState(99, 1000, 5000, 5000)), true);
+    const car = sim.cars.get('p1');
+    assert.deepEqual(car.state.p, [assigned[0], 0.8, assigned[2]]);
+    assert.equal(car.lastSeq, 99);
+  } finally {
+    sim.stop();
+  }
+});
+
+test('server zone map overrides a client that lies about offtrack state', async () => {
+  const room = makeRoom();
+  room.mode = GAME_MODE.MULTIPLAYER;
+  const runtime = {
+    codes: new Uint8Array(100).fill(1),
+    w: 10,
+    h: 10,
+    bounds: { minX: -5, maxX: 5, minZ: -5, maxZ: 5 },
+  };
+  const sim = new RaceController(room, {
+    map: {
+      spawns: [{ x: 0, z: 0, heading: 0 }],
+      gates: { start: { x1: 50, z1: -5, x2: 50, z2: 5 }, checkpoints: [] },
+      zoneRuntime: runtime,
+    },
+    broadcast: () => {},
+  });
+  await sim.start();
+  try {
+    room.state = ROOM_STATE.RACING;
+    sim.releaseAt(0);
+    sim.receiveState('p1', wireState(0, 1000, 0, 0), { initial: true, receivedAt: 1000 });
+    const car = sim.cars.get('p1');
+    car.race.hasCrossedStart = true;
+    car.race.lapStart = 1000;
+    sim.receiveState('p1', wireState(1, 1100, 0.1, 0, { offtrack: false }), { receivedAt: 1100 });
+    assert.equal(car.state.offtrack, true);
+    assert.equal(car.race.taintReason, TAINT.OFFTRACK);
+  } finally {
+    sim.stop();
+  }
+});

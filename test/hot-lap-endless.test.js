@@ -94,3 +94,22 @@ test('a multiplayer race still ends at its lap count', async () => {
     sim.stop();
   }
 });
+
+test('Hot Lap keeps only bounded timing and split history', async () => {
+  const { sim } = setup(GAME_MODE.HOT_LAP, 1);
+  await sim.start();
+  sim.releaseAt(ora - 1000);
+  try {
+    const car = sim.cars.get('p1');
+    car.race.prevX = 0;
+    car.race.prevZ = -10;
+    car.race.prevAt = ora;
+    for (let i = 0; i < 80; i++) korMegy(sim);
+    assert.equal(car.race.lap, 80);
+    assert.ok(car.race.lapTimes.length <= 64);
+    assert.ok(car.race.splits.size <= GATES.checkpoints.length + 1);
+    assert.ok(Number.isFinite(car.race.bestLapTime));
+  } finally {
+    sim.stop();
+  }
+});

@@ -132,7 +132,8 @@ function sendFile(req, res, full, stat) {
     // változnak — egy távoli játékosnak az első betöltés így is percekig
     // tarthat a feltöltési sávszélességen. Hosszú, "immutable" cache-sel a
     // MÁSODIK indulás azonnali: a böngésző rá se kérdez a szerverre.
-    // (Ha egy asset mégis változna, a fájlnevet kell megváltoztatni.)
+    // A manifest méret+mtime verziót tesz a nagy assetek URL-jére, ezért egy
+    // frissített modell új címet kap anélkül, hogy át kellene nevezni a fájlt.
     headers['Cache-Control'] = 'public, max-age=31536000, immutable';
   }
 

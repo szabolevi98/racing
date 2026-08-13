@@ -55,6 +55,10 @@ async function readLicenseTitle(dir) {
 // választóban. Ez a szabály teszi szándékossá a kihagyást.
 const IGNORED_DIRS = /^(not_used|[_.].*)$/i;
 
+function fileVersion(stat) {
+  return `${stat.size.toString(36)}-${Math.round(stat.mtimeMs).toString(36)}`;
+}
+
 async function listDirs(dir) {
   try {
     const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -86,7 +90,9 @@ async function collectCars() {
     // 1/3-ot érne, és a sáv az apró fájlok után gyorsan felfutna, majd a
     // nagy pályánál "beragadna".
     try {
-      entry.bytes = (await fs.stat(path.join(carsDir, file))).size;
+      const stat = await fs.stat(path.join(carsDir, file));
+      entry.bytes = stat.size;
+      entry.v = fileVersion(stat);
     } catch { /* nem kritikus, a kliens ilyenkor egyenlő súlyra esik vissza */ }
     // Az eredeti modell marad a játékos saját autója. Ha az automatikus
     // konvertáló elkészítette a könnyített párját, ellenfélnél és ghostnál ezt
@@ -97,6 +103,7 @@ async function collectCars() {
       const remoteStat = await fs.stat(remotePath);
       entry.remoteFile = `cars/compressed/${file}`;
       entry.remoteBytes = remoteStat.size;
+      entry.remoteV = fileVersion(remoteStat);
     } catch { /* nincs remote változat: a kliens biztonságosan az eredetire esik vissza */ }
     // Opcionális kocsi-beállítások: <id>.json — a modell előre-iránya és a
     // kerék-mesh-ek felismerése. Ha nincs, a játék az alapértelmezésekkel megy.
@@ -134,7 +141,9 @@ async function collectMaps() {
     };
     // Lásd a kocsiknál lévő megjegyzést: ez a betöltő-sáv súlyozásához kell.
     try {
-      entry.bytes = (await fs.stat(path.join(mapDir, sceneFile))).size;
+      const stat = await fs.stat(path.join(mapDir, sceneFile));
+      entry.bytes = stat.size;
+      entry.v = fileVersion(stat);
     } catch { /* nem kritikus */ }
 
     // Opcionális, pályánkénti menüfigyelmeztetés. Szándékosan a manifestbe
@@ -192,7 +201,7 @@ async function collectMaps() {
         bounds: zoneMeta.bounds,
         texW: zoneMeta.texW ?? null,
         texH: zoneMeta.texH ?? null,
-        v: `${zst.size.toString(36)}-${Math.round(zst.mtimeMs).toString(36)}`,
+        v: fileVersion(zst),
       };
     }
 
@@ -227,7 +236,7 @@ async function collectMaps() {
       entry.collision = {
         file: `maps/${id}/collision.bin`,
         bytes: st.size,
-        v: `${st.size.toString(36)}-${Math.round(st.mtimeMs).toString(36)}`,
+        v: fileVersion(st),
       };
     } catch { /* nincs bekészítve, a kliens a modellből nyeri ki */ }
 
@@ -252,7 +261,9 @@ async function collectSkyboxes() {
     };
     // Lásd a kocsiknál lévő megjegyzést: ez a betöltő-sáv súlyozásához kell.
     try {
-      entry.bytes = (await fs.stat(path.join(envDir, skyFile))).size;
+      const stat = await fs.stat(path.join(envDir, skyFile));
+      entry.bytes = stat.size;
+      entry.v = fileVersion(stat);
     } catch { /* nem kritikus */ }
     out.push(entry);
   }

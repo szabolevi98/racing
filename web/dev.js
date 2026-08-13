@@ -2475,7 +2475,7 @@ function wireEvents() {
     try {
       await api.runLoadTasks([{
         bytes: entry.bytes,
-        run: (onP) => setTrack('assets/' + entry.file, entry.id, entry.spawns, entry.gates, onP, entry.hotLapSpawn, entry.pit),
+        run: (onP) => setTrack(api.assetUrl(entry), entry.id, entry.spawns, entry.gates, onP, entry.hotLapSpawn, entry.pit),
       }]);
     } finally {
       api.hideLoadingOverlay();

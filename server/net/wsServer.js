@@ -9,7 +9,7 @@ import {
   RACE_LOAD_TIMEOUT_MS, paginateRooms,
 } from '../../shared/protocol.js';
 import { Room } from '../game/room.js';
-import { RaceController } from '../game/raceController.js';
+import { RaceController, sanitizeClientCarState } from '../game/raceController.js';
 import {
   dbAvailable, findPlayerByToken, ghostLap, renamePlayer, upsertPlayer,
 } from '../db/index.js';
@@ -20,6 +20,8 @@ import { hasCompletePitConfig } from '../../shared/pit.js';
 const rooms = new Map();    // kód -> Room
 const players = new Map();  // playerId -> player
 const MAX_BUFFERED_SNAPSHOTS = 3;
+const MAX_WS_PAYLOAD_BYTES = 64 * 1024;
+const HEARTBEAT_INTERVAL_MS = 15_000;
 
 // Összetéveszthető karakterek (0/O, 1/I) nélkül — a kódot élőszóban is
 // szokták diktálni.
@@ -42,6 +44,31 @@ function send(socket, type, data = {}) {
 
 function fail(socket, message) {
   send(socket, S2C.ERROR, { message });
+}
+
+function isActivePlayer(player) {
+  return players.get(player.id) === player && player.socket?.readyState === 1;
+}
+
+// Egyszerű token bucket kapcsolatonként. A normál kliens 60 STATE/s + 1 PING/s
+// körül küld; a limitek hagynak bőséges burst-t a hálózaton összetorlódott
+// csomagokra, de nem engednek korlátlan JSON/DB/szobalétrehozási áradatot.
+function consumeRate(player, key, refillPerSecond, capacity, now = Date.now()) {
+  const previous = player.rateLimits.get(key) || { tokens: capacity, at: now };
+  const elapsed = Math.max(0, now - previous.at) / 1_000;
+  const tokens = Math.min(capacity, previous.tokens + elapsed * refillPerSecond);
+  if (tokens < 1) {
+    player.rateLimits.set(key, { tokens, at: now });
+    return false;
+  }
+  player.rateLimits.set(key, { tokens: tokens - 1, at: now });
+  return true;
+}
+
+function messageRateAllowed(player, type, now = Date.now()) {
+  if (type === C2S.STATE) return consumeRate(player, 'state', 90, 150, now);
+  if (type === C2S.PING) return consumeRate(player, 'ping', 2, 4, now);
+  return consumeRate(player, 'control', 4, 8, now);
 }
 
 function broadcastRoom(room, type, data = {}) {
@@ -122,6 +149,7 @@ async function handleMessage(player, msg) {
       const token = sanitizePlayerToken(msg.token);
       const rec = await upsertPlayer(name, token)
         .catch(() => ({ id: null, name, token: token || randomUUID() }));
+      if (!isActivePlayer(player)) return;
       welcomePlayer(player, rec);
       return;
     }
@@ -132,6 +160,7 @@ async function handleMessage(player, msg) {
       if (!token) return fail(socket, 'A megadott belépési token formátuma hibás.');
       if (!dbAvailable()) return fail(socket, 'A profil-visszaállítás jelenleg nem elérhető.');
       const rec = await findPlayerByToken(token);
+      if (!isActivePlayer(player)) return;
       if (!rec) return fail(socket, 'Nincs profil ezzel a belépési tokennel.');
       welcomePlayer(player, rec);
       return;
@@ -144,6 +173,7 @@ async function handleMessage(player, msg) {
       if (!(await renamePlayer(player.dbId, name))) {
         return fail(socket, 'A név módosítása nem sikerült.');
       }
+      if (!isActivePlayer(player)) return;
       player.name = name;
       send(socket, S2C.PROFILE_UPDATED, { name });
       return;
@@ -153,8 +183,11 @@ async function handleMessage(player, msg) {
       if (!player.name) return fail(socket, 'Előbb add meg a neved.');
       if (player.roomCode) leaveRoom(player);
       const manifest = await getManifest();
+      if (!isActivePlayer(player)) return;
       const selectedMap = manifest.maps.find((m) => m.id === msg.mapId);
+      const selectedCar = manifest.cars.find((c) => c.id === msg.carId);
       if (!selectedMap) return fail(socket, 'Nincs ilyen pálya.');
+      if (!selectedCar) return fail(socket, 'Nincs ilyen kocsi.');
       const code = makeRoomCode();
       if (!code) return fail(socket, 'Nem sikerült szobakódot foglalni, próbáld újra.');
       const room = new Room(code, player, {
@@ -164,7 +197,7 @@ async function handleMessage(player, msg) {
         mandatoryPitStop: msg.mandatoryPitStop === true && hasCompletePitConfig(selectedMap.pit),
         isPublic: msg.isPublic !== false,
       });
-      room.add(player, msg.carId);
+      room.add(player, selectedCar.id);
       rooms.set(code, room);
       pushRoomState(room);
       return;
@@ -180,6 +213,7 @@ async function handleMessage(player, msg) {
       if (!player.name) return fail(socket, 'Előbb add meg a neved.');
       if (player.roomCode) leaveRoom(player);
       const manifest = await getManifest();
+      if (!isActivePlayer(player)) return;
       const map = manifest.maps.find((m) => m.id === msg.mapId);
       const car = manifest.cars.find((c) => c.id === msg.carId);
       if (!map) return fail(socket, 'Nincs ilyen pálya.');
@@ -220,8 +254,20 @@ async function handleMessage(player, msg) {
       if (room.hasProfile(player.token, player.id)) {
         return fail(socket, 'Ezzel a profillal már bent vagy ebben a szobában.');
       }
+      const manifest = await getManifest();
+      if (!isActivePlayer(player)) return;
+      const selectedCar = manifest.cars.find((car) => car.id === msg.carId);
+      if (!selectedCar) return fail(socket, 'Nincs ilyen kocsi.');
+      // A manifest olvasása aszinkron: közben a host elindíthatta vagy mások
+      // feltölthették a szobát, ezért a változó állapotot újra ellenőrizzük.
+      if (rooms.get(code) !== room) return fail(socket, 'Nincs ilyen szoba.');
+      if (room.isFull) return fail(socket, 'A szoba megtelt.');
+      if (room.state !== ROOM_STATE.LOBBY) return fail(socket, 'A verseny már elindult ebben a szobában.');
+      if (room.hasProfile(player.token, player.id)) {
+        return fail(socket, 'Ezzel a profillal már bent vagy ebben a szobában.');
+      }
       if (player.roomCode) leaveRoom(player);
-      room.add(player, msg.carId);
+      room.add(player, selectedCar.id);
       pushRoomState(room);
       return;
     }
@@ -233,10 +279,19 @@ async function handleMessage(player, msg) {
     }
 
     case C2S.SET_CAR: {
-      const room = rooms.get(player.roomCode);
+      let room = rooms.get(player.roomCode);
       if (!room) return;
       if (room.state !== ROOM_STATE.LOBBY) return fail(socket, 'Verseny közben nem lehet kocsit váltani.');
-      player.carId = msg.carId || null;
+      const roomCode = room.code;
+      const manifest = await getManifest();
+      if (!isActivePlayer(player)) return;
+      const selectedCar = manifest.cars.find((car) => car.id === msg.carId);
+      if (!selectedCar) return fail(socket, 'Nincs ilyen kocsi.');
+      room = rooms.get(player.roomCode);
+      if (!room || room.code !== roomCode || room.state !== ROOM_STATE.LOBBY) {
+        return fail(socket, 'Verseny közben nem lehet kocsit váltani.');
+      }
+      player.carId = selectedCar.id;
       pushRoomState(room);
       return;
     }
@@ -244,18 +299,27 @@ async function handleMessage(player, msg) {
     case C2S.SET_READY: {
       const room = rooms.get(player.roomCode);
       if (!room) return;
+      if (room.state !== ROOM_STATE.LOADING) {
+        return fail(socket, 'Készenléti állapot csak a verseny betöltésekor küldhető.');
+      }
       // Kliensfizikánál a betöltés végén már a pályára helyezett, helyes Y
       // pozíciót is elküldjük. Ha a nagyon gyors kliens megelőzte a vezérlő
       // elkészültét, ideiglenesen a playeren tartjuk, és startRace átveszi.
-      if (msg.state) {
+      const ready = msg.ready === true;
+      if (ready && msg.state) {
+        const initialState = sanitizeClientCarState(msg.state);
+        if (!initialState) return fail(socket, 'Hibás kezdőállapot.');
+        initialState.seq = Math.trunc(Number(msg.state.seq) || 0);
         if (room.sim) {
-          room.sim.receiveState?.(player.id, msg.state, { initial: true });
+          if (!room.sim.receiveInitialState?.(player.id, initialState)) {
+            return fail(socket, 'A kezdőállapot nem fogadható el.');
+          }
           player.pendingInitialState = null;
         } else {
-          player.pendingInitialState = msg.state;
+          player.pendingInitialState = initialState;
         }
       }
-      player.ready = !!msg.ready;
+      player.ready = ready;
       pushRoomState(room);
       // Verseny előtti betöltés: ez volt az utolsó, akire vártunk?
       maybeBeginCountdown(room);
@@ -378,7 +442,7 @@ async function startRace(room) {
   room.sim = sim;
   for (const player of room.players.values()) {
     if (player.pendingInitialState) {
-      sim.receiveState(player.id, player.pendingInitialState, { initial: true });
+      sim.receiveInitialState(player.id, player.pendingInitialState);
       player.pendingInitialState = null;
     }
   }
@@ -433,7 +497,11 @@ function maybeBeginCountdown(room, timedOut = false) {
 }
 
 export function attachWebSocket(httpServer) {
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  const wss = new WebSocketServer({
+    server: httpServer,
+    path: '/ws',
+    maxPayload: MAX_WS_PAYLOAD_BYTES,
+  });
 
   wss.on('connection', (socket) => {
     const player = {
@@ -447,24 +515,46 @@ export function attachWebSocket(httpServer) {
       slot: null,
       ready: false,
       pendingInitialState: null,
-      lastSeen: Date.now(),
+      rateLimits: new Map(),
+      messageChain: Promise.resolve(),
     };
     players.set(player.id, player);
+    socket.isAlive = true;
+    socket.on('pong', () => { socket.isAlive = true; });
 
-    socket.on('message', async (raw) => {
-      player.lastSeen = Date.now();
+    socket.on('message', (raw, isBinary) => {
+      if (isBinary) {
+        socket.close(1003, 'Csak JSON üzenet engedélyezett.');
+        return;
+      }
+      // A teljes üzenetfolyamot még a JSON feldolgozása előtt korlátozzuk,
+      // különben hibás JSON-nal ki lehetne kerülni a típusonkénti limitet.
+      if (!consumeRate(player, 'all', 120, 180)) {
+        socket.close(1008, 'Túl sok üzenet.');
+        return;
+      }
       let msg;
       try {
         msg = JSON.parse(raw.toString());
       } catch {
         return fail(socket, 'Hibás üzenet (nem JSON).');
       }
-      try {
-        await handleMessage(player, msg);
-      } catch (err) {
-        console.error('WS üzenet hiba:', err);
-        fail(socket, 'Szerverhiba az üzenet feldolgozásakor.');
+      if (!messageRateAllowed(player, msg?.type)) {
+        socket.close(1008, 'Túl sok üzenet.');
+        return;
       }
+      // Az EventEmitter nem várja meg az async callbacket. Saját sor nélkül két
+      // CREATE_ROOM ugyanazon await előtt ellenőrizné a roomCode-ot, majd két
+      // szobát hozna létre. A lánc kapcsolatonként megőrzi a drót sorrendjét.
+      player.messageChain = player.messageChain
+        .then(async () => {
+          if (!isActivePlayer(player)) return;
+          await handleMessage(player, msg);
+        })
+        .catch((err) => {
+          console.error('WS üzenet hiba:', err);
+          if (isActivePlayer(player)) fail(socket, 'Szerverhiba az üzenet feldolgozásakor.');
+        });
     });
 
     socket.on('close', () => {
@@ -475,17 +565,20 @@ export function attachWebSocket(httpServer) {
     socket.on('error', () => { /* a close úgyis lefut */ });
   });
 
-  // Elhalt kapcsolatok kitakarítása: a böngésző nem mindig zárja rendesen.
-  const sweep = setInterval(() => {
-    const now = Date.now();
-    for (const p of players.values()) {
-      if (p.socket.readyState !== 1 && now - p.lastSeen > 30000) {
-        leaveRoom(p, true);
-        players.delete(p.id);
+  // Protokollszintű heartbeat: a böngésző akkor is automatikusan PONG-ol, ha a
+  // JS főszála háttérben áll. A félbeszakadt TCP kapcsolat viszont a következő
+  // körben terminate-et kap, és a rendes close takarítja a szobáját/szimulációját.
+  const heartbeat = setInterval(() => {
+    for (const socket of wss.clients) {
+      if (socket.isAlive === false) {
+        socket.terminate();
+        continue;
       }
+      socket.isAlive = false;
+      socket.ping();
     }
-  }, 15000);
-  wss.on('close', () => clearInterval(sweep));
+  }, HEARTBEAT_INTERVAL_MS);
+  wss.on('close', () => clearInterval(heartbeat));
 
   console.log('WebSocket: /ws');
   return wss;

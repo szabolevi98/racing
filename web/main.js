@@ -687,6 +687,12 @@ function loadGLTF(url, onProgress) {
   return new Promise((resolve, reject) => gltfLoader.load(url, resolve, onProgress, reject));
 }
 
+function assetUrl(entry, remote = false) {
+  const file = remote && entry?.remoteFile ? entry.remoteFile : entry?.file;
+  const version = remote && entry?.remoteFile ? entry.remoteV : entry?.v;
+  return 'assets/' + file + (version ? '?v=' + encodeURIComponent(version) : '');
+}
+
 // Néhány gyors sugárvetés a pálya bbox-a fölött, hogy legyen egy használható
 // pont a kirakat-nézethez (autó pozíciója a menüben). A pontos, teljes
 // magasságtérkép csak Indításkor épül (buildTrackHeightfield). Egyetlen,
@@ -833,23 +839,27 @@ function dilateTextureRGB(tex) {
   return out;
 }
 
-const dilatedTextureCache = new Map();
+// A GLTFLoader minden pályabetöltéskor új Texture objektumokat készít. Erős Map
+// esetén a már dispose-olt pálya teljes dekódolt képkészlete örökre bent maradt.
+// WeakMapben a közös textúra egy betöltésen belül továbbra is csak egyszer készül
+// el, a pálya eldobása után viszont a kulcs és az eredmény együtt felszabadulhat.
+const dilatedTextureCache = new WeakMap();
 function getDilatedTexture(tex) {
-  if (dilatedTextureCache.has(tex.uuid)) return dilatedTextureCache.get(tex.uuid);
+  if (dilatedTextureCache.has(tex)) return dilatedTextureCache.get(tex);
   let out = tex;
   try {
     out = dilateTextureRGB(tex);
   } catch (err) {
     out = tex; // pl. cross-origin kép: maradjon az eredeti
   }
-  dilatedTextureCache.set(tex.uuid, out);
+  dilatedTextureCache.set(tex, out);
   return out;
 }
 
-const maskTextureCache = new Map();
+const maskTextureCache = new WeakMap();
 function isMaskLikeTexture(tex) {
   if (!tex || !tex.image) return false;
-  if (maskTextureCache.has(tex.uuid)) return maskTextureCache.get(tex.uuid);
+  if (maskTextureCache.has(tex)) return maskTextureCache.get(tex);
 
   let result = false;
   try {
@@ -908,7 +918,7 @@ function isMaskLikeTexture(tex) {
     result = false; // pl. cross-origin textúra: nem olvasható, hagyjuk békén
   }
 
-  maskTextureCache.set(tex.uuid, result);
+  maskTextureCache.set(tex, result);
   return result;
 }
 
@@ -3762,10 +3772,9 @@ async function switchCarTo(entry) {
   saveLastChoice('car', entry.id);
   showLoadingOverlay(true);
   const remote = carTesterCompressed && appState === 'cartest' && entry.remoteFile;
-  const file = remote ? entry.remoteFile : entry.file;
   const bytes = remote ? (entry.remoteBytes ?? entry.bytes) : entry.bytes;
   try {
-    await runLoadTasks([{ bytes, run: (onP) => setCar('assets/' + file, entry.id, entry.config, onP) }]);
+    await runLoadTasks([{ bytes, run: (onP) => setCar(assetUrl(entry, remote), entry.id, entry.config, onP) }]);
   } finally {
     hideLoadingOverlay();
     carSwitching = false;
@@ -3837,7 +3846,7 @@ const devApi = {
   hudEl, menuEl, carSelect,
   NORMAL_FOG_DENSITY,
   moveTowardsAngle, updateSunTarget, updateShowcaseCamera,
-  findEntry, fillSelect, setTrack, loadZoneRuntime, extractDrivableTriangles, extractWallTriangles,
+  findEntry, fillSelect, assetUrl, setTrack, loadZoneRuntime, extractDrivableTriangles, extractWallTriangles,
   smoothFloorHeights, smoothAsphaltToPlane, measureAsphaltRoughness,
   // Az aszfalt-simításhoz kell megmondani, hol van aszfalt. A futásidejű
   // zóna-térképet olvassa, ugyanazt, amiből vezetés közben is dolgozunk.
@@ -4275,9 +4284,9 @@ async function init() {
   primeOnFirstGesture();
 
   await runLoadTasks([
-    { bytes: initialEnv.bytes, run: (onP) => setSkybox('assets/' + initialEnv.file, onP) },
-    { bytes: initialMap.bytes, run: (onP) => setTrack('assets/' + initialMap.file, initialMap.id, initialMap.spawns, initialMap.gates, onP, initialMap.hotLapSpawn, initialMap.pit) },
-    { bytes: initialCar.bytes, run: (onP) => setCar('assets/' + initialCar.file, initialCar.id, initialCar.config, onP) },
+    { bytes: initialEnv.bytes, run: (onP) => setSkybox(assetUrl(initialEnv), onP) },
+    { bytes: initialMap.bytes, run: (onP) => setTrack(assetUrl(initialMap), initialMap.id, initialMap.spawns, initialMap.gates, onP, initialMap.hotLapSpawn, initialMap.pit) },
+    { bytes: initialCar.bytes, run: (onP) => setCar(assetUrl(initialCar), initialCar.id, initialCar.config, onP) },
   ]);
 
   mapSelect.disabled = false;
@@ -4301,7 +4310,7 @@ async function init() {
     loadLeaderboard(entry.id);
     showLoadingOverlay(true);
     try {
-      await runLoadTasks([{ bytes: entry.bytes, run: (onP) => setTrack('assets/' + entry.file, entry.id, entry.spawns, entry.gates, onP, entry.hotLapSpawn, entry.pit) }]);
+      await runLoadTasks([{ bytes: entry.bytes, run: (onP) => setTrack(assetUrl(entry), entry.id, entry.spawns, entry.gates, onP, entry.hotLapSpawn, entry.pit) }]);
     } finally {
       hideLoadingOverlay();
     }
@@ -4311,7 +4320,7 @@ async function init() {
     saveLastChoice('car', entry.id);
     showLoadingOverlay(true);
     try {
-      await runLoadTasks([{ bytes: entry.bytes, run: (onP) => setCar('assets/' + entry.file, entry.id, entry.config, onP) }]);
+      await runLoadTasks([{ bytes: entry.bytes, run: (onP) => setCar(assetUrl(entry), entry.id, entry.config, onP) }]);
     } finally {
       hideLoadingOverlay();
     }
@@ -4327,7 +4336,7 @@ async function init() {
     saveLastChoice('env', entry.id);
     showLoadingOverlay(true);
     try {
-      await runLoadTasks([{ bytes: entry.bytes, run: (onP) => setSkybox('assets/' + entry.file, onP) }]);
+      await runLoadTasks([{ bytes: entry.bytes, run: (onP) => setSkybox(assetUrl(entry), onP) }]);
     } finally {
       hideLoadingOverlay();
     }
@@ -4675,7 +4684,7 @@ window.__game = {
   get carLoaded() { return carLoaded; },
   keys,
   getDriveAxes,
-  setCar, setTrack, prepareTrackPhysics, loadGLTF, centerCarModelOnWheels,
+  assetUrl, setCar, setTrack, prepareTrackPhysics, loadGLTF, centerCarModelOnWheels,
   createRemoteWheelRig(carRoot, wheelPattern, pivotRoot) {
     return createWheelPivots(carRoot, wheelPattern, pivotRoot);
   },
