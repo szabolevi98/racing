@@ -54,6 +54,7 @@ const loadingEl = document.getElementById('loading');
 const loadingBarEl = document.getElementById('loadingBar');
 const loadingPctEl = document.getElementById('loadingPct');
 const menuEl = document.getElementById('menu');
+document.getElementById('copyrightYear').textContent = new Date().getFullYear();
 
 // ---------- Betöltés-overlay (induláskor ÉS kocsi/pálya/ég váltásnál) ----------
 // Az induló betöltésen kívül máshol (menüben kocsi/ég váltás, multiplayer
@@ -93,7 +94,7 @@ async function runLoadTasks(tasks) {
   }).then(() => { fractions[i] = 1; update(); })));
 }
 const hudEl = document.getElementById('hud');
-const menuStatusEl = document.getElementById('menuStatus');
+const menuStatusTextEl = document.getElementById('menuStatusText');
 const trackAlertEl = document.getElementById('trackAlert');
 const mapSelect = document.getElementById('mapSelect');
 const carSelect = document.getElementById('carSelect');
@@ -170,7 +171,7 @@ const DEV_MODE =
   new URLSearchParams(window.location.search).has('dev');
 
 function setMenuStatus(text) {
-  menuStatusEl.textContent = text;
+  menuStatusTextEl.textContent = text;
 }
 
 function updateTrackAlert(entry) {
@@ -980,7 +981,6 @@ function refreshFoliageShading() {
 }
 
 async function setTrack(trackUrl, mapId, spawnPoints, gates, onProgress, hotLapSpawn = null, pit = null) {
-  setMenuStatus('Pálya betöltése...');
   currentMapId = mapId || null;
   currentSpawnPoints = spawnPoints || [];
   currentHotLapSpawn = hotLapSpawn || null;
@@ -1486,8 +1486,6 @@ function measureLocalBottom(root) {
 }
 
 async function setCar(carUrl, carId, config, onProgress) {
-  setMenuStatus('Kocsi betöltése...');
-
   carLoaded = false;
   // A groundOffset kocsinkénti kalibrálása (calibrateGroundOffset) csak EGYSZER
   // futott le a teljes oldal-betöltés alatt (a groundOffsetCalibrated zászló
