@@ -132,10 +132,11 @@ test('local render clock follows timer stress without visible timeline jumps', (
   assert.match(mp, /get predDelayMs\(\)/);
 });
 
-test('Hot Lap ghost uses hashed depth-writing transparency instead of blended overdraw', () => {
-  assert.match(mp, /clone\.transparent = false/);
-  assert.match(mp, /clone\.alphaHash = true/);
+test('Hot Lap ghost uses smooth single-pass transparency with depth writing', () => {
+  assert.match(mp, /clone\.transparent = true/);
+  assert.match(mp, /clone\.alphaHash = false/);
   assert.match(mp, /clone\.depthWrite = true/);
+  assert.match(mp, /clone\.forceSinglePass = true/);
   assert.doesNotMatch(mp, /clone\.depthWrite = false/);
 });
 

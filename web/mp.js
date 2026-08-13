@@ -1456,15 +1456,15 @@ async function loadRemoteCarVisual(car, fallbackColor, onProgress, translucent =
         if (!object.isMesh || !object.material) return;
         const fade = (material) => {
           const clone = material.clone();
-          // A hagyományos blendelt áttetszőség minden belső karosszériaelemet
-          // is egymásra rajzolt, depthWrite nélkül. Egy részletes autónál ez
-          // több százezer, sokszorosan túlrajzolt háromszög. Az alphaHash
-          // megtartja a szellemhatást, de normál mélységi pufferrel és az
-          // átlátszó objektumok költséges rendezése nélkül fut.
-          clone.transparent = false;
-          clone.alphaHash = true;
+          // A compressed ghoston visszatérhet a sima, szemcsézés nélküli
+          // alfa-keverés. A mélységírás megfogja a belső karosszériaelemek
+          // felesleges egymásra rajzolását, a forceSinglePass pedig megakadályozza,
+          // hogy a kétoldalas, áttetsző anyagokat a Three.js két menetben rajzolja.
+          clone.transparent = true;
+          clone.alphaHash = false;
           clone.opacity = 0.34;
           clone.depthWrite = true;
+          clone.forceSinglePass = true;
           clone.needsUpdate = true;
           return clone;
         };
