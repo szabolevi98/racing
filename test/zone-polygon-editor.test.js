@@ -12,6 +12,8 @@ test('zone editor offers brush and point-by-point area drawing modes', () => {
   assert.match(html, /id="fillPolygonBtn"/);
   assert.match(dev, /isPolygonPaintMode\(\)/);
   assert.match(dev, /addZonePolygonPoint\(x, z\)/);
+  assert.ok(html.indexOf('id="paintModeRow"') > html.indexOf('id="brushWall"'));
+  assert.ok(html.indexOf('id="paintModeRow"') < html.indexOf('id="brushSpawn"'));
 });
 
 test('polygon drawing applies the selected asphalt, runoff or wall zone to the same mask', () => {

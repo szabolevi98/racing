@@ -151,6 +151,26 @@
         <input type="radio" class="btn-check" name="zoneBrush" id="brushWall" value="2">
         <label class="btn btn-outline-danger btn-sm" for="brushWall">Fal</label>
       </div><br>
+      <span id="paintModeRow">
+        Festési mód:
+        <span class="btn-group btn-group-sm mb-2" role="group">
+          <input type="radio" class="btn-check" name="zonePaintMode" id="paintModeBrush" value="brush" checked>
+          <label class="btn btn-outline-light btn-sm" for="paintModeBrush">Ecset</label>
+          <input type="radio" class="btn-check" name="zonePaintMode" id="paintModePolygon" value="polygon">
+          <label class="btn btn-outline-info btn-sm" for="paintModePolygon">Rajzolás</label>
+        </span><br>
+      </span>
+      <span id="brushSizeRow">
+        Ecset sugara: <span id="brushSizeLabel">3</span> egység<br>
+        <input type="range" id="brushSizeRange" min="0.25" max="60" step="0.25" value="3" class="form-range" style="width:180px;">
+      </span>
+      <span id="polygonToolRow" class="d-none">
+        Kattints pontonként a terület köré. Az első pontra kattintva vagy a Kitöltés gombbal alkalmazhatod.<br>
+        Pontok: <span id="polygonPointCount">0</span> &nbsp;
+        <button id="undoPolygonPointBtn" class="btn btn-sm btn-outline-info py-0">Utolsó pont</button> &nbsp;
+        <button id="fillPolygonBtn" class="btn btn-sm btn-outline-success py-0">Kitöltés</button> &nbsp;
+        <button id="clearPolygonBtn" class="btn btn-sm btn-outline-secondary py-0">Rajz törlése</button><br>
+      </span>
       <span class="text-secondary hidden">
         A "Fal" festés opcionális: a valódi falakat/kerítéseket már a bekészített
         ütközési háló (collision.bin) is megállítja — ez csak láthatatlan,
@@ -176,26 +196,6 @@
         <input type="radio" class="btn-check" name="zoneBrush" id="brushPitStop" value="pit-stop">
         <label class="btn btn-outline-light btn-sm" for="brushPitStop">Boxhely</label>
       </div><br>
-      <span id="paintModeRow">
-        Festési mód:
-        <span class="btn-group btn-group-sm mb-2" role="group">
-          <input type="radio" class="btn-check" name="zonePaintMode" id="paintModeBrush" value="brush" checked>
-          <label class="btn btn-outline-light btn-sm" for="paintModeBrush">Ecset</label>
-          <input type="radio" class="btn-check" name="zonePaintMode" id="paintModePolygon" value="polygon">
-          <label class="btn btn-outline-info btn-sm" for="paintModePolygon">Rajzolás</label>
-        </span><br>
-      </span>
-      <span id="brushSizeRow">
-        Ecset sugara: <span id="brushSizeLabel">3</span> egység<br>
-        <input type="range" id="brushSizeRange" min="0.25" max="60" step="0.25" value="3" class="form-range" style="width:180px;">
-      </span>
-      <span id="polygonToolRow" class="d-none">
-        Kattints pontonként a terület köré. Az első pontra kattintva vagy a Kitöltés gombbal alkalmazhatod.<br>
-        Pontok: <span id="polygonPointCount">0</span> &nbsp;
-        <button id="undoPolygonPointBtn" class="btn btn-sm btn-outline-info py-0">Utolsó pont</button> &nbsp;
-        <button id="fillPolygonBtn" class="btn btn-sm btn-outline-success py-0">Kitöltés</button> &nbsp;
-        <button id="clearPolygonBtn" class="btn btn-sm btn-outline-secondary py-0">Rajz törlése</button><br>
-      </span>
       <span id="spawnToolRow" class="d-none">
         Rajtpontok: <span id="zoneSpawnCount">0</span> / 8 — üres helyre kattintva újat raksz; a körét húzva mozgatod, az iránytű végét húzva forgatod &nbsp;
         <button id="undoSpawnBtn" class="btn btn-sm btn-outline-info py-0">Utolsó törlése</button><br>
