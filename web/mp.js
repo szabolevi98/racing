@@ -155,7 +155,7 @@ function hideSplitDelta() {
 function setWaitingPlayersAlert(visible, waiting = []) {
   waitingPlayersAlertTextEl.textContent = waiting.length
     ? `Várakozás a többiekre: ${waiting.join(', ')}…`
-    : 'Várakozás a többiekre…';
+    : 'Várakozás a rajtra…';
   waitingPlayersAlertEl.classList.toggle('hidden', !visible);
 }
 
