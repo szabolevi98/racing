@@ -282,3 +282,13 @@ Git pull nem viszi fel a GLB, BIN, HDR és többi nagy modellfájlt.
 - A saját autó fizikája kliensoldali, ezért autó–autó ütközésnél két játékos
   képernyője pillanatnyilag eltérhet. A szerver ettől függetlenül hitelesen kezeli
   a versenyszabályokat és eredményeket.
+
+## Licenc
+
+A projekt saját forráskódja zárt, proprietary szoftver. Minden jog fenntartva;
+a kód használata, másolása, módosítása vagy terjesztése előzetes írásos engedély
+nélkül nem megengedett. A részletes feltételeket a [LICENSE](LICENSE) tartalmazza.
+
+A külső könyvtárak, valamint az autó-, pálya- és környezetmodellek nem tartoznak
+automatikusan ezen feltételek alá: azokra a saját licenceik és felhasználási
+feltételeik vonatkoznak.
