@@ -2625,6 +2625,22 @@ const carTouchesWall = () => sharedCarTouchesWall(zoneRuntime, chassisBody, WALL
 const applyWallConstraint = () =>
   sharedApplyWallConstraint(chassisBody, zoneRuntime, lastSafePos, WALL_PROBES);
 
+// Teleportálás után a Rapier járművezérlő még az előző pozíció keréksugarait és
+// rugóhosszait őrzi. Világléptetés nélkül frissítjük ezeket az új talajhoz, így
+// a várakozó multiplayer-képen sem lebeg a kasztni és nem ugranak fel a kerekek.
+function primeVehicleAfterTeleport() {
+  resetGroundOffsetCalibration();
+  visualSteerAngle = 0;
+  applyControls(
+    vehicle,
+    chassisBody,
+    { throttle: 0, steer: 0, brake: 0, handbrake: false },
+    { frozen: true, offtrackWheels: wheelsOffTrack() }
+  );
+  vehicle.updateVehicle(world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
+  updateWheelVisuals(0);
+}
+
 // A látható kerekek beállítása a fizikából: gördülés minden keréken,
 // kormányzás csak az elsőkön. A pivot Euler-sorrendje YXZ, ezért a gördülés
 // (X) a kerék saját tengelye körül történik, és utána forgatja el a
@@ -4748,6 +4764,7 @@ window.__game = {
     spawnPoint.set(pose.x, groundY + restHeightAboveGround(RAPIER), pose.z);
     spawnHeading = pose.heading;
     resetCarTo(spawnPoint);
+    primeVehicleAfterTeleport();
     // A LÁTHATÓ kocsit is oda kell tenni: a carPivot csak a vezetés-képkockában
     // frissül a fizikai testből, tehát enélkül egy képkockányit még a régi
     // helyén villanna.
@@ -4791,6 +4808,7 @@ window.__game = {
     spawnPoint.set(x, groundY + restHeightAboveGround(RAPIER), z);
     spawnHeading = Number(heading) || 0;
     resetCarTo(spawnPoint);
+    primeVehicleAfterTeleport();
     carPivot.position.copy(spawnPoint);
     const rotation = chassisBody.rotation();
     carPivot.quaternion.set(rotation.x, rotation.y, rotation.z, rotation.w);

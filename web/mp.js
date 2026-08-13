@@ -15,6 +15,7 @@ import {
   remoteVisualCorrectionHalfLife, remoteVisualPredictionBlend,
 } from '/shared/remoteVisual.js';
 import { createPitState, hasCompletePitConfig, updatePitState } from '/shared/pit.js';
+import { smoothPing } from '/shared/ping.js';
 
 const G = window.__game;
 // Diagnosztika. A step() azért kell, mert a requestAnimationFrame megáll, ha
@@ -732,6 +733,11 @@ let lastPingRttMs = null;
 let pingJitterMs = 0;
 let clockOffsetMs = 0;
 let clockReady = false;
+// Pályabetöltés közben a WebSocket-válasz feldolgozását maga a kliens főszála
+// késleltetheti. Az ilyen PING-ek nem hálózati minták; a betöltés végén húzott
+// határ előtt indult válaszokat akkor is eldobjuk, ha csak utána érkeznek meg.
+let pingValidAfter = 0;
+let pingNeedsFreshSample = false;
 
 // Minden abszolút szerveridő (snapshot, rajt) ezen keresztül megy. A PONG
 // mintákból becsült offset miatt a kliens elállított órája sem tolja el a
@@ -784,8 +790,11 @@ function stopStallWatch() {
 
 function startPingLoop() {
   stopPingLoop();
+  pingRttMs = 0;
   lastPingRttMs = null;
   pingJitterMs = 0;
+  pingValidAfter = 0;
+  pingNeedsFreshSample = false;
   startStallWatch();
   sendPing();
   pingTimer = setInterval(sendPing, PING_INTERVAL_MS);
@@ -1089,19 +1098,31 @@ function onMessage(m) {
         //    PING nála állt sorban (lásd server/loopLag.js). Erre a saját
         //    figyelőnk vak, mert a mi szálunk közben szabad volt — ez az, ami
         //    verseny indításakor a több száz milliszekundumos pinget okozta.
-        const stalledHere = lastStallAt > m.t
+        const sentAt = Number(m.t);
+        const loadingSample = raceLoadActive || sentAt < pingValidAfter;
+        const stalledHere = lastStallAt > sentAt
           || performance.now() - lastHeartbeatAt > STALL_THRESHOLD_MS;
-        if (stalledHere || m.blockedMs > SERVER_BLOCK_IGNORE_MS) {
+        if (!Number.isFinite(sentAt) || loadingSample || stalledHere || m.blockedMs > SERVER_BLOCK_IGNORE_MS) {
           window.__mp.pingDiscarded++;
           break;
         }
-        const rtt = Math.max(0, performance.now() - m.t);
-        if (lastPingRttMs !== null) {
-          const delta = Math.abs(rtt - lastPingRttMs);
-          pingJitterMs += (delta - pingJitterMs) * 0.25;
+        const rtt = Math.max(0, performance.now() - sentAt);
+        if (pingNeedsFreshSample) {
+          // A betöltés előtti, esetleg már felugrott átlagot az első tiszta minta
+          // azonnal leváltja. Különben a régi EWMA még sok másodpercig 900-at
+          // mutatna egy már újra 30-40 ms-os kapcsolaton.
+          pingRttMs = rtt;
+          lastPingRttMs = null;
+          pingJitterMs = 0;
+          pingNeedsFreshSample = false;
+        } else {
+          if (lastPingRttMs !== null) {
+            const delta = Math.abs(rtt - lastPingRttMs);
+            pingJitterMs += (delta - pingJitterMs) * 0.25;
+          }
+          pingRttMs = smoothPing(pingRttMs, rtt);
         }
         lastPingRttMs = rtt;
-        pingRttMs = pingRttMs ? pingRttMs * 0.75 + rtt * 0.25 : rtt;
         // A szerver a PONG elküldése előtti saját idejét adja. Szimmetrikus
         // hálózati úttal a válasz megérkezésekor serverNow + RTT/2 a legjobb
         // becslés; az EWMA kiszűri az egy-egy torlódott mintát.
@@ -1182,6 +1203,7 @@ async function beginRace(info) {
     && ghostCar.carId === ghostReplay.carId
     && ghostCar.timeMs === ghostReplay.timeMs;
   raceLoadActive = true;
+  pingNeedsFreshSample = true;
   closeLobby();
   // Az eredménypanel alatt az előző inputciklus szándékosan tovább lépteti a
   // helyi fizikát, hogy a célba ért autó fékezve meg tudjon állni. Új futamnál
@@ -1297,6 +1319,7 @@ async function beginRace(info) {
   G.renderPitStopHud(localPitState, localPitStopIndex);
   G.enterMultiplayer(frame);
   raceLoadActive = false;
+  pingValidAfter = performance.now();
   window.__mp.stage = 'fut';
   // Megvagyunk: innentől a szerveren rajtunk nem áll a rajt. A visszaszámlálás
   // csak akkor indul, ha MINDENKI jelentkezett (vagy lejár a türelmi idő) —
@@ -1404,6 +1427,8 @@ G.setMultiplayerCleanupHook(cleanupMultiplayerForMenu);
 function cancelRaceLoad() {
   raceLoadGeneration++;
   raceLoadActive = false;
+  pingValidAfter = performance.now();
+  pingNeedsFreshSample = false;
   setWaitingPlayersAlert(false);
   G.hideLoadingOverlay();
 }
@@ -2294,7 +2319,11 @@ function frame(dt = 1 / 60) {
 
   // A mozdulatlan rajtnál középen, név szerint jelezzük, kire várunk. Hot
   // Lapban nincs másik játékos, ezért ott nem villantjuk fel.
-  const waitingPlayers = room?.players.filter((p) => !p.ready).map((p) => p.name) || [];
+  // A roomState szerver-visszhangjáig a saját `ready` mezőnk még hamis lehet,
+  // de ettől nem magunkra várunk: a név szerinti lista csak a többieket mutassa.
+  const waitingPlayers = room?.players
+    .filter((p) => p.id !== me.id && !p.ready)
+    .map((p) => p.name) || [];
   setWaitingPlayersAlert(
     !raceEnded && !isHotLap() && !starting?.startsAt,
     waitingPlayers

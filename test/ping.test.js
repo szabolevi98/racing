@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { classifyPing, HIGH_PING_ALERT_MS, shouldWarnAboutPing } from '../shared/ping.js';
+import { classifyPing, HIGH_PING_ALERT_MS, shouldWarnAboutPing, smoothPing } from '../shared/ping.js';
 
 test('ping quality uses the multiplayer HUD boundaries', () => {
   assert.deepEqual(classifyPing(0), { value: 0, quality: 'good' });
@@ -26,4 +26,11 @@ test('the warning banner has its own threshold, well above the red colour', () =
   // A színezés ettől függetlenül marad 60-tól piros.
   assert.equal(classifyPing(60).quality, 'bad');
   assert.equal(shouldWarnAboutPing(60), false, 'piros ping még nem jelent figyelmeztetést');
+});
+
+test('ping recovery follows a lower clean sample much faster than an upward spike', () => {
+  assert.equal(smoothPing(40, 900), 255);
+  assert.equal(smoothPing(900, 40), 298);
+  assert.ok(smoothPing(smoothPing(900, 40), 40) < 120);
+  assert.equal(smoothPing(0, 37), 37);
 });
