@@ -31,6 +31,10 @@ const MAX_PLAUSIBLE_MOVEMENT_SPEED = 150; // 540 km/h a pozícióalapú, tartós
 const MAX_MOVEMENT_SEQUENCE_GAP = 12;
 const MOVEMENT_PACKET_GRACE_METERS = 3;
 const MOVEMENT_WINDOW_GRACE_METERS = 8;
+// Rövid ütközési/fizikai korrekciók több egymás utáni csomagban is
+// jelentkezhetnek. Ezeket az egycsomagos teleportlimit továbbra is fogja, a
+// gördülő (összeadódó) vizsgálat viszont csak tartós eltérésre lépjen életbe.
+const MOVEMENT_WINDOW_MIN_MS = 500;
 const MOVEMENT_WINDOW_MAX_MS = 1_500;
 // A csomagsorszám segíthet a hálózaton összetorlódott állapotok időzítésében, de
 // nem gyárthat korlátlanul a szerver órája elé futó „virtuális időt”.
@@ -93,7 +97,7 @@ function hasImplausibleMovement(car, next, movementAt) {
 
   for (const sample of car.movementSamples) {
     const windowMs = movementAt - sample.at;
-    if (windowMs < 0) continue;
+    if (windowMs < MOVEMENT_WINDOW_MIN_MS) continue;
     if (windowMs > MOVEMENT_WINDOW_MAX_MS) continue;
     const windowLimit = MOVEMENT_WINDOW_GRACE_METERS
       + MAX_PLAUSIBLE_MOVEMENT_SPEED * windowMs / 1_000;

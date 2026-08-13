@@ -213,6 +213,40 @@ test('rolling movement validation catches repeated small position cheats', async
   }
 });
 
+test('brief chained physics corrections do not invalidate a lap', async () => {
+  const room = makeRoom();
+  const messages = [];
+  const sim = new RaceController(room, {
+    map: {
+      spawns: [{ x: -1, z: 0, heading: 0 }],
+      gates: {
+        start: { x1: 0, z1: -5, x2: 0, z2: 5 },
+        checkpoints: [{ x1: 1000, z1: -5, x2: 1000, z2: 5 }],
+      },
+    },
+    broadcast: (type, data) => messages.push({ type, ...data }),
+  });
+  await sim.start();
+  try {
+    sim.receiveState('p1', wireState(0, 900, -1), { initial: true, receivedAt: 900 });
+    room.state = ROOM_STATE.COUNTDOWN;
+    sim.releaseAt(1000);
+    sim.pump(1000);
+    sim.receiveState('p1', wireState(1, 1100, 1), { receivedAt: 1100 });
+
+    // Egy rázókő/ütközés rövid ideig több egymást követő pozíciókorrekciót
+    // okozhat. Csomagonként egyik sem teleport, és 500 ms alatt lecseng.
+    for (let i = 1; i <= 10; i++) {
+      const at = 1100 + i * 25;
+      sim.receiveState('p1', wireState(1 + i, at, 1 + i * 4.5), { receivedAt: at });
+    }
+    assert.equal(sim.cars.get('p1').race.taintReason, TAINT.NONE);
+    assert.equal(messages.some((message) => message.kind === 'validation'), false);
+  } finally {
+    sim.stop();
+  }
+});
+
 test('high speed and packets bunched by a ping spike stay valid', async () => {
   const room = makeRoom();
   const messages = [];
