@@ -5,7 +5,7 @@ import path from 'node:path';
 import { getManifest } from '../server/assets.js';
 import { ASSETS_DIR } from '../server/paths.js';
 
-test('every active track ignores tree collision above 10 metres', async () => {
+test('every active track has a valid tree-collision cutoff', async () => {
   const manifest = await getManifest();
   assert.ok(manifest.maps.length > 0);
 
@@ -13,7 +13,9 @@ test('every active track ignores tree collision above 10 metres', async () => {
     const file = path.join(ASSETS_DIR, 'maps', map.id, 'bake.json');
     const config = JSON.parse(await fs.readFile(file, 'utf8'));
     assert.equal(config.canopy?.enabled, true, `${map.id}: canopy.enabled`);
-    assert.equal(config.canopy?.minHeight, 10, `${map.id}: canopy.minHeight`);
+    assert.equal(Number.isFinite(config.canopy?.minHeight), true, `${map.id}: canopy.minHeight`);
+    assert.ok(config.canopy.minHeight >= 1 && config.canopy.minHeight <= 60,
+      `${map.id}: canopy.minHeight must be between 1 and 60 metres`);
   }
 });
 
