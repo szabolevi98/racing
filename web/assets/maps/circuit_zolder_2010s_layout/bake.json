@@ -7,8 +7,8 @@
     "minHeight": 5
   },
   "asphaltSmoothing": {
-    "enabled": true,
-    "iterations": 4,
-    "radius": 3
+    "enabled": false,
+    "iterations": 3,
+    "radius": 2
   }
 }

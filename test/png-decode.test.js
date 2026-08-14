@@ -2,7 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import zlib from 'node:zlib';
 import { decodePngRows } from '../server/game/pngDecode.js';
-import { zoneCodesFromRow, decodeZoneCodes, ZONE_ASPHALT, ZONE_OFFTRACK, ZONE_WALL } from '../shared/zone.js';
+import {
+  zoneCodesFromRow, decodeZoneCodes, decodeSmoothingMask,
+  ZONE_ASPHALT, ZONE_OFFTRACK, ZONE_WALL,
+} from '../shared/zone.js';
 
 // Egy PNG összerakása kézzel. A dekóder nem ellenőriz CRC-t (a bemenet mindig
 // a saját zóna-szerkesztőnk kimenete), ezért a CRC helye maradhat nulla.
@@ -118,6 +121,19 @@ test('RGB (alpha-less) PNGs count every pixel as painted', async () => {
     ZONE_OFFTRACK, ZONE_WALL, ZONE_OFFTRACK,
     ZONE_WALL, ZONE_OFFTRACK, ZONE_WALL,
   ]);
+});
+
+test('blue smoothing paint stays asphalt for physics and remains separately selectable', () => {
+  const pixels = Uint8ClampedArray.from([
+    30, 144, 255, 255,
+    255, 165, 0, 255,
+    220, 20, 60, 255,
+    30, 144, 255, 10,
+  ]);
+  assert.deepEqual(Array.from(decodeZoneCodes(pixels, 4, 1)), [
+    ZONE_ASPHALT, ZONE_OFFTRACK, ZONE_WALL, ZONE_ASPHALT,
+  ]);
+  assert.deepEqual(Array.from(decodeSmoothingMask(pixels, 4, 1)), [1, 0, 0, 0]);
 });
 
 test('a malformed header fails loudly instead of returning wrong pixels', async () => {

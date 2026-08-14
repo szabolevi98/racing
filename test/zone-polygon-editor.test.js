@@ -4,6 +4,7 @@ import fs from 'node:fs';
 
 const html = fs.readFileSync(new URL('../web/dev.html', import.meta.url), 'utf8');
 const dev = fs.readFileSync(new URL('../web/dev.js', import.meta.url), 'utf8');
+const main = fs.readFileSync(new URL('../web/main.js', import.meta.url), 'utf8');
 
 test('zone editor offers brush and point-by-point area drawing modes', () => {
   assert.match(html, /name="zonePaintMode"[^>]*value="brush"/);
@@ -16,12 +17,20 @@ test('zone editor offers brush and point-by-point area drawing modes', () => {
   assert.ok(html.indexOf('id="paintModeRow"') < html.indexOf('id="brushSpawn"'));
 });
 
-test('polygon drawing applies the selected asphalt, runoff or wall zone to the same mask', () => {
+test('polygon drawing applies asphalt, runoff, wall or smoothing to the same mask', () => {
   assert.match(dev, /function applyZonePolygon\(\)/);
   assert.match(dev, /ctx\.closePath\(\)/);
   assert.match(dev, /ctx\.globalCompositeOperation = 'destination-out'/);
-  assert.match(dev, /ctx\.fillStyle = brush === '1' \? OFFTRACK_COLOR : WALL_COLOR/);
+  assert.match(dev, /brush === '2' \? WALL_COLOR : SMOOTHING_COLOR/);
   assert.match(dev, /ctx\.fill\(\)/);
+  assert.match(html, /id="brushSmoothing"[^>]*value="smooth"/);
+});
+
+test('a smoothing selection limits asphalt smoothing but old maps keep the full asphalt fallback', () => {
+  assert.match(dev, /api\.hasSmoothingSelection\(\)/);
+  assert.match(dev, /smoothingSelectionActive \? api\.isSmoothingAt : api\.isAsphaltAt/);
+  assert.match(dev, /smoothAsphaltToPlane\(floor\.positions, floor\.indices, smoothingAt/);
+  assert.match(main, /const smoothing = DEV_MODE \? decodeSmoothingMask/);
 });
 
 test('polygon can close at its first point and has point editing controls', () => {

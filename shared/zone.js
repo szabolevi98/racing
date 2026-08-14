@@ -2,10 +2,18 @@
 // mindkét játékmódban ezt használja, a dekódert Node-tesztek is ellenőrzik.
 //
 // A maszkot a dev módbeli zóna-szerkesztő festi, és zonemap.png-ként menti.
+// A kék simításjelölés ugyanebben a PNG-ben utazik, de vezetés közben normál
+// aszfaltnak számít; csak az ütközési háló sütése használja külön maszkként.
 
 export const ZONE_ASPHALT = 0;
 export const ZONE_OFFTRACK = 1;
 export const ZONE_WALL = 2;
+
+export function isSmoothingPaint(r, g, b, a = 255) {
+  // A szerkesztő rgb(30,144,255)-tel fest. A tágabb küszöb az ecset és a
+  // sokszög élsimított, részben átlátszó széleit is megbízhatóan felismeri.
+  return a >= 16 && b >= 180 && b > r * 1.5 && b > g;
+}
 
 // EGYETLEN képsor átfordítása zóna-kódokká. Ez az egyetlen hely, ahol a festék
 // színéből kód lesz; a soronkénti forma RGB és RGBA bemenetet is kezel.
@@ -17,7 +25,11 @@ export function zoneCodesFromRow(codes, outOffset, pixels, pixelOffset, width, c
     // Az ecsetvonás pereme élsimított (halvány) — alacsony küszöb kell, hogy
     // a látható folt SZÉLE is beleszámítson, különben a fal/kifutó egy
     // képpontnyival kisebb lenne, mint amit a szerkesztőben látsz.
-    if (channels === 4 && pixels[s + 3] < 16) continue; // festetlen = aszfalt (0)
+    const alpha = channels === 4 ? pixels[s + 3] : 255;
+    if (alpha < 16) continue; // festetlen = aszfalt (0)
+    // A kék jelölés fizikailag aszfalt marad, ezért a zónakód alapértékét (0)
+    // érintetlenül hagyjuk. A sütés külön maszkként olvassa vissza.
+    if (isSmoothingPaint(pixels[s], pixels[s + 1], pixels[s + 2], alpha)) continue;
     // A két festék jól elkülönül a zöld csatornán:
     // kifutó = rgb(255,165,0) -> g=165, fal = rgb(220,20,60) -> g=20.
     codes[outOffset + x] = pixels[s + 1] > 100 ? ZONE_OFFTRACK : ZONE_WALL;
@@ -32,6 +44,24 @@ export function decodeZoneCodes(rgba, width, height) {
     zoneCodesFromRow(codes, y * width, rgba, y * width * 4, width, 4);
   }
   return codes;
+}
+
+export function decodeSmoothingMask(rgba, width, height) {
+  const mask = new Uint8Array(width * height);
+  for (let p = 0; p < width * height; p++) {
+    const s = p * 4;
+    if (isSmoothingPaint(rgba[s], rgba[s + 1], rgba[s + 2], rgba[s + 3])) mask[p] = 1;
+  }
+  return mask;
+}
+
+export function sampleSmoothing(runtime, x, z) {
+  if (!runtime?.smoothing) return false;
+  const b = runtime.bounds;
+  const u = Math.floor(((x - b.minX) / (b.maxX - b.minX)) * runtime.w);
+  const v = Math.floor(((z - b.minZ) / (b.maxZ - b.minZ)) * runtime.h);
+  if (u < 0 || v < 0 || u >= runtime.w || v >= runtime.h) return false;
+  return runtime.smoothing[v * runtime.w + u] === 1;
 }
 
 // Milyen felület van a világ (x, z) pontja alatt?

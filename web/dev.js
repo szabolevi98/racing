@@ -21,6 +21,7 @@ import {
   setLiveVehicleTunables, resetLiveVehicleTunables,
 } from '/shared/vehicleConfig.js';
 import { findGateHit, findSpawnHit } from '/shared/editorSelection.js';
+import { isSmoothingPaint } from '/shared/zone.js';
 
 // ---------- DOM: a csak dev módban használt elemek ----------
 // A markupjuk NINCS benne az index.html-ben — a dev.html-ből injektáljuk be
@@ -814,6 +815,7 @@ function generateAsphaltMask() {
 // zoomtól függetlenül ugyanakkora területet fest.
 const OFFTRACK_COLOR = 'rgb(255,165,0)';
 const WALL_COLOR = 'rgb(220,20,60)';
+const SMOOTHING_COLOR = 'rgb(30,144,255)';
 // A festés pontosságának valódi korlátja a MASZK felbontása (nem az ecset
 // mérete): ha egy maszk-pixel 3.5 világegység, akkor a pálya szélét sem lehet
 // ennél pontosabban meghúzni. Ezért 0.5 egység/pixel a cél, összpixel-
@@ -1069,7 +1071,8 @@ function paintAtWorld(x, z) {
     ctx.fill();
   } else {
     ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = brush === '1' ? OFFTRACK_COLOR : WALL_COLOR;
+    ctx.fillStyle = brush === '1' ? OFFTRACK_COLOR
+      : (brush === '2' ? WALL_COLOR : SMOOTHING_COLOR);
     ctx.fill();
   }
   ctx.restore();
@@ -1102,7 +1105,8 @@ function applyZonePolygon() {
     ctx.globalCompositeOperation = 'destination-out';
   } else {
     ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = brush === '1' ? OFFTRACK_COLOR : WALL_COLOR;
+    ctx.fillStyle = brush === '1' ? OFFTRACK_COLOR
+      : (brush === '2' ? WALL_COLOR : SMOOTHING_COLOR);
   }
   ctx.fill();
   ctx.restore();
@@ -1245,7 +1249,8 @@ function drawZoneOverlay() {
   // nagyobb karikát kap, jelezve, hogy rákattintva lezárható.
   if (isPolygonPaintMode() && zonePolygonPoints.length) {
     const polygonColor = getSelectedBrush() === '0' ? '#ffffff'
-      : (getSelectedBrush() === '1' ? '#ffa500' : '#dc143c');
+      : (getSelectedBrush() === '1' ? '#ffa500'
+        : (getSelectedBrush() === '2' ? '#dc143c' : '#1e90ff'));
     ctx.beginPath();
     zonePolygonPoints.forEach((p, i) => {
       const s = toScreen(p.x, p.z);
@@ -1706,8 +1711,9 @@ function generateCheckpoints(count) {
 
   function isAsphaltAtMaskPx(u, v) {
     if (u < 0 || u >= w || v < 0 || v >= h) return false;
-    const alpha = data[(v * w + u) * 4 + 3];
-    return alpha < 16;
+    const o = (v * w + u) * 4;
+    return data[o + 3] < 16
+      || isSmoothingPaint(data[o], data[o + 1], data[o + 2], data[o + 3]);
   }
   function isAsphaltAt(x, z) {
     const { u, v } = zoneWorldToMaskPixel(x, z);
@@ -1983,8 +1989,10 @@ async function bakeCollisionToFile() {
 
   // Érdesség a simítások ELŐTT — hogy a végén legyen mihez hasonlítani, és
   // egy pillantással látszódjon, hozott-e bármit az adott beállítás.
+  const smoothingSelectionActive = api.hasSmoothingSelection();
+  const smoothingAt = smoothingSelectionActive ? api.isSmoothingAt : api.isAsphaltAt;
   const erdesElotte = api.hasZoneRuntime()
-    ? measureAsphaltRoughness(floor.positions, floor.indices, api.isAsphaltAt)
+    ? measureAsphaltRoughness(floor.positions, floor.indices, smoothingAt)
     : null;
 
   const vegetation = bakeCanopyCheck.checked
@@ -2023,7 +2031,7 @@ async function bakeCollisionToFile() {
     bakeStatusEl.textContent = 'Aszfalt simítása...';
     await new Promise((r) => setTimeout(r, 0));
     const t0 = performance.now();
-    const s = smoothAsphaltToPlane(floor.positions, floor.indices, api.isAsphaltAt, {
+    const s = smoothAsphaltToPlane(floor.positions, floor.indices, smoothingAt, {
       iterations: asphaltIterations,
       radius: asphaltRadius,
       // 5 cm helyett 20: a korlát a valódi lépcsőket (hidak, pályaszél) védi,
@@ -2032,7 +2040,12 @@ async function bakeCollisionToFile() {
       maxShift: 0.2,
     });
     floor = { positions: s.positions, indices: s.indices };
-    aszfaltStat = { jelolt: s.jelolt, mozdult: s.mozdult, ms: Math.round(performance.now() - t0) };
+    aszfaltStat = {
+      jelolt: s.jelolt,
+      mozdult: s.mozdult,
+      ms: Math.round(performance.now() - t0),
+      selectionActive: smoothingSelectionActive,
+    };
   }
 
   const floorVertexCount = floor.positions.length / 3;
@@ -2115,13 +2128,13 @@ async function bakeCollisionToFile() {
           `(${(simStat.mozdult / simStat.osszes * 100).toFixed(1)}%, ${simStat.ms} ms)`
         : ' · simítás KI') +
       (aszfaltStat
-        ? ` · aszfalt: ${aszfaltStat.mozdult} csúcs mozdult a ${aszfaltStat.jelolt} aszfalt-csúcsból ` +
+        ? ` · aszfalt${aszfaltStat.selectionActive ? ' (kijelölt)' : ''}: ${aszfaltStat.mozdult} csúcs mozdult a ${aszfaltStat.jelolt} csúcsból ` +
           `(${asphaltIterations} kör, ${asphaltRadius} m sugár, ${aszfaltStat.ms} ms)`
         : ' · aszfalt-simítás KI');
 
     // A sütés érdemi eredménye: változott-e az, amit a kerék tényleg érez.
     const erdesUtana = api.hasZoneRuntime()
-      ? measureAsphaltRoughness(floor.positions, floor.indices, api.isAsphaltAt)
+      ? measureAsphaltRoughness(floor.positions, floor.indices, smoothingAt)
       : null;
     showRoughness(erdesUtana, erdesElotte);
   } catch (err) {

@@ -28,7 +28,8 @@ import {
   NET_DIAG_EVENT, NET_DIAG_INCIDENT, netDiagnostics,
 } from './netDiagnostics.js';
 import {
-  ZONE_ASPHALT, ZONE_OFFTRACK, ZONE_WALL, decodeZoneCodes, sampleZone,
+  ZONE_ASPHALT, ZONE_OFFTRACK, ZONE_WALL, decodeZoneCodes, decodeSmoothingMask,
+  sampleZone, sampleSmoothing,
   wallProbes, wheelProbes,
   carTouchesWall as sharedCarTouchesWall,
   allWheelsOffTrack as sharedAllWheelsOffTrack,
@@ -2281,8 +2282,16 @@ async function loadZoneRuntime(entry) {
   const data = ctx.getImageData(0, 0, img.width, img.height).data;
 
   const codes = decodeZoneCodes(data, img.width, img.height);
+  // A külön simításmaszk csak a sütést végző dev módban kell. Normál játékban
+  // nem tartunk meg még egy akár 20 MB-os cellatömböt minden pályához.
+  const smoothing = DEV_MODE ? decodeSmoothingMask(data, img.width, img.height) : null;
+  let smoothingCount = 0;
+  if (smoothing) for (const marked of smoothing) smoothingCount += marked;
 
-  zoneRuntime = { codes, w: img.width, h: img.height, bounds: entry.zonemap.bounds };
+  zoneRuntime = {
+    codes, smoothing, smoothingCount,
+    w: img.width, h: img.height, bounds: entry.zonemap.bounds,
+  };
   buildMiniMapTrack(zoneRuntime);
 }
 
@@ -3878,6 +3887,8 @@ const devApi = {
   // Az aszfalt-simításhoz kell megmondani, hol van aszfalt. A futásidejű
   // zóna-térképet olvassa, ugyanazt, amiből vezetés közben is dolgozunk.
   isAsphaltAt: (x, z) => sampleZoneAt(x, z) === ZONE_ASPHALT,
+  isSmoothingAt: (x, z) => sampleSmoothing(zoneRuntime, x, z),
+  hasSmoothingSelection: () => (zoneRuntime?.smoothingCount || 0) > 0,
   hasZoneRuntime: () => !!zoneRuntime,
   makeSearchableSelect,
   // A dev pályaváltás ugyanazt a betöltő-overlayt kapja, mint a menü: egy

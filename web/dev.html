@@ -74,7 +74,7 @@
         <div class="form-check mb-0">
           <input type="checkbox" id="bakeAsphaltCheck" class="form-check-input">
           <label for="bakeAsphaltCheck" class="form-check-label small">
-            Hullámos aszfalt kisimítása <span class="text-secondary">(csak ott, ahol a zóna-térkép aszfaltot mond)</span>
+            Hullámos aszfalt kisimítása <span class="text-secondary">(kék jelölésnél csak ott, különben minden aszfalton)</span>
           </label>
         </div>
         <label class="small mb-0 d-flex align-items-center gap-1">
@@ -150,6 +150,8 @@
         <label class="btn btn-outline-warning btn-sm" for="brushOfftrack">Kifutó</label>
         <input type="radio" class="btn-check" name="zoneBrush" id="brushWall" value="2">
         <label class="btn btn-outline-danger btn-sm" for="brushWall">Fal</label>
+        <input type="radio" class="btn-check" name="zoneBrush" id="brushSmoothing" value="smooth">
+        <label class="btn btn-outline-info btn-sm" for="brushSmoothing">Simítás</label>
       </div><br>
       <span id="paintModeRow">
         Festési mód:
