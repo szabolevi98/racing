@@ -2,6 +2,6 @@
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
   "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
   "yawDegrees": 0,
-  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával (2026-08-03), a repó teljes kocsi-állományának felülvizsgálatakor. A minta a mesh- és anyagnevekből épül, majd a geometria alapján egészül ki a többi kerék-alkatrésszel (a felfüggesztés, a kereszttengelyek és a futómű szándékosan kimaradnak — azok nem forognak a kerékkel). Mérés: 4 szimmetrikus sarok, nyomtáv 1.28, tengelytáv 2.95, 20 darab.\n\nEredeti (kézi) megjegyzés, referenciaként: Élőben ellenőrizve. A 4 sarok már eleve külön mesh-csoport: rb_rims, BRAKE, Tyre_thread, tyre_side. FIGYELEM: van egy 'c_redbull_10_steeringwheel' anyag is (kormánykerék) - a minta ezt nem fogja meg.",
-  "wheelPattern": "tyre|rim|disk|caliper"
+  "_wheelPattern": "JAVÍTVA (a felhasználó jelezte, ugyanaz az eset, mint a 2004 Ferrari F2004-nél): a mintában lévő 'caliper' szó a féknyerget is behúzta, ami a modellben a SUSP_RF -> CALIPER_RF ág alatt ül (carbon_fiber anyaggal), vagyis a modellező maga is a felfüggesztéshez sorolta — az pedig nem forog a kerékkel. Sarkonként így pontosan négy darab forog: rb_rims (felni), BRAKE (féktárcsa, a DISK_LF node alatt), Tyre_thread és tyre_side. Mérve: a legtávolabbi darab kilengése a kerékátmérő 24%-áról 1%-ára esett (tools/audit/wheel-orbit.mjs). Mérés: 4 szimmetrikus sarok, nyomtáv 1.28, tengelytáv 2.95, 16 darab.\n\nKorábbi megjegyzés, referenciaként: van egy 'c_redbull_10_steeringwheel' anyag is (kormánykerék) — a minta ezt nem fogja meg.",
+  "wheelPattern": "tyre|rim|disk"
 }

@@ -76,3 +76,23 @@ test('the F2004 rotates only the four parts that really spin', () => {
   // A node-név a hatos csoport miatt tilos.
   assert.ok(!pattern.test('f2004_wheel_fl_1'), 'a node-névre illeszkedve újra mind a hat darab bekerülne');
 });
+
+// Ugyanaz az eset, mint az F2004-nél, csak más néven. A modell hierarchiája
+// maga is elárulja, mi hova tartozik: a felni, a féktárcsa és a gumi a
+// WHEEL_LF ág alatt ül, a féknyereg viszont a SUSP_RF -> CALIPER_RF alatt —
+// vagyis a felfüggesztésen. A mintában lévő 'caliper' szó mégis behúzta.
+test('the RB7 leaves its caliper on the suspension', () => {
+  const config = JSON.parse(fs.readFileSync(
+    new URL('../web/assets/cars/2011_redbull_rb7.json', import.meta.url),
+    'utf8'
+  ));
+  assert.equal(config.wheelPattern, 'tyre|rim|disk');
+  const pattern = new RegExp(config.wheelPattern, 'i');
+  // A négy forgó darab a saját node-ján keresztül talál (RIM_LF, DISK_LF, TYRE_LF).
+  for (const chain of ['WHEEL_LF RIM_LF rb_rims', 'WHEEL_LF DISK_LF BRAKE', 'WHEEL_LF TYRE_LF Tyre_thread']) {
+    assert.ok(pattern.test(chain), `${chain} a kerékkel forog`);
+  }
+  assert.ok(!pattern.test('SUSP_RF CALIPER_RF carbon_fiber'), 'a féknyereg a felfüggesztésen ül, nem foroghat');
+  // A kormánykereket sem szabad megfognia — ez a modell korábbi buktatója volt.
+  assert.ok(!pattern.test('c_redbull_10_steeringwheel'), 'a kormánykerék nem kerék-alkatrész');
+});
