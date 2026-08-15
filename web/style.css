@@ -247,21 +247,22 @@ kbd.k {
    375 px széles telefonon 78 px-es átfedés, 1280x800-on pedig — a bootstrap
    3rem-es béléssel — mindössze 1 px hiányzott az ütközéshez. Ezért felül
    fixen helyet hagyunk a mezőnek, szélességtől függetlenül: a mező alja
-   16 + 28 = 44 px, 56-nál marad alatta egy ujjnyi levegő.
+   16 + 34 = 50 px, 62-nél marad alatta egy ujjnyi levegő. A mező méretének
+   változásakor EZT IS igazítani kell.
 
    Az !important a bootstrap p-4/p-md-5 segédosztálya miatt kell — azok is
    azzal jönnek. Alacsony ablaknál a lentebbi .menu-inner szabály szándékosan
    felülírja: ott a cím jóval kisebb, és vízszintesen amúgy is elfér a mező
    mellett, viszont minden képpont számít a görgetés elkerüléséhez. */
-.menu-inner { padding-top: 56px !important; }
+.menu-inner { padding-top: 62px !important; }
 /* Az azonos fajsúlyú #menu .form-select/.form-control szabály FELETT nyer, mert
    később áll — a kompakt méret ezért érvényesül. */
 #menu .lang-select {
   width: auto; min-width: 0;
-  padding: 4px 11px 4px 27px; font-size: 12px; font-weight: 600;
+  padding: 6px 14px 6px 32px; font-size: 13.5px; font-weight: 600;
   border-radius: 999px; cursor: pointer;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23aab3c5' stroke-width='1.8'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M3 12h18'/%3E%3Cellipse cx='12' cy='12' rx='4' ry='9'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: 8px center; background-size: 13px;
+  background-repeat: no-repeat; background-position: 10px center; background-size: 15px;
 }
 /* A lista a tartalomhoz igazodik és jobbra rendeződik. A .ss-menu alapból a
    mező szélességét veszi fel (left:0;right:0) — egy ilyen keskeny mező alatt
@@ -351,7 +352,10 @@ kbd.k {
   #menu .form-select, #menu .form-control { padding: 0.35rem 0.6rem; font-size: 0.85rem; }
   /* A kompakt mezőméret ITT is felül kell írja a fenti sort, különben a
      földgömbnek hagyott bal oldali hely eltűnik és az ikon a szövegre csúszik. */
-  #menu .lang-select { padding: 2px 9px 2px 23px; font-size: 10px; background-size: 11px; }
+  #menu .lang-select {
+    padding: 3px 11px 3px 27px; font-size: 11.5px;
+    background-position: 8px center; background-size: 13px;
+  }
   #menu .mb-3 { margin-bottom: 0.45rem !important; }
   #menu .row.g-3 { --bs-gutter-y: 0.45rem; }
   #menu .row.mb-4 { margin-bottom: 0.5rem !important; }
