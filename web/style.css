@@ -158,6 +158,8 @@ kbd.k {
    hosszú viszont egyszerűen felülről indul és végiggörgethető. */
 .menu-inner {
   min-height: 100%; display: flex; flex-direction: column; justify-content: center;
+  /* A nyelvválasztó horgonya: a sarokba kikerülve nem foglal sort. */
+  position: relative;
 }
 
 #menu h1 {
@@ -228,13 +230,29 @@ kbd.k {
 }
 #menuCopyright:hover, #menuCopyright:focus-visible { color: var(--text); }
 
-/* Nyelvválasztó: a címsor jobb oldalán, nem a versenybeállítások között — nem
-   a futamra vonatkozik, hanem az egész oldalra, és így nem visz el egy teljes
-   sort a sűrű menüből. Külön "Nyelv" felirata sincs: a földgömb ikon és a
-   kiírt nyelvnév együtt elmondja. Zászlót szándékosan nem használunk, mert a
-   nyelv nem ország — az angolnak nincs egyértelmű zászlaja. */
-.menu-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.lang-field { flex: none; }
+/* Nyelvválasztó: a panel jobb felső sarkában, nem a versenybeállítások között
+   — nem a futamra vonatkozik, hanem az egész oldalra. Külön "Nyelv" felirata
+   sincs: a földgömb ikon és a kiírt nyelvnév együtt elmondja. Zászlót
+   szándékosan nem használunk, mert a nyelv nem ország — az angolnak nincs
+   egyértelmű zászlaja.
+
+   Miért abszolút, és miért nem a cím MELLETT? A "Levente Racing" 2.25rem-es
+   címnek 274 px kell, a mezőnek 126, a menü belső szélessége viszont 318 —
+   egy sorban 94 px-szel nem férnek el, tehát a cím kettétörne. A sarokba
+   kiemelve viszont a saroknak úgysincs más gazdája, és a mező NULLA sort visz
+   el a sűrű menüből. */
+.lang-field { position: absolute; top: 12px; right: 14px; z-index: 60; }
+/* Keskeny képernyőn a panel bélése csak 1.5rem (p-4), a 3rem-es p-md-5 helyett.
+   Ott a cím BELECSÚSZIK a sarokban ülő mezőbe, amint a tartalom elég magas
+   ahhoz, hogy a menü tetejére kerüljön — 375 px széles telefonon 78 px-es
+   átfedést mértem. Ezért itt felül helyet hagyunk a mezőnek. Széles nézetben
+   a 3rem magától elég, alacsony ablaknál pedig a kisebb cím mellett úgyis
+   marad ~60 px szabad hely, tehát egyikhez sem nyúlunk. */
+@media (max-width: 767.98px) {
+  /* Az !important a bootstrap p-4 segédosztálya miatt kell — az is azzal jön,
+     ahogy az alacsony ablakra szóló .menu-inner szabálynál is. */
+  .menu-inner { padding-top: 46px !important; }
+}
 /* Az azonos fajsúlyú #menu .form-select/.form-control szabály FELETT nyer, mert
    később áll — a kompakt méret ezért érvényesül. */
 #menu .lang-select {
@@ -333,6 +351,9 @@ kbd.k {
   /* A kompakt mezőméret ITT is felül kell írja a fenti sort, különben a
      földgömbnek hagyott bal oldali hely eltűnik és az ikon a szövegre csúszik. */
   #menu .lang-select { padding: 2px 9px 2px 23px; font-size: 10px; background-size: 11px; }
+  /* Alacsony ablaknál a panel bélése is szűkebb (0.9rem/1rem), a sarok tehát
+     beljebb kerül — különben a mező kilógna a menü fölé. */
+  .lang-field { top: 7px; right: 8px; }
   #menu .mb-3 { margin-bottom: 0.45rem !important; }
   #menu .row.g-3 { --bs-gutter-y: 0.45rem; }
   #menu .row.mb-4 { margin-bottom: 0.5rem !important; }
@@ -352,7 +373,8 @@ kbd.k {
     display: grid; grid-template-columns: 1fr 1fr;
     column-gap: 0.6rem; align-content: center;
   }
-  .menu-inner > .menu-head,
+  .menu-inner > h1,
+  .menu-inner > .menu-sub,
   .menu-inner > .menu-primary-fields,
   .menu-inner > .row,
   .menu-inner > .mode-buttons,
