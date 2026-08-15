@@ -79,12 +79,24 @@ function horizontalDistance(a, b) {
 
 function nextMovementTime(car, seq, receivedAt) {
   if (!car.lastMovementAt || !car.lastStateAt) return receivedAt;
-  const receivedDelta = Math.max(0, receivedAt - car.lastStateAt);
   const sequenceDelta = Math.max(1, Math.min(MAX_MOVEMENT_SEQUENCE_GAP, seq - car.lastSeq));
   // Pingkiugrás után több, egymást követő fizikai állapot egyszerre érkezhet be.
   // A sorszám csak korlátozott időt adhat hozzá, ezért nem használható tetszőleges
   // teleport elfedésére, a szabályos 60 Hz-es mozgást viszont nem tömörítjük össze.
-  const projected = car.lastMovementAt + Math.max(receivedDelta, sequenceDelta * TICK_MS);
+  //
+  // A két forrás VERSENYEZ, nem adódik össze. Korábban a lépés
+  // `lastMovementAt + max(beérkezési különbség, sorszám × TICK_MS)` volt, ami
+  // egyirányú racsni: minden korán érkező csomagnál a sorszám-alapú (nagyobb)
+  // tagot írta jóvá, a többletet pedig sosem adta vissza. Mérve, szabályos
+  // 60 Hz-es küldésnél és ±4 ms-os, NULLA ÁTLAGÚ szórásnál: 7 másodperc
+  // vezetés után 763 ms előny, majd beállás a plafonra. Mivel a kapuk is ezen
+  // az órán kapnak időbélyeget, a kör kezdete ennyivel későbbre csúszott — a
+  // szellem pontosan ennyit várt a rajtvonalnál, mielőtt elindult.
+  //
+  // A maximum-képzés ugyanazt a védelmet adja (kötegnél a beérkezési idő alig
+  // mozdul, tehát a sorszám-tag nyer), de szabályos forgalomnál az óra
+  // visszasimul a beérkezési időhöz, így nem halmozódik.
+  const projected = Math.max(car.lastMovementAt + sequenceDelta * TICK_MS, receivedAt);
   return Math.min(projected, receivedAt + MAX_MOVEMENT_CLOCK_LEAD_MS);
 }
 

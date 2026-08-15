@@ -482,3 +482,80 @@ test('server zone map overrides a client that lies about offtrack state', async 
     sim.stop();
   }
 });
+
+// A szerver a kapukat (és így a kör kezdetét) a mozgás-idővonalon bélyegzi.
+// Ez az óra korábban egyirányú racsni volt: a lépés
+// `lastMovementAt + max(beérkezési különbség, sorszám × TICK_MS)` minden korán
+// érkező csomagnál a nagyobb, sorszám-alapú tagot írta jóvá, a többletet pedig
+// sosem adta vissza. Szabályos 60 Hz-es küldésnél és NULLA ÁTLAGÚ hálózati
+// szórásnál is elszaladt — mérve 7 másodperc alatt 763 ms —, míg neki nem
+// ütközött az 1 másodperces plafonnak. A látható tünet: a Hot Lap szelleme
+// ennyit várt a rajtvonalnál, mielőtt elindult, és végig ennyivel maradt le.
+// A köridő-KÜLÖNBSÉG közben helyes maradt, mert annak mindkét vége ugyanazon
+// az eltolt órán ült — ezért maradhatott sokáig észrevétlen.
+test('the movement clock does not ratchet ahead on ordinary network jitter', async () => {
+  const player = { id: 'driver', carId: 'f2004' };
+  const room = {
+    laps: 1, mode: GAME_MODE.HOT_LAP, state: ROOM_STATE.LOADING,
+    countdownEndsAt: 0, players: new Map([[player.id, player]]),
+  };
+  const sim = new RaceController(room, {
+    // A rajtvonal elérhetetlen messze: itt csak az órát mérjük.
+    map: { spawns: [{ x: 0, z: 0, heading: 0 }], gates: { start: { x1: 1e6, z1: -2, x2: 1e6, z2: 2 }, checkpoints: [] } },
+    broadcast: () => {},
+  });
+  await sim.start();
+  clearInterval(sim.timer);
+  sim.timer = null;
+  room.state = ROOM_STATE.RACING;
+  sim.startAt = 0;
+
+  const car = sim.cars.get(player.id);
+  let receivedAt = 0;
+  for (let n = 1; n <= 600; n++) {
+    // Determinisztikus, nulla átlagú szórás: a hálózat nem siet, csak ingadozik.
+    receivedAt = 1_000 + n * TICK_MS + 4 * Math.sin(n * 1.7);
+    sim.receiveState(player.id, wireState(n, receivedAt, n * 0.01), { receivedAt });
+  }
+
+  const lead = car.lastMovementAt - receivedAt;
+  assert.ok(lead >= 0, 'az óra nem futhat a beérkezési idő mögé');
+  assert.ok(lead < 30, `a szórásnak nem szabad halmozódnia (mért előny: ${lead.toFixed(1)} ms)`);
+});
+
+// A racsni javítása nem gyengítheti azt a védelmet, amiért az óra létezik: egy
+// pingkiugrás után egyszerre beérkező állapotköteg nem tömörítheti a kört
+// néhány ezredmásodpercre.
+test('a burst after a ping spike still advances the clock by the simulated time', async () => {
+  const player = { id: 'driver', carId: 'f2004' };
+  const room = {
+    laps: 1, mode: GAME_MODE.HOT_LAP, state: ROOM_STATE.LOADING,
+    countdownEndsAt: 0, players: new Map([[player.id, player]]),
+  };
+  const sim = new RaceController(room, {
+    map: { spawns: [{ x: 0, z: 0, heading: 0 }], gates: { start: { x1: 1e6, z1: -2, x2: 1e6, z2: 2 }, checkpoints: [] } },
+    broadcast: () => {},
+  });
+  await sim.start();
+  clearInterval(sim.timer);
+  sim.timer = null;
+  room.state = ROOM_STATE.RACING;
+  sim.startAt = 0;
+
+  const car = sim.cars.get(player.id);
+  let seq = 0;
+  for (let n = 1; n <= 30; n++) {
+    const receivedAt = 1_000 + n * TICK_MS;
+    sim.receiveState(player.id, wireState(++seq, receivedAt, n * 0.01), { receivedAt });
+  }
+  const before = car.lastMovementAt;
+
+  // 500 ms néma szünet, majd 30 állapot egyetlen kötegben.
+  const burstAt = 1_000 + 30 * TICK_MS + 500;
+  for (let n = 1; n <= 30; n++) {
+    sim.receiveState(player.id, wireState(++seq, burstAt, (30 + n) * 0.01), { receivedAt: burstAt + n * 0.1 });
+  }
+
+  const advanced = car.lastMovementAt - before;
+  assert.ok(advanced > 400, `a kötegnek valódi időt kell kapnia, nem a beérkezési 3 ms-ot (kapott: ${advanced.toFixed(1)} ms)`);
+});
