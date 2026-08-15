@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "Alapértelmezés 0 (előre néző modellt feltételezve). Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
+  "yawDegrees": 0,
+  "_wheelPattern": "AUTOMATIKUSAN SZŰKÍTVE (tools/audit/fix-wheel-orbit.mjs): a korábbi minta olyan darabot is megfogott, ami nem a kerékkel forog — a legrosszabb a(z) \"EXT_Brake_Caliper.003\" volt, a kerékátmérő 46%-ával kilengve. Az új minta csak azokat a darabokat fogja meg, amelyek a forgástengelyre központozva ülnek: 0% kilengés, 20 darab. Élőben ellenőrizendő.\n\nKorábbi megjegyzés, referenciaként: Automatikusan generálva (tools/build-car-wheels.mjs). Mérés: nyomtáv 1.49, tengelytáv 2.43, 24 darab.",
+  "wheelPattern": "disk|rim|tyre"
+}

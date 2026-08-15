@@ -1,7 +1,7 @@
 {
   "version": 4,
   "targetMb": 5,
-  "generatedAt": "2026-08-15T14:50:42.036Z",
+  "generatedAt": "2026-08-15T15:23:05.009Z",
   "cars": {
     "2008_bmw_sauber_f1.08": {
       "signature": "v2:4:41196616:5242880:053203ef9a6dbcd1e218761c0e6e868b30e208db12e8809d8a9872706892abf7",
@@ -4050,6 +4050,25 @@
       "triangles": 76580,
       "imageBytes": 2798430,
       "geometryBytes": 2043580
+    },
+    "2014_mercedes_sls_amg_gt3": {
+      "signature": "v2:4:16041508:5242880:0e3a781fc5d919191b0cc01a69fc6c95c73e3c0a2a94ee28d327f9c91f3e7dc6",
+      "geometry": {
+        "ratio": 0.75,
+        "error": 0.003,
+        "cost": 2
+      },
+      "texture": {
+        "limit": 2048,
+        "quality": 8,
+        "cost": 2
+      },
+      "limitedBy": "geometria",
+      "bytes": 5181320,
+      "sourceBytes": 16041508,
+      "triangles": 132166,
+      "imageBytes": 1955826,
+      "geometryBytes": 3157968
     }
   }
 }
