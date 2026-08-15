@@ -9,6 +9,7 @@
 export const SUPPORTED_LANGUAGES = Object.freeze([
   { code: 'hu', label: 'Magyar' },
   { code: 'en', label: 'English' },
+  { code: 'de', label: 'Deutsch' },
 ]);
 const SUPPORTED = SUPPORTED_LANGUAGES;
 const FALLBACK = 'en';
