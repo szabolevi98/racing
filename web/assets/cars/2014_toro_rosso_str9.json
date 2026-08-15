@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "Alapértelmezés 0 (előre néző modellt feltételezve). Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
+  "yawDegrees": 0,
+  "_wheelPattern": "A 2014-es F1 packból vágtuk ki (tools/split-car-pack.mjs). A pack minden anyaga \"MIRRORS.013_N\" néven fut, tehát a szokásos, névre épülő felismerés itt semmit nem ér — a kerekeket GEOMETRIÁBÓL azonosítottuk (tools/audit/wheels-by-geometry.mjs): az az anyag kerék, amit négy sarokra vágva négy egyforma átmérőjű, a forgás síkjában kerek csoport áll össze. Ezért sorolja a minta a pontos anyagneveket. Mérve: 3 anyag, 12 darab, kerékátmérő 0.53. Élőben ellenőrizendő.",
+  "wheelPattern": "MIRRORS\\.013_18(?![^\\s])|MIRRORS\\.013_19(?![^\\s])|MIRRORS\\.013_20(?![^\\s])"
+}
