@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "Alapértelmezés 0 (előre néző modellt feltételezve). Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
+  "yawDegrees": 0,
+  "_wheelPattern": "A 2013-es F1 packból vágtuk ki (tools/slice-car-pack.mjs). Abban a packban egyetlen node van, alatta olyan mesh-ekkel, amik az EGÉSZ mezőnyt átfogják, ezért háromszög szinten kellett vágni: minden háromszög a súlypontja szerint került egy kocsihoz. A csapatot a festés textúrájáról azonosítottuk (rajtszám és pilótanév van rajta). Az anyagnevek semmitmondóak, ezért a kerekeket GEOMETRIÁBÓL ismertük fel (tools/audit/wheels-by-geometry.mjs): az az anyag kerék, amit négy sarokra vágva négy egyforma átmérőjű, a forgás síkjában kerek és a gumival koncentrikus csoport áll össze. Mérve: 3 anyag, 12 darab, kerékátmérő 0.63, kilengés 0%. Élőben ellenőrizendő.",
+  "wheelPattern": "Meshpart69Mtl\\.001(?![^\\s])|Meshpart71Mtl\\.001(?![^\\s])|Meshpart78Mtl(?![^\\s])"
+}

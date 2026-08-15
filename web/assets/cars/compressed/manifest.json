@@ -1,7 +1,7 @@
 {
   "version": 4,
   "targetMb": 5,
-  "generatedAt": "2026-08-15T15:50:25.144Z",
+  "generatedAt": "2026-08-15T17:55:20.052Z",
   "cars": {
     "2008_bmw_sauber_f1.08": {
       "signature": "v2:4:41196616:5242880:053203ef9a6dbcd1e218761c0e6e868b30e208db12e8809d8a9872706892abf7",
@@ -2375,23 +2375,10 @@
       "geometryBytes": 3714766
     },
     "2010_redbull_rb6": {
-      "signature": "v2:4:8428744:5242880:fca44c79db5db7bb09683770c964ae9a467a5088aebe91d7598bdc2f1e0d1758",
-      "geometry": {
-        "ratio": 1,
-        "error": 0.001,
-        "cost": 0
-      },
-      "texture": {
-        "limit": 4096,
-        "quality": 10,
-        "cost": 0
-      },
-      "limitedBy": "textúra",
-      "bytes": 4366128,
-      "sourceBytes": 8428744,
-      "triangles": 42360,
-      "imageBytes": 3257944,
-      "geometryBytes": 1085904
+      "signature": "v2:4:3421688:5242880:d5a11a64a2789e5eab9d7b258981129abeeb849645b89bafe118fba6ca38fe83",
+      "copied": true,
+      "bytes": 3421688,
+      "sourceBytes": 3421688
     },
     "2011_al_mercedes_benz_c-klasse_dtm_w204": {
       "signature": "v2:4:16477456:5242880:99db59501a3b52b165c7878bfe73a32d8c8ba742a8f5fdbcf1b209ba5ba5da59",
@@ -4265,6 +4252,157 @@
       "copied": true,
       "bytes": 5016712,
       "sourceBytes": 5016712
+    },
+    "2010_ferrari_f10": {
+      "signature": "v2:4:3312332:5242880:a42fec5f67aa65db1c6507be50bb49a9d63c68d77025aa8159764bd675f42f07",
+      "copied": true,
+      "bytes": 3312332,
+      "sourceBytes": 3312332
+    },
+    "2010_force_india_vjm03": {
+      "signature": "v2:4:3243616:5242880:f8e0e5a0bf6732359a1bff189c8e8155bf7643a940994a899a2cafccba94cf4f",
+      "copied": true,
+      "bytes": 3243616,
+      "sourceBytes": 3243616
+    },
+    "2010_hrt_f110": {
+      "signature": "v2:4:3151172:5242880:851a7958922d88577dcb48f265e63b57772951db061d3bcfcf94600f5271013a",
+      "copied": true,
+      "bytes": 3151172,
+      "sourceBytes": 3151172
+    },
+    "2010_lotus_t127": {
+      "signature": "v2:4:3197408:5242880:6cd5e10d221324ad9f9c42b737d7eb9155229b9e25444f8a44931f5e98cad489",
+      "copied": true,
+      "bytes": 3197408,
+      "sourceBytes": 3197408
+    },
+    "2010_mclaren_mp4-25": {
+      "signature": "v2:4:3334876:5242880:dbeb469b42193a7751bb981d53b03595f295179b96ace333974331452cc641be",
+      "copied": true,
+      "bytes": 3334876,
+      "sourceBytes": 3334876
+    },
+    "2010_mercedes_w01": {
+      "signature": "v2:4:3070776:5242880:1cb37dad827a1b02bde965b47c9b286f14c8e829f5e581ab3911ebaafbad2d8e",
+      "copied": true,
+      "bytes": 3070776,
+      "sourceBytes": 3070776
+    },
+    "2010_redbull_rb6_2": {
+      "signature": "v2:4:8428744:5242880:fca44c79db5db7bb09683770c964ae9a467a5088aebe91d7598bdc2f1e0d1758",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 0
+      },
+      "limitedBy": "textúra",
+      "bytes": 4366128,
+      "sourceBytes": 8428744,
+      "triangles": 42360,
+      "imageBytes": 3257944,
+      "geometryBytes": 1085904
+    },
+    "2010_renault_r30": {
+      "signature": "v2:4:3403696:5242880:f625d4b65c19bf6947811dcdf8f68a9513406ea798317d2493a2ba443706eae6",
+      "copied": true,
+      "bytes": 3403696,
+      "sourceBytes": 3403696
+    },
+    "2010_sauber_c29": {
+      "signature": "v2:4:3303120:5242880:21c92dc77cb25e1b9002c760c1c78765670c40700186d802fd2cd5f8dff44101",
+      "copied": true,
+      "bytes": 3303120,
+      "sourceBytes": 3303120
+    },
+    "2010_toro_rosso_str5": {
+      "signature": "v2:4:3414472:5242880:79c3b6c3799d9aad7655049394351a0a3d4f3d3f71519767648a6b5dd175377a",
+      "copied": true,
+      "bytes": 3414472,
+      "sourceBytes": 3414472
+    },
+    "2010_virgin_vr01": {
+      "signature": "v2:4:3046084:5242880:85fc1f3b9fbc038b5251f69414d1f5ba24ab7fe8192cdfda7dac0c6581ef07f6",
+      "copied": true,
+      "bytes": 3046084,
+      "sourceBytes": 3046084
+    },
+    "2010_williams_fw32": {
+      "signature": "v2:4:3215008:5242880:45ffb045c1b572e6a78d21d4a592c4871dd23a0767fd3d554ee61cbea05d8fae",
+      "copied": true,
+      "bytes": 3215008,
+      "sourceBytes": 3215008
+    },
+    "2013_caterham_ct03": {
+      "signature": "v2:4:3457756:5242880:48fa18a956b73a49ab9832b9907c0d6a69300f251cb06253faecf0782f898d7a",
+      "copied": true,
+      "bytes": 3457756,
+      "sourceBytes": 3457756
+    },
+    "2013_ferrari_f138": {
+      "signature": "v2:4:3366856:5242880:d976f7f30c4cbabe6c3aa0b44fd38e65217e77437df52535370e33471e4acee0",
+      "copied": true,
+      "bytes": 3366856,
+      "sourceBytes": 3366856
+    },
+    "2013_force_india_vjm06": {
+      "signature": "v2:4:3467956:5242880:fc8a3cadeaa9ee47fda0ec6e063d69e01453cba83df0e30471e921a40d9451a0",
+      "copied": true,
+      "bytes": 3467956,
+      "sourceBytes": 3467956
+    },
+    "2013_lotus_e21": {
+      "signature": "v2:4:3756204:5242880:7b736e3dc40cae8c4476c19fbf9cbf05bf67a59fb754998201ffddae20387ad8",
+      "copied": true,
+      "bytes": 3756204,
+      "sourceBytes": 3756204
+    },
+    "2013_marussia_mr02": {
+      "signature": "v2:4:3489120:5242880:de69e361043ae2b8d22a5877cdf47233ca9902338d3858bb436aff0f90850771",
+      "copied": true,
+      "bytes": 3489120,
+      "sourceBytes": 3489120
+    },
+    "2013_mclaren_mp4-28": {
+      "signature": "v2:4:3897460:5242880:5fa92e77f2b978dc2bf2e5683145128f4bd035d93190ddcae9efb225ef2c66e7",
+      "copied": true,
+      "bytes": 3897460,
+      "sourceBytes": 3897460
+    },
+    "2013_mercedes_w04": {
+      "signature": "v2:4:3587056:5242880:9bee60c5022f95840e6372683e0f051d1a32091de879961eb80fd5354b10bda6",
+      "copied": true,
+      "bytes": 3587056,
+      "sourceBytes": 3587056
+    },
+    "2013_redbull_rb9": {
+      "signature": "v2:4:3610760:5242880:e40c0f3770020ef812e0bcaa2da0e3ca61e5359be2331c0a055a5f60163786d2",
+      "copied": true,
+      "bytes": 3610760,
+      "sourceBytes": 3610760
+    },
+    "2013_sauber_c32": {
+      "signature": "v2:4:3422440:5242880:16b83e1f2a1bec9311b3dfc39e54de8a0eeb6d3af0407163f389a3fe83aa16fd",
+      "copied": true,
+      "bytes": 3422440,
+      "sourceBytes": 3422440
+    },
+    "2013_toro_rosso_str8": {
+      "signature": "v2:4:3580872:5242880:4129db1515fe857a80d13f8acb2260aa25d14df1e020912f9943340bfec9012f",
+      "copied": true,
+      "bytes": 3580872,
+      "sourceBytes": 3580872
+    },
+    "2013_williams_fw35": {
+      "signature": "v2:4:3548808:5242880:94d8cf1cbcbca37339c1b68ecf68339998893202a2e0f7d72fdafd22725a1062",
+      "copied": true,
+      "bytes": 3548808,
+      "sourceBytes": 3548808
     }
   }
 }
