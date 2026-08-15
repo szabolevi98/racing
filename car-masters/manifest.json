@@ -1,7 +1,7 @@
 {
   "version": 4,
   "targetMb": 15,
-  "generatedAt": "2026-08-13T10:14:21.203Z",
+  "generatedAt": "2026-08-15T09:03:07.097Z",
   "cars": {
     "2008_bmw_sauber_f1.08": {
       "signature": "v2:4:41196616:15728640:053203ef9a6dbcd1e218761c0e6e868b30e208db12e8809d8a9872706892abf7",
@@ -973,6 +973,324 @@
       "triangles": 275868,
       "imageBytes": 3361942,
       "geometryBytes": 6449256
+    },
+    "1982_porsche_956_jagermeister": {
+      "signature": "v2:4:59563376:15728640:51181fe7e2a5cf2f7888617905d5b7667c03f70b6c45673cce3a727f979b4f1a",
+      "geometry": {
+        "ratio": 0.5,
+        "error": 0.01,
+        "cost": 5
+      },
+      "texture": {
+        "limit": 2048,
+        "quality": 9,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 15422852,
+      "sourceBytes": 59563376,
+      "triangles": 592126,
+      "imageBytes": 2505888,
+      "geometryBytes": 12866288
+    },
+    "1984_mercedes_190e": {
+      "signature": "v2:4:26674540:15728640:df81ec08dd3fff6aa6e37f384e3c22099031992336dd875c38bc38411b2bff8c",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "textúra",
+      "bytes": 12520216,
+      "sourceBytes": 26674540,
+      "triangles": 185750,
+      "imageBytes": 7604426,
+      "geometryBytes": 4841448
+    },
+    "1999_arrows_a20": {
+      "signature": "v2:4:32128644:15728640:2e8a1a39b4289c945abdb0aa0f8f47efd8bbca05e1e700ba5abd5c06ada9bb9c",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 12804808,
+      "sourceBytes": 32128644,
+      "triangles": 331695,
+      "imageBytes": 5622146,
+      "geometryBytes": 7000002
+    },
+    "2001_minardi_ps01": {
+      "signature": "v2:4:52665900:15728640:d831d99c6c35274cd6d7f42f99816995f439c2c28bb73b25a5e75d2a1e6aeed8",
+      "geometry": {
+        "ratio": 0.85,
+        "error": 0.002,
+        "cost": 1
+      },
+      "texture": {
+        "limit": 2048,
+        "quality": 9,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 15079752,
+      "sourceBytes": 52665900,
+      "triangles": 628374,
+      "imageBytes": 2807098,
+      "geometryBytes": 12115924
+    },
+    "2009_bmw_sauber_f1.09": {
+      "signature": "v2:4:46758020:15728640:20127c75afd6c81d63ee511112d371916ba3d3ae8636a8b0c335522419e4b3d5",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 15432424,
+      "sourceBytes": 46758020,
+      "triangles": 472845,
+      "imageBytes": 5985868,
+      "geometryBytes": 9277578
+    },
+    "2009_ferrari_f60": {
+      "signature": "v2:4:53058268:15728640:381eefec2740454500dd65445c628612008e98a9cd0769bed798729ebe876313",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 2048,
+        "quality": 9,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 15691416,
+      "sourceBytes": 53058268,
+      "triangles": 574955,
+      "imageBytes": 4588178,
+      "geometryBytes": 10959878
+    },
+    "2009_toro_rosso_str4": {
+      "signature": "v2:4:53427960:15728640:1e73d091271ce312e2fc2d19de06e941de2db84c33f7f65db85b26831fcef845",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 2048,
+        "quality": 9,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 15530672,
+      "sourceBytes": 53427960,
+      "triangles": 528666,
+      "imageBytes": 4757062,
+      "geometryBytes": 10591560
+    },
+    "2012_ferrari_f2012_aeromaxxed": {
+      "signature": "v2:4:22707920:15728640:4bcf3a0ee8a8b5bf1b24797b5913c19be515d1108b6dff6609a9176874d1c2c5",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "textúra",
+      "bytes": 12139020,
+      "sourceBytes": 22707920,
+      "triangles": 98823,
+      "imageBytes": 9580836,
+      "geometryBytes": 2464360
+    },
+    "2015_bentley_continental_gt3-r": {
+      "signature": "v2:4:38329184:15728640:a202cc0bc6bf133e30ccd3b1ec1bccb471efdc277b4609872e705a12b1da5a89",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "preserve": true,
+        "cost": 0
+      },
+      "limitedBy": "geometria",
+      "bytes": 7731536,
+      "sourceBytes": 38329184,
+      "triangles": 180529,
+      "imageBytes": 3286684,
+      "geometryBytes": 4170058
+    },
+    "2018_bmw_m8_gte": {
+      "signature": "v2:4:21857768:15728640:215c8695e399ffcd75762718569f96e134fdec6a89ac14bc42c4c1cb8dc9c0d2",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "preserve": true,
+        "cost": 0
+      },
+      "limitedBy": "textúra",
+      "bytes": 14166316,
+      "sourceBytes": 21857768,
+      "triangles": 215578,
+      "imageBytes": 9025939,
+      "geometryBytes": 5043654
+    },
+    "2018_nissan_gt-r_nismo_gt3": {
+      "signature": "v2:4:23207584:15728640:78fd487edcb54ba98e73ce437250ab5a81554f723416cb9e685cc95452cb435b",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "preserve": true,
+        "cost": 0
+      },
+      "limitedBy": "geometria",
+      "bytes": 10544908,
+      "sourceBytes": 23207584,
+      "triangles": 289853,
+      "imageBytes": 4701306,
+      "geometryBytes": 5725046
+    },
+    "2020_audi_r8_lms_evo": {
+      "signature": "v2:4:29884904:15728640:82ae372fb3f94f167825d709310b60ca4a70298c879a87c4a13b30f87662051c",
+      "geometry": {
+        "ratio": 0.85,
+        "error": 0.002,
+        "cost": 1
+      },
+      "texture": {
+        "preserve": true,
+        "cost": 0
+      },
+      "limitedBy": "textúra",
+      "bytes": 15074112,
+      "sourceBytes": 29884904,
+      "triangles": 285724,
+      "imageBytes": 9223079,
+      "geometryBytes": 5664806
+    },
+    "2020_mclaren_720s_gt3": {
+      "signature": "v2:4:47269040:15728640:aef85fd9e90310e42ed13b37dec20775a2949c5f12c0cef0bec1796d3c6129e1",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 9,
+        "cost": 2
+      },
+      "limitedBy": "geometria",
+      "bytes": 14994048,
+      "sourceBytes": 47269040,
+      "triangles": 473493,
+      "imageBytes": 4610014,
+      "geometryBytes": 10226386
+    },
+    "2020_mercedes-amg_gt3_evo": {
+      "signature": "v2:4:23397968:15728640:358612807e78b1adfe8571e4ac36208e82aa65fd474ae9e58478a4e59490a44d",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "preserve": true,
+        "cost": 0
+      },
+      "limitedBy": "geometria",
+      "bytes": 9835612,
+      "sourceBytes": 23397968,
+      "triangles": 302984,
+      "imageBytes": 3922967,
+      "geometryBytes": 5760644
+    },
+    "2022_full_carbon_bmw_m4_gt3_g82": {
+      "signature": "v2:4:49936332:15728640:a122cf063f032ce6f643cb6fa99adaa5bf11a58b47b7b68cd31e55e80e09c749",
+      "geometry": {
+        "ratio": 0.65,
+        "error": 0.006,
+        "cost": 3
+      },
+      "texture": {
+        "limit": 2048,
+        "quality": 8,
+        "cost": 2
+      },
+      "limitedBy": "geometria",
+      "bytes": 15393800,
+      "sourceBytes": 49936332,
+      "triangles": 396240,
+      "imageBytes": 4533846,
+      "geometryBytes": 10798644
+    },
+    "2024_porsche_992_gt3_r": {
+      "signature": "v2:4:39967176:15728640:087f4440f8f36e25f1059878ca022c7daa41fbf375b39e8db615232d5d0822bd",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 12658352,
+      "sourceBytes": 39967176,
+      "triangles": 489304,
+      "imageBytes": 3769160,
+      "geometryBytes": 8748320
+    },
+    "2025_xiaomi_su7_ultra": {
+      "signature": "v2:4:49945232:15728640:96fbbf4c2db33d0fbec60583dbc5c83935594837b40a61a94b46cb20f6b22428",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 9,
+        "cost": 2
+      },
+      "limitedBy": "geometria",
+      "bytes": 15052396,
+      "sourceBytes": 49945232,
+      "triangles": 469387,
+      "imageBytes": 6065014,
+      "geometryBytes": 8886618
     }
   }
 }
