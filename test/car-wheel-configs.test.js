@@ -51,3 +51,28 @@ test('Mercedes AMG GT3 Evo wheel rig excludes its wheelhouse and calipers', () =
   assert.equal(config.wheelPattern, 'tyre|rim|disc');
   assert.doesNotMatch(config.wheelPattern, /wheel|caliper/i);
 });
+
+// Az F2004 az alapértelmezett kocsi, ezért a hibái mindenkinek feltűnnek. A
+// node-jai f2004_wheel_fl_1 / _fr_2 / _rl_3 / _rr_4 néven futnak, és a puszta
+// 'wheel' minta a sarok mind a hat gyerekét megfogta — köztük a fékhűtő
+// terelőt és a féknyerget is, amik az álló felfüggesztésre vannak szerelve.
+// A felhasználó ezt élőben jelezte: az első kerék belsején lévő karbon terelő
+// együtt forgott a kerékkel.
+test('the F2004 rotates only the four parts that really spin', () => {
+  const config = JSON.parse(fs.readFileSync(
+    new URL('../web/assets/cars/2004_ferrari_f2004.json', import.meta.url),
+    'utf8'
+  ));
+  assert.equal(config.wheelPattern, 'disc|side|tread|rim');
+  const pattern = new RegExp(config.wheelPattern, 'i');
+  // Ami forog: fékkorong, oldalfal, futófelület, felni.
+  for (const material of ['Disclf0021Mtl', 'Sidelrside01Mtl', 'Treadlrtread01Mtl', 'Rimlfsub01Mtl']) {
+    assert.ok(pattern.test(material), `${material} a kerékkel forog, meg kell fogni`);
+  }
+  // Ami nem: a fékhűtő terelő (elöl/hátul) és a féknyereg.
+  for (const material of ['Airlf1Mtl', 'Airrf1Mtl', 'Cylinder0171Mtl', 'Cylinder0301Mtl', '2krrcala1Mtl']) {
+    assert.ok(!pattern.test(material), `${material} az álló felfüggesztésen ül, nem foroghat`);
+  }
+  // A node-név a hatos csoport miatt tilos.
+  assert.ok(!pattern.test('f2004_wheel_fl_1'), 'a node-névre illeszkedve újra mind a hat darab bekerülne');
+});
