@@ -13,7 +13,7 @@
 <div id="loading">
   <div class="text-center" style="width: min(320px, 80vw);">
     <div class="spinner-border text-primary mb-3" role="status"></div>
-    <div id="loadingText">Betöltés...</div>
+    <div id="loadingText" data-i18n="loading.text">Betöltés...</div>
     <div class="progress mt-3" style="height: 6px;">
       <div id="loadingBar" class="progress-bar" role="progressbar" style="width: 0%;"></div>
     </div>
@@ -23,55 +23,65 @@
 
 <div id="orientationPrompt" role="status" aria-live="polite">
   <div class="orientation-phone" aria-hidden="true">📱</div>
-  <div>Fordítsd el a készüléket fekvő nézetbe a megfelelő élményhez!</div>
+  <div data-i18n="orientation.rotate">Fordítsd el a készüléket fekvő nézetbe a megfelelő élményhez!</div>
 </div>
 
 <div id="menu">
  <div class="menu-inner p-4 p-md-5">
   <h1>Levente Racing</h1>
-  <div class="menu-sub">Körverseny</div>
+  <div class="menu-sub" data-i18n="menu.subtitle">Körverseny</div>
+
+  <div id="langRow">
+    <span id="langLabel" class="lbl" data-i18n="menu.language">Nyelv</span>
+    <div id="langButtons" role="group" data-i18n-aria-label="menu.language" aria-label="Nyelv"></div>
+  </div>
 
   <div class="menu-primary-fields">
     <div class="menu-map-field mb-3">
-      <label for="mapSelect" class="form-label lbl">Pálya <span id="mapCount" class="lbl-count"></span></label>
+      <label for="mapSelect" class="form-label lbl"><span data-i18n="menu.map">Pálya</span> <span id="mapCount" class="lbl-count"></span></label>
       <select id="mapSelect" class="form-select" disabled></select>
     </div>
 
     <div id="trackAlert" class="track-alert hidden" role="status" aria-live="polite"></div>
 
     <div class="menu-car-field mb-3">
-      <label for="carSelect" class="form-label lbl">Kocsi <span id="carCount" class="lbl-count"></span></label>
+      <label for="carSelect" class="form-label lbl"><span data-i18n="menu.car">Kocsi</span> <span id="carCount" class="lbl-count"></span></label>
       <select id="carSelect" class="form-select" disabled></select>
     </div>
   </div>
 
   <div class="row g-3 mb-4">
     <div class="col-7">
-      <label for="envSelect" class="form-label lbl">Környezet</label>
+      <label for="envSelect" class="form-label lbl" data-i18n="menu.environment">Környezet</label>
       <select id="envSelect" class="form-select" disabled></select>
     </div>
     <div class="col-5">
-      <label for="lapCountSelect" class="form-label lbl">Körök</label>
+      <label for="lapCountSelect" class="form-label lbl" data-i18n="menu.laps">Körök</label>
       <select id="lapCountSelect" class="form-select">
         <option value="1">1</option>
         <option value="2">2</option>
         <option value="3" selected>3</option>
+        <option value="4">4</option>
         <option value="5">5</option>
+        <option value="6">6</option>
+        <option value="7">7</option>
+        <option value="8">8</option>
+        <option value="9">9</option>
         <option value="10">10</option>
       </select>
     </div>
   </div>
 
   <div id="modeButtons" class="mode-buttons">
-    <button id="startBtn" class="btn-race btn-solo" disabled>Egyjátékos</button>
+    <button id="startBtn" class="btn-race btn-solo" data-i18n="menu.solo" disabled>Egyjátékos</button>
   </div>
   <label class="ghost-mode-option" for="ghostModeCheckbox">
     <input id="ghostModeCheckbox" type="checkbox">
-    <span><strong>Ghost mód</strong><small>Többjátékos módban az autók nem ütköznek egymással.</small></span>
+    <span><strong data-i18n="menu.ghostMode">Ghost mód</strong><small data-i18n="menu.ghostModeHint">Többjátékos módban az autók nem ütköznek egymással.</small></span>
   </label>
   <label class="ghost-mode-option" for="mandatoryPitStopCheckbox">
     <input id="mandatoryPitStopCheckbox" type="checkbox">
-    <span><strong>Kötelező kerékcsere</strong><small id="mandatoryPitStopHint">Kötelező kiállás egy- és többjátékos módban.</small></span>
+    <span><strong data-i18n="menu.pitStop">Kötelező kerékcsere</strong><small id="mandatoryPitStopHint">Kötelező kiállás egy- és többjátékos módban.</small></span>
   </label>
   <div id="menuStatus" class="text-center mt-3">
     <div id="menuStatusText" role="status" aria-live="polite"></div>
@@ -88,42 +98,42 @@
 <div id="hud" class="hidden">
   <div id="topLeft">
     <div class="tl-bar">
-      <div id="backToMenuLink" role="button">← Vissza a menübe</div>
-      <button id="helpBtn" type="button" title="Irányítás" aria-label="Irányítás">i</button>
+      <div id="backToMenuLink" role="button" data-i18n="hud.backToMenu">← Vissza a menübe</div>
+      <button id="helpBtn" type="button" data-i18n-title="hud.controls" data-i18n-aria-label="hud.controls" title="Irányítás" aria-label="Irányítás">i</button>
     </div>
 
     <div id="helpPanel" class="panel hidden">
-      <h6>Irányítás</h6>
+      <h6 data-i18n="hud.controls">Irányítás</h6>
       <div class="help-desktop">
-      <div class="help-row"><span>Gyorsítás</span>
+      <div class="help-row"><span data-i18n="hud.accelerate">Gyorsítás</span>
         <span class="help-keys"><kbd class="k">W</kbd><span class="sep">/</span><kbd class="k">↑</kbd></span></div>
-      <div class="help-row"><span>Fék / tolatás</span>
+      <div class="help-row"><span data-i18n="hud.brake">Fék / tolatás</span>
         <span class="help-keys"><kbd class="k">S</kbd><span class="sep">/</span><kbd class="k">↓</kbd></span></div>
-      <div class="help-row"><span>Kormányzás</span>
+      <div class="help-row"><span data-i18n="hud.steering">Kormányzás</span>
         <span class="help-keys"><kbd class="k">A</kbd><kbd class="k">D</kbd>
           <span class="sep">/</span><kbd class="k">←</kbd><kbd class="k">→</kbd></span></div>
-      <div class="help-row"><span>Kézifék</span>
+      <div class="help-row"><span data-i18n="hud.handbrake">Kézifék</span>
         <span class="help-keys"><kbd class="k">Space</kbd></span></div>
-      <div class="help-row"><span>Kamera</span>
+      <div class="help-row"><span data-i18n="touch.camera">Kamera</span>
         <span class="help-keys"><kbd class="k">C</kbd></span></div>
-      <div class="help-row"><span>Vissza a pályára</span>
+      <div class="help-row"><span data-i18n="hud.backOnTrack">Vissza a pályára</span>
         <span class="help-keys"><kbd class="k">R</kbd></span></div>
-      <div class="help-row"><span>Körbenézés</span>
-        <span class="help-keys"><kbd class="k">jobb egér</kbd></span></div>
-      <div class="help-row"><span>Némítás</span>
+      <div class="help-row"><span data-i18n="hud.lookAround">Körbenézés</span>
+        <span class="help-keys"><kbd class="k" data-i18n="hud.rightMouse">jobb egér</kbd></span></div>
+      <div class="help-row"><span data-i18n="hud.mute">Némítás</span>
         <span class="help-keys"><kbd class="k">M</kbd></span></div>
       </div>
       <div class="help-mobile">
-        <div class="help-row"><span>Bal / jobb gomb</span><span>Kormányzás</span></div>
-        <div class="help-row"><span>Gáz / fék gomb</span><span>Gyorsítás / fékezés</span></div>
-        <div class="help-row"><span>Üres játéktér</span><span>Körbenézés</span></div>
-        <div class="help-row"><span>Kamera / 🔊 / ↻</span><span>Nézet / hang / reset</span></div>
-        <div class="help-row"><span>Kézifék</span><span>Csúsztatás</span></div>
+        <div class="help-row"><span data-i18n="touch.leftRightButton">Bal / jobb gomb</span><span data-i18n="hud.steering">Kormányzás</span></div>
+        <div class="help-row"><span data-i18n="touch.gasBrakeButton">Gáz / fék gomb</span><span data-i18n="touch.accelerateBrake">Gyorsítás / fékezés</span></div>
+        <div class="help-row"><span data-i18n="touch.emptyArea">Üres játéktér</span><span data-i18n="hud.lookAround">Körbenézés</span></div>
+        <div class="help-row"><span data-i18n="touch.cameraSoundReset">Kamera / 🔊 / ↻</span><span data-i18n="touch.viewSoundReset">Nézet / hang / reset</span></div>
+        <div class="help-row"><span data-i18n="hud.handbrake">Kézifék</span><span data-i18n="touch.drift">Csúsztatás</span></div>
       </div>
       <div class="volume-control">
-        <label for="volumeSlider">Hangerő</label>
+        <label for="volumeSlider" data-i18n="hud.volume">Hangerő</label>
         <output id="volumeValue" for="volumeSlider">100%</output>
-        <input id="volumeSlider" type="range" min="0" max="100" step="1" value="100" aria-label="Játék hangereje">
+        <input id="volumeSlider" type="range" min="0" max="100" step="1" value="100" data-i18n-aria-label="hud.gameVolume" aria-label="Játék hangereje">
       </div>
     </div>
 
@@ -157,34 +167,34 @@
     </div>
   </div>
 
-  <div id="touchControls" aria-label="Mobilos irányítás">
-    <div class="touch-steering-buttons" aria-label="Kormányzás">
+  <div id="touchControls" data-i18n-aria-label="touch.title" aria-label="Mobilos irányítás">
+    <div class="touch-steering-buttons" data-i18n-aria-label="hud.steering" aria-label="Kormányzás">
       <button class="touch-btn touch-steer touch-steer-left" type="button"
-              data-touch-key="KeyA" aria-label="Kormányzás balra">
-        <span class="touch-icon" aria-hidden="true">◀</span><span class="touch-label" aria-hidden="true">Bal</span>
+              data-touch-key="KeyA" data-i18n-aria-label="touch.steerLeft" aria-label="Kormányzás balra">
+        <span class="touch-icon" aria-hidden="true">◀</span><span class="touch-label" aria-hidden="true" data-i18n="touch.left">Bal</span>
       </button>
       <button class="touch-btn touch-steer touch-steer-right" type="button"
-              data-touch-key="KeyD" aria-label="Kormányzás jobbra">
-        <span class="touch-icon" aria-hidden="true">▶</span><span class="touch-label" aria-hidden="true">Jobb</span>
+              data-touch-key="KeyD" data-i18n-aria-label="touch.steerRight" aria-label="Kormányzás jobbra">
+        <span class="touch-icon" aria-hidden="true">▶</span><span class="touch-label" aria-hidden="true" data-i18n="touch.right">Jobb</span>
       </button>
     </div>
 
-    <div class="touch-utility" aria-label="Kiegészítő vezérlés">
-      <button class="touch-btn touch-small" type="button" data-touch-action="camera" aria-label="Kameranézet váltása">Kamera</button>
-      <button class="touch-btn touch-small touch-mute" type="button" data-touch-action="mute" aria-label="Némítás">🔊</button>
-      <button class="touch-btn touch-small" type="button" data-touch-action="reset" aria-label="Visszaállítás a pályára">↻</button>
+    <div class="touch-utility" data-i18n-aria-label="touch.utility" aria-label="Kiegészítő vezérlés">
+      <button class="touch-btn touch-small" type="button" data-touch-action="camera" data-i18n-aria-label="touch.cameraSwitch" data-i18n="touch.camera" aria-label="Kameranézet váltása">Kamera</button>
+      <button class="touch-btn touch-small touch-mute" type="button" data-touch-action="mute" data-i18n-aria-label="hud.mute" aria-label="Némítás">🔊</button>
+      <button class="touch-btn touch-small" type="button" data-touch-action="reset" data-i18n-aria-label="touch.reset" aria-label="Visszaállítás a pályára">↻</button>
     </div>
 
-    <div class="touch-pedals" aria-label="Pedálok">
+    <div class="touch-pedals" data-i18n-aria-label="touch.pedals" aria-label="Pedálok">
       <div class="touch-pedal-row">
-        <button class="touch-btn touch-drive touch-brake" type="button" data-touch-key="KeyS" aria-label="Fék">
-          <span class="touch-icon" aria-hidden="true">▼</span><span class="touch-label" aria-hidden="true">Fék</span>
+        <button class="touch-btn touch-drive touch-brake" type="button" data-touch-key="KeyS" data-i18n-aria-label="touch.brake" aria-label="Fék">
+          <span class="touch-icon" aria-hidden="true">▼</span><span class="touch-label" aria-hidden="true" data-i18n="touch.brake">Fék</span>
         </button>
-        <button class="touch-btn touch-drive touch-gas" type="button" data-touch-key="KeyW" aria-label="Gáz">
-          <span class="touch-icon" aria-hidden="true">▲</span><span class="touch-label" aria-hidden="true">Gáz</span>
+        <button class="touch-btn touch-drive touch-gas" type="button" data-touch-key="KeyW" data-i18n-aria-label="touch.gas" aria-label="Gáz">
+          <span class="touch-icon" aria-hidden="true">▲</span><span class="touch-label" aria-hidden="true" data-i18n="touch.gas">Gáz</span>
         </button>
       </div>
-      <button class="touch-btn touch-handbrake" type="button" data-touch-key="Space">Kézifék</button>
+      <button class="touch-btn touch-handbrake" type="button" data-touch-key="Space" data-i18n="hud.handbrake">Kézifék</button>
     </div>
   </div>
 </div>
@@ -194,9 +204,9 @@
 </div>
 
 <div id="leaderboardWrap" class="panel hidden">
-  <span class="lbl">Leggyorsabb körök</span>
+  <span class="lbl" data-i18n="leaderboard.title">Leggyorsabb körök</span>
   <div id="leaderboardBody"></div>
-  <div class="lb-foot">Csak a többjátékos mód körei számítanak</div>
+  <div class="lb-foot" data-i18n="leaderboard.multiplayerOnly">Csak a többjátékos mód körei számítanak</div>
 </div>
 
 <!-- Checkpointonkénti különbség a viszonyítási körhöz képest. Rövid életű. -->
@@ -207,13 +217,13 @@
 
 <div id="alertStack">
   <div id="waitingPlayersAlert" class="top-center-alert hidden">
-    <div class="alert-pill warn" id="waitingPlayersAlertText">Várakozás a rajtra…</div>
+    <div class="alert-pill warn" id="waitingPlayersAlertText" data-i18n="alert.waitingForStart">Várakozás a rajtra…</div>
   </div>
   <div id="lapInvalidAlert" class="top-center-alert hidden">
-    <div class="alert-pill warn" id="lapInvalidAlertText">Kör érvénytelen!</div>
+    <div class="alert-pill warn" id="lapInvalidAlertText" data-i18n="alert.lapInvalid">Kör érvénytelen!</div>
   </div>
   <div id="pitStopAlert" class="top-center-alert hidden">
-    <div class="alert-pill warn" id="pitStopAlertText">⚠ KÖTELEZŐ KERÉKCSERE</div>
+    <div class="alert-pill warn" id="pitStopAlertText" data-i18n="alert.pitStopRequired">⚠ KÖTELEZŐ KERÉKCSERE</div>
   </div>
   <div id="rolloverAlert" class="top-center-alert hidden">
     <div class="alert-pill danger" id="rolloverAlertText"></div>
@@ -225,15 +235,15 @@
   <!-- Célba érés után: kit nézünk, és hogyan váltunk. Csak többjátékosban. -->
   <div id="spectateBar" class="hidden">
     <span class="spec-eye" aria-hidden="true">👁</span>
-    <span class="spec-who"><span class="spec-lbl">Nézőben</span><span id="spectateName" class="spec-name">—</span></span>
-    <button id="spectateNext" class="spec-next" type="button" aria-label="Következő játékos">
+    <span class="spec-who"><span class="spec-lbl" data-i18n="spectate.watching">Nézőben</span><span id="spectateName" class="spec-name">—</span></span>
+    <button id="spectateNext" class="spec-next" type="button" data-i18n-aria-label="spectate.nextPlayer" aria-label="Következő játékos">
       Következő <kbd>V</kbd>
     </button>
   </div>
 
   <!-- Az első befutó után indul; mindenki látja, a célba értek is. -->
   <div id="finishTimer" class="hidden" role="status" aria-live="off">
-    <span class="ft-label">A verseny véget ér</span>
+    <span class="ft-label" data-i18n="finish.raceEndsIn">A verseny véget ér</span>
     <span id="finishTimerValue" class="ft-value num">60.0</span>
   </div>
 </div>
@@ -246,11 +256,11 @@
 
 <div id="results" class="hidden">
   <div class="panel results-card">
-    <div class="results-title">Verseny vége</div>
+    <div class="results-title" data-i18n="results.title">Verseny vége</div>
     <div id="resultsBody"></div>
     <div class="d-flex gap-2 mt-4">
-      <button id="resultsRestartBtn" class="mp-btn primary flex-grow-1">Újra</button>
-      <button id="resultsMenuBtn" class="mp-btn ghost">Menü</button>
+      <button id="resultsRestartBtn" class="mp-btn primary flex-grow-1" data-i18n="results.restart">Újra</button>
+      <button id="resultsMenuBtn" class="mp-btn ghost" data-i18n="results.menu">Menü</button>
     </div>
   </div>
 </div>

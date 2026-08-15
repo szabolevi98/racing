@@ -5,6 +5,7 @@ import WebSocket from 'ws';
 import { attachWebSocket, roomStats } from '../server/net/wsServer.js';
 import { getManifest } from '../server/assets.js';
 import { C2S, S2C } from '../shared/protocol.js';
+import { ERR } from '../shared/errorCodes.js';
 
 function waitFor(ws, predicate, timeoutMs = 5_000) {
   return new Promise((resolve, reject) => {
@@ -177,8 +178,9 @@ test('movement waits for a canonical ready state and keeps its server grid posit
     await waitFor(ws, (message) => message.type === S2C.SNAPSHOT
       && message.cars?.some((car) => car.id === welcome.playerId && car.rd === false));
 
+    // A szerver kódot küld, nem kész szöveget — a fordítás a kliensé.
     const missingStateError = waitFor(ws, (message) => message.type === S2C.ERROR
-      && /kezdőállapot szükséges/i.test(message.message));
+      && message.code === ERR.READY_NEEDS_STATE);
     ws.send(JSON.stringify({ type: C2S.SET_READY, ready: true }));
     await missingStateError;
 

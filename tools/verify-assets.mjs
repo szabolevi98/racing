@@ -5,6 +5,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PIPELINE_VERSION, sourceSignature } from './build-remote-cars.mjs';
+// A nyelvlista egyetlen forrásból jön: ha új nyelv kerül a lang.js-be, ez az
+// ellenőrzés magától elkezdi számonkérni a pálya-figyelmeztetéseken is.
+import { SUPPORTED_LANGUAGES } from '../web/lang.js';
+
+const SUPPORTED_LANGUAGE_CODES = SUPPORTED_LANGUAGES.map((l) => l.code);
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ASSETS_DIR = path.join(ROOT, 'web', 'assets');
@@ -347,9 +352,17 @@ async function verifyMap(id) {
   const alertFile = path.join(dir, 'alert.json');
   if (await exists(alertFile)) {
     const alert = await readJson(alertFile, `Pálya ${id}/alert.json`);
-    if (alert && (!['success', 'warning', 'danger'].includes(String(alert.type).toLowerCase())
-      || typeof alert.message !== 'string' || !alert.message.trim())) {
-      reportError(`Pálya ${id}/alert.json`, 'type: success/warning/danger és nem üres message szükséges');
+    // A message nyelvenkénti objektum: { hu: '…', en: '…' }. MINDEN támogatott
+    // nyelvnek kell benne lennie, különben a játékos üres figyelmeztetést lát.
+    const message = alert?.message;
+    const hianyzo = SUPPORTED_LANGUAGE_CODES.filter(
+      (code) => typeof message?.[code] !== 'string' || !message[code].trim(),
+    );
+    if (alert && !['success', 'warning', 'danger'].includes(String(alert.type).toLowerCase())) {
+      reportError(`Pálya ${id}/alert.json`, 'type: success/warning/danger szükséges');
+    }
+    if (alert && hianyzo.length) {
+      reportError(`Pálya ${id}/alert.json`, `message hiányzik ezeken a nyelveken: ${hianyzo.join(', ')}`);
     }
   }
 }

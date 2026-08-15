@@ -16,10 +16,21 @@ import {
 } from '/shared/remoteVisual.js';
 import { createPitState, hasCompletePitConfig, updatePitState } from '/shared/pit.js';
 import { smoothPing } from '/shared/ping.js';
+import { t, hasKey, onLanguageChange, applyToDom } from './lang.js';
 import {
   NET_DIAG_CONNECTION, NET_DIAG_EVENT, NET_DIAG_INCIDENT, NET_DIAG_RACE_STAGE,
   netDiagnostics,
 } from './netDiagnostics.js';
+
+// A szerver kódot küld (shared/errorCodes.js), a szöveg itt születik a
+// játékos nyelvén. A `detail` technikai adat (kivételszöveg, üzenettípus),
+// azt nem fordítjuk, csak hozzáfűzzük.
+function serverText(m) {
+  const key = m.code ? `server.${m.code}` : null;
+  if (key && hasKey(key)) return t(key) + (m.detail || '');
+  // Ismeretlen kód esetén inkább a nyers szöveg, mint semmi.
+  return m.message || m.reason || m.code || '';
+}
 
 const G = window.__game;
 // Diagnosztika. A step() azért kell, mert a requestAnimationFrame megáll, ha
@@ -137,9 +148,9 @@ function ghostSplits() {
 function splitReference() {
   if (isHotLap()) {
     const splits = ghostSplits();
-    if (splits?.length) return { splits, label: ghostCar.name || 'Szellem' };
+    if (splits?.length) return { splits, label: ghostCar.name || t('mp.ghost') };
   }
-  if (prevLapSplits?.length) return { splits: prevLapSplits, label: 'Előző kör' };
+  if (prevLapSplits?.length) return { splits: prevLapSplits, label: t('mp.prevLap') };
   return null;
 }
 
@@ -162,8 +173,8 @@ function hideSplitDelta() {
 
 function setWaitingPlayersAlert(visible, waiting = []) {
   waitingPlayersAlertTextEl.textContent = waiting.length
-    ? `Várakozás a többiekre: ${waiting.join(', ')}…`
-    : 'Várakozás a rajtra…';
+    ? t('mp.waitingForOthers', { names: waiting.join(', ') })
+    : t('mp.waitingForStart');
   waitingPlayersAlertEl.classList.toggle('hidden', !visible);
   const diagnostic = visible ? `1:${waiting.length}` : '0';
   if (diagnostic !== lastWaitingDiagnostic) {
@@ -210,93 +221,93 @@ el.innerHTML = `
 <div class="mp-panel">
   <div class="mp-head">
     <h5 id="mpTitle">Többjátékos</h5>
-    <button id="mpClose" class="mp-x" title="Vissza a menübe">&times;</button>
+    <button id="mpClose" class="mp-x" data-i18n-title="mp.ui.backToMenu" title="Vissza a menübe">&times;</button>
   </div>
   <div class="mp-body">
     <div id="mpLogin">
-      <label for="mpName" class="lbl d-block mb-2">Játékosnév</label>
-      <input id="mpName" class="form-control mb-3" maxlength="20" placeholder="A neved">
-      <button id="mpConnect" class="mp-btn primary w-100">Csatlakozás a szerverhez</button>
-      <div class="mp-sep">vagy meglévő profil</div>
-      <label for="mpToken" class="lbl d-block mb-2">Belépési token</label>
+      <label for="mpName" class="lbl d-block mb-2" data-i18n="mp.ui.playerName">Játékosnév</label>
+      <input id="mpName" class="form-control mb-3" maxlength="20" data-i18n-placeholder="mp.ui.yourName" placeholder="A neved">
+      <button id="mpConnect" class="mp-btn primary w-100" data-i18n="mp.ui.connect">Csatlakozás a szerverhez</button>
+      <div class="mp-sep" data-i18n="mp.ui.orExistingProfile">vagy meglévő profil</div>
+      <label for="mpToken" class="lbl d-block mb-2" data-i18n="mp.ui.loginToken">Belépési token</label>
       <div class="d-flex gap-2">
         <input id="mpToken" class="form-control mp-token-input" type="password"
                maxlength="${PLAYER_TOKEN_LENGTH}" autocomplete="off" spellcheck="false"
                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
-        <button id="mpRestore" class="mp-btn ghost mp-btn-fixed">Visszalépés</button>
+        <button id="mpRestore" class="mp-btn ghost mp-btn-fixed" data-i18n="mp.ui.restore">Visszalépés</button>
       </div>
-      <div class="mp-token-note">A token a profilod kulcsa. Akinél megvan, beléphet a profilodba.</div>
+      <div class="mp-token-note" data-i18n="mp.ui.tokenNote">A token a profilod kulcsa.</div>
     </div>
 
     <div id="mpRooms" class="hidden">
       <div class="mp-account mb-3">
-        <div class="mp-account-status">Bejelentkezve: <b id="mpWho"></b></div>
+        <div class="mp-account-status"><span data-i18n="mp.ui.loggedInAs">Bejelentkezve:</span> <b id="mpWho"></b></div>
         <div class="mp-account-panel">
           <div class="mp-account-actions">
-            <button id="mpRenameToggle" class="mp-btn ghost compact">Név átírása</button>
-            <button id="mpCopyToken" class="mp-btn ghost compact" aria-live="polite">Token másolása</button>
-            <button id="mpLogout" class="mp-btn danger compact">Kijelentkezés</button>
+            <button id="mpRenameToggle" class="mp-btn ghost compact" data-i18n="mp.ui.rename">Név átírása</button>
+            <button id="mpCopyToken" class="mp-btn ghost compact" aria-live="polite" data-i18n="mp.copyToken">Token másolása</button>
+            <button id="mpLogout" class="mp-btn danger compact" data-i18n="mp.ui.logout">Kijelentkezés</button>
           </div>
           <div id="mpRename" class="d-flex gap-2 mt-2 hidden">
-            <input id="mpRenameName" class="form-control" maxlength="20" placeholder="Új játékosnév">
-            <button id="mpRenameSave" class="mp-btn primary mp-btn-fixed">Mentés</button>
-            <button id="mpRenameCancel" class="mp-btn ghost mp-btn-fixed">Mégse</button>
+            <input id="mpRenameName" class="form-control" maxlength="20" data-i18n-placeholder="mp.ui.newName" placeholder="Új játékosnév">
+            <button id="mpRenameSave" class="mp-btn primary mp-btn-fixed" data-i18n="mp.ui.save">Mentés</button>
+            <button id="mpRenameCancel" class="mp-btn ghost mp-btn-fixed" data-i18n="mp.ui.cancel">Mégse</button>
           </div>
-          <div class="mp-token-note">A tokennel másik gépen is visszaléphetsz ebbe a profilba.</div>
+          <div class="mp-token-note" data-i18n="mp.ui.tokenNote2">A tokennel másik gépen is visszaléphetsz.</div>
         </div>
       </div>
-      <button id="mpCreate" class="mp-btn primary w-100">Új szoba létrehozása</button>
+      <button id="mpCreate" class="mp-btn primary w-100" data-i18n="mp.ui.createRoom">Új szoba létrehozása</button>
       <label class="mp-visibility" for="mpPublicRoom">
         <input id="mpPublicRoom" type="checkbox" checked>
         <span>
-          <strong>Publikus szoba</strong>
-          <small>Megjelenik a keresőben, ismeretlenek is beléphetnek. Kikapcsolva csak kóddal érhető el.</small>
+          <strong data-i18n="mp.ui.publicRoom">Publikus szoba</strong>
+          <small data-i18n="mp.ui.publicRoomHint">Megjelenik a keresőben.</small>
         </span>
       </label>
 
-      <div class="mp-sep">vagy</div>
+      <div class="mp-sep" data-i18n="mp.ui.or">vagy</div>
       <div class="mp-browse-head">
-        <span class="lbl">Szoba keresése</span>
+        <span class="lbl" data-i18n="mp.ui.browseRooms">Szoba keresése</span>
         <span id="mpBrowseCount" class="mp-browse-count"></span>
       </div>
       <div id="mpBrowseList" class="mp-browse-list">
-        <div class="mp-browse-empty">Betöltés…</div>
+        <div class="mp-browse-empty" data-i18n="leaderboard.loading">Betöltés…</div>
       </div>
       <div id="mpBrowsePager" class="mp-browse-pager hidden">
-        <button id="mpBrowsePrev" class="mp-btn ghost compact" type="button">‹ Előző</button>
+        <button id="mpBrowsePrev" class="mp-btn ghost compact" type="button" data-i18n="mp.ui.prevPage">‹ Előző</button>
         <span id="mpBrowsePage" class="mp-browse-page"></span>
-        <button id="mpBrowseNext" class="mp-btn ghost compact" type="button">Következő ›</button>
+        <button id="mpBrowseNext" class="mp-btn ghost compact" type="button" data-i18n="mp.ui.nextPage">Következő ›</button>
       </div>
 
-      <div class="mp-sep">vagy</div>
-      <label for="mpCode" class="lbl d-block mb-2">Csatlakozás kóddal</label>
+      <div class="mp-sep" data-i18n="mp.ui.or">vagy</div>
+      <label for="mpCode" class="lbl d-block mb-2" data-i18n="mp.ui.joinByCode">Csatlakozás kóddal</label>
       <div class="d-flex gap-2">
-        <input id="mpCode" class="form-control text-uppercase" maxlength="6" placeholder="SZOBAKÓD"
+        <input id="mpCode" class="form-control text-uppercase" maxlength="6" data-i18n-placeholder="mp.ui.roomCodePlaceholder" placeholder="SZOBAKÓD"
                style="letter-spacing:.16em; font-weight:700;">
-        <button id="mpJoin" class="mp-btn ghost" style="flex:none;">Belépés</button>
+        <button id="mpJoin" class="mp-btn ghost" style="flex:none;" data-i18n="mp.join">Belépés</button>
       </div>
     </div>
 
     <div id="mpRoom" class="hidden">
       <div class="mp-code-box">
         <div>
-          <span class="lbl d-block mb-2">Szobakód</span>
+          <span class="lbl d-block mb-2" data-i18n="mp.ui.roomCode">Szobakód</span>
           <span id="mpRoomCode" class="mp-code-val num"></span>
         </div>
-        <button id="mpCopy" class="mp-btn ghost" style="flex:none;" aria-live="polite">Másol</button>
+        <button id="mpCopy" class="mp-btn ghost" style="flex:none;" aria-live="polite" data-i18n="mp.copy">Másol</button>
       </div>
       <div class="mp-meta">
-        <span class="mp-chip">Pálya: <b id="mpRoomMap"></b></span>
-        <span class="mp-chip"><b id="mpRoomLaps"></b> kör</span>
-        <span class="mp-chip">Mód: <b id="mpRoomMode"></b></span>
+        <span class="mp-chip"><span data-i18n="mp.ui.trackLabel">Pálya:</span> <b id="mpRoomMap"></b></span>
+        <span class="mp-chip"><b id="mpRoomLaps"></b> <span data-i18n="mp.ui.lapsWord">kör</span></span>
+        <span class="mp-chip"><span data-i18n="mp.ui.modeLabel">Mód:</span> <b id="mpRoomMode"></b></span>
         <span class="mp-chip" id="mpRoomVisibility"></span>
       </div>
-      <span class="lbl d-block mb-2">Játékosok</span>
+      <span class="lbl d-block mb-2" data-i18n="mp.ui.players">Játékosok</span>
       <div id="mpPlayers"></div>
       <div id="mpHint" class="mp-note"></div>
       <div class="d-flex gap-2 mt-3">
-        <button id="mpStart" class="mp-btn primary flex-grow-1">Verseny indítása</button>
-        <button id="mpLeave" class="mp-btn danger">Kilépés</button>
+        <button id="mpStart" class="mp-btn primary flex-grow-1" data-i18n="mp.ui.startRace">Verseny indítása</button>
+        <button id="mpLeave" class="mp-btn danger" data-i18n="mp.ui.leave">Kilépés</button>
       </div>
     </div>
 
@@ -304,6 +315,7 @@ el.innerHTML = `
   </div>
 </div>`;
 document.body.appendChild(el);
+applyToDom(el);
 
 // A multiplayer eredmény nem tűnik el automatikusan: mindenki nyugodtan
 // megnézheti, majd kiléphet; a szoba tulajdonosa ugyanebből a panelből
@@ -313,15 +325,16 @@ mpResultsEl.id = 'mpResults';
 mpResultsEl.className = 'hidden';
 mpResultsEl.innerHTML = `
   <div class="panel mp-results-card">
-    <div id="mpResultsTitle" class="results-title">Verseny vége</div>
+    <div id="mpResultsTitle" class="results-title" data-i18n="mp.raceOver">Verseny vége</div>
     <div id="mpResultsBody"></div>
     <div id="mpResultsHint" class="mp-results-hint"></div>
     <div class="d-flex gap-2 mt-4">
-      <button id="mpResultsRestart" class="mp-btn primary flex-grow-1">Új játék</button>
-      <button id="mpResultsLeave" class="mp-btn ghost">Kilépés</button>
+      <button id="mpResultsRestart" class="mp-btn primary flex-grow-1" data-i18n="mp.newGame">Új játék</button>
+      <button id="mpResultsLeave" class="mp-btn ghost" data-i18n="mp.ui.leave">Kilépés</button>
     </div>
   </div>`;
 document.body.appendChild(mpResultsEl);
+applyToDom(mpResultsEl);
 
 // A menübeli ranglista csak tájékoztat. A Hot Lap indításakor ez a külön
 // ablak teszi egyértelművé, hogy lehet szellemet választani, de nélküle is
@@ -333,24 +346,25 @@ hotLapGhostPickerEl.innerHTML = `
   <div class="mp-panel hotlap-picker-panel">
     <div class="mp-head">
       <div>
-        <h5>Időmérés indítása</h5>
+        <h5 data-i18n="mp.ui.startHotLap">Időmérés indítása</h5>
         <div id="hotLapGhostMap" class="hotlap-picker-map"></div>
       </div>
-      <button id="hotLapGhostClose" class="mp-x" title="Bezárás">&times;</button>
+      <button id="hotLapGhostClose" class="mp-x" data-i18n-title="mp.ui.close" title="Bezárás">&times;</button>
     </div>
     <div class="mp-body">
-      <div class="hotlap-picker-intro">
-        Válassz egy visszajátszható ranglistakört szellemnek, vagy indulj egyedül.
+      <div class="hotlap-picker-intro" data-i18n="mp.ui.ghostPickerIntro">
+        Válassz egy ranglistakört szellemnek.
       </div>
       <div id="hotLapGhostList" class="hotlap-ghost-list"></div>
       <div id="hotLapGhostError" class="hotlap-picker-error"></div>
       <div class="hotlap-picker-actions">
-        <button id="hotLapGhostCancel" class="mp-btn ghost">Mégse</button>
-        <button id="hotLapGhostStart" class="mp-btn primary flex-grow-1">Időmérés indítása</button>
+        <button id="hotLapGhostCancel" class="mp-btn ghost" data-i18n="mp.ui.cancel">Mégse</button>
+        <button id="hotLapGhostStart" class="mp-btn primary flex-grow-1" data-i18n="mp.ui.startHotLap">Időmérés indítása</button>
       </div>
     </div>
   </div>`;
 document.body.appendChild(hotLapGhostPickerEl);
+applyToDom(hotLapGhostPickerEl);
 
 const $ = (id) => document.getElementById(id);
 const show = (id, on) => $(id).classList.toggle('hidden', !on);
@@ -373,7 +387,7 @@ publicRoomCheckbox.addEventListener('change', () => {
 export function openLobby() {
   closeHotLapGhostPicker();
   pendingHotLap = null;
-  $('mpTitle').textContent = 'Többjátékos';
+  $('mpTitle').textContent = t('menu.multiplayer');
   el.classList.remove('hidden');
   setErr('');
   if (ws?.readyState === WebSocket.OPEN && me.id) {
@@ -446,11 +460,11 @@ function ghostChoiceHtml(entries, selectedPlayerId) {
     '<label class="hotlap-ghost-row hotlap-ghost-none">' +
       `<input type="radio" name="hotLapGhostChoice" value=""${selectedAvailable ? '' : ' checked'}>` +
       '<span class="hotlap-ghost-rank">—</span>' +
-      '<span class="hotlap-ghost-name">Szellem nélkül</span>' +
-      '<span class="hotlap-ghost-time">Egyedül indulok</span>' +
+      `<span class="hotlap-ghost-name">${t('mp.noGhost')}</span>` +
+      `<span class="hotlap-ghost-time">${t('mp.startAlone')}</span>` +
     '</label>';
   if (!entries.length) {
-    return noGhost + '<div class="hotlap-picker-empty">Ezen a pályán még nincs ranglistakör.</div>';
+    return noGhost + `<div class="hotlap-picker-empty">${t('mp.noLeaderboardLap')}</div>`;
   }
   return noGhost + entries.map((entry, index) => {
     const playerId = Number(entry.player_id);
@@ -462,7 +476,7 @@ function ghostChoiceHtml(entries, selectedPlayerId) {
       `<span class="hotlap-ghost-rank num">${index + 1}</span>` +
       `<span class="hotlap-ghost-name">${escapeHtml(entry.name)}</span>` +
       `<span class="hotlap-ghost-time num">${G.formatTime(entry.best_ms)}</span>` +
-      `<span class="hotlap-ghost-state">${available ? 'Választható' : 'Nincs felvétel'}</span>` +
+      `<span class="hotlap-ghost-state">${available ? t('mp.ghostAvailable') : t('mp.ghostNoRecording')}</span>` +
     '</label>';
   }).join('');
 }
@@ -479,20 +493,20 @@ async function showHotLapGhostPicker(race) {
   const map = G.manifest?.maps.find((entry) => entry.id === race.mapId);
   $('hotLapGhostMap').textContent = map?.label || race.mapId;
   $('hotLapGhostError').textContent = '';
-  $('hotLapGhostList').innerHTML = '<div class="hotlap-picker-empty">Ranglista betöltése…</div>';
+  $('hotLapGhostList').innerHTML = `<div class="hotlap-picker-empty">${t('mp.leaderboardLoading')}</div>`;
   $('hotLapGhostStart').disabled = true;
   hotLapGhostPickerEl.classList.remove('hidden');
 
   try {
     const response = await fetch(`/api/leaderboard?mapId=${encodeURIComponent(race.mapId)}&limit=20`);
-    if (!response.ok) throw new Error('A ranglista nem tölthető be.');
+    if (!response.ok) throw new Error(t('mp.leaderboardFailed'));
     const entries = (await response.json()).entries || [];
     if (generation !== hotLapPickerGeneration) return;
     $('hotLapGhostList').innerHTML = ghostChoiceHtml(entries, savedHotLapGhost(race.mapId));
   } catch {
     if (generation !== hotLapPickerGeneration) return;
     $('hotLapGhostList').innerHTML = ghostChoiceHtml([], null);
-    $('hotLapGhostError').textContent = 'A ranglista nem töltődött be, de szellem nélkül elindulhatsz.';
+    $('hotLapGhostError').textContent = t('mp.leaderboardFailedHint');
   }
   $('hotLapGhostStart').disabled = false;
 }
@@ -501,7 +515,7 @@ function beginHotLap(race, ghostPlayerId) {
   saveHotLapGhost(race.mapId, ghostPlayerId);
   pendingHotLap = { ...race, ghostPlayerId };
   closeHotLapGhostPicker();
-  $('mpTitle').textContent = 'Időmérés';
+  $('mpTitle').textContent = t('mp.hotLap');
   setErr('');
   hideMultiplayerResults();
 
@@ -518,7 +532,7 @@ function beginHotLap(race, ghostPlayerId) {
   // marad, és kézzel lehet új profilt létrehozni vagy másik tokent beilleszteni.
   if (me.token) {
     authenticate(C2S.HELLO, {
-      name: sanitizeName(localStorage.getItem('racing.name') || 'Játékos'),
+      name: sanitizeName(localStorage.getItem('racing.name') || t('mp.defaultName')),
       token: me.token,
     });
   }
@@ -526,7 +540,7 @@ function beginHotLap(race, ghostPlayerId) {
 
 export function openHotLap() {
   const { mapId, carId } = selectedMenuRace();
-  if (!mapId || !carId) return G.setMenuStatus('Előbb válassz pályát és kocsit.');
+  if (!mapId || !carId) return G.setMenuStatus(t('mp.pickMapCar'));
   showHotLapGhostPicker({ mapId, carId });
 }
 
@@ -556,7 +570,7 @@ $('mpName').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('mpCon
 
 $('mpRestore').addEventListener('click', () => {
   const token = sanitizePlayerToken($('mpToken').value);
-  if (!token) return setErr('Illessz be egy érvényes belépési tokent.');
+  if (!token) return setErr(t('mp.invalidToken'));
   authenticate(C2S.RESTORE_PROFILE, { token });
 });
 $('mpToken').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('mpRestore').click(); });
@@ -599,7 +613,7 @@ $('mpCreate').addEventListener('click', () => {
   const mapId = document.getElementById('mapSelect')?.value;
   const carId = document.getElementById('carSelect')?.value;
   const laps = Number(document.getElementById('lapCountSelect')?.value) || 3;
-  if (!mapId || !carId) return setErr('Előbb válassz pályát és kocsit a menüben.');
+  if (!mapId || !carId) return setErr(t('mp.pickMapCarMenu'));
   send(C2S.CREATE_ROOM, {
     mapId,
     carId,
@@ -612,7 +626,7 @@ $('mpCreate').addEventListener('click', () => {
 
 $('mpJoin').addEventListener('click', () => {
   const code = $('mpCode').value.trim().toUpperCase();
-  if (code.length < 4) return setErr('Add meg a szobakódot.');
+  if (code.length < 4) return setErr(t('mp.enterRoomCode'));
   send(C2S.JOIN_ROOM, { code, carId: document.getElementById('carSelect')?.value });
 });
 $('mpCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('mpJoin').click(); });
@@ -636,34 +650,34 @@ $('mpCopy').addEventListener('click', async () => {
   try {
     await navigator.clipboard.writeText(code);
     if (copyFeedbackTimer) clearTimeout(copyFeedbackTimer);
-    button.textContent = 'Másolva ✓';
+    button.textContent = t('mp.copied');
     button.classList.add('is-copied');
     copyFeedbackTimer = setTimeout(() => {
-      button.textContent = 'Másol';
+      button.textContent = t('mp.copy');
       button.classList.remove('is-copied');
       copyFeedbackTimer = null;
     }, 1400);
   } catch {
-    setErr('A szobakódot nem sikerült a vágólapra másolni.');
+    setErr(t('mp.copyRoomFailed'));
   }
 });
 
 let tokenCopyFeedbackTimer = null;
 $('mpCopyToken').addEventListener('click', async () => {
-  if (!me.token) return setErr('Ehhez a profilhoz nincs másolható token.');
+  if (!me.token) return setErr(t('mp.noToken'));
   const button = $('mpCopyToken');
   try {
     await navigator.clipboard.writeText(me.token);
     if (tokenCopyFeedbackTimer) clearTimeout(tokenCopyFeedbackTimer);
-    button.textContent = 'Token másolva ✓';
+    button.textContent = t('mp.tokenCopied');
     button.classList.add('is-copied');
     tokenCopyFeedbackTimer = setTimeout(() => {
-      button.textContent = 'Token másolása';
+      button.textContent = t('mp.copyToken');
       button.classList.remove('is-copied');
       tokenCopyFeedbackTimer = null;
     }, 1800);
   } catch {
-    setErr('A belépési tokent nem sikerült a vágólapra másolni.');
+    setErr(t('mp.copyTokenFailed'));
   }
 });
 
@@ -880,7 +894,7 @@ function renderRoomList(list, { page = 0, pages = 1, total = list.length } = {})
 
   if (!list.length) {
     count.textContent = '';
-    wrap.innerHTML = '<div class="mp-browse-empty">Nincs nyitott publikus szoba — hozz létre egyet!</div>';
+    wrap.innerHTML = `<div class="mp-browse-empty">${t('mp.noPublicRooms')}</div>`;
     return;
   }
   count.textContent = total === 1 ? '1 szoba' : `${total} szoba`;
@@ -890,10 +904,10 @@ function renderRoomList(list, { page = 0, pages = 1, total = list.length } = {})
     return '<div class="mp-browse-row">' +
       '<span class="br-main">' +
         `<span class="br-map">${escapeHtml(map?.label || room.mapId)}</span>` +
-        `<span class="br-meta">${room.laps} kör${room.ghostMode ? ' · ghost' : ''}${room.mandatoryPitStop ? ' · kerékcsere' : ''}</span>` +
+        `<span class="br-meta">${t('mp.roomLaps', { n: room.laps })}${room.ghostMode ? ' · ghost' : ''}${room.mandatoryPitStop ? t('mp.roomPit') : ''}</span>` +
       '</span>' +
       `<span class="br-players${tele ? ' is-full' : ''}">${room.players}/${room.max}</span>` +
-      `<button class="mp-btn ghost compact br-join" data-code="${escapeHtml(room.code)}">Belépés</button>` +
+      `<button class="mp-btn ghost compact br-join" data-code="${escapeHtml(room.code)}">${t('mp.join')}</button>` +
     '</div>';
   }).join('');
 }
@@ -998,7 +1012,7 @@ function authenticate(type, data) {
     if (G.appState === 'mp' || starting) {
       netDiagnostics.captureIncident(NET_DIAG_INCIDENT.CONNECTION_LOST);
     }
-    setErr('Nem sikerült csatlakozni a szerverhez.');
+    setErr(t('mp.connectFailed'));
   });
 }
 
@@ -1062,7 +1076,7 @@ function onMessage(m) {
       show('mpRoom', false);
       show('mpRooms', stillAuthenticated);
       requestRoomList();
-      setErr(m.reason || '');
+      setErr(serverText(m));
       break;
 
     case S2C.RACE_STARTING:
@@ -1098,7 +1112,7 @@ function onMessage(m) {
         // A lobbyt újra kinyitjuk, különben a játékos egy üres képernyőn
         // maradna, és nem is látná, mi a hiba.
         openLobby();
-        setErr('Nem sikerült betölteni a versenyt: ' + err.message);
+        setErr(t('mp.raceLoadFailed') + err.message);
       });
       break;
 
@@ -1264,7 +1278,7 @@ function onMessage(m) {
 
     case S2C.ERROR:
       netDiagnostics.record(NET_DIAG_EVENT.SERVER_ERROR, G.appState === 'mp');
-      setErr(m.message);
+      setErr(serverText(m));
       updateResultsActions();
       break;
   }
@@ -1277,11 +1291,11 @@ function renderRoom() {
   const map = G.manifest?.maps.find((x) => x.id === room.mapId);
   $('mpRoomMap').textContent = map?.label || room.mapId;
   $('mpRoomLaps').textContent = room.laps;
-  $('mpRoomMode').textContent = (room.ghostMode ? 'Ghost' : 'Normál')
-    + (room.mandatoryPitStop ? ' · kötelező kerékcsere' : '');
+  $('mpRoomMode').textContent = (room.ghostMode ? t('mp.modeGhost') : t('mp.modeNormal'))
+    + (room.mandatoryPitStop ? t('mp.roomPitLong') : '');
   // Publikus szobába a keresőből ismeretlenek is érkezhetnek — ezt látni kell
   // bent is, ne érje meglepetésként a társaságot.
-  $('mpRoomVisibility').textContent = room.isPublic ? '🌐 Publikus' : '🔒 Privát';
+  $('mpRoomVisibility').textContent = room.isPublic ? t('mp.public') : t('mp.private');
   $('mpPlayers').innerHTML = room.players.map((p) => {
     const car = G.manifest?.cars.find((c) => c.id === p.carId);
     const self = p.id === me.id;
@@ -1291,15 +1305,15 @@ function renderRoom() {
         `<span class="nm">${escapeHtml(p.name)}${self ? ' (te)' : ''}</span>` +
         `<span class="car">${escapeHtml(car?.label || p.carId || 'nincs kocsi')}</span>` +
       '</span>' +
-      (p.isHost ? '<span class="mp-crown" title="Szoba tulajdonosa">👑</span>' : '') +
+      (p.isHost ? `<span class="mp-crown" title="${t('mp.hostTitle')}">👑</span>` : '') +
     '</div>';
   }).join('');
   const isHost = room.hostId === me.id;
   $('mpStart').disabled = !isHost;
   $('mpHint').className = 'mp-note' + (isHost ? ' is-host' : '');
   $('mpHint').textContent = isHost
-    ? 'Te vagy a szoba tulajdonosa — te indíthatod a versenyt.'
-    : 'Várakozás a szoba tulajdonosára…';
+    ? t('mp.youAreHost')
+    : t('mp.waitingForHost');
 }
 
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) =>
@@ -1381,7 +1395,7 @@ async function beginRace(info) {
   resetNetworkRaceState();
   // Multiplayerben mindig a fájlba mentett, kanonikus járműbeállításokkal indulunk.
   G.resetLiveVehicleTunables();
-  G.setMenuStatus('Verseny betöltése...');
+  G.setMenuStatus(t('mp.loadingRace'));
 
   // A saját kocsi, a pálya és a többi játékos kocsija — mind egyszerre, EGY
   // fájlméret szerint súlyozott betöltés-sávon, hogy szar neten is látszódjon
@@ -2287,7 +2301,7 @@ function updateSpectateBar() {
 
   spectateNameEl.textContent = spectateId
     ? (others.get(spectateId)?.name || '—')
-    : 'A saját kocsid';
+    : t('mp.yourCar');
   spectateBarEl.classList.remove('hidden');
 }
 
@@ -2502,12 +2516,12 @@ function frame(dt = 1 / 60) {
   if (isHotLap() && !myLapStartedAt) {
     G.setHud(
       '<div class="lap-head">' +
-        '<span class="lbl">Időmérés</span>' +
+        `<span class="lbl">${t('mp.hotLap')}</span>` +
         `<span><span class="lap-now num">${myLap + 1}</span></span>` +
       '</div>' +
-      '<div class="hud-note"><strong>Felvezető</strong><br>Az időmérés a rajtvonalnál indul.</div>' +
-      '<div class="t-row"><span class="lbl">Aktuális</span><span class="t-val num">—</span></div>' +
-      '<div class="t-row"><span class="lbl">Összes</span><span class="t-val num">—</span></div>'
+      `<div class="hud-note"><strong>${t('hud.warmUp')}</strong><br>${t('hud.warmUpHint')}</div>` +
+      `<div class="t-row"><span class="lbl">${t('hud.current')}</span><span class="t-val num">—</span></div>` +
+      `<div class="t-row"><span class="lbl">${t('hud.total')}</span><span class="t-val num">—</span></div>`
     );
     G.setStandings('');
     return;
@@ -2537,11 +2551,11 @@ function frame(dt = 1 / 60) {
       `<span class="lap-total num"> / ${room?.laps ?? '?'}</span>`;
   G.setHud(
     '<div class="lap-head">' +
-      '<span class="lbl">Kör</span>' +
+      `<span class="lbl">${t('hud.lap')}</span>` +
       `<span>${korSzamlalo}</span>` +
     '</div>' +
-    (lapTainted ? '<div class="t-warn mb-2">⚠ Ez a kör érvénytelen</div>' : '') +
-    `<div class="t-row"><span class="lbl">Aktuális</span>` +
+    (lapTainted ? `<div class="t-warn mb-2">${t('hud.lapInvalidNote')}</div>` : '') +
+    `<div class="t-row"><span class="lbl">${t('hud.current')}</span>` +
       `<span class="t-val num">${G.formatTime(currentTime)}</span></div>` +
     `<div class="t-row${Number.isFinite(bestTime) ? ' is-best' : ''}">` +
       `<span class="lbl">Legjobb</span>` +
@@ -2550,9 +2564,9 @@ function frame(dt = 1 / 60) {
     // raceClock ott mindkettőt a kör kezdetétől számolja) — korlátlan körnél
     // a megfutott körök száma többet mond.
     (isHotLap()
-      ? `<div class="t-row"><span class="lbl">Megtett kör</span>` +
+      ? `<div class="t-row"><span class="lbl">${t('mp.lapsDone')}</span>` +
         `<span class="t-val num">${myLap}</span></div>`
-      : `<div class="t-row"><span class="lbl">Összes</span>` +
+      : `<div class="t-row"><span class="lbl">${t('hud.total')}</span>` +
         `<span class="t-val num">${G.formatTime(totalTime)}</span></div>`)
   );
 
@@ -2611,12 +2625,12 @@ function standingsHtml() {
   }).join('');
 
   return '<div class="st-title">' +
-      '<span>Versenyállás</span>' +
-      `<span>${rows.length} induló</span>` +
+      `<span>${t('mp.standings')}</span>` +
+      `<span>${t('mp.starters', { n: rows.length })}</span>` +
     '</div>' +
     '<div class="st-cols">' +
-      '<span>#</span><span></span><span>Név</span><span>Kör</span>' +
-      '<span>Rés</span><span>Legj.</span><span>Utolsó</span>' +
+      `<span>#</span><span></span><span>${t('mp.name')}</span><span>${t('hud.lap')}</span>` +
+      `<span>${t('mp.gap')}</span><span>${t('mp.bestShort')}</span><span>${t('mp.last')}</span>` +
     '</div>' + body;
 }
 
@@ -2628,9 +2642,9 @@ function formatStandingTime(ms) {
 
 function eventText(e) {
   const who = room?.players.find((p) => p.id === e.playerId)?.name || 'Valaki';
-  if (e.kind === 'lap') return `${who}: ${e.lap}. kör ${(e.timeMs / 1000).toFixed(2)}s${e.invalid ? ' ⚠️' : ''}`;
-  if (e.kind === 'finished') return `${who} célba ért!`;
-  if (e.kind === 'left') return `${e.name} kilépett`;
+  if (e.kind === 'lap') return t('mp.feedLap', { who, lap: e.lap, time: (e.timeMs / 1000).toFixed(2), flag: e.invalid ? ' ⚠️' : '' });
+  if (e.kind === 'finished') return t('mp.feedFinished', { who });
+  if (e.kind === 'left') return t('mp.feedLeft', { name: e.name });
   return '';
 }
 
@@ -2799,13 +2813,13 @@ function showResults(results) {
       `<span class="mp-res-time num">${Number.isFinite(r.bestLapMs) ? G.formatTime(r.bestLapMs) : '—'}</span>` +
     '</div>';
   }).join('');
-  G.setHud(`<div class="lap-head"><span class="lbl">${hotLap ? 'Időmérés vége' : 'Verseny vége'}</span></div>`);
+  G.setHud(`<div class="lap-head"><span class="lbl">${hotLap ? t('mp.hotLapOver') : t('mp.raceOver')}</span></div>`);
   G.setStandings('');
-  $('mpResultsTitle').textContent = hotLap ? 'Időmérés vége' : 'Verseny vége';
+  $('mpResultsTitle').textContent = hotLap ? t('mp.hotLapOver') : t('mp.raceOver');
   $('mpResultsBody').innerHTML =
     '<div class="mp-res-cols">' +
-      '<span>#</span><span></span><span>Név</span><span>Kör</span>' +
-      '<span>Összes</span><span>Legjobb</span>' +
+      `<span>#</span><span></span><span>${t('mp.name')}</span><span>${t('hud.lap')}</span>` +
+      `<span>${t('hud.total')}</span><span>${t('hud.best')}</span>` +
     '</div>' + rows;
   mpResultsEl.classList.remove('hidden');
   updateResultsActions();
@@ -2818,12 +2832,12 @@ function updateResultsActions() {
   const restart = $('mpResultsRestart');
   restart.classList.toggle('hidden', !hotLap && !isHost);
   restart.disabled = false;
-  restart.textContent = hotLap ? 'Új próbálkozás' : 'Új játék';
+  restart.textContent = hotLap ? t('mp.tryAgain') : t('mp.newGame');
   $('mpResultsHint').textContent = hotLap
-    ? 'Az R billentyűvel menet közben is teljesen újrakezdheted a próbát.'
+    ? t('mp.restartHint')
     : isHost
-    ? 'Te vagy a szoba tulajdonosa — ugyanebben a szobában indíthatsz új futamot.'
-    : 'Várakozás a szoba tulajdonosára, vagy kiléphetsz a szobából.';
+    ? t('mp.hostCanRestart')
+    : t('mp.waitingForHostOrLeave');
 }
 
 function hideMultiplayerResults() {
@@ -2836,7 +2850,7 @@ $('mpResultsRestart').addEventListener('click', () => {
   G.requestGameFullscreen();
   const button = $('mpResultsRestart');
   button.disabled = true;
-  button.textContent = 'Indítás…';
+  button.textContent = t('mp.starting');
   send(isHotLap() ? C2S.RESET : C2S.START_RACE);
 });
 
@@ -2860,13 +2874,27 @@ const modeButtons = document.getElementById('modeButtons');
 const hotLapBtn = document.createElement('button');
 hotLapBtn.id = 'hotLapBtn';
 hotLapBtn.className = 'btn-race btn-hotlap';
-hotLapBtn.textContent = 'Időmérés';
+hotLapBtn.textContent = t('mp.hotLap');
 hotLapBtn.addEventListener('click', openHotLap);
 modeButtons?.appendChild(hotLapBtn);
 
 const btn = document.createElement('button');
 btn.id = 'mpOpenBtn';
 btn.className = 'btn-race btn-mp';
-btn.textContent = 'Többjátékos';
+btn.textContent = t('menu.multiplayer');
 btn.addEventListener('click', openLobby);
 modeButtons?.appendChild(btn);
+
+// A két gomb felirata csak itt, egyszer íródik ki — nyelvváltáskor magától nem
+// frissülne. A szoba- és eredménypanel a következő szerverüzenetnél amúgy is
+// újrarajzolódik, de a lobbi látható részét azonnal frissítjük.
+onLanguageChange(() => {
+  hotLapBtn.textContent = t('mp.hotLap');
+  btn.textContent = t('menu.multiplayer');
+  // A három panel a body-ban él, nem az index.html-ben — a main.js
+  // applyToDom() hívása a `document`-et járja be, tehát ezeket is eléri, de a
+  // panelek a saját dinamikus részüket maguk írják újra.
+  $('mpTitle').textContent = isHotLap() ? t('mp.hotLap') : t('menu.multiplayer');
+  if (room) renderRoom();
+  else if (!$('mpRooms').classList.contains('hidden')) requestRoomList();
+});

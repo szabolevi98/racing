@@ -1,4 +1,7 @@
 {
   "type": "danger",
-  "message": "A pálya aszfaltja hibás. Csak akkor válaszd, ha ennek ellenére szeretnéd kipróbálni."
+  "message": {
+    "hu": "A pálya aszfaltja hibás. Csak akkor válaszd, ha ennek ellenére szeretnéd kipróbálni.",
+    "en": "The track surface is broken. Only pick it if you want to try it anyway."
+  }
 }

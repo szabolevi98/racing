@@ -20,6 +20,11 @@ import { gridSlotPose, hotLapStartPose } from '/shared/grid.js';
 import { gateRespawnPoint } from '/shared/gate.js';
 import { classifyPing, shouldWarnAboutPing } from '/shared/ping.js';
 import {
+  SUPPORTED_LANGUAGES, pickLanguage, loadLanguage, rememberLanguage,
+  currentLanguage, t, applyToDom, localizedText,
+  onLanguageChange, notifyLanguageChange,
+} from './lang.js';
+import {
   countdownBeep, startBeep, setMuted, isMuted, setVolume, getVolume, primeOnFirstGesture,
   startEngine, stopEngine, updateEngine,
   createRemoteEngine, updateRemoteEngine, stopRemoteEngine, updateAudioListener,
@@ -59,6 +64,36 @@ const loadingBarEl = document.getElementById('loadingBar');
 const loadingPctEl = document.getElementById('loadingPct');
 const menuEl = document.getElementById('menu');
 document.getElementById('copyrightYear').textContent = new Date().getFullYear();
+
+// ---------- Nyelv ----------
+// A betöltés a rajzolás ELŐTT megtörténik (top-level await), így a játékos
+// sosem lát felvillanó magyar szöveget angol nyelvválasztás mellett.
+await loadLanguage(pickLanguage());
+applyToDom();
+
+// A nyelvváltás nem tölti újra az oldalt: a statikus szövegeket a DOM-ból
+// cseréljük, a dinamikusakat (HUD, menü-állapot) a rajzolásuk úgyis minden
+// képkockán/eseménynél újraírja.
+const langButtonsEl = document.getElementById('langButtons');
+
+function renderLanguageButtons() {
+  langButtonsEl.replaceChildren(...SUPPORTED_LANGUAGES.map(({ code, label }) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    button.setAttribute('aria-pressed', String(code === currentLanguage()));
+    button.addEventListener('click', async () => {
+      if (code === currentLanguage()) return;
+      await loadLanguage(code);
+      rememberLanguage(code);
+      applyToDom();
+      renderLanguageButtons();
+      notifyLanguageChange();
+    });
+    return button;
+  }));
+}
+renderLanguageButtons();
 
 // ---------- Betöltés-overlay (induláskor ÉS kocsi/pálya/ég váltásnál) ----------
 // Az induló betöltésen kívül máshol (menüben kocsi/ég váltás, multiplayer
@@ -187,7 +222,7 @@ function updateTrackAlert(entry) {
     return;
   }
   trackAlertEl.dataset.type = alert.type;
-  trackAlertEl.textContent = alert.message;
+  trackAlertEl.textContent = localizedText(alert.message);
   trackAlertEl.classList.remove('hidden');
 }
 
@@ -2224,10 +2259,10 @@ function updatePitOptionAvailability(entry) {
   const hasEnoughLaps = Number(lapCountSelect.value) > 1;
   const available = hasPitLane && hasEnoughLaps;
   mandatoryPitStopHintEl.textContent = !hasPitLane
-    ? 'Ezen a pályán nincs boxutca; a szabály automatikusan inaktív.'
+    ? t('pit.noPitLane')
     : !hasEnoughLaps
-      ? 'Egy körnél a szabály automatikusan inaktív.'
-      : 'Kötelező kiállás egy- és többjátékos módban.';
+      ? t('pit.oneLapInactive')
+      : t('menu.pitStopHint');
   if (!available) mandatoryPitStopCheckbox.checked = false;
   mandatoryPitStopCheckbox.disabled = !available;
   mandatoryPitStopCheckbox.closest('label')?.classList.toggle('is-unavailable', !available);
@@ -2260,13 +2295,16 @@ function renderPitStopHud(state, stopIndex = 0) {
   const pill = pitStopAlertTextEl;
   pill.classList.toggle('done', !!state.completed);
   if (state.completed) {
-    pill.textContent = '✓ KERÉKCSERE KÉSZ';
+    pill.textContent = t('pit.done');
   } else if (state.stopElapsedMs > 0) {
-    pill.textContent = `KERÉKCSERE ${(state.stopElapsedMs / 1000).toFixed(1)} / ${(PIT_STOP_DURATION_MS / 1000).toFixed(1)} mp`;
+    pill.textContent = t('pit.changing', {
+      done: (state.stopElapsedMs / 1000).toFixed(1),
+      total: (PIT_STOP_DURATION_MS / 1000).toFixed(1),
+    });
   } else if (state.inLane) {
-    pill.textContent = `BOXLIMITER 100 km/h — ÁLLJ MEG A P${stopIndex + 1} BOXHELYEN`;
+    pill.textContent = t('pit.limiter', { n: stopIndex + 1 });
   } else {
-    pill.textContent = `⚠ KÖTELEZŐ KERÉKCSERE — P${stopIndex + 1} BOXHELY`;
+    pill.textContent = t('pit.required', { n: stopIndex + 1 });
   }
 }
 
@@ -2595,7 +2633,7 @@ async function loadLeaderboard(mapId) {
   const generation = ++leaderboardGeneration;
   if (!mapId) return setLeaderboardBody('', false);
 
-  setLeaderboardBody('<div class="lb-note">Betöltés…</div>', true);
+  setLeaderboardBody(`<div class="lb-note">${t('leaderboard.loading')}</div>`, true);
   const limit = window.matchMedia('(hover: none) and (pointer: coarse), (max-width: 900px)').matches
     ? LEADERBOARD_LIMIT_MOBILE : LEADERBOARD_LIMIT_DESKTOP;
 
@@ -2610,7 +2648,7 @@ async function loadLeaderboard(mapId) {
 
   if (!entries) return setLeaderboardBody('', false);
   if (!entries.length) {
-    return setLeaderboardBody('<div class="lb-note">Még nincs köridő ezen a pályán</div>', true);
+    return setLeaderboardBody(`<div class="lb-note">${t('leaderboard.empty')}</div>`, true);
   }
   setLeaderboardBody(entries.map((e, i) =>
     '<div class="lb-row">' +
@@ -2876,16 +2914,16 @@ function startRace() {
 // korábban elcsúszott: multiplayerben csak egy általános "Kör érvénytelen!"
 // jött, amiből a játékos nem tudta, mit rontott el.
 function lapInvalidText(reason) {
-  if (reason === TAINT.OFFTRACK) return 'Kör érvénytelen — mind a négy kerékkel letértél az aszfaltról!';
+  if (reason === TAINT.OFFTRACK) return t('race.lapInvalidOfftrack');
   if (reason === TAINT.VALIDATION) {
-    return 'A szerveroldali ellenőrzés szabálytalan mozgást észlelt. Ez a kör érvénytelen.';
+    return t('race.lapInvalidValidation');
   }
   // A kihagyott checkpoint nem "érvénytelenít", hanem meg sem engedi a kör
   // lezárását — a szöveg ezt mondja meg, hogy a játékos tudja: nem elég
   // átgurulni a rajtvonalon, tényleg körbe kell menni.
-  if (reason === TAINT.CHECKPOINT) return 'Checkpoint kimaradt — a kör csak akkor számít, ha mindegyiken áthaladsz!';
-  if (reason === TAINT.PIT_STOP) return 'Az utolsó kör érvénytelen — kimaradt a kötelező kerékcsere!';
-  return 'Kör érvénytelen!';
+  if (reason === TAINT.CHECKPOINT) return t('race.lapInvalidCheckpoint');
+  if (reason === TAINT.PIT_STOP) return t('race.lapInvalidPitStop');
+  return t('alert.lapInvalid');
 }
 
 // A sebességpanel alatti zóna-jelvény. Az egyjátékos HUD és a multiplayer
@@ -2895,12 +2933,12 @@ function updateZoneIndicator(x, z) {
   const zone = carTouchesWall() ? 'wall' : sampleZoneAt(x, z) === ZONE_OFFTRACK ? 'offtrack' : 'asphalt';
   zoneIndicatorEl.dataset.zone = zone;
   zoneIndicatorEl.textContent =
-    zone === 'wall' ? 'fal' : zone === 'offtrack' ? 'kifutó' : 'aszfalt';
+    zone === 'wall' ? t('zone.wall') : zone === 'offtrack' ? t('zone.offtrack') : t('zone.asphalt');
 }
 
 function updateRaceHud() {
   if (!race.active) {
-    raceHudEl.innerHTML = '<div class="hud-note">Nincs rajtvonal — szabad vezetés</div>';
+    raceHudEl.innerHTML = `<div class="hud-note">${t('hud.noStartLine')}</div>`;
     lapInvalidAlertEl.classList.add('hidden');
     return;
   }
@@ -2912,17 +2950,17 @@ function updateRaceHud() {
   const best = validTimes.length ? Math.min(...validTimes) : NaN;
   raceHudEl.innerHTML =
     '<div class="lap-head">' +
-      '<span class="lbl">Kör</span>' +
+      `<span class="lbl">${t('hud.lap')}</span>` +
       `<span><span class="lap-now num">${Math.min(race.lap + 1, race.totalLaps)}</span>` +
       `<span class="lap-total num"> / ${race.totalLaps}</span></span>` +
     '</div>' +
-    (race.lapTainted ? '<div class="t-warn mb-2">⚠ Ez a kör érvénytelen</div>' : '') +
-    `<div class="t-row"><span class="lbl">Aktuális</span><span class="t-val num">${formatTime(current)}</span></div>` +
+    (race.lapTainted ? `<div class="t-warn mb-2">${t('hud.lapInvalidNote')}</div>` : '') +
+    `<div class="t-row"><span class="lbl">${t('hud.current')}</span><span class="t-val num">${formatTime(current)}</span></div>` +
     // A zöld kiemelés csak akkor jár, ha VAN már érvényes köridő — enélkül a
     // "--:--.---" is zölden világítana, mintha eredmény lenne.
     `<div class="t-row${Number.isFinite(best) ? ' is-best' : ''}">` +
-      `<span class="lbl">Legjobb</span><span class="t-val num">${formatTime(best)}</span></div>` +
-    `<div class="t-row"><span class="lbl">Összes</span><span class="t-val num">${formatTime(total)}</span></div>`;
+      `<span class="lbl">${t('hud.best')}</span><span class="t-val num">${formatTime(best)}</span></div>` +
+    `<div class="t-row"><span class="lbl">${t('hud.total')}</span><span class="t-val num">${formatTime(total)}</span></div>`;
   // A figyelmeztetés nem néhány másodperc után tűnik el, hanem addig marad,
   // amíg a folyamatban lévő kör tart — a játékos végig lássa, hogy ez a kör
   // már nem számít. A rajtvonalnál a lapTainted nullázódik, ezzel együtt ez is.
@@ -2943,16 +2981,16 @@ function finishRace() {
   const best = validTimes.length ? Math.min(...validTimes) : NaN;
   resultsBodyEl.innerHTML =
     '<div class="res-hero">' +
-      `<div><span class="lbl">Összidő</span><span class="res-big num">${formatTime(total)}</span></div>` +
-      `<div><span class="lbl">Legjobb kör</span><span class="res-big num">${formatTime(best)}</span></div>` +
+      `<div><span class="lbl">${t('hud.totalTime')}</span><span class="res-big num">${formatTime(total)}</span></div>` +
+      `<div><span class="lbl">${t('hud.bestLap')}</span><span class="res-big num">${formatTime(best)}</span></div>` +
     '</div>' +
     race.lapTimes
       .map((l, i) => {
         const tag = l.invalid
-          ? '<span class="res-tag bad">érvénytelen</span>'
-          : l.time === best ? '<span class="res-tag best">legjobb</span>' : '';
+          ? `<span class="res-tag bad">${t('hud.invalidTag')}</span>`
+          : l.time === best ? `<span class="res-tag best">${t('results.bestTag')}</span>` : '';
         return '<div class="res-lap">' +
-          `<span class="res-lap-i">${i + 1}. kör</span>` +
+          `<span class="res-lap-i">${t('hud.lapOrdinal', { n: i + 1 })}</span>` +
           `<span>${tag}<span class="num ms-2">${formatTime(l.time)}</span></span>` +
         '</div>';
       })
@@ -3198,8 +3236,9 @@ function syncTouchMuteButton() {
   const muted = isMuted();
   touchMuteBtn.textContent = muted ? '🔇' : '🔊';
   touchMuteBtn.classList.toggle('is-muted', muted);
-  touchMuteBtn.setAttribute('aria-label', muted ? 'Hang bekapcsolása' : 'Némítás');
-  touchMuteBtn.title = muted ? 'Hang bekapcsolása' : 'Némítás';
+  const muteLabel = muted ? t('audio.enable') : t('hud.mute');
+  touchMuteBtn.setAttribute('aria-label', muteLabel);
+  touchMuteBtn.title = muteLabel;
 }
 
 function syncVolumeControl() {
@@ -3373,8 +3412,8 @@ function updateControls(dt = 1 / 60) {
   const flipped = upY < 0.2;
   if (flipped) {
     rolloverAlertTextEl.textContent = race.active
-      ? 'Felborultál! Nyomj R-et — vissza az utolsó checkpontra.'
-      : 'Felborultál! Nyomj R-et az újraindításhoz.';
+      ? t('race.flippedCheckpoint')
+      : t('race.flippedRestart');
   }
   rolloverAlertEl.classList.toggle('hidden', !flipped);
 
@@ -3978,7 +4017,7 @@ startBtn.addEventListener('click', async () => {
   if (!currentTrack || !currentTrackBox) return;
   requestGameFullscreen();
   startBtn.disabled = true;
-  setMenuStatus('Pálya fizika előkészítése...');
+  setMenuStatus(t('status.preparingPhysics'));
 
   try {
     // Ha van előre bekészített ütközési fájl, azt használjuk — ez a mérvadó
@@ -4015,7 +4054,7 @@ startBtn.addEventListener('click', async () => {
     enterDriving();
   } catch (err) {
     console.error('Fizika előkészítése sikertelen', err);
-    setMenuStatus('Hiba a fizika előkészítésekor: ' + err.message);
+    setMenuStatus(t('error.physicsFailed') + err.message);
   } finally {
     startBtn.disabled = false;
   }
@@ -4077,9 +4116,7 @@ async function loadOrExtractCollision(strict = false) {
     } catch (err) {
       if (strict) {
         throw new Error(
-          'A pálya ütközési fájlja nem tölthető le, multiplayerben pedig nem lehet ' +
-          'helyette a modellből számolni (a szerverrel bitre egyeznie kell). ' +
-          'Ellenőrizd a hálózatot, és próbáld újra. (' + err.message + ')'
+          t('error.collisionDownload') + t('error.checkNetwork') + err.message + ')'
         );
       }
       console.warn('Bekészített ütközési fájl nem tölthető, visszaesés kinyerésre', err);
@@ -4227,7 +4264,7 @@ function makeSearchableSelect(selectEl) {
     if (!matches.length) {
       const empty = document.createElement('div');
       empty.className = 'ss-option ss-empty';
-      empty.textContent = 'Nincs találat';
+      empty.textContent = t('select.noMatch');
       menu.appendChild(empty);
     } else {
       matches.forEach((o) => {
@@ -4309,7 +4346,7 @@ async function init() {
   manifest = await res.json();
 
   if (!manifest.maps.length || !manifest.cars.length || !manifest.skyboxes.length) {
-    setMenuStatus('Hiányzó assetek (pálya/kocsi/környezet) az assets mappában.');
+    setMenuStatus(t('error.missingAssets'));
     return;
   }
 
@@ -4319,8 +4356,21 @@ async function init() {
 
   // Darabszám a címke mellé. A kereshető legördülő elrejti a listát, amíg rá
   // nem kattintasz, tehát máshonnan nem derülne ki, mennyiből válogatsz.
-  document.getElementById('mapCount').textContent = `(${manifest.maps.length} db)`;
-  document.getElementById('carCount').textContent = `(${manifest.cars.length} db)`;
+  // A "db" nyelvfüggő, ezért nyelvváltáskor újra kiírjuk.
+  const writeCounts = () => {
+    document.getElementById('mapCount').textContent = t('menu.count', { n: manifest.maps.length });
+    document.getElementById('carCount').textContent = t('menu.count', { n: manifest.cars.length });
+  };
+  writeCounts();
+  // Nyelvváltáskor a menü minden nyelvfüggő, JS-ből írt része újraíródik: a
+  // darabszám, a pálya-figyelmeztetés, a boxkiállás-magyarázat és a ranglista.
+  onLanguageChange(() => {
+    writeCounts();
+    const entry = findEntry(manifest.maps, mapSelect.value);
+    updateTrackAlert(entry);
+    updatePitOptionAvailability(entry);
+    loadLeaderboard(mapSelect.value);
+  });
 
   const initialMap = findEntry(manifest.maps, loadLastChoice('map', DEFAULT_MAP_ID));
   const initialCar = findEntry(manifest.cars, loadLastChoice('car', DEFAULT_CAR_ID));
@@ -4414,7 +4464,7 @@ async function init() {
 
 init().catch((err) => {
   console.error('Init error', err);
-  loadingEl.textContent = 'Hiba az indításkor: ' + err.message;
+  loadingEl.textContent = t('error.startFailed') + err.message;
 });
 
 // ---------- Fő ciklus ----------
@@ -4789,7 +4839,7 @@ function stepMultiplayerFrame(dt) {
   // jelezzük; az R-t a hálózati modul küldi el.
   const q = chassisBody.rotation();
   const flipped = 1 - 2 * (q.x * q.x + q.z * q.z) < 0.2;
-  if (flipped) rolloverAlertTextEl.textContent = 'Felborultál! Nyomj R-et — vissza az utolsó checkpontra.';
+  if (flipped) rolloverAlertTextEl.textContent = t('race.flippedCheckpoint');
   rolloverAlertEl.classList.toggle('hidden', !flipped);
 }
 
@@ -5069,4 +5119,4 @@ window.__debug = {
 // A multiplayer modult SZÁNDÉKOSAN innen töltjük be, nem külön <script>-ből:
 // a window.__game csak eddigre áll össze, egy párhuzamosan induló modul pedig
 // még üresen találná.
-import('./mp.js').catch((err) => console.error('A többjátékos modul nem töltődött be:', err));
+import('./mp.js').catch((err) => console.error(t('error.multiplayerModule'), err));

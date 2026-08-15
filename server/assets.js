@@ -150,10 +150,19 @@ async function collectMaps() {
     // kerül, így a kliensnek nem kell minden pályához külön HTTP-kérést indítani.
     // Csak a három ismert megjelenési típus mehet át; hibás fájlnál inkább ne
     // mutassunk félreformázott üzenetet.
+    // Az üzenet nyelvenkénti objektum ({ hu, en }); a nyelvválasztás a kliensé,
+    // hiszen egy szerver egyszerre többféle nyelvű játékost szolgál ki. A régi,
+    // sima szöveget magyarnak vesszük — így egy kézzel írt fájl sem tűnik el.
     const alertData = await readJson(path.join(mapDir, 'alert.json'));
     const alertType = String(alertData?.type || '').toLowerCase();
-    const alertMessage = typeof alertData?.message === 'string' ? alertData.message.trim() : '';
-    if (['success', 'warning', 'danger'].includes(alertType) && alertMessage) {
+    const raw = alertData?.message;
+    const source = typeof raw === 'string' ? { hu: raw } : (raw && typeof raw === 'object' ? raw : null);
+    const alertMessage = source && Object.fromEntries(
+      Object.entries(source)
+        .filter(([, text]) => typeof text === 'string' && text.trim())
+        .map(([code, text]) => [code, text.trim()]),
+    );
+    if (['success', 'warning', 'danger'].includes(alertType) && alertMessage && Object.keys(alertMessage).length) {
       entry.alert = { type: alertType, message: alertMessage };
     }
 

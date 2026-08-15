@@ -71,9 +71,9 @@ test('driving alerts share one dynamic stacking container', () => {
 });
 
 test('multiplayer loading also shows the centered waiting alert', () => {
-  assert.match(html, /id="waitingPlayersAlertText"[\s\S]*?Várakozás a rajtra…/);
-  assert.match(mp, /`Várakozás a többiekre: \$\{waiting\.join\(', '\)\}…`/);
-  assert.match(mp, /: 'Várakozás a rajtra…'/);
+  assert.match(html, /id="waitingPlayersAlertText"[^>]*data-i18n="alert\.waitingForStart"/);
+  assert.match(mp, /t\('mp\.waitingForOthers', \{ names: waiting\.join\(', '\) \}\)/);
+  assert.match(mp, /: t\('mp\.waitingForStart'\)/);
   assert.match(mp, /setWaitingPlayersAlert\([\s\S]*?!raceEnded && !isHotLap\(\) && !starting\?\.startsAt,[\s\S]*?waitingPlayers/);
   assert.match(mp, /\.filter\(\(p\) => p\.id !== me\.id && !p\.ready\)/);
   assert.match(mp, /if \(!starting\?\.startsAt\) \{[\s\S]*?G\.setHud\(''\)/);

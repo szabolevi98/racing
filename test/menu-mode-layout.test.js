@@ -10,13 +10,21 @@ test('menu shows single-player and timing together with multiplayer below', asyn
     fs.readFile(new URL('../web/dev.html', import.meta.url), 'utf8'),
   ]);
 
-  assert.match(html, /id="startBtn"[^>]*>Egyjátékos</);
-  assert.match(multiplayer, /hotLapBtn\.textContent = 'Időmérés'/);
-  assert.match(multiplayer, /btn\.textContent = 'Többjátékos'/);
+  // A feliratok a nyelvfájlban élnek; a kód csak a KULCSRA hivatkozik. A
+  // magyar szöveget ezért a hu.json-ban ellenőrizzük, nem a forrásban.
+  const hu = JSON.parse(await fs.readFile(new URL('../web/lang/hu.json', import.meta.url), 'utf8'));
+
+  assert.match(html, /id="startBtn"[^>]*data-i18n="menu\.solo"/);
+  assert.equal(hu['menu.solo'], 'Egyjátékos');
+  assert.match(multiplayer, /hotLapBtn\.textContent = t\('mp\.hotLap'\)/);
+  assert.match(multiplayer, /btn\.textContent = t\('menu\.multiplayer'\)/);
+  assert.equal(hu['mp.hotLap'], 'Időmérés');
+  assert.equal(hu['menu.multiplayer'], 'Többjátékos');
   assert.match(css, /\.mode-buttons\s*\{[^}]*grid-template-columns:\s*repeat\(2,/s);
   assert.match(css, /\.btn-mp\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/s);
-  assert.match(multiplayer, /Időmérés indítása/);
-  assert.match(multiplayer, /Időmérés vége/);
+  assert.match(multiplayer, /data-i18n="mp\.ui\.startHotLap"/);
+  assert.equal(hu['mp.ui.startHotLap'], 'Időmérés indítása');
+  assert.equal(hu['mp.hotLapOver'], 'Időmérés vége');
   assert.match(dev, /Időmérés rajtpont/);
 });
 

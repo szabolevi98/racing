@@ -3,6 +3,7 @@
 // A verseny állapotát a RaceController kezeli; ez a fájl a hálózati protokollt
 // és a szobák életciklusát tartja kézben.
 import { WebSocketServer } from 'ws';
+import { ERR } from '../../shared/errorCodes.js';
 import { randomUUID } from 'node:crypto';
 import {
   C2S, S2C, ROOM_STATE, GAME_MODE, ROOM_CODE_LENGTH, sanitizeName, sanitizePlayerToken,
@@ -42,8 +43,9 @@ function send(socket, type, data = {}) {
   if (socket?.readyState === 1) socket.send(JSON.stringify({ type, ...data }));
 }
 
-function fail(socket, message) {
-  send(socket, S2C.ERROR, { message });
+// A szerver kódot küld, nem kész szöveget — lásd shared/errorCodes.js.
+function fail(socket, code, detail) {
+  send(socket, S2C.ERROR, detail ? { code, detail } : { code });
 }
 
 function isActivePlayer(player) {
@@ -144,7 +146,7 @@ async function handleMessage(player, msg) {
 
   switch (msg.type) {
     case C2S.HELLO: {
-      if (player.roomCode) return fail(socket, 'Szobában nem válthatsz profilt.');
+      if (player.roomCode) return fail(socket, ERR.PROFILE_IN_ROOM);
       const name = sanitizeName(msg.name);
       const token = sanitizePlayerToken(msg.token);
       const rec = await upsertPlayer(name, token)
@@ -155,23 +157,23 @@ async function handleMessage(player, msg) {
     }
 
     case C2S.RESTORE_PROFILE: {
-      if (player.roomCode) return fail(socket, 'Szobában nem válthatsz profilt.');
+      if (player.roomCode) return fail(socket, ERR.PROFILE_IN_ROOM);
       const token = sanitizePlayerToken(msg.token);
-      if (!token) return fail(socket, 'A megadott belépési token formátuma hibás.');
-      if (!dbAvailable()) return fail(socket, 'A profil-visszaállítás jelenleg nem elérhető.');
+      if (!token) return fail(socket, ERR.BAD_TOKEN_FORMAT);
+      if (!dbAvailable()) return fail(socket, ERR.RESTORE_UNAVAILABLE);
       const rec = await findPlayerByToken(token);
       if (!isActivePlayer(player)) return;
-      if (!rec) return fail(socket, 'Nincs profil ezzel a belépési tokennel.');
+      if (!rec) return fail(socket, ERR.NO_PROFILE_FOR_TOKEN);
       welcomePlayer(player, rec);
       return;
     }
 
     case C2S.RENAME_PLAYER: {
-      if (!player.name) return fail(socket, 'Előbb jelentkezz be.');
-      if (player.roomCode) return fail(socket, 'A nevet a szobába belépés előtt módosítsd.');
+      if (!player.name) return fail(socket, ERR.LOGIN_FIRST);
+      if (player.roomCode) return fail(socket, ERR.RENAME_BEFORE_ROOM);
       const name = sanitizeName(msg.name);
       if (!(await renamePlayer(player.dbId, name))) {
-        return fail(socket, 'A név módosítása nem sikerült.');
+        return fail(socket, ERR.RENAME_FAILED);
       }
       if (!isActivePlayer(player)) return;
       player.name = name;
@@ -180,16 +182,16 @@ async function handleMessage(player, msg) {
     }
 
     case C2S.CREATE_ROOM: {
-      if (!player.name) return fail(socket, 'Előbb add meg a neved.');
+      if (!player.name) return fail(socket, ERR.NAME_FIRST);
       if (player.roomCode) leaveRoom(player);
       const manifest = await getManifest();
       if (!isActivePlayer(player)) return;
       const selectedMap = manifest.maps.find((m) => m.id === msg.mapId);
       const selectedCar = manifest.cars.find((c) => c.id === msg.carId);
-      if (!selectedMap) return fail(socket, 'Nincs ilyen pálya.');
-      if (!selectedCar) return fail(socket, 'Nincs ilyen kocsi.');
+      if (!selectedMap) return fail(socket, ERR.NO_SUCH_MAP);
+      if (!selectedCar) return fail(socket, ERR.NO_SUCH_CAR);
       const code = makeRoomCode();
-      if (!code) return fail(socket, 'Nem sikerült szobakódot foglalni, próbáld újra.');
+      if (!code) return fail(socket, ERR.ROOM_CODE_FAILED);
       const room = new Room(code, player, {
         mapId: msg.mapId,
         laps: msg.laps,
@@ -204,22 +206,22 @@ async function handleMessage(player, msg) {
     }
 
     case C2S.LIST_ROOMS: {
-      if (!player.name) return fail(socket, 'Előbb add meg a neved.');
+      if (!player.name) return fail(socket, ERR.NAME_FIRST);
       sendRoomList(socket, Math.trunc(Number(msg.page) || 0));
       return;
     }
 
     case C2S.START_HOT_LAP: {
-      if (!player.name) return fail(socket, 'Előbb add meg a neved.');
+      if (!player.name) return fail(socket, ERR.NAME_FIRST);
       if (player.roomCode) leaveRoom(player);
       const manifest = await getManifest();
       if (!isActivePlayer(player)) return;
       const map = manifest.maps.find((m) => m.id === msg.mapId);
       const car = manifest.cars.find((c) => c.id === msg.carId);
-      if (!map) return fail(socket, 'Nincs ilyen pálya.');
-      if (!car) return fail(socket, 'Nincs ilyen kocsi.');
+      if (!map) return fail(socket, ERR.NO_SUCH_MAP);
+      if (!car) return fail(socket, ERR.NO_SUCH_CAR);
       const code = makeRoomCode();
-      if (!code) return fail(socket, 'Nem sikerült időmérést indítani, próbáld újra.');
+      if (!code) return fail(socket, ERR.HOT_LAP_START_FAILED);
       const ghostPlayerId = Number(msg.ghostPlayerId);
       const room = new Room(code, player, {
         mapId: map.id,
@@ -241,30 +243,30 @@ async function handleMessage(player, msg) {
     }
 
     case C2S.JOIN_ROOM: {
-      if (!player.name) return fail(socket, 'Előbb add meg a neved.');
+      if (!player.name) return fail(socket, ERR.NAME_FIRST);
       const code = String(msg.code || '').toUpperCase().trim();
       const room = rooms.get(code);
-      if (!room) return fail(socket, 'Nincs ilyen szoba.');
-      if (room.mode === GAME_MODE.HOT_LAP) return fail(socket, 'Ez egy egyszemélyes időmérés.');
-      if (room.isFull) return fail(socket, 'A szoba megtelt.');
-      if (room.state !== ROOM_STATE.LOBBY) return fail(socket, 'A verseny már elindult ebben a szobában.');
+      if (!room) return fail(socket, ERR.NO_SUCH_ROOM);
+      if (room.mode === GAME_MODE.HOT_LAP) return fail(socket, ERR.HOT_LAP_IS_SOLO);
+      if (room.isFull) return fail(socket, ERR.ROOM_FULL);
+      if (room.state !== ROOM_STATE.LOBBY) return fail(socket, ERR.RACE_ALREADY_STARTED);
       // Ugyanaz a profil ne kerüljön kétszer ugyanabba a szobába (két fül,
       // egy token). Másik szobában párhuzamosan viszont szabad — az nem
       // rontja el egyik futam rajtrácsát sem.
       if (room.hasProfile(player.token, player.id)) {
-        return fail(socket, 'Ezzel a profillal már bent vagy ebben a szobában.');
+        return fail(socket, ERR.ALREADY_IN_ROOM);
       }
       const manifest = await getManifest();
       if (!isActivePlayer(player)) return;
       const selectedCar = manifest.cars.find((car) => car.id === msg.carId);
-      if (!selectedCar) return fail(socket, 'Nincs ilyen kocsi.');
+      if (!selectedCar) return fail(socket, ERR.NO_SUCH_CAR);
       // A manifest olvasása aszinkron: közben a host elindíthatta vagy mások
       // feltölthették a szobát, ezért a változó állapotot újra ellenőrizzük.
-      if (rooms.get(code) !== room) return fail(socket, 'Nincs ilyen szoba.');
-      if (room.isFull) return fail(socket, 'A szoba megtelt.');
-      if (room.state !== ROOM_STATE.LOBBY) return fail(socket, 'A verseny már elindult ebben a szobában.');
+      if (rooms.get(code) !== room) return fail(socket, ERR.NO_SUCH_ROOM);
+      if (room.isFull) return fail(socket, ERR.ROOM_FULL);
+      if (room.state !== ROOM_STATE.LOBBY) return fail(socket, ERR.RACE_ALREADY_STARTED);
       if (room.hasProfile(player.token, player.id)) {
-        return fail(socket, 'Ezzel a profillal már bent vagy ebben a szobában.');
+        return fail(socket, ERR.ALREADY_IN_ROOM);
       }
       if (player.roomCode) leaveRoom(player);
       room.add(player, selectedCar.id);
@@ -274,22 +276,22 @@ async function handleMessage(player, msg) {
 
     case C2S.LEAVE_ROOM: {
       leaveRoom(player, true);
-      send(socket, S2C.ROOM_CLOSED, { reason: 'Kiléptél a szobából.' });
+      send(socket, S2C.ROOM_CLOSED, { code: ERR.ROOM_LEFT });
       return;
     }
 
     case C2S.SET_CAR: {
       let room = rooms.get(player.roomCode);
       if (!room) return;
-      if (room.state !== ROOM_STATE.LOBBY) return fail(socket, 'Verseny közben nem lehet kocsit váltani.');
+      if (room.state !== ROOM_STATE.LOBBY) return fail(socket, ERR.NO_CAR_SWAP_IN_RACE);
       const roomCode = room.code;
       const manifest = await getManifest();
       if (!isActivePlayer(player)) return;
       const selectedCar = manifest.cars.find((car) => car.id === msg.carId);
-      if (!selectedCar) return fail(socket, 'Nincs ilyen kocsi.');
+      if (!selectedCar) return fail(socket, ERR.NO_SUCH_CAR);
       room = rooms.get(player.roomCode);
       if (!room || room.code !== roomCode || room.state !== ROOM_STATE.LOBBY) {
-        return fail(socket, 'Verseny közben nem lehet kocsit váltani.');
+        return fail(socket, ERR.NO_CAR_SWAP_IN_RACE);
       }
       player.carId = selectedCar.id;
       pushRoomState(room);
@@ -309,7 +311,7 @@ async function handleMessage(player, msg) {
       // írjuk felül vele a kanonikus kezdőállapotot, és ne mutassunk hibát sem.
       if (ready && player.ready) return;
       if (!loading && !lateReady) {
-        return fail(socket, 'Készenléti állapot csak a verseny betöltésekor küldhető.');
+        return fail(socket, ERR.READY_ONLY_WHILE_LOADING);
       }
       // Kliensfizikánál a betöltés végén már a pályára helyezett, helyes Y
       // pozíciót is elküldjük. Ha a nagyon gyors kliens megelőzte a vezérlő
@@ -317,13 +319,13 @@ async function handleMessage(player, msg) {
       // 30 másodperces időkorlát után elkészülő kliens ugyanezt biztonságosan
       // megteheti COUNTDOWN/RACING alatt, ha még egy állapotát sem fogadtuk el.
       if (ready) {
-        if (!msg.state) return fail(socket, 'A készenléthez kezdőállapot szükséges.');
+        if (!msg.state) return fail(socket, ERR.READY_NEEDS_STATE);
         const initialState = sanitizeClientCarState(msg.state);
-        if (!initialState) return fail(socket, 'Hibás kezdőállapot.');
+        if (!initialState) return fail(socket, ERR.BAD_INITIAL_STATE);
         initialState.seq = Math.trunc(Number(msg.state.seq) || 0);
         if (room.sim) {
           if (!room.sim.receiveInitialState?.(player.id, initialState)) {
-            return fail(socket, 'A kezdőállapot nem fogadható el.');
+            return fail(socket, ERR.INITIAL_STATE_REJECTED);
           }
           player.pendingInitialState = null;
         } else {
@@ -345,8 +347,8 @@ async function handleMessage(player, msg) {
 
     case C2S.START_RACE: {
       const room = rooms.get(player.roomCode);
-      if (!room) return fail(socket, 'Nem vagy szobában.');
-      if (room.hostId !== player.id) return fail(socket, 'Csak a szoba tulajdonosa indíthatja a versenyt.');
+      if (!room) return fail(socket, ERR.NOT_IN_ROOM);
+      if (room.hostId !== player.id) return fail(socket, ERR.HOST_ONLY_START);
       const problem = room.canStart();
       if (problem) return fail(socket, problem);
       await startRace(room);
@@ -378,7 +380,7 @@ async function handleMessage(player, msg) {
     }
 
     default:
-      fail(socket, 'Ismeretlen üzenet: ' + msg.type);
+      fail(socket, ERR.UNKNOWN_MESSAGE, String(msg.type));
   }
 }
 
@@ -446,7 +448,7 @@ async function startRace(room) {
     await room.finishAttempt(raceId);
     room.state = ROOM_STATE.LOBBY;
     room.sim = null;
-    broadcastRoom(room, S2C.ERROR, { message: 'A verseny nem indítható: ' + err.message });
+    broadcastRoom(room, S2C.ERROR, { code: ERR.RACE_START_FAILED, detail: err.message });
     pushRoomState(room);
     return;
   }
@@ -558,7 +560,7 @@ export function attachWebSocket(httpServer) {
       try {
         msg = JSON.parse(raw.toString());
       } catch {
-        return fail(socket, 'Hibás üzenet (nem JSON).');
+        return fail(socket, ERR.BAD_JSON);
       }
       if (!messageRateAllowed(player, msg?.type)) {
         socket.close(1008, 'Túl sok üzenet.');
@@ -574,7 +576,7 @@ export function attachWebSocket(httpServer) {
         })
         .catch((err) => {
           console.error('WS üzenet hiba:', err);
-          if (isActivePlayer(player)) fail(socket, 'Szerverhiba az üzenet feldolgozásakor.');
+          if (isActivePlayer(player)) fail(socket, ERR.SERVER_ERROR);
         });
     });
 

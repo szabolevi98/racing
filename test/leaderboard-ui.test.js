@@ -17,5 +17,7 @@ test('leaderboard stays informational while Hot Lap uses a separate ghost picker
   assert.match(multiplayer, /if \(ghostReplay && !reuseGhost\)/);
   assert.match(multiplayer, /if \(ghostCar\?\.group\.visible\)/);
   assert.match(multiplayer, /rgba\(117, 215, 255, 0\.62\)/);
-  assert.match(multiplayer, /Szellem nélkül/);
+  assert.match(multiplayer, /t\('mp\.noGhost'\)/);
+  const hu = JSON.parse(await fs.readFile(new URL('../web/lang/hu.json', import.meta.url), 'utf8'));
+  assert.equal(hu['mp.noGhost'], 'Szellem nélkül');
 });
