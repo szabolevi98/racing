@@ -89,6 +89,33 @@ az UV-varratokon átnyúlva vonna össze csúcsokat, amitől a textúra láthat�
 elcsúszik a modellen. Mérve négy autón: az elhagyása +0,2…1,2% méret, és a
 célarányt nélküle is eléri. A `-vt 16` ugyanezt védi a kvantálás oldaláról.
 
+## Több kocsit tartalmazó modell szétvágása
+
+```bash
+node tools/split-car-pack.mjs <pack.glb>            # csak megnézi
+node tools/split-car-pack.mjs <pack.glb> --write    # kiírja a darabokat
+```
+
+A „car pack" modellek egymás mellé állítva tartalmazzák a mezőnyt. A script a
+node-ok világ-koordinátás dobozaiból keresi meg a hézagokat — nem a nevekből,
+mert egy pack jellemzően `Object_47` stílusban nevez. Ha a hierarchia egyetlen
+gyökérrel kezd (Sketchfab-export), addig ereszkedik, amíg a fa el nem ágazik.
+
+Nem farag geometriát: kocsinként készít egy másolatot, amiben az elágazó node
+gyereklistája csak az adott kocsira szűkül, majd a `gltfpack` újraépíti a
+puffert és eldob mindent, amire nincs hivatkozás. A kiválasztott node-okat
+NEM lépteti elő jelenet-gyökérré — a glTF-ben egy node-nak legfeljebb egy
+szülője lehet, és a gltfpack az ilyen fájlt visszautasítja.
+
+Ellenőrizve: egy-kocsis modelleken pontosan egy csoportot talál (nem vág szét
+feleslegesen), és a kiírt fájl ugyanazt a darabszámot, méretet és
+anyagkészletet adja vissza, mint az eredeti.
+
+Utána a darabok a szokásos úton mennek tovább: `cars:wheels`, `cars:compress`,
+majd `tools/audit/wheel-orbit.mjs`. Egy pack előtt érdemes megnézni, hogy a
+festések közös textúra-atlaszon vannak-e — ha igen, minden darab magával viszi
+az egészet, és a `gltfpack` egy atlaszt nem tud részlegesen megnyesni.
+
 ## Kerék-configok automatikus elkészítése
 
 ```bash

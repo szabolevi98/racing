@@ -151,7 +151,7 @@ async function download(url, attempts = 4) {
   throw new Error(`gltfpack letöltési hiba ${attempts} próbálkozás után: ${lastError.message}`);
 }
 
-async function ensureGltfpack() {
+export async function ensureGltfpack() {
   const release = RELEASES[`${process.platform}-${process.arch}`];
   if (!release) throw new Error(`Nem támogatott platform: ${process.platform}-${process.arch}`);
   const executable = path.join(VENDOR_DIR, release.executable);
