@@ -83,12 +83,30 @@ const langSelect = document.getElementById('langSelect');
 fillSelect(langSelect, SUPPORTED_LANGUAGES.map(({ code, label }) => ({ id: code, label })));
 langSelect.value = currentLanguage();
 makeSearchableSelect(langSelect);
-// A látható mező szélessége a leghosszabb nyelvnévhez igazodik. Enélkül a
-// szöveges mező a saját alapértelmezett 20 karakteres méretét venné fel, ami
-// itt kétszer akkora, mint amire szükség van. Új nyelvvel magától nő; a +3
-// karakter a földgömb ikonnak és egy kis levegőnek marad.
-document.querySelector('.lang-field input').size =
-  Math.max(...SUPPORTED_LANGUAGES.map(({ label }) => label.length)) + 3;
+// A látható mező szélessége a leghosszabb nyelvnévhez igazodik — enélkül a
+// szöveges mező az alapértelmezett 20 karakteres méretét venné fel.
+//
+// A karakterszám (`size`) viszont túl durva mérce: a böngésző a "0" glifa
+// szélességével számol, ami arányos betűtípusnál jóval szélesebb az átlagos
+// betűnél. Mérve 126 px lett a szükséges 80 helyett, tehát a nyelv neve
+// majdnem kétszer kifért volna a sávban. Ezért a neveket a mező SAJÁT
+// betűjével mérjük meg. Új nyelvvel magától igazodik.
+const langInput = document.querySelector('.lang-field input');
+const langTextRuler = document.createElement('canvas').getContext('2d');
+function fitLangInput() {
+  const style = getComputedStyle(langInput);
+  langTextRuler.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+  const text = Math.max(...SUPPORTED_LANGUAGES.map(({ label }) => langTextRuler.measureText(label).width));
+  // A doboz border-box, tehát a bélés és a keret is beleszámít a szélességbe.
+  const frame = ['paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth']
+    .reduce((sum, part) => sum + parseFloat(style[part]), 0);
+  langInput.style.width = `${Math.ceil(text + frame) + 1}px`;
+}
+fitLangInput();
+// Alacsony ablaknál kisebb a betű és szűkebb a bélés, tehát a töréspont
+// átlépésekor újra kell mérni. A betűk betöltése is elmozdíthatja a méretet.
+addEventListener('resize', fitLangInput);
+document.fonts?.ready.then(fitLangInput);
 langSelect.addEventListener('change', async () => {
   const code = langSelect.value;
   if (code === currentLanguage()) return;
