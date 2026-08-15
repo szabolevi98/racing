@@ -83,25 +83,18 @@ export function applyToDom(root = document) {
   root.querySelectorAll('[data-i18n]').forEach((el) => {
     el.textContent = t(el.dataset.i18n);
   });
+  // A `data-i18n-html` kivétel: olyan mondatokhoz kell, amelyekbe billentyű
+  // (<kbd>) vagy kiemelés ékelődik. Szétdarabolni nem lehet, mert nyelvenként
+  // más a szórend. A forrás a SAJÁT nyelvfájlunk, nem külső adat.
+  root.querySelectorAll('[data-i18n-html]').forEach((el) => {
+    el.innerHTML = t(el.dataset.i18nHtml);
+  });
   root.querySelectorAll('*').forEach((el) => {
     for (const name of Object.keys(el.dataset)) {
-      if (!name.startsWith('i18n') || name === 'i18n') continue;
+      if (!name.startsWith('i18n') || name === 'i18n' || name === 'i18nHtml') continue;
       // data-i18n-aria-label -> i18nAriaLabel -> aria-label
       const attr = name.slice(4).replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`).replace(/^-/, '');
       el.setAttribute(attr, t(el.dataset[name]));
     }
   });
-}
-
-// A pálya-figyelmeztetések az alert.json-ban élnek. Új alak: nyelvenkénti
-// objektum ({ hu, en }). A régi, sima szöveget lefordítatlanul kiírjuk: ezek
-// az üzenetek arról szólnak, hogy a pálya hibás — egy fordítatlan mondat
-// rosszabb, mint semmi, de a NÉMA elhallgatás a legrosszabb.
-export function localizedText(value) {
-  if (value === null || value === undefined) return '';
-  if (typeof value === 'string') return value;
-  const exact = value[current];
-  if (typeof exact === 'string' && exact) return exact;
-  const fallback = value[FALLBACK];
-  return typeof fallback === 'string' ? fallback : '';
 }

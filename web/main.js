@@ -21,7 +21,7 @@ import { gateRespawnPoint } from '/shared/gate.js';
 import { classifyPing, shouldWarnAboutPing } from '/shared/ping.js';
 import {
   SUPPORTED_LANGUAGES, pickLanguage, loadLanguage, rememberLanguage,
-  currentLanguage, t, applyToDom, localizedText,
+  currentLanguage, t, applyToDom,
   onLanguageChange, notifyLanguageChange,
 } from './lang.js';
 import {
@@ -222,7 +222,7 @@ function updateTrackAlert(entry) {
     return;
   }
   trackAlertEl.dataset.type = alert.type;
-  trackAlertEl.textContent = localizedText(alert.message);
+  trackAlertEl.textContent = t(alert.messageKey);
   trackAlertEl.classList.remove('hidden');
 }
 
@@ -4122,11 +4122,7 @@ async function loadOrExtractCollision(strict = false) {
       console.warn('Bekészített ütközési fájl nem tölthető, visszaesés kinyerésre', err);
     }
   } else if (strict) {
-    throw new Error(
-      'Ehhez a pályához nincs bekészítve ütközési fájl (collision.bin), ' +
-      'így multiplayerben nem használható — a szerver és a kliensek geometriája ' +
-      'nem lenne azonos.'
-    );
+    throw new Error(t('error.noCollisionFile'));
   }
   const floor = extractDrivableTriangles(currentTrack);
   const wall = extractWallTriangles(currentTrack);
@@ -5052,7 +5048,7 @@ window.__game = {
     // a játék még játszható, addig a figyelmeztetés csak takarna.
     const racing = appState === 'mp';
     const show = racing && shouldWarnAboutPing(ms);
-    if (show) highPingAlertTextEl.textContent = `Magas ping: ${ping} ms — a kapcsolat akadozhat.`;
+    if (show) highPingAlertTextEl.textContent = t('alert.highPing', { ping });
     highPingAlertEl.classList.toggle('hidden', !show);
   },
   requestGameFullscreen,

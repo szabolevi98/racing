@@ -216,5 +216,15 @@
   "mp.ui.startHotLap": "Start hot lap",
   "mp.ui.close": "Close",
   "mp.ui.ghostPickerIntro": "Pick a replayable leaderboard lap as your ghost, or start alone.",
-  "mp.ghost": "Ghost"
+  "mp.ghost": "Ghost",
+  "trackAlert.brokenAsphalt": "The track surface is broken. Only pick it if you want to try it anyway.",
+  "trackAlert.visualGlitches": "This track has visual glitches.",
+  "hud.fullscreenHint": "Press <kbd>F11</kbd> for fullscreen",
+  "spectate.nextKey": "Next <kbd>V</kbd>",
+  "meta.description": "Browser-based car racing with single player, server-verified hot laps and multiplayer, with many cars and circuits.",
+  "menu.githubProfile": "szabolevi98's GitHub profile",
+  "error.noCollisionFile": "This track has no prepared collision file (collision.bin), so it cannot be used in multiplayer — the server and the clients would not share the same geometry.",
+  "alert.highPing": "High ping: {ping} ms — the connection may stutter.",
+  "mp.roomCountOne": "1 room",
+  "mp.roomCount": "{n} rooms"
 }

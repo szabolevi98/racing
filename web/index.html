@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="description" content="Böngészőben játszható autóverseny egyjátékos, szerverhiteles időmérő és többjátékos móddal, több autóval és versenypályával." />
+<meta name="description" data-i18n-content="meta.description" content="Böngészőben játszható autóverseny egyjátékos, szerverhiteles időmérő és többjátékos móddal, több autóval és versenypályával." />
 <title>Levente Racing</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg" />
 <link href="vendor/bootstrap.min.css" rel="stylesheet">
@@ -86,7 +86,8 @@
   <div id="menuStatus" class="text-center mt-3">
     <div id="menuStatusText" role="status" aria-live="polite"></div>
     <a id="menuCopyright" href="https://github.com/szabolevi98" target="_blank"
-       rel="noopener noreferrer" aria-label="szabolevi98 GitHub-profilja">Copyright © <span id="copyrightYear"></span> szabolevi98</a>
+       rel="noopener noreferrer" data-i18n-aria-label="menu.githubProfile"
+       aria-label="szabolevi98 GitHub-profilja">Copyright © <span id="copyrightYear"></span> szabolevi98</a>
     <div id="menuCredits">Most 3D models by
       <a href="https://sketchfab.com/Tyler_Dave" target="_blank" rel="noopener noreferrer">Tyler_Dave</a> ·
       <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>
@@ -163,7 +164,7 @@
         <span id="speedValue" class="num">0</span>
         <span class="sp-unit">km/h</span>
       </div>
-      <div class="sp-zone"><span id="zoneIndicator" data-zone="asphalt">aszfalt</span></div>
+      <div class="sp-zone"><span id="zoneIndicator" data-zone="asphalt" data-i18n="zone.asphalt">aszfalt</span></div>
     </div>
   </div>
 
@@ -236,7 +237,8 @@
   <div id="spectateBar" class="hidden">
     <span class="spec-eye" aria-hidden="true">👁</span>
     <span class="spec-who"><span class="spec-lbl" data-i18n="spectate.watching">Nézőben</span><span id="spectateName" class="spec-name">—</span></span>
-    <button id="spectateNext" class="spec-next" type="button" data-i18n-aria-label="spectate.nextPlayer" aria-label="Következő játékos">
+    <button id="spectateNext" class="spec-next" type="button" data-i18n-aria-label="spectate.nextPlayer"
+            aria-label="Következő játékos" data-i18n-html="spectate.nextKey">
       Következő <kbd>V</kbd>
     </button>
   </div>
@@ -248,7 +250,7 @@
   </div>
 </div>
 
-<div id="fullscreenHint" class="hidden" role="status">
+<div id="fullscreenHint" class="hidden" role="status" data-i18n-html="hud.fullscreenHint">
   Nyomj <kbd>F11</kbd>-et a teljes képernyőhöz
 </div>
 

@@ -216,5 +216,15 @@
   "mp.ui.startHotLap": "Időmérés indítása",
   "mp.ui.close": "Bezárás",
   "mp.ui.ghostPickerIntro": "Válassz egy visszajátszható ranglistakört szellemnek, vagy indulj egyedül.",
-  "mp.ghost": "Szellem"
+  "mp.ghost": "Szellem",
+  "trackAlert.brokenAsphalt": "A pálya aszfaltja hibás. Csak akkor válaszd, ha ennek ellenére szeretnéd kipróbálni.",
+  "trackAlert.visualGlitches": "Ezen a pályán vizuális hibák találhatóak.",
+  "hud.fullscreenHint": "Nyomj <kbd>F11</kbd>-et a teljes képernyőhöz",
+  "spectate.nextKey": "Következő <kbd>V</kbd>",
+  "meta.description": "Böngészőben játszható autóverseny egyjátékos, szerverhiteles időmérő és többjátékos móddal, több autóval és versenypályával.",
+  "menu.githubProfile": "szabolevi98 GitHub-profilja",
+  "error.noCollisionFile": "Ehhez a pályához nincs bekészítve ütközési fájl (collision.bin), így multiplayerben nem használható — a szerver és a kliensek geometriája nem lenne azonos.",
+  "alert.highPing": "Magas ping: {ping} ms — a kapcsolat akadozhat.",
+  "mp.roomCountOne": "1 szoba",
+  "mp.roomCount": "{n} szoba"
 }

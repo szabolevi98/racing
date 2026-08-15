@@ -17,14 +17,36 @@ async function loadLanguages() {
 
 // A kódban `t('kulcs')`, a markupban `data-i18n="kulcs"` /
 // `data-i18n-<attribútum>="kulcs"` alakban hivatkozunk a szövegekre.
+// A kulcs nem mindig a t() ELSŐ karaktere után áll — lehet ternárius is
+// (`t(n === 1 ? 'a' : 'b')`), ezért a hívás egész argumentumlistájából
+// összeszedjük a pontozott, idézőjeles szövegeket.
 function usedKeys(source) {
   const keys = new Set();
-  for (const m of source.matchAll(/\bt\(\s*'([\w.]+)'/g)) keys.add(m[1]);
+  for (const call of source.matchAll(/\bt\(([^)]*)\)/g)) {
+    for (const m of call[1].matchAll(/'([\w]+(?:\.[\w]+)+)'/g)) keys.add(m[1]);
+  }
   for (const m of source.matchAll(/data-i18n(?:-[\w-]+)?="([\w.]+)"/g)) keys.add(m[1]);
   return keys;
 }
 
 const SOURCES = ['web/index.html', 'web/main.js', 'web/mp.js'];
+
+// A pálya-figyelmeztetések kulcsa nem a forrásban, hanem az alert.json-okban
+// szerepel — ezeket külön kell összeszedni, különben "használaton kívülinek"
+// látszanának.
+async function alertKeys() {
+  const mapsDir = new URL('../web/assets/maps/', import.meta.url);
+  const dirs = await fs.readdir(mapsDir, { withFileTypes: true });
+  const keys = new Set();
+  for (const dir of dirs) {
+    if (!dir.isDirectory()) continue;
+    try {
+      const alert = JSON.parse(await fs.readFile(new URL(`${dir.name}/alert.json`, mapsDir), 'utf8'));
+      if (alert?.messageKey) keys.add(alert.messageKey);
+    } catch { /* nincs alert.json ezen a pályán */ }
+  }
+  return keys;
+}
 
 test('every language file has the same keys', async () => {
   const languages = await loadLanguages();
@@ -54,6 +76,7 @@ test('every key used in the client exists in every language', async () => {
   const languages = await loadLanguages();
   const sources = await Promise.all(SOURCES.map(read));
   const used = new Set(sources.flatMap((source) => [...usedKeys(source)]));
+  for (const key of await alertKeys()) used.add(key);
 
   for (const [code, strings] of languages) {
     const missing = [...used].filter((key) => !(key in strings)).sort();
@@ -85,6 +108,7 @@ test('no translation key is left unused', async () => {
   // A szerverhibák kulcsát a kliens `server.${m.code}` alakban állítja össze,
   // tehát szövegesen nem szerepel a forrásban.
   for (const code of Object.values(ERR)) used.add(`server.${code}`);
+  for (const key of await alertKeys()) used.add(key);
 
   const [first] = languages.keys();
   const unused = Object.keys(languages.get(first)).filter((key) => !used.has(key)).sort();

@@ -150,20 +150,15 @@ async function collectMaps() {
     // kerül, így a kliensnek nem kell minden pályához külön HTTP-kérést indítani.
     // Csak a három ismert megjelenési típus mehet át; hibás fájlnál inkább ne
     // mutassunk félreformázott üzenetet.
-    // Az üzenet nyelvenkénti objektum ({ hu, en }); a nyelvválasztás a kliensé,
-    // hiszen egy szerver egyszerre többféle nyelvű játékost szolgál ki. A régi,
-    // sima szöveget magyarnak vesszük — így egy kézzel írt fájl sem tűnik el.
+    // Az alert.json nem szöveget tartalmaz, hanem NYELVI KULCSOT: a fordítások
+    // egy helyen, a web/lang/<nyelv>.json fájlokban élnek. A szerver nem is
+    // tudná eldönteni, milyen nyelven kell kiírni — egy manifestet egyszerre
+    // többféle nyelvű játékos tölt le.
     const alertData = await readJson(path.join(mapDir, 'alert.json'));
     const alertType = String(alertData?.type || '').toLowerCase();
-    const raw = alertData?.message;
-    const source = typeof raw === 'string' ? { hu: raw } : (raw && typeof raw === 'object' ? raw : null);
-    const alertMessage = source && Object.fromEntries(
-      Object.entries(source)
-        .filter(([, text]) => typeof text === 'string' && text.trim())
-        .map(([code, text]) => [code, text.trim()]),
-    );
-    if (['success', 'warning', 'danger'].includes(alertType) && alertMessage && Object.keys(alertMessage).length) {
-      entry.alert = { type: alertType, message: alertMessage };
+    const messageKey = typeof alertData?.messageKey === 'string' ? alertData.messageKey.trim() : '';
+    if (['success', 'warning', 'danger'].includes(alertType) && messageKey) {
+      entry.alert = { type: alertType, messageKey };
     }
 
     // Kézi rajtrács (spawn.json). Egyetlen {x,z} objektum is elfogadott a

@@ -1,39 +1,45 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
 import { getManifest } from '../server/assets.js';
 import { SUPPORTED_LANGUAGES } from '../web/lang.js';
 
 const CODES = SUPPORTED_LANGUAGES.map((l) => l.code);
 
-test('track alerts are exposed only with supported types and non-empty messages', async () => {
+async function loadLanguages() {
+  const entries = await Promise.all(CODES.map(async (code) => [
+    code,
+    JSON.parse(await fs.readFile(new URL(`../web/lang/${code}.json`, import.meta.url), 'utf8')),
+  ]));
+  return new Map(entries);
+}
+
+test('track alerts are exposed as language keys with a translation everywhere', async () => {
   const maps = (await getManifest()).maps;
   const byId = new Map(maps.map((map) => [map.id, map]));
+  const languages = await loadLanguages();
 
   assert.deepEqual(byId.get('suzuka-circuit-2001-layout')?.alert, {
     type: 'warning',
-    message: {
-      hu: 'Ezen a pályán vizuális hibák találhatóak.',
-      en: 'This track has visual glitches.',
-    },
+    messageKey: 'trackAlert.visualGlitches',
   });
-  assert.equal(byId.get('redbull_ring_2025_layout')?.alert?.type, 'warning');
-  assert.equal(byId.get('nurburgring_gp_2016_layout')?.alert?.type, 'warning');
+  assert.equal(byId.get('redbull_ring_2025_layout')?.alert?.messageKey, 'trackAlert.visualGlitches');
+  assert.equal(byId.get('nurburgring_gp_2016_layout')?.alert?.messageKey, 'trackAlert.visualGlitches');
   assert.deepEqual(byId.get('bahrain_international_circuit_2006_layout')?.alert, {
     type: 'danger',
-    message: {
-      hu: 'A pálya aszfaltja hibás. Csak akkor válaszd, ha ennek ellenére szeretnéd kipróbálni.',
-      en: 'The track surface is broken. Only pick it if you want to try it anyway.',
-    },
+    messageKey: 'trackAlert.brokenAsphalt',
   });
 
-  // Minden támogatott nyelvhez kell szöveg: egy hiányzó fordítás a menüben
-  // ÜRES figyelmeztetésként jelenne meg, ami rosszabb, mint a semmi.
+  // A szerver kulcsot ad, a szöveget a kliens teszi hozzá. Egy elgépelt vagy
+  // lefordítatlan kulcs a menüben nyers kulcsnévként jelenne meg.
   for (const map of maps) {
     if (!map.alert) continue;
     assert.ok(['success', 'warning', 'danger'].includes(map.alert.type));
+    assert.equal(map.alert.message, undefined, `${map.id}: a kész szöveg nem mehet a manifestbe`);
     for (const code of CODES) {
-      assert.equal(typeof map.alert.message[code], 'string', `${map.id}: hiányzó ${code} fordítás`);
-      assert.ok(map.alert.message[code].trim().length > 0, `${map.id}: üres ${code} fordítás`);
+      const text = languages.get(code)[map.alert.messageKey];
+      assert.equal(typeof text, 'string', `${map.id}: hiányzó ${code} fordítás (${map.alert.messageKey})`);
+      assert.ok(text.trim().length > 0, `${map.id}: üres ${code} fordítás`);
     }
   }
 });

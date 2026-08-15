@@ -220,7 +220,7 @@ el.className = 'hidden';
 el.innerHTML = `
 <div class="mp-panel">
   <div class="mp-head">
-    <h5 id="mpTitle">Többjátékos</h5>
+    <h5 id="mpTitle" data-i18n="menu.multiplayer">Többjátékos</h5>
     <button id="mpClose" class="mp-x" data-i18n-title="mp.ui.backToMenu" title="Vissza a menübe">&times;</button>
   </div>
   <div class="mp-body">
@@ -897,7 +897,7 @@ function renderRoomList(list, { page = 0, pages = 1, total = list.length } = {})
     wrap.innerHTML = `<div class="mp-browse-empty">${t('mp.noPublicRooms')}</div>`;
     return;
   }
-  count.textContent = total === 1 ? '1 szoba' : `${total} szoba`;
+  count.textContent = t(total === 1 ? 'mp.roomCountOne' : 'mp.roomCount', { n: total });
   wrap.innerHTML = list.map((room) => {
     const map = G.manifest?.maps.find((entry) => entry.id === room.mapId);
     const tele = room.players >= room.max;

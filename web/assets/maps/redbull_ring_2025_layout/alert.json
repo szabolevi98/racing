@@ -1,7 +1,4 @@
 {
   "type": "warning",
-  "message": {
-    "hu": "Ezen a pályán vizuális hibák találhatóak.",
-    "en": "This track has visual glitches."
-  }
+  "messageKey": "trackAlert.visualGlitches"
 }

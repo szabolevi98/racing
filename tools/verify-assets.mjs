@@ -9,9 +9,13 @@ import { PIPELINE_VERSION, sourceSignature } from './build-remote-cars.mjs';
 // ellenőrzés magától elkezdi számonkérni a pálya-figyelmeztetéseken is.
 import { SUPPORTED_LANGUAGES } from '../web/lang.js';
 
-const SUPPORTED_LANGUAGE_CODES = SUPPORTED_LANGUAGES.map((l) => l.code);
-
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const SUPPORTED_LANGUAGE_CODES = SUPPORTED_LANGUAGES.map((l) => l.code);
+const LANGUAGE_STRINGS = new Map(await Promise.all(SUPPORTED_LANGUAGE_CODES.map(async (code) => [
+  code,
+  JSON.parse(await fs.readFile(path.join(ROOT, 'web', 'lang', `${code}.json`), 'utf8')),
+])));
+
 const ASSETS_DIR = path.join(ROOT, 'web', 'assets');
 const CARS_DIR = path.join(ASSETS_DIR, 'cars');
 const COMPRESSED_DIR = path.join(CARS_DIR, 'compressed');
@@ -352,17 +356,21 @@ async function verifyMap(id) {
   const alertFile = path.join(dir, 'alert.json');
   if (await exists(alertFile)) {
     const alert = await readJson(alertFile, `Pálya ${id}/alert.json`);
-    // A message nyelvenkénti objektum: { hu: '…', en: '…' }. MINDEN támogatott
-    // nyelvnek kell benne lennie, különben a játékos üres figyelmeztetést lát.
-    const message = alert?.message;
-    const hianyzo = SUPPORTED_LANGUAGE_CODES.filter(
-      (code) => typeof message?.[code] !== 'string' || !message[code].trim(),
-    );
+    // A fájl nyelvi KULCSOT ad meg; a szöveg a nyelvfájlokban van. Egy elgépelt
+    // vagy lefordítatlan kulcs a menüben nyers kulcsnévként jelenne meg, ezért
+    // minden támogatott nyelvben megkeressük.
+    const key = typeof alert?.messageKey === 'string' ? alert.messageKey.trim() : '';
+    const hianyzo = SUPPORTED_LANGUAGE_CODES.filter((code) => {
+      const value = LANGUAGE_STRINGS.get(code)?.[key];
+      return typeof value !== 'string' || !value.trim();
+    });
     if (alert && !['success', 'warning', 'danger'].includes(String(alert.type).toLowerCase())) {
       reportError(`Pálya ${id}/alert.json`, 'type: success/warning/danger szükséges');
     }
-    if (alert && hianyzo.length) {
-      reportError(`Pálya ${id}/alert.json`, `message hiányzik ezeken a nyelveken: ${hianyzo.join(', ')}`);
+    if (alert && !key) {
+      reportError(`Pálya ${id}/alert.json`, 'messageKey (nyelvi kulcs) szükséges');
+    } else if (alert && hianyzo.length) {
+      reportError(`Pálya ${id}/alert.json`, `a(z) "${key}" kulcs hiányzik innen: ${hianyzo.join(', ')}`);
     }
   }
 }
