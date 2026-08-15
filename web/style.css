@@ -228,8 +228,7 @@ kbd.k {
 }
 #menuCopyright:hover, #menuCopyright:focus-visible { color: var(--text); }
 
-/* A modellek CC BY 4.0 alatt vannak, ami megköveteli a szerző és a licenc
-   feltüntetését — ezért a sor nem elhagyható díszítés. */
+/* A kocsimodellek túlnyomó része Tyler_Dave munkája; a kredit-sor neki szól. */
 #menuCredits { margin-top: 2px; font-size: 11px; color: var(--muted); }
 #menuCredits a { color: inherit; text-decoration: none; transition: color .15s ease; }
 #menuCredits a:hover, #menuCredits a:focus-visible { color: var(--text); }
