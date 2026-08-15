@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { buildConfig } from '../tools/build-car-wheels.mjs';
 
 const best = { pat: 'rim|tire', sc: { s: 1.9, track: 1.81, wheelbase: 2.88, parts: 28 } };
@@ -40,4 +41,13 @@ test('a weak proposal says so in the file itself', () => {
 test('a hand-set yaw survives regeneration', () => {
   assert.equal(buildConfig('teszt', best, { yawDegrees: 180 }).yawDegrees, 180);
   assert.equal(buildConfig('teszt', best, {}).yawDegrees, 0);
+});
+
+test('Mercedes AMG GT3 Evo wheel rig excludes its wheelhouse and calipers', () => {
+  const config = JSON.parse(fs.readFileSync(
+    new URL('../web/assets/cars/2020_mercedes-amg_gt3_evo.json', import.meta.url),
+    'utf8'
+  ));
+  assert.equal(config.wheelPattern, 'tyre|rim|disc');
+  assert.doesNotMatch(config.wheelPattern, /wheel|caliper/i);
 });
