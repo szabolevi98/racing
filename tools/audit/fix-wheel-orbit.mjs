@@ -47,7 +47,10 @@ const ROUND_TOLERANCE = 0.06;
 // pörög — az is látható hiba, csak fordítva. Ezért a bizonytalan neveket
 // inkább kézi vizsgálatra hagyjuk.
 //
-// A 'brake' szándékosan NINCS benne: a féktárcsa forog, a féknyereg nem.
+// A 'brake' azért KERÜLT bele, mert ebben a módban a geometria már kizárta a
+// féktárcsát: a tárcsa koncentrikus a tengellyel, tehát sosem esik a kilengő
+// halmazba. Ami 'brake' nevű ÉS kilengő, az nyereg, terelő vagy fékvezeték.
+// (A 'caliper' módban ugyanez nem igaz, ott külön védett lista óvja a tárcsát.)
 // A féknyereg neve. A valóságban a féltengelycsonkra van szerelve, tehát
 // SOSEM forog a kerékkel — ezért a 'caliper' módban a puszta név elég.
 const CALIPER_NAME = /calip|cala|pinza/i;
@@ -55,9 +58,14 @@ const CALIPER_NAME = /calip|cala|pinza/i;
 // Amit SOHA nem dobunk el: ezek a valóságban is együtt forognak a kerékkel.
 // Kellett a védelem, mert a féknyereg-nevű NODE alatt ülő féktárcsa (DISC88,
 // rotor) és a felnimatrica (EXT_Rim_Decals) is nyeregnek minősült volna.
-const ROTATING_NAME = /disc|disk|rotor|rim|tyre|tire|tread|spoke|hub|wheel/i;
+const ROTATING_NAME = /disc|disk|rotor|rim|tyre|tire|tread|spoke|hub|wheel|nut|bolt|lug/i;
 
-const STATIC_PART_NAME = /calip|caliper|cala|pinza|brembo|susp|sospension|upright|knuckle|damper|shock|wishbone|duct|scoop|air|claw|bracket|mechanic|wire/i;
+// A matricáról a neve önmagában nem árulja el, a FELNIN van-e (forog) vagy a
+// NYERGEN (áll). Ezért védett — kivéve, ha a nyerget is megnevezi
+// ('Caliper_Logo'), mert az egyértelmű.
+const AMBIGUOUS_DECAL = /decal|sticker|logo|badge/i;
+
+const STATIC_PART_NAME = /calip|caliper|cala|pinza|brembo|brake|susp|sospension|upright|knuckle|damper|shock|wishbone|duct|scoop|air|claw|bracket|mechanic|wire/i;
 
 function isRound(part) {
   const y = part.size[1], z = part.size[2];
@@ -183,11 +191,16 @@ export function proposePattern(file, current, yawDegrees = 0, mode = 'orbit') {
     // csakhogy az együtt forog a felnivel — kidobva állva maradna, miközben a
     // felni pörög. A féknyereg és a felnimatrica geometriailag egyforma, ezért
     // a névnek is meg kell erősítenie, hogy álló alkatrészről van szó.
-    if (lista.some((e) => STATIC_PART_NAME.test(e.szoveg))) bad.push(...lista.map((e) => e.part));
-    else nevGyanus.push(k);
-  }
-  if (nevGyanus.length) {
-    return { skip: `a geometria kilengőnek látja, de a neve nem árulkodó: ${nevGyanus.join(', ')}`, before };
+    // RÉSZLEGES javítás megengedett: amiről a név is megerősíti, hogy álló
+    // alkatrész, azt eldobjuk; a bizonytalan nevűt bent hagyjuk. Így az
+    // eredmény sosem rosszabb a mostaninál, legfeljebb nem tökéletes — a
+    // maradékot a végén jelentjük.
+    // A védett lista itt is érvényes: a nevében forgó alkatrészt megnevező
+    // darabot (felni, gumi, tárcsa, kerékanya, matrica a felnin) akkor sem
+    // dobjuk el, ha az ŐS-LÁNCA történetesen egy féknyereg-csoportot említ.
+    const vedett = ROTATING_NAME.test(k) || (AMBIGUOUS_DECAL.test(k) && !CALIPER_NAME.test(k));
+    if (!vedett && lista.some((e) => STATIC_PART_NAME.test(e.szoveg))) bad.push(...lista.map((e) => e.part));
+    else { good.push(...lista.map((e) => e.part)); nevGyanus.push(k); }
   }
   if (!good.length || !bad.length) return { skip: 'nincs mit szétválasztani', before };
 
@@ -254,7 +267,9 @@ export function proposePattern(file, current, yawDegrees = 0, mode = 'orbit') {
   }
   if (!after) return { skip: 'a javasolt minta nem bontható 4 sarokra', before, pattern };
   const result = worstOrbit(after.corners);
-  if (mode !== 'caliper' && result.orbit > ORBIT_LIMIT) return { skip: 'a javaslat sem szünteti meg a kilengést', before, pattern, after: result };
+  if (mode !== 'caliper' && result.orbit >= before.orbit - 0.02) {
+    return { skip: 'a javaslat érdemben nem javít', before, pattern, after: result };
+  }
 
   // Biztonsági kapuk. A mérőszámot könnyű úgy „javítani", hogy közben valódi
   // kerék-alkatrészek esnek ki — attól a kilengés nulla lesz, a kerék viszont
@@ -270,7 +285,7 @@ export function proposePattern(file, current, yawDegrees = 0, mode = 'orbit') {
   //  - és nem eshet ki több anyag, mint amennyi marad.
   if (dropped.length > kept.size) return { skip: `túl sok anyag esne ki (${dropped.length} vs ${kept.size})`, before, pattern };
 
-  return { pattern, before, after: result, parts: after.parts.length, dropped, kept: [...kept] };
+  return { pattern, before, after: result, parts: after.parts.length, dropped, kept: [...kept], maradek: nevGyanus };
 }
 
 function run(argv) {

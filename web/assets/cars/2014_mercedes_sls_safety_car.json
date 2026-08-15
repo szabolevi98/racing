@@ -2,6 +2,6 @@
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
   "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
   "yawDegrees": 0,
-  "_wheelPattern": "A kerék-alkatrészek egy közös node-hierarchia alatt vannak, a 'hub' és az 'rf' (right front és társai) node-nevek fogják meg őket. Sarkonként 10 alkatrész: gumi, felni (tömör és küllős elmosódás-változatban), féktárcsa, féknyereg, króm díszítés, kerékagy-mechanika. Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 10/10/10/10 alkatrész, nyomtáv 1.57, tengelytáv 2.55, max kilengés 180 fokos forgatásnál 0.3.",
-  "wheelPattern": "hub|rf"
+  "_wheelPattern": "AUTOMATIKUSAN SZŰKÍTVE (tools/audit/fix-wheel-orbit.mjs): a korábbi minta olyan darabot is megfogott, ami nem a kerékkel forog — a legrosszabb a(z) \"brake_caliper\" volt, a kerékátmérő 46%-ával kilengve. Az új minta csak azokat a darabokat fogja meg, amelyek a forgástengelyre központozva ülnek: 33% kilengés, 32 darab. Élőben ellenőrizendő.\n\nKorábbi megjegyzés, referenciaként: A kerék-alkatrészek egy közös node-hierarchia alatt vannak, a 'hub' és az 'rf' (right front és társai) node-nevek fogják meg őket. Sarkonként 10 alkatrész: gumi, felni (tömör és küllős elmosódás-változatban), féktárcsa, féknyereg, króm díszítés, kerékagy-mechanika. Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 10/10/10/10 alkatrész, nyomtáv 1.57, tengelytáv 2.55, max kilengés 180 fokos forgatásnál 0.3.",
+  "wheelPattern": "disk|rim|tyre"
 }

@@ -2,6 +2,6 @@
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
   "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
   "yawDegrees": 0,
-  "_wheelPattern": "Beszédes nevek: EXT_TIRE, EXT_RIMS, EXT_DISC, EXT_BRAKES — sarkonként 4 alkatrész. Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 4/4/4/4 alkatrész, nyomtáv 1.55, tengelytáv 2.48, max kilengés 180 fokos forgatásnál 0.31.",
-  "wheelPattern": "tire|disc|rims|brakes"
+  "_wheelPattern": "AUTOMATIKUSAN SZŰKÍTVE (tools/audit/fix-wheel-orbit.mjs): a korábbi minta olyan darabot is megfogott, ami nem a kerékkel forog — a legrosszabb a(z) \"EXT_BRAKES.007\" volt, a kerékátmérő 51%-ával kilengve. Az új minta csak azokat a darabokat fogja meg, amelyek a forgástengelyre központozva ülnek: 0% kilengés, 12 darab. Élőben ellenőrizendő.\n\nKorábbi megjegyzés, referenciaként: Beszédes nevek: EXT_TIRE, EXT_RIMS, EXT_DISC, EXT_BRAKES — sarkonként 4 alkatrész. Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 4/4/4/4 alkatrész, nyomtáv 1.55, tengelytáv 2.48, max kilengés 180 fokos forgatásnál 0.31.",
+  "wheelPattern": "disc|rims|tire"
 }
