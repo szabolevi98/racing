@@ -2,6 +2,6 @@
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
   "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
   "yawDegrees": 0,
-  "_wheelPattern": "A propose.mjs javaslatát kézzel kiegészítve: a 30_FW.001 (első kerék gumi-perem) hiányzott, csak a hátsó (30_RW) párja került be — emiatt csak a futófelület (TREADT) forgott, a perem nem.",
-  "wheelPattern": "rim|treadt|caliper|30_RW\\.001(?![^\\s])|30_FW\\.001(?![^\\s])"
+  "_wheelPattern": "AUTOMATIKUSAN SZŰKÍTVE (tools/audit/fix-wheel-orbit.mjs): a korábbi minta olyan darabot is megfogott, ami nem a kerékkel forog — a legrosszabb a(z) \"LOT_CALIPER.001\" volt, a kerékátmérő 1%-ával kilengve. Az új minta csak azokat a darabokat fogja meg, amelyek a forgástengelyre központozva ülnek: 0% kilengés, 16 darab. Élőben ellenőrizendő.\n\nKorábbi megjegyzés, referenciaként: A propose.mjs javaslatát kézzel kiegészítve: a 30_FW.001 (első kerék gumi-perem) hiányzott, csak a hátsó (30_RW) párja került be — emiatt csak a futófelület (TREADT) forgott, a perem nem.",
+  "wheelPattern": "30_FW\\.001|30_RW\\.001|rim|treadt"
 }

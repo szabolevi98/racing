@@ -48,6 +48,15 @@ const ROUND_TOLERANCE = 0.06;
 // inkább kézi vizsgálatra hagyjuk.
 //
 // A 'brake' szándékosan NINCS benne: a féktárcsa forog, a féknyereg nem.
+// A féknyereg neve. A valóságban a féltengelycsonkra van szerelve, tehát
+// SOSEM forog a kerékkel — ezért a 'caliper' módban a puszta név elég.
+const CALIPER_NAME = /calip|cala|pinza/i;
+
+// Amit SOHA nem dobunk el: ezek a valóságban is együtt forognak a kerékkel.
+// Kellett a védelem, mert a féknyereg-nevű NODE alatt ülő féktárcsa (DISC88,
+// rotor) és a felnimatrica (EXT_Rim_Decals) is nyeregnek minősült volna.
+const ROTATING_NAME = /disc|disk|rotor|rim|tyre|tire|tread|spoke|hub|wheel/i;
+
 const STATIC_PART_NAME = /calip|caliper|cala|pinza|brembo|susp|sospension|upright|knuckle|damper|shock|wishbone|duct|scoop|air|claw|bracket|mechanic|wire/i;
 
 function isRound(part) {
@@ -125,11 +134,11 @@ export function worstOrbit(corners) {
 // A jelenlegi találatokból eldönti, mely darabok forognak valóban, és keres egy
 // szűkebb mintát. A jelölt mintát a TELJES modellen újraértékeljük — enélkül egy
 // látszólag ártalmatlan szó a karosszériát is behúzhatná.
-export function proposePattern(file, current, yawDegrees = 0) {
+export function proposePattern(file, current, yawDegrees = 0, mode = 'orbit') {
   const base = cornersFor(file, current, yawDegrees);
   if (!base) return { skip: 'a jelenlegi minta nem bontható 4 sarokra' };
   const before = worstOrbit(base.corners);
-  if (before.orbit <= ORBIT_LIMIT) return { skip: 'már rendben van', before };
+  if (mode !== 'caliper' && before.orbit <= ORBIT_LIMIT) return { skip: 'már rendben van', before };
 
   // Az osztályozás ANYAGONKÉNT történik, nem darabonként — a minta is név
   // szerint válogat. Egy anyag négy sarokban négyszer fordul elő; ha az
@@ -153,6 +162,19 @@ export function proposePattern(file, current, yawDegrees = 0) {
   }
   const good = [], bad = [], nevGyanus = [];
   for (const [k, lista] of peldanyok) {
+    // 'caliper' mód: a féknyereg a NEVÉRŐL azonosítható, és a valóságban sosem
+    // forog — az a féltengelycsonkra van szerelve, nem az agyra. Itt tehát nem
+    // kell a geometriára hagyatkozni. A 'Caliper_Logo' is ide tartozik (a
+    // nyergen ül), a 'Rim_Decals' viszont NEM: az a felnin van, és együtt forog
+    // vele — ezért nem elég egy általános „matrica" szabály.
+    if (mode === 'caliper') {
+      // Csak az ANYAGNÉV dönt, nem a node-lánc: egy féknyereg-nevű csoport
+      // alatt ülő féktárcsa nem nyereg. És ami forgó alkatrészt nevez meg, azt
+      // akkor sem dobjuk el, ha a neve mellesleg a nyerget is említi.
+      const nyereg = CALIPER_NAME.test(k) && !ROTATING_NAME.test(k.replace(CALIPER_NAME, ''));
+      (nyereg ? bad : good).push(...lista.map((e) => e.part));
+      continue;
+    }
     const orbit = median(lista.map((e) => e.orbit));
     const kerekseg = median(lista.map((e) => e.kerekseg));
     const geometriaRossz = orbit > ORBIT_LIMIT || kerekseg > ROUND_TOLERANCE;
@@ -226,9 +248,13 @@ export function proposePattern(file, current, yawDegrees = 0) {
 
   const pattern = chosen.sort().join('|');
   const after = cornersFor(file, pattern, yawDegrees);
+  if (mode === 'caliper' && after) {
+    const maradt = after.parts.filter((p) => CALIPER_NAME.test(`${p.src?.fullName || p.fullName || ''} ${p.mat || p.src?.mat || ''}`));
+    if (maradt.length) return { skip: 'a nyereg a javaslatban is bent maradna', before, pattern };
+  }
   if (!after) return { skip: 'a javasolt minta nem bontható 4 sarokra', before, pattern };
   const result = worstOrbit(after.corners);
-  if (result.orbit > ORBIT_LIMIT) return { skip: 'a javaslat sem szünteti meg a kilengést', before, pattern, after: result };
+  if (mode !== 'caliper' && result.orbit > ORBIT_LIMIT) return { skip: 'a javaslat sem szünteti meg a kilengést', before, pattern, after: result };
 
   // Biztonsági kapuk. A mérőszámot könnyű úgy „javítani", hogy közben valódi
   // kerék-alkatrészek esnek ki — attól a kilengés nulla lesz, a kerék viszont
@@ -249,6 +275,7 @@ export function proposePattern(file, current, yawDegrees = 0) {
 
 function run(argv) {
   const write = argv.includes('--write');
+  const mode = argv.includes('--calipers') ? 'caliper' : 'orbit';
   const only = argv.filter((a) => !a.startsWith('--'));
   const files = fs.readdirSync(CARS_DIR).filter((n) => n.endsWith('.glb'))
     .filter((n) => !only.length || only.includes(n.replace(/\.glb$/, '')));
@@ -262,7 +289,7 @@ function run(argv) {
     if (!cfg.wheelPattern) continue;
 
     let r;
-    try { r = proposePattern(path.join(CARS_DIR, file), cfg.wheelPattern, cfg.yawDegrees || 0); }
+    try { r = proposePattern(path.join(CARS_DIR, file), cfg.wheelPattern, cfg.yawDegrees || 0, mode); }
     catch (error) { kezzel.push({ id, ok: `hiba: ${error.message}` }); continue; }
 
     if (r.skip === 'már rendben van') { rendben.push(id); continue; }

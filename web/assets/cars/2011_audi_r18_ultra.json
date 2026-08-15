@@ -2,6 +2,6 @@
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
   "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
   "yawDegrees": 0,
-  "_wheelPattern": "Beszédes nevek: tyre, rim, brake, caliper, plusz a Carbon_2 nevű (szénszálas felni-elem) darab. Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 5/5/5/5 alkatrész, nyomtáv 1.54, tengelytáv 2.79, max kilengés 180 fokos forgatásnál 0.14.",
-  "wheelPattern": "brake|caliper|rim|tyre|Carbon_2\\.001(?![^\\s])"
+  "_wheelPattern": "AUTOMATIKUSAN SZŰKÍTVE (tools/audit/fix-wheel-orbit.mjs): a korábbi minta olyan darabot is megfogott, ami nem a kerékkel forog — a legrosszabb a(z) \"CALIPER.001\" volt, a kerékátmérő 10%-ával kilengve. Az új minta csak azokat a darabokat fogja meg, amelyek a forgástengelyre központozva ülnek: 1% kilengés, 16 darab. Élőben ellenőrizendő.\n\nKorábbi megjegyzés, referenciaként: Beszédes nevek: tyre, rim, brake, caliper, plusz a Carbon_2 nevű (szénszálas felni-elem) darab. Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 5/5/5/5 alkatrész, nyomtáv 1.54, tengelytáv 2.79, max kilengés 180 fokos forgatásnál 0.14.",
+  "wheelPattern": "Carbon_2\\.001|brake|rim|tyre"
 }

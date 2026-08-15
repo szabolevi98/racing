@@ -2,6 +2,6 @@
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
   "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
   "yawDegrees": 0,
-  "_wheelPattern": "Újraírva a tools/propose.mjs automatikával.",
-  "wheelPattern": "ruote02"
+  "_wheelPattern": "AUTOMATIKUSAN SZŰKÍTVE (tools/audit/fix-wheel-orbit.mjs): a korábbi minta olyan darabot is megfogott, ami nem a kerékkel forog — a legrosszabb a(z) \"carbon\" volt, a kerékátmérő 8%-ával kilengve. Az új minta csak azokat a darabokat fogja meg, amelyek a forgástengelyre központozva ülnek: 8% kilengés, 29 darab. Élőben ellenőrizendő.\n\nKorábbi megjegyzés, referenciaként: Újraírva a tools/propose.mjs automatikával.",
+  "wheelPattern": "object020|object8|object9|wheel"
 }
