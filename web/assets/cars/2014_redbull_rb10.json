@@ -1,7 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-  "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
+  "_yawDegrees": "Alapértelmezés 0 (előre néző modellt feltételezve). Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
   "yawDegrees": 0,
-  "_wheelPattern": "JAVÍTVA (a felhasználó jelezte: az első kerék belső pereme nem fordult a kerékkel). A modell anyagai semmitmondóak (material_N), ezért a névre épülő felismerés csak azt találta meg, amit véletlenül eltalált — a belső perem (material_5, 0,51 átmérő, majdnem akkora mint a gumi) kimaradt. A kerekeket mostantól GEOMETRIÁBÓL azonosítjuk (tools/audit/wheels-by-geometry.mjs): az az anyag kerék, amit négy sarokra vágva négy egyforma átmérőjű, a forgás síkjában kerek és a gumival koncentrikus csoport áll össze. Mérve: 4 anyag, 16 darab.",
-  "wheelPattern": "material_5(?![^\\s])|material_10(?![^\\s])|material_11(?![^\\s])|material_12(?![^\\s])"
+  "_wheelPattern": "A 2014-es F1 packból vágtuk ki (tools/split-car-pack.mjs). A pack minden anyaga \"MIRRORS.013_N\" néven fut, tehát a névre épülő felismerés itt semmit nem ér — a kerekeket GEOMETRIÁBÓL azonosítjuk (tools/audit/wheels-by-geometry.mjs). JAVÍTVA (a felhasználó jelezte: \"a felni nem forog és nem is mozdul kanyarodásnál\"): a felni kimaradt, mert egy abszolút alsó átmérő-korlát alá esett — a felni természetesen kisebb a guminál, ezért a korlát mostantól a gumihoz képest relatív, és a koncentricitást a tengelyre MERŐLEGES síkban mérjük (az axiális eltolás forgás közben közömbös). Mérve: 4 anyag, 16 darab, kerékátmérő 0.56.",
+  "wheelPattern": "MIRRORS\\.013(?![^\\s])|MIRRORS\\.013_0(?![^\\s])|MIRRORS\\.013_1(?![^\\s])|MIRRORS\\.013_9(?![^\\s])"
 }

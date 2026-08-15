@@ -1,7 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-  "_yawDegrees": "Alapértelmezés 0 (előre néző modellt feltételezve). Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
+  "_yawDegrees": "Élőben ellenőrizve: a kerekek z=+1.49 (elöl) és z=-1.52 (hátul) - +Z előre.",
   "yawDegrees": 0,
-  "_wheelPattern": "A 2014-es F1 packból vágtuk ki (tools/split-car-pack.mjs). A pack minden anyaga \"MIRRORS.013_N\" néven fut, tehát a névre épülő felismerés itt semmit nem ér — a kerekeket GEOMETRIÁBÓL azonosítjuk (tools/audit/wheels-by-geometry.mjs). JAVÍTVA (a felhasználó jelezte: \"a felni nem forog és nem is mozdul kanyarodásnál\"): a felni kimaradt, mert egy abszolút alsó átmérő-korlát alá esett — a felni természetesen kisebb a guminál, ezért a korlát mostantól a gumihoz képest relatív, és a koncentricitást a tengelyre MERŐLEGES síkban mérjük (az axiális eltolás forgás közben közömbös). Mérve: 4 anyag, 16 darab, kerékátmérő 0.55.",
-  "wheelPattern": "MIRRORS\\.013_18(?![^\\s])|MIRRORS\\.013_19(?![^\\s])|MIRRORS\\.013_20(?![^\\s])|MIRRORS\\.013_41(?![^\\s])"
+  "_wheelPattern": "JAVÍTVA (a felhasználó jelezte: a kerék megfogott egy karbonmintás darabot, aminek nem kéne forognia — ugyanaz az eset, mint az F2004 fékhűtő terelőjénél). A régi minta szavakra keresett (tyre|hub|lr|lf|rf), és behúzta a 'discs' és 'discs_0' anyagot is, amik a forgás síkjában 32%-os és 60%-os eltéréssel egyáltalán nem kerekek. FIGYELEM: a 'discs_1' szintén kerek, mégis kimaradt — az bevéve a kilengés 47%-ról 135%-ra ROMLIK, mert távolabbi geometriát is behúz. A kerekeket mostantól GEOMETRIÁBÓL azonosítjuk (tools/audit/wheels-by-geometry.mjs): négy sarok, egyforma átmérő, a forgás síkjában kerek és a gumival koncentrikus. Mérve: kilengés 47% -> 0%, 12 darab.",
+  "wheelPattern": "discs_6(?![^\\s])|discs_7(?![^\\s])"
 }

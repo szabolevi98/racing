@@ -2716,7 +2716,7 @@
       "imageBytes": 1111374,
       "geometryBytes": 3108142
     },
-    "2014_mercedes_w05_hybrid": {
+    "2014_mercedes_w05_2": {
       "signature": "v2:4:10815612:5242880:28e1dc0fae8fcb3b11499c590f6a6593a162e1c109f9fc9ccfdd727fa30299ca",
       "geometry": {
         "ratio": 1,
@@ -2734,12 +2734,6 @@
       "triangles": 106964,
       "imageBytes": 1605550,
       "geometryBytes": 2342144
-    },
-    "2014_redbull_rb10": {
-      "signature": "v2:4:5016712:5242880:3d267278fc3a9246296fc9fe7d539fc057b98db064121ab9756da8ee88e28aa6",
-      "copied": true,
-      "bytes": 5016712,
-      "sourceBytes": 5016712
     },
     "2015_audi_r8_lms_ultra": {
       "signature": "v2:4:2254480:5242880:bb905168cdfc2e0b7faac2f07098309af9fcd0788c996ef6139c2f09f08ebe0b",
@@ -4171,7 +4165,7 @@
       "imageBytes": 2660496,
       "geometryBytes": 1261160
     },
-    "2014_mercedes_w05_2": {
+    "2014_mercedes_w05": {
       "signature": "v2:4:5960416:5242880:bf9d3e47bf9418c4ea34b527b9b9e8e2338932b79d629aed45f20fd1cdd4d65a",
       "geometry": {
         "ratio": 1,
@@ -4190,7 +4184,7 @@
       "imageBytes": 1688142,
       "geometryBytes": 1587134
     },
-    "2014_redbull_rb10_2": {
+    "2014_redbull_rb10": {
       "signature": "v2:4:5618340:5242880:af7cc73232e2b2ddba5b23e5cf6b3d18525113cdee78c33f580f0a359f394103",
       "geometry": {
         "ratio": 1,
@@ -4265,6 +4259,12 @@
       "triangles": 38283,
       "imageBytes": 2424028,
       "geometryBytes": 1208882
+    },
+    "2014_redbull_rb10_2": {
+      "signature": "v2:4:5016712:5242880:3d267278fc3a9246296fc9fe7d539fc057b98db064121ab9756da8ee88e28aa6",
+      "copied": true,
+      "bytes": 5016712,
+      "sourceBytes": 5016712
     }
   }
 }
