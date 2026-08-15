@@ -1,7 +1,7 @@
 {
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-  "_yawDegrees": "Alapértelmezés 0 (előre néző modellt feltételezve). Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
-  "yawDegrees": 0,
+  "_yawDegrees": "A felhasznalo jelezte, hogy a modell hatrafele nez, ezert 180 fokkal elforgatva.",
+  "yawDegrees": 180,
   "_wheelPattern": "Automatikusan generálva (tools/build-car-wheels.mjs). Mérés: nyomtáv 1.42, tengelytáv 2.46, 28 darab.",
   "wheelPattern": "child|hub"
 }

@@ -3,5 +3,6 @@
   "_yawDegrees": "Alapértelmezés 0 (előre néző modellt feltételezve). Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
   "yawDegrees": 0,
   "_wheelPattern": "Automatikusan generálva (tools/build-car-wheels.mjs). Mérés: nyomtáv 1.13, tengelytáv 2.72, 20 darab.",
-  "wheelPattern": "blur|tyre|tread|brake"
+  "wheelPattern": "blur|tyre|tread|brake|fc2_wheel",
+  "_wheelPatternJavitas": "2026-08-15: a felni nem mozdult. A generalt 'blur|tyre|tread|brake' minta a gumit, a futofelulet, a feket es a ket elmosast (RIM_BLUR, fc2_wheel_BLUR) elkapta, de a valodi felnit — az 'fc2_wheel' anyagot — nem, mert nem volt benne 'wheel' ag. A modell 39 darabjat atnezve az 'fc2_wheel' 4612 csucsanak 99,9%-a a kerek-tartomanyban ul (y 0,14-0,5), tehat tisztan kerek-geometria. Az 'fc2_wheel' nev SZANDEKOSAN teljes: a puszta 'wheel' a harom 'fc2_steering_wheel*' anyagot is elkapna, es a kormanykerek forogna a kerekekkel."
 }

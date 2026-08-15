@@ -1,7 +1,0 @@
-{
-  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
-  "_yawDegrees": "Alapértelmezés 0 (előre néző modellt feltételezve). Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
-  "yawDegrees": 0,
-  "_wheelPattern": "Automatikusan generálva (tools/build-car-wheels.mjs). Mérés: nyomtáv 0.67, tengelytáv 1.56, 20 darab. ALACSONY biztonság (pontszám -5.87) — mindenképp nézd meg élőben.",
-  "wheelPattern": "tyre|tread|brake|rim|ma2_wheel(?![^\\s])"
-}

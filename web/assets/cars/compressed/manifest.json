@@ -3804,25 +3804,6 @@
       "imageBytes": 2446536,
       "geometryBytes": 2268742
     },
-    "2012_marussia_mr01_aeromaxxed": {
-      "signature": "v2:4:12865556:5242880:1784123ad614e12316b1f690db77cc83b4ac97e7d0266f8100a36a2e9a789b8c",
-      "geometry": {
-        "ratio": 1,
-        "error": 0.001,
-        "cost": 0
-      },
-      "texture": {
-        "limit": 2048,
-        "quality": 7,
-        "cost": 4
-      },
-      "limitedBy": "textúra",
-      "bytes": 4920880,
-      "sourceBytes": 12865556,
-      "triangles": 78301,
-      "imageBytes": 2904742,
-      "geometryBytes": 1957202
-    },
     "2012_mercedes_w03_aeromaxxed": {
       "signature": "v2:4:18806784:5242880:cab47bc4bb06e8ec79ebca1cda07b4d81bc492572ae11a69e403057355c87125",
       "geometry": {
@@ -3993,25 +3974,6 @@
       "triangles": 196927,
       "imageBytes": 941894,
       "geometryBytes": 3916332
-    },
-    "2022_full_carbon_bmw_m4_gt3_g82": {
-      "signature": "v2:4:49936332:5242880:a122cf063f032ce6f643cb6fa99adaa5bf11a58b47b7b68cd31e55e80e09c749",
-      "geometry": {
-        "ratio": 0.18,
-        "error": 0.06,
-        "cost": 14
-      },
-      "texture": {
-        "limit": 768,
-        "quality": 7,
-        "cost": 13
-      },
-      "limitedBy": "geometria",
-      "bytes": 4933132,
-      "sourceBytes": 49936332,
-      "triangles": 106377,
-      "imageBytes": 1460472,
-      "geometryBytes": 3415746
     },
     "2024_porsche_992_gt3_r": {
       "signature": "v2:4:39967176:5242880:087f4440f8f36e25f1059878ca022c7daa41fbf375b39e8db615232d5d0822bd",
