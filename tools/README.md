@@ -91,6 +91,11 @@ célarányt nélküle is eléri. A `-vt 16` ugyanezt védi a kvantálás oldalá
 
 ## Több kocsit tartalmazó modell szétvágása
 
+> A teljes folyamat — szétvágás, a kocsik azonosítása a festésükről,
+> kerék-minta név nélküli modellekhez, élesítés, és a menet közben megismert
+> buktatók — a **[PACKS.md](PACKS.md)**-ben van leírva. Ez a szakasz csak a
+> node-szintű szétvágót ismerteti.
+
 ```bash
 node tools/split-car-pack.mjs <pack.glb>            # csak megnézi
 node tools/split-car-pack.mjs <pack.glb> --write    # kiírja a darabokat
