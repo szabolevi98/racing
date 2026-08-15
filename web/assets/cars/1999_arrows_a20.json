@@ -2,6 +2,6 @@
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
   "_yawDegrees": "Alapértelmezés 0 (előre néző modellt feltételezve). Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
   "yawDegrees": 0,
-  "_wheelPattern": "Automatikusan generálva (tools/build-car-wheels.mjs). Mérés: nyomtáv 1.13, tengelytáv 2.38, 51 darab.",
-  "wheelPattern": "wheel|rtt_caliper(?![^\\s])|carbon_0(?![^\\s])|rtt_carbon(?![^\\s])|chrome_0(?![^\\s])|chrome_1(?![^\\s])"
+  "_wheelPattern": "JAVÍTVA: a féknyereg (rtt_caliper) együtt forgott a kerékkel. A valóságban az a féltengelycsonkra van szerelve, nem az agyra, tehát nem foroghat. A korábbi minta szavakkal keresett, és a nyereg vagy a saját nevén, vagy a node-láncán keresztül bejött — ezért ez a minta a forgó darabok PONTOS anyagneveit sorolja fel, szóhatárra kötve. Mérve: kilengés 36% -> 23%, 47 darab.\n\nKorábbi megjegyzés, referenciaként: Automatikusan generálva (tools/build-car-wheels.mjs). Mérés: nyomtáv 1.13, tengelytáv 2.38, 51 darab.",
+  "wheelPattern": "rtt_carbon(?![^\\s])|carbon_0(?![^\\s])|rtt_disk_glow(?![^\\s])|rtt_disk(?![^\\s])|material(?![^\\s])|material_14(?![^\\s])|rtt_tyre_inside(?![^\\s])|rtt_tyre_tread(?![^\\s])|rtt_tyre(?![^\\s])|RIM_BLUR(?![^\\s])|NUT_BLURRED(?![^\\s])|RIM_BLURRED(?![^\\s])|rtt_disk_glow_0(?![^\\s])|rtt_disk_0(?![^\\s])|RIM_BLURRED_0(?![^\\s])|NUT_0(?![^\\s])|RIM_0(?![^\\s])|rtt_carbon_0(?![^\\s])|RIM_BLURRED_1(?![^\\s])|NUT_1(?![^\\s])|RIM_1(?![^\\s])|rtt_disk_1(?![^\\s])|chrome_0(?![^\\s])|chrome_1(?![^\\s])|NUT_2(?![^\\s])|RIM_2(?![^\\s])|rtt_disk_2(?![^\\s])"
 }
