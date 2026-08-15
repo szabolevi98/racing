@@ -2169,10 +2169,23 @@ function findGroundAt(track, box, x, z) {
   return hits.length ? hits[0].point.y : null;
 }
 
-// A boxhely fölött lehet garázstető vagy lelátó. A normál rajtpont-keresőnek
-// a legfelső találat kell, itt viszont kifejezetten a fedés ALATTI aszfalt:
-// az összes találat közül a legalsó, felfelé néző felületet választjuk.
-function findPitGroundAt(track, box, x, z) {
+// A boxhely alatt több vízszintes felület is lehet, és egyik véglet sem jó
+// választás. Mérve mind a 15 pálya ütközési hálóján, a boxhelyek alatt:
+//
+//   Hungaroring     37,43 / 46,13          — garázstető FÖLÖTTE
+//   Red Bull Ring  401,43 / 411,21         — garázstető FÖLÖTTE
+//   Le Mans kart    -10,06 / -1,37         — alaplap ALATTA
+//   Bugatti         -34,70 / 0,41 / 9,69   — alaplap ALATTA, tetők FÖLÖTTE
+//
+// A "legfelső" a tetőre tenné a jelölőt (ez volt az eredeti hiba), a "legalsó"
+// pedig az alaplapra, több méterrel a pálya alá — ott egyszerűen eltűnik.
+//
+// A megbízható fogódzó a RAJTRÁCS magassága: a boxutca a célegyenes mellett
+// fut, tehát mindig annak a közelében van. Mérve: Hungaroring 38,01 vs 37,43,
+// Red Bull Ring 401,47 vs 401,43, Bugatti -0,16 vs 0,41 — fél méteren belül,
+// miközben a tetők 8-10, az alaplapok 9-35 méterre esnek. Ezért a
+// referenciához LEGKÖZELEBBI felfelé néző felületet választjuk.
+function findPitGroundAt(track, box, x, z, referenceY = null) {
   const raycaster = new THREE.Raycaster();
   raycaster.firstHitOnly = false;
   raycaster.set(new THREE.Vector3(x, box.max.y + 20, z), new THREE.Vector3(0, -1, 0));
@@ -2185,7 +2198,25 @@ function findPitGroundAt(track, box, x, z) {
     return up.y > 0.35;
   });
   const candidates = groundHits.length ? groundHits : hits;
-  return candidates.reduce((lowest, hit) => Math.min(lowest, hit.point.y), Infinity);
+  // Referencia nélkül marad a régi viselkedés: a fedés alatti, legalsó felület.
+  if (!Number.isFinite(referenceY)) {
+    return candidates.reduce((lowest, hit) => Math.min(lowest, hit.point.y), Infinity);
+  }
+  return candidates.reduce((best, hit) => (
+    Math.abs(hit.point.y - referenceY) < Math.abs(best - referenceY) ? hit.point.y : best
+  ), candidates[0].point.y);
+}
+
+// A rajtrács talajszintje — a boxutca-kereső referenciája. A rajtpontok fölött
+// nincs fedés, ezért ott a legfelső találat egyértelmű; a mediánt vesszük,
+// hogy egy félresikerült rajtpont se rántsa el.
+function gridGroundLevel() {
+  if (!currentTrack || !currentTrackBox || !currentSpawnPoints?.length) return null;
+  const levels = currentSpawnPoints
+    .map((p) => findGroundAt(currentTrack, currentTrackBox, p.x, p.z))
+    .filter((y) => Number.isFinite(y))
+    .sort((a, b) => a - b);
+  return levels.length ? levels[levels.length >> 1] : null;
 }
 
 function updatePitOptionAvailability(entry) {
@@ -2212,7 +2243,7 @@ function setPitStopMarker(stop, visible = true) {
     cache.track = currentTrack;
     cache.x = stop.x;
     cache.z = stop.z;
-    cache.groundY = findPitGroundAt(currentTrack, currentTrackBox, stop.x, stop.z);
+    cache.groundY = findPitGroundAt(currentTrack, currentTrackBox, stop.x, stop.z, gridGroundLevel());
   }
   const y = cache.groundY;
   pitStopMarker.position.set(stop.x, Number.isFinite(y) ? y + 0.08 : 0.08, stop.z);

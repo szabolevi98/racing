@@ -36,7 +36,11 @@ test('dev editor exposes and persists pit entry, exit and eight numbered stalls'
 test('multiplayer passes pit limiter state into the local physics step', () => {
   assert.match(mp, /localPitState\.required && localPitState\.inLane/);
   assert.match(main, /pitLimitedVelocity\(velocity\.x, velocity\.z, dt\)/);
-  assert.match(main, /findPitGroundAt\(currentTrack, currentTrackBox, stop\.x, stop\.z\)/);
+  // A boxjelölő magasságát a RAJTRÁCS szintjéhez mérve választjuk ki: a
+  // boxhelyek alatt több vízszintes felület is van (garázstető fölöttük,
+  // alaplap alattuk), és sem a legfelső, sem a legalsó nem a boxutca.
+  assert.match(main, /findPitGroundAt\(currentTrack, currentTrackBox, stop\.x, stop\.z, gridGroundLevel\(\)\)/);
+  assert.match(main, /function gridGroundLevel\(\)/);
   assert.match(main, /state\.completed && !state\.inLane/);
 });
 

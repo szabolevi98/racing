@@ -183,6 +183,7 @@ const devSpawnMarkers = [];
 let devMarkerGeometry = null;
 let devMarkerMaterial = null;
 let devHotLapMarkerMaterial = null;
+let devPitMarkerMaterial = null;
 
 function enterDevMode() {
   api.appState = 'dev';
@@ -561,6 +562,10 @@ function refreshSpawnMarkers() {
   };
   api.currentSpawnPoints.forEach((point) => addMarker(point, devMarkerMaterial));
   if (api.currentHotLapSpawn) addMarker(api.currentHotLapSpawn, devHotLapMarkerMaterial, 1.25);
+  // A boxhelyek eddig CSAK a felülnézeti szerkesztőben látszottak. A szabad
+  // kamerás nézetben nem volt semmi a helyükön, így nem lehetett ellenőrizni,
+  // hogy tényleg a boxutcában, a garázsok előtt állnak-e.
+  api.currentPitConfig.stops.forEach((point) => addMarker(point, devPitMarkerMaterial, 0.9));
   devSpawnCountEl.textContent = String(api.currentSpawnPoints.length);
 }
 
@@ -947,6 +952,7 @@ function addSpawnPointAtWorld(x, z) {
     }
     const point = { x: +x.toFixed(2), z: +z.toFixed(2), heading: 0 };
     api.currentPitConfig.stops.push(point);
+    refreshSpawnMarkers();
     updateSpawnToolUI();
     zoneStatusEl.textContent = `${api.currentPitConfig.stops.length}. boxhely lerakva.`;
     return point;
@@ -991,6 +997,7 @@ function removeCurrentPitObject() {
   }
   else if (api.currentPitConfig.stops.length) api.currentPitConfig.stops.pop();
   selectedZoneObject = null;
+  refreshSpawnMarkers();
   updateSpawnToolUI();
 }
 
@@ -2534,6 +2541,9 @@ export async function initDevTools(gameApi) {
   devMarkerGeometry = new THREE.SphereGeometry(1.2, 12, 12);
   devMarkerMaterial = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
   devHotLapMarkerMaterial = new THREE.MeshBasicMaterial({ color: 0xff4f9a });
+  // Ugyanaz a narancs, amivel a felülnézeti szerkesztő rajzolja a boxhelyeket —
+  // a két nézet így ugyanazt a nyelvet beszéli.
+  devPitMarkerMaterial = new THREE.MeshBasicMaterial({ color: 0xff9f1c });
   highlightMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
   zoneOrthoCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10000);
   zoneOrthoCam.up.set(0, 0, -1);
