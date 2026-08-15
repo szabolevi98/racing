@@ -3,6 +3,6 @@
   "_yawDegrees": "Alapértelmezés 0 (előre néző modellt feltételezve). Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
   "yawDegrees": 0,
   "_wheelPattern": "Automatikusan generálva (tools/build-car-wheels.mjs). Mérés: nyomtáv 1.13, tengelytáv 2.72, 20 darab.",
-  "wheelPattern": "blur|tyre|tread|brake|fc2_wheel",
-  "_wheelPatternJavitas": "2026-08-15: a felni nem mozdult. A generalt 'blur|tyre|tread|brake' minta a gumit, a futofelulet, a feket es a ket elmosast (RIM_BLUR, fc2_wheel_BLUR) elkapta, de a valodi felnit — az 'fc2_wheel' anyagot — nem, mert nem volt benne 'wheel' ag. A modell 39 darabjat atnezve az 'fc2_wheel' 4612 csucsanak 99,9%-a a kerek-tartomanyban ul (y 0,14-0,5), tehat tisztan kerek-geometria. Az 'fc2_wheel' nev SZANDEKOSAN teljes: a puszta 'wheel' a harom 'fc2_steering_wheel*' anyagot is elkapna, es a kormanykerek forogna a kerekekkel."
+  "wheelPattern": "blur|tyre|tread|brake",
+  "_wheelPatternJavitas": "Az fc2_wheel NEM kerult vissza a mintaba: 2026-08-15-i meres szerint ez az anyag a hatso felnit EGY HALOBAN tartalmazza a hatso karosszeriaval. A hatso reszen x 0..0,88 kozott terul el (atnyulik a kozepvonalon), ezert a negy sarokra vago logika mindket hatso pivotba egy 1,37 m szeles darabot tesz. A pivot a legnagyobb terfogatu darabra kerul, vagyis erre — a kerek igy a sajat tengelyetol 54 cm-re levo pont korul keringett. Nev alapjan nem szethuzhato: egyetlen primitiv, generikus Object_34 neven. A felni ezert all, ami a ket rossz kozul a kisebb."
 }
