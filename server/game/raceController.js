@@ -100,6 +100,24 @@ function nextMovementTime(car, seq, receivedAt) {
   return Math.min(projected, receivedAt + MAX_MOVEMENT_CLOCK_LEAD_MS);
 }
 
+// Mennyivel jár a mozgás-óra a valós beérkezési idő előtt.
+//
+// Egy pingkiugrás után a szerver ugyanazt a szünetet KÉTSZER számolja el: a
+// fali órára is felzárkózik ("az előző csomag óta eltelt fél másodperc"), és a
+// kupacban beérkezett állapotoknak is fizet egy-egy fizikai lépést. Mindkettőre
+// szükség van — az első nélkül lemaradna az idővonal, a második nélkül az
+// állapotok nulla idő alatt tett távnak, azaz teleportnak látszanának —, de az
+// előny így nem simul vissza soha (mérve: fél másodperces akadás 480 ms tartós
+// előnyt hagy, 30 másodperc múlva is).
+//
+// Befelé ez nem baj: a köridők és a részidők KÜLÖNBSÉGEK ugyanezen az órán,
+// tehát az előny kiesik belőlük. Kifelé viszont minden olyan időbélyegből le
+// kell vonni, amit a kliens a saját faliórájához hasonlít — különben pont
+// ennyivel csúszik el.
+function clockLead(car) {
+  return Math.max(0, (car.lastMovementAt || 0) - (car.lastStateAt || 0));
+}
+
 function hasImplausibleMovement(car, next, movementAt) {
   if (!car.lastMovementAt) return false;
   const elapsedMs = Math.max(0, movementAt - car.lastMovementAt);
@@ -151,6 +169,10 @@ function createRaceState(x, z, pitRequired = false) {
     taintReason: TAINT.NONE,
     hasCrossedStart: false,
     lapStart: 0,
+    // Mennyit sietett a mozgás-óra, amikor ez a kör elindult — lásd clockLead().
+    // A kliensnek küldött kör-kezdet ezzel korrigálva megy ki, hogy a szellem
+    // és a futó óra a valódi faliórához igazodjon.
+    lapStartLead: 0,
     lapTimes: [],
     bestLapTime: null,
     ghostFrames: null,
@@ -478,6 +500,7 @@ export class RaceController {
       r.passed.clear();
       r.taintReason = TAINT.NONE;
       r.lapStart = crossedAt;
+      r.lapStartLead = clockLead(car);
       r.lastSplitIndex = -1;
       this.beginGhostRecording(car, crossedAt);
       r.progressKey = r.lap * (checkpoints.length + 1);
@@ -517,6 +540,7 @@ export class RaceController {
     r.passed.clear();
     r.taintReason = TAINT.NONE;
     r.lapStart = crossedAt;
+    r.lapStartLead = clockLead(car);
     // Új kör: a delta-kijelző ne az előző kör utolsó részidejét hasonlítgassa.
     r.lastSplitIndex = -1;
     if (this.room.endlessLaps) {
@@ -538,7 +562,7 @@ export class RaceController {
       r.finished = true;
       r.finishedAt = crossedAt;
       this.broadcast(S2C.RACE_EVENT, { kind: 'finished', playerId: car.playerId });
-      this.armFinishDeadline(crossedAt);
+      this.armFinishDeadline(crossedAt, clockLead(car));
     }
     if ([...this.cars.values()].every((entry) => entry.race.finished)) void this.endRace();
   }
@@ -549,10 +573,15 @@ export class RaceController {
   // Ha ekkor már mindenki célban van, nincs mit indítani — a hívó úgyis
   // azonnal lezárja a futamot. Ezért ez a feltétel egyben a Hot Lapot is
   // kizárja: ott egyetlen igazi autó van, amelyik a befutójával végzett is.
-  armFinishDeadline(finishedAt) {
+  // A határidőt a faliórához mérjük — a pump() a Date.now()-hoz hasonlítja, és
+  // a kliens is a saját órájából számolja a visszaszámlálót. A befutó ideje
+  // viszont a mozgás-óráról jön, ezért annak az előnyét itt le kell vonni.
+  // Enélkül a mezőny pontosan a győztes akadásának méretével kapott több időt,
+  // és a képernyőn látszó szám is ennyivel volt optimista.
+  armFinishDeadline(finishedAt, lead = 0) {
     if (this.finishDeadline !== null) return;
     if ([...this.cars.values()].every((entry) => entry.race.finished)) return;
-    this.finishDeadline = finishedAt + FINISH_GRACE_MS;
+    this.finishDeadline = finishedAt - lead + FINISH_GRACE_MS;
   }
 
   orderedCars() {
@@ -603,7 +632,13 @@ export class RaceController {
         best: bestLap === null ? null : Math.round(bestLap),
         last: lastLap ? Math.round(lastLap.time) : null,
         li: !!lastLap?.invalid,
-        ls: car.race.hasCrossedStart ? Math.round(car.race.lapStart) : null,
+        // A kör kezdete a FALIÓRÁRA visszaszámolva megy ki: a kliens ehhez méri
+        // a szellemet és a futó órát, a mozgás-óra előnyét tehát le kell vonni
+        // (lásd clockLead()). A hiteles köridőt ez nem érinti — az továbbra is
+        // a szerveren, a mozgás-órán képzett különbség.
+        ls: car.race.hasCrossedStart
+          ? Math.round(car.race.lapStart - car.race.lapStartLead)
+          : null,
         fin: !!car.race.finished,
         pc: !!car.race.pit.completed,
         pi: !!car.race.pit.inLane,

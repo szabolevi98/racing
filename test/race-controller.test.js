@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { RaceController, sanitizeClientCarState } from '../server/game/raceController.js';
-import { ROOM_STATE, GAME_MODE, S2C, TAINT, TICK_MS } from '../shared/protocol.js';
+import { ROOM_STATE, GAME_MODE, S2C, TAINT, TICK_MS, FINISH_GRACE_MS } from '../shared/protocol.js';
 
 const wireState = (seq, t, x, z = 0, extra = {}) => ({
   seq, t,
@@ -558,4 +558,106 @@ test('a burst after a ping spike still advances the clock by the simulated time'
 
   const advanced = car.lastMovementAt - before;
   assert.ok(advanced > 400, `a kötegnek valódi időt kell kapnia, nem a beérkezési 3 ms-ot (kapott: ${advanced.toFixed(1)} ms)`);
+});
+
+// Pingkiugrás után a mozgás-óra tartósan a valós idő előtt jár (lásd
+// clockLead()). A kifelé küldött kör-kezdetből ezt le kell vonni, különben a
+// kliens — ami a saját faliórájához méri — pont ennyivel később indítja a
+// szellemet és a futó órát.
+test('the lap start goes out on the wall clock, not the drifted one', async () => {
+  const player = { id: 'driver', carId: 'f2004' };
+  const room = {
+    laps: 1, mode: GAME_MODE.HOT_LAP, state: ROOM_STATE.LOADING,
+    countdownEndsAt: 0, players: new Map([[player.id, player]]),
+  };
+  const snapshots = [];
+  const sim = new RaceController(room, {
+    map: { spawns: [{ x: 0, z: 0, heading: 0 }], gates: { start: { x1: 200, z1: -50, x2: 200, z2: 50 }, checkpoints: [] } },
+    broadcast: (type, payload) => { if (type === S2C.SNAPSHOT) snapshots.push(payload); },
+  });
+  await sim.start();
+  clearInterval(sim.timer);
+  sim.timer = null;
+  room.state = ROOM_STATE.RACING;
+  sim.startAt = 0;
+
+  const car = sim.cars.get(player.id);
+  let seq = 0, x = 0, wall = 1_000;
+  const drive = (receivedAt) => {
+    x += 1; // méterenként, azaz 60 m/s — bőven a mozgásvizsgálat határa alatt
+    sim.receiveState(player.id, wireState(++seq, receivedAt, x), { receivedAt });
+  };
+
+  for (let n = 0; n < 60; n++) { wall += TICK_MS; drive(wall); }
+
+  // Fél másodperces akadás: a kliens tovább szimulál, az állapotok utána
+  // egyetlen kupacban érkeznek. Ettől kap az óra tartós előnyt.
+  wall += 500;
+  for (let n = 0; n < 30; n++) drive(wall + n * 0.1);
+  wall += 30 * 0.1;
+  assert.ok(clockLeadOf(car) > 300, 'a kiugrásnak valódi előnyt kell hagynia az órán');
+
+  // Utána szabályos forgalom, egészen a rajtvonal átlépéséig.
+  while (!car.race.hasCrossedStart) { wall += TICK_MS; drive(wall); }
+  const wallCrossing = wall;
+
+  sim.sendSnapshot(wall);
+  const reported = snapshots.at(-1).cars.find((entry) => entry.id === player.id).ls;
+
+  assert.ok(Math.abs(reported - wallCrossing) < 60,
+    `a kör kezdete a faliórán legyen (küldött ${reported}, valós ${wallCrossing.toFixed(0)})`);
+  assert.ok(car.race.lapStart - reported > 300,
+    'a korrekciónak érdemben el kell térnie a nyers, mozgás-órás értéktől');
+});
+
+const clockLeadOf = (car) => Math.max(0, car.lastMovementAt - car.lastStateAt);
+
+// A mezőny hátralévő idejét az első befutó indítja. A határidőt a pump() a
+// Date.now()-hoz méri, és a kliens is a saját órájából számolja a
+// visszaszámlálót — a befutó ideje viszont a mozgás-óráról jön. A győztes
+// akadásának méretével kapott eddig mindenki több időt.
+test('the finish deadline follows the wall clock, not the winner hiccup', async () => {
+  const winner = { id: 'winner', carId: 'f2004' };
+  const other = { id: 'other', carId: 'f2004' };
+  const room = {
+    laps: 1, mode: GAME_MODE.MULTIPLAYER, state: ROOM_STATE.LOADING, countdownEndsAt: 0,
+    players: new Map([[winner.id, winner], [other.id, other]]),
+    recordLap: async () => {},
+  };
+  const sim = new RaceController(room, {
+    map: {
+      spawns: [{ x: 0, z: 0, heading: 0 }, { x: 0, z: 6, heading: 0 }],
+      gates: { start: { x1: 120, z1: -50, x2: 120, z2: 50 }, checkpoints: [] },
+    },
+    broadcast: () => {},
+  });
+  await sim.start();
+  clearInterval(sim.timer);
+  sim.timer = null;
+  room.state = ROOM_STATE.RACING;
+  sim.startAt = 0;
+
+  const car = sim.cars.get(winner.id);
+  let seq = 0, x = 0, wall = 1_000;
+  const drive = (receivedAt) => {
+    x += 1;
+    sim.receiveState(winner.id, wireState(++seq, receivedAt, x), { receivedAt });
+  };
+
+  for (let n = 0; n < 40; n++) { wall += TICK_MS; drive(wall); }
+  wall += 500;                                   // akadás
+  for (let n = 0; n < 30; n++) drive(wall + n * 0.1);
+  wall += 30 * 0.1;
+  assert.ok(clockLeadOf(car) > 300);
+
+  // Egy körös futam: a rajtvonal első átlépése indítja, a második zárja.
+  while (!car.race.finished) { wall += TICK_MS; drive(wall); }
+  const wallFinish = wall;
+
+  assert.notEqual(sim.finishDeadline, null);
+  const grace = sim.finishDeadline - wallFinish;
+  assert.ok(Math.abs(grace - FINISH_GRACE_MS) < 60,
+    `a türelmi idő a faliórán mérve legyen ${FINISH_GRACE_MS} ms (mért: ${grace.toFixed(0)})`);
+  assert.ok(car.race.finishedAt - wallFinish > 300,
+    'a befutó nyers ideje továbbra is a mozgás-órán van — épp ezt kellett korrigálni');
 });
