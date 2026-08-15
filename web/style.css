@@ -241,18 +241,19 @@ kbd.k {
    egy sorban 94 px-szel nem férnek el, tehát a cím kettétörne. A sarokba
    kiemelve viszont a saroknak úgysincs más gazdája, és a mező NULLA sort visz
    el a sűrű menüből. */
-.lang-field { position: absolute; top: 12px; right: 14px; z-index: 60; }
-/* Keskeny képernyőn a panel bélése csak 1.5rem (p-4), a 3rem-es p-md-5 helyett.
-   Ott a cím BELECSÚSZIK a sarokban ülő mezőbe, amint a tartalom elég magas
-   ahhoz, hogy a menü tetejére kerüljön — 375 px széles telefonon 78 px-es
-   átfedést mértem. Ezért itt felül helyet hagyunk a mezőnek. Széles nézetben
-   a 3rem magától elég, alacsony ablaknál pedig a kisebb cím mellett úgyis
-   marad ~60 px szabad hely, tehát egyikhez sem nyúlunk. */
-@media (max-width: 767.98px) {
-  /* Az !important a bootstrap p-4 segédosztálya miatt kell — az is azzal jön,
-     ahogy az alacsony ablakra szóló .menu-inner szabálynál is. */
-  .menu-inner { padding-top: 46px !important; }
-}
+.lang-field { position: absolute; top: 16px; right: 17px; z-index: 60; }
+/* A cím BELECSÚSZIK a sarokban ülő mezőbe, amint a tartalom elég magas ahhoz,
+   hogy a menü tetejére kerüljön: mindkettő a panel teteje felé húz. Mérve:
+   375 px széles telefonon 78 px-es átfedés, 1280x800-on pedig — a bootstrap
+   3rem-es béléssel — mindössze 1 px hiányzott az ütközéshez. Ezért felül
+   fixen helyet hagyunk a mezőnek, szélességtől függetlenül: a mező alja
+   16 + 28 = 44 px, 56-nál marad alatta egy ujjnyi levegő.
+
+   Az !important a bootstrap p-4/p-md-5 segédosztálya miatt kell — azok is
+   azzal jönnek. Alacsony ablaknál a lentebbi .menu-inner szabály szándékosan
+   felülírja: ott a cím jóval kisebb, és vízszintesen amúgy is elfér a mező
+   mellett, viszont minden képpont számít a görgetés elkerüléséhez. */
+.menu-inner { padding-top: 56px !important; }
 /* Az azonos fajsúlyú #menu .form-select/.form-control szabály FELETT nyer, mert
    később áll — a kompakt méret ezért érvényesül. */
 #menu .lang-select {
@@ -351,9 +352,6 @@ kbd.k {
   /* A kompakt mezőméret ITT is felül kell írja a fenti sort, különben a
      földgömbnek hagyott bal oldali hely eltűnik és az ikon a szövegre csúszik. */
   #menu .lang-select { padding: 2px 9px 2px 23px; font-size: 10px; background-size: 11px; }
-  /* Alacsony ablaknál a panel bélése is szűkebb (0.9rem/1rem), a sarok tehát
-     beljebb kerül — különben a mező kilógna a menü fölé. */
-  .lang-field { top: 7px; right: 8px; }
   #menu .mb-3 { margin-bottom: 0.45rem !important; }
   #menu .row.g-3 { --bs-gutter-y: 0.45rem; }
   #menu .row.mb-4 { margin-bottom: 0.5rem !important; }
