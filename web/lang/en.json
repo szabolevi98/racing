@@ -226,5 +226,6 @@
   "error.noCollisionFile": "This track has no prepared collision file (collision.bin), so it cannot be used in multiplayer — the server and the clients would not share the same geometry.",
   "alert.highPing": "High ping: {ping} ms — the connection may stutter.",
   "mp.roomCountOne": "1 room",
-  "mp.roomCount": "{n} rooms"
+  "mp.roomCount": "{n} rooms",
+  "menu.credits": "Most 3D models by"
 }

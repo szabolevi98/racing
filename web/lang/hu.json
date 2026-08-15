@@ -226,5 +226,6 @@
   "error.noCollisionFile": "Ehhez a pályához nincs bekészítve ütközési fájl (collision.bin), így multiplayerben nem használható — a szerver és a kliensek geometriája nem lenne azonos.",
   "alert.highPing": "Magas ping: {ping} ms — a kapcsolat akadozhat.",
   "mp.roomCountOne": "1 szoba",
-  "mp.roomCount": "{n} szoba"
+  "mp.roomCount": "{n} szoba",
+  "menu.credits": "A 3D-modellek nagy részének készítője:"
 }

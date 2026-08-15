@@ -226,5 +226,6 @@
   "error.noCollisionFile": "Este circuito no tiene archivo de colisiones preparado (collision.bin), así que no puede usarse en multijugador: el servidor y los clientes no compartirían la misma geometría.",
   "alert.highPing": "Ping alto: {ping} ms — la conexión puede entrecortarse.",
   "mp.roomCountOne": "1 sala",
-  "mp.roomCount": "{n} salas"
+  "mp.roomCount": "{n} salas",
+  "menu.credits": "La mayoría de los modelos 3D son de"
 }

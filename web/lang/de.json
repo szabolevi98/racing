@@ -226,5 +226,6 @@
   "error.noCollisionFile": "Diese Strecke hat keine vorbereitete Kollisionsdatei (collision.bin) und kann deshalb nicht im Mehrspieler verwendet werden — Server und Clients hätten nicht dieselbe Geometrie.",
   "alert.highPing": "Hoher Ping: {ping} ms — die Verbindung kann stocken.",
   "mp.roomCountOne": "1 Raum",
-  "mp.roomCount": "{n} Räume"
+  "mp.roomCount": "{n} Räume",
+  "menu.credits": "Die meisten 3D-Modelle von"
 }
