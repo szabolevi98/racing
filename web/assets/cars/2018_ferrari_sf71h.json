@@ -2,6 +2,6 @@
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
   "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
   "yawDegrees": 0,
-  "_wheelPattern": "Beszédes nevek: Rim + Rim_Alpha + Rim_Logos (felni), tyre, EXT_Disc (féktárcsa), EXT_Caliper + EXT_Caliper_Logo (féknyereg). Az első és hátsó gumi szélessége eltér (0.30 / 0.35) — F1-nél ez helyes. Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 7/7/7/7 alkatrész, nyomtáv 1.23, tengelytáv 2.87, max kilengés 180 fokos forgatásnál 0.24.",
-  "wheelPattern": "rim|caliper|disc|tyre"
+  "_wheelPattern": "AUTOMATIKUSAN SZŰKÍTVE (tools/audit/fix-wheel-orbit.mjs): a korábbi minta olyan darabot is megfogott, ami nem a kerékkel forog — a legrosszabb a(z) \"EXT_Caliper_Logo.001\" volt, a kerékátmérő 38%-ával kilengve. Az új minta csak azokat a darabokat fogja meg, amelyek a forgástengelyre központozva ülnek: 3% kilengés, 20 darab. Élőben ellenőrizendő.\n\nKorábbi megjegyzés, referenciaként: Beszédes nevek: Rim + Rim_Alpha + Rim_Logos (felni), tyre, EXT_Disc (féktárcsa), EXT_Caliper + EXT_Caliper_Logo (féknyereg). Az első és hátsó gumi szélessége eltér (0.30 / 0.35) — F1-nél ez helyes. Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 7/7/7/7 alkatrész, nyomtáv 1.23, tengelytáv 2.87, max kilengés 180 fokos forgatásnál 0.24.",
+  "wheelPattern": "disc|rim|tyre"
 }

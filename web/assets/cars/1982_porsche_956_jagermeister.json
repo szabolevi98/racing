@@ -2,6 +2,6 @@
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
   "_yawDegrees": "Alapértelmezés 0 (előre néző modellt feltételezve). Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
   "yawDegrees": 0,
-  "_wheelPattern": "Automatikusan generálva (tools/build-car-wheels.mjs). Mérés: nyomtáv 1.53, tengelytáv 2.46, 24 darab.",
-  "wheelPattern": "rims|brakedisc|tire|caliper"
+  "_wheelPattern": "AUTOMATIKUSAN SZŰKÍTVE (tools/audit/fix-wheel-orbit.mjs): a korábbi minta olyan darabot is megfogott, ami nem a kerékkel forog — a legrosszabb a(z) \"caliper.003\" volt, a kerékátmérő 47%-ával kilengve. Az új minta csak azokat a darabokat fogja meg, amelyek a forgástengelyre központozva ülnek: 1% kilengés, 20 darab. Élőben ellenőrizendő.\n\nKorábbi megjegyzés, referenciaként: Automatikusan generálva (tools/build-car-wheels.mjs). Mérés: nyomtáv 1.53, tengelytáv 2.46, 24 darab.",
+  "wheelPattern": "brakedisc|rims|tire"
 }

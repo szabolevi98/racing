@@ -2,6 +2,6 @@
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
   "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
   "yawDegrees": 0,
-  "_wheelPattern": "A csapat-specifikus felni-anyagok (YKPOR300_WHEEL_STYLE3_*) mellett a gumi futófelülete (TREAD), a féktárcsa (04DISK), a féknyereg (CALIPER_BREMBO_01) és a forgás-elmosódás (RIM_BLUR). Sarkonként 9 alkatrész. Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 9/9/9/9 alkatrész, nyomtáv 1.48, tengelytáv 2.3, max kilengés 180 fokos forgatásnál 0.31.",
-  "wheelPattern": "ykpor300|04disk|tread|rim|caliper"
+  "_wheelPattern": "AUTOMATIKUSAN SZŰKÍTVE (tools/audit/fix-wheel-orbit.mjs): a korábbi minta olyan darabot is megfogott, ami nem a kerékkel forog — a legrosszabb a(z) \"CALIPER_BREMBO_01.001\" volt, a kerékátmérő 42%-ával kilengve. Az új minta csak azokat a darabokat fogja meg, amelyek a forgástengelyre központozva ülnek: 4% kilengés, 32 darab. Élőben ellenőrizendő.\n\nKorábbi megjegyzés, referenciaként: A csapat-specifikus felni-anyagok (YKPOR300_WHEEL_STYLE3_*) mellett a gumi futófelülete (TREAD), a féktárcsa (04DISK), a féknyereg (CALIPER_BREMBO_01) és a forgás-elmosódás (RIM_BLUR). Sarkonként 9 alkatrész. Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 9/9/9/9 alkatrész, nyomtáv 1.48, tengelytáv 2.3, max kilengés 180 fokos forgatásnál 0.31.",
+  "wheelPattern": "04disk|rim|tread|ykpor300"
 }

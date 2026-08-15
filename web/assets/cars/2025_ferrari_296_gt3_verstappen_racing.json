@@ -2,6 +2,6 @@
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
   "_yawDegrees": "Alapértelmezés 0. Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
   "yawDegrees": 0,
-  "_wheelPattern": "Geometriailag ellenőrizve: 4 szimmetrikus sarok, nyomtáv 1.56, tengelytáv 2.48, 24 kerék/felni/fék alkatrész.",
-  "wheelPattern": "wheel|caliper|disc"
+  "_wheelPattern": "AUTOMATIKUSAN SZŰKÍTVE (tools/audit/fix-wheel-orbit.mjs): a korábbi minta olyan darabot is megfogott, ami nem a kerékkel forog — a legrosszabb a(z) \"EXT_Details\" volt, a kerékátmérő 51%-ával kilengve. Az új minta csak azokat a darabokat fogja meg, amelyek a forgástengelyre központozva ülnek: 1% kilengés, 16 darab. Élőben ellenőrizendő.\n\nKorábbi megjegyzés, referenciaként: Geometriailag ellenőrizve: 4 szimmetrikus sarok, nyomtáv 1.56, tengelytáv 2.48, 24 kerék/felni/fék alkatrész.",
+  "wheelPattern": "disc|wheel"
 }

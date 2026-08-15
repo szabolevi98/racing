@@ -2,6 +2,6 @@
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
   "_yawDegrees": "Alapértelmezés 0 (előre néző modellt feltételezve). Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
   "yawDegrees": 0,
-  "_wheelPattern": "Automatikusan generálva (tools/build-car-wheels.mjs). Mérés: nyomtáv 1.5, tengelytáv 2.46, 28 darab.",
-  "wheelPattern": "fbx"
+  "_wheelPattern": "AUTOMATIKUSAN SZŰKÍTVE (tools/audit/fix-wheel-orbit.mjs): a korábbi minta olyan darabot is megfogott, ami nem a kerékkel forog — a legrosszabb a(z) \"bmw_m6_gt3_misc\" volt, a kerékátmérő 31%-ával kilengve. Az új minta csak azokat a darabokat fogja meg, amelyek a forgástengelyre központozva ülnek: 1% kilengés, 24 darab. Élőben ellenőrizendő.\n\nKorábbi megjegyzés, referenciaként: Automatikusan generálva (tools/build-car-wheels.mjs). Mérés: nyomtáv 1.5, tengelytáv 2.46, 28 darab.",
+  "wheelPattern": "disc|wheel"
 }

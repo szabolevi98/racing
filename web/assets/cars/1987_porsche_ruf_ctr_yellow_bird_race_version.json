@@ -2,6 +2,6 @@
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
   "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
   "yawDegrees": 0,
-  "_wheelPattern": "Beszédes nevek: Tyre, EXT_Rim_Base, EXT_Rim_Blur, EXT_Disk, EXT_Claw (féknyereg, 'claw' = karom). CSAPDA: az 'EXT_sospensioni_extra' (olaszul sospensioni = felfüggesztés) méretben beleférne, de nem forog a kerékkel — kimarad; az 'extra' token csak a kerékhez tartozó darabot fogja meg. Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 6/6/6/6 alkatrész, nyomtáv 1.36, tengelytáv 2.21, max kilengés 180 fokos forgatásnál 0.29.",
-  "wheelPattern": "tyre|rim|extra|claw|disk"
+  "_wheelPattern": "AUTOMATIKUSAN SZŰKÍTVE (tools/audit/fix-wheel-orbit.mjs): a korábbi minta olyan darabot is megfogott, ami nem a kerékkel forog — a legrosszabb a(z) \"EXT_Claw\" volt, a kerékátmérő 47%-ával kilengve. Az új minta csak azokat a darabokat fogja meg, amelyek a forgástengelyre központozva ülnek: 1% kilengés, 16 darab. Élőben ellenőrizendő.\n\nKorábbi megjegyzés, referenciaként: Beszédes nevek: Tyre, EXT_Rim_Base, EXT_Rim_Blur, EXT_Disk, EXT_Claw (féknyereg, 'claw' = karom). CSAPDA: az 'EXT_sospensioni_extra' (olaszul sospensioni = felfüggesztés) méretben beleférne, de nem forog a kerékkel — kimarad; az 'extra' token csak a kerékhez tartozó darabot fogja meg. Élőben mérve (offline GLB-elemzéssel, a buildWheelPivots logikájának pontos replikájával): 4 szimmetrikus sarok, saronként 6/6/6/6 alkatrész, nyomtáv 1.36, tengelytáv 2.21, max kilengés 180 fokos forgatásnál 0.29.",
+  "wheelPattern": "disk|rim|tyre"
 }

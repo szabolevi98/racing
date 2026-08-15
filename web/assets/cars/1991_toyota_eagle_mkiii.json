@@ -2,6 +2,6 @@
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
   "_yawDegrees": "A felhasználó ellenőrizte: a modell előre néz, nincs szükség extra forgatásra.",
   "yawDegrees": 0,
-  "_wheelPattern": "tools/propose.mjs automatikus javaslata. A minta a mesh-/anyagnevekből (EXT_, RIM, BRAKE_DISC) épül, a kerék-arányos geometriájú darabok egészítik ki. Mérés: 4 szimmetrikus sarok (9/9/8/8 alkatrész), nyomtáv 1.53, tengelytáv 2.45, max kilengés 180 fokos forgatásnál 0.27.",
-  "wheelPattern": "ext|rim|brake|wheel"
+  "_wheelPattern": "AUTOMATIKUSAN SZŰKÍTVE (tools/audit/fix-wheel-orbit.mjs): a korábbi minta olyan darabot is megfogott, ami nem a kerékkel forog — a legrosszabb a(z) \"EXT_CALIPER.003\" volt, a kerékátmérő 38%-ával kilengve. Az új minta csak azokat a darabokat fogja meg, amelyek a forgástengelyre központozva ülnek: 2% kilengés, 30 darab. Élőben ellenőrizendő.\n\nKorábbi megjegyzés, referenciaként: tools/propose.mjs automatikus javaslata. A minta a mesh-/anyagnevekből (EXT_, RIM, BRAKE_DISC) épül, a kerék-arányos geometriájú darabok egészítik ki. Mérés: 4 szimmetrikus sarok (9/9/8/8 alkatrész), nyomtáv 1.53, tengelytáv 2.45, max kilengés 180 fokos forgatásnál 0.27.",
+  "wheelPattern": "brake|rim|tyre|wheel"
 }
