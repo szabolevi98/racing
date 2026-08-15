@@ -28,12 +28,16 @@
 
 <div id="menu">
  <div class="menu-inner p-4 p-md-5">
-  <h1>Levente Racing</h1>
-  <div class="menu-sub" data-i18n="menu.subtitle">Körverseny</div>
-
-  <div id="langRow">
-    <span id="langLabel" class="lbl" data-i18n="menu.language">Nyelv</span>
-    <div id="langButtons" role="group" data-i18n-aria-label="menu.language" aria-label="Nyelv"></div>
+  <div class="menu-head">
+    <div>
+      <h1>Levente Racing</h1>
+      <div class="menu-sub" data-i18n="menu.subtitle">Körverseny</div>
+    </div>
+    <div class="lang-field">
+      <select id="langSelect" class="form-select lang-select"
+              data-i18n-aria-label="menu.language" aria-label="Nyelv"
+              data-i18n-title="menu.language" title="Nyelv"></select>
+    </div>
   </div>
 
   <div class="menu-primary-fields">

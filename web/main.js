@@ -74,26 +74,29 @@ applyToDom();
 // A nyelvváltás nem tölti újra az oldalt: a statikus szövegeket a DOM-ból
 // cseréljük, a dinamikusakat (HUD, menü-állapot) a rajzolásuk úgyis minden
 // képkockán/eseménynél újraírja.
-const langButtonsEl = document.getElementById('langButtons');
-
-function renderLanguageButtons() {
-  langButtonsEl.replaceChildren(...SUPPORTED_LANGUAGES.map(({ code, label }) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = label;
-    button.setAttribute('aria-pressed', String(code === currentLanguage()));
-    button.addEventListener('click', async () => {
-      if (code === currentLanguage()) return;
-      await loadLanguage(code);
-      rememberLanguage(code);
-      applyToDom();
-      renderLanguageButtons();
-      notifyLanguageChange();
-    });
-    return button;
-  }));
-}
-renderLanguageButtons();
+//
+// A választó ugyanaz a kereshető legördülő, mint a pálya/kocsi/környezet: így
+// tíz-húsz nyelvnél is használható marad (gépelésre szűr), és nem kell külön
+// felugró-kezelést karbantartani. A nyelvek neve SAJÁT nyelvén áll, tehát a
+// lista nyelvváltáskor sem változik — nincs mit újraépíteni.
+const langSelect = document.getElementById('langSelect');
+fillSelect(langSelect, SUPPORTED_LANGUAGES.map(({ code, label }) => ({ id: code, label })));
+langSelect.value = currentLanguage();
+makeSearchableSelect(langSelect);
+// A látható mező szélessége a leghosszabb nyelvnévhez igazodik. Enélkül a
+// szöveges mező a saját alapértelmezett 20 karakteres méretét venné fel, ami
+// itt kétszer akkora, mint amire szükség van. Új nyelvvel magától nő; a +3
+// karakter a földgömb ikonnak és egy kis levegőnek marad.
+document.querySelector('.lang-field input').size =
+  Math.max(...SUPPORTED_LANGUAGES.map(({ label }) => label.length)) + 3;
+langSelect.addEventListener('change', async () => {
+  const code = langSelect.value;
+  if (code === currentLanguage()) return;
+  await loadLanguage(code);
+  rememberLanguage(code);
+  applyToDom();
+  notifyLanguageChange();
+});
 
 // ---------- Betöltés-overlay (induláskor ÉS kocsi/pálya/ég váltásnál) ----------
 // Az induló betöltésen kívül máshol (menüben kocsi/ég váltás, multiplayer
@@ -4196,6 +4199,17 @@ function makeSearchableSelect(selectEl) {
   const input = document.createElement('input');
   input.type = 'text';
   input.autocomplete = 'off';
+  // A látható mező a <select> HELYÉRE lép, tehát a nevét is neki kell vinnie.
+  // A pálya/kocsi/környezet mellett ott a <label>, a nyelvválasztónak viszont
+  // szándékosan nincs látható felirata — enélkül képernyőolvasóval névtelen
+  // beviteli mező lenne. A data-i18n-* is átjön, hogy nyelvváltáskor az
+  // applyToDom() ezt a mezőt is frissítse.
+  for (const attr of ['aria-label', 'title']) {
+    if (selectEl.hasAttribute(attr)) input.setAttribute(attr, selectEl.getAttribute(attr));
+  }
+  for (const key of Object.keys(selectEl.dataset)) {
+    if (key.startsWith('i18n')) input.dataset[key] = selectEl.dataset[key];
+  }
   input.className = selectEl.className
     .split(' ')
     .map((c) => (c.startsWith('form-select') ? c.replace('form-select', 'form-control') : c))
