@@ -22,9 +22,17 @@ const exact = (name) => `${escape(name)}(?![^\\s])`;
 // kiterjedés különbsége), és a négy saroknak egyforma átmérőjűnek kell lennie.
 const ROUND_LIMIT = 0.06;
 const DIAMETER_SPREAD = 0.15;
-// Játék-léptékben (a kasztni 2*CHASSIS_Z hosszúra normálva) egy kerék ekkora.
-const MIN_DIAMETER = 0.35;
+// Játék-léptékben (a kasztni 2*CHASSIS_Z hosszúra normálva) ekkora a GUMI.
 const MAX_DIAMETER = 1.0;
+// A többi kerék-alkatrész ennél kisebb: a felni a gumin belül ül, a féktárcsa
+// még beljebb. Egy abszolút alsó korlát ezeket kizárná — a Ferrari F14 T-nél
+// a felni 0,31 átmérőjű, és egy 0,35-ös küszöb miatt maradt ki, amit a
+// felhasználó élőben vett észre ("a felni nem forog"). Ezért a küszöb a
+// legnagyobb keréké-hez képest relatív.
+const MIN_RELATIVE_DIAMETER = 0.3;
+// És koncentrikusnak kell lennie a gumival: ami nem a kerék tengelyén ül,
+// az nem kerék-alkatrész, akármilyen kerek.
+const CONCENTRIC_LIMIT = 0.1;
 
 export function wheelCandidates(file, yawDegrees = 0) {
   const { prims } = normalize(file, yawDegrees);
@@ -39,10 +47,31 @@ export function wheelCandidates(file, yawDegrees = 0) {
     const roundest = Math.max(...r.info.map((g) => g.round));
     if (spread > DIAMETER_SPREAD) continue;
     if (roundest > ROUND_LIMIT) continue;
-    if (Math.max(...diameters) < MIN_DIAMETER || Math.max(...diameters) > MAX_DIAMETER) continue;
-    good.push({ name, diameter: Math.max(...diameters), round: roundest, swing: Math.max(...r.info.map((g) => g.swing)) });
+    if (Math.max(...diameters) > MAX_DIAMETER) continue;
+    good.push({
+      name,
+      diameter: Math.max(...diameters),
+      round: roundest,
+      swing: Math.max(...r.info.map((g) => g.swing)),
+      // A sarkok középpontja: ebből derül ki, hogy egy tengelyen ülnek-e.
+      centres: r.info.map((g) => g.pivot),
+    });
   }
-  return good;
+  if (!good.length) return good;
+
+  // A legnagyobb átmérőjű a gumi; a felni és a féktárcsa ennél kisebb, de
+  // KONCENTRIKUS vele. Aki nem az, azt kidobjuk.
+  const tyre = good.reduce((a, b) => (b.diameter > a.diameter ? b : a));
+  return good.filter((c) => {
+    if (c.diameter < tyre.diameter * MIN_RELATIVE_DIAMETER) return false;
+    // A koncentricitást a tengelyre MERŐLEGES síkban (Y/Z) mérjük. A kerék az
+    // X tengely körül forog, tehát az axiális eltolás közömbös — a kerék külső
+    // és belső oldala 0,13-mal odébb ül, és egy 3D-távolság ezeket tévesen
+    // kizárta (mérve az F14 T-n: a négyből kettő esett ki emiatt).
+    return c.centres.every((centre) => tyre.centres.some((t) => (
+      Math.hypot(centre[1] - t[1], centre[2] - t[2]) <= tyre.diameter * CONCENTRIC_LIMIT
+    )));
+  });
 }
 
 export function proposeByGeometry(file, yawDegrees = 0) {

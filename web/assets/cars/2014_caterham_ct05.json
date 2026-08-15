@@ -2,6 +2,6 @@
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
   "_yawDegrees": "Alapértelmezés 0 (előre néző modellt feltételezve). Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
   "yawDegrees": 0,
-  "_wheelPattern": "A 2014-es F1 packból vágtuk ki (tools/split-car-pack.mjs). A pack minden anyaga \"MIRRORS.013_N\" néven fut, tehát a szokásos, névre épülő felismerés itt semmit nem ér — a kerekeket GEOMETRIÁBÓL azonosítottuk (tools/audit/wheels-by-geometry.mjs): az az anyag kerék, amit négy sarokra vágva négy egyforma átmérőjű, a forgás síkjában kerek csoport áll össze. Ezért sorolja a minta a pontos anyagneveket. Mérve: 3 anyag, 12 darab, kerékátmérő 0.56. Élőben ellenőrizendő.",
-  "wheelPattern": "MIRRORS\\.013_18(?![^\\s])|MIRRORS\\.013_19(?![^\\s])|MIRRORS\\.013_20(?![^\\s])"
+  "_wheelPattern": "A 2014-es F1 packból vágtuk ki (tools/split-car-pack.mjs). A pack minden anyaga \"MIRRORS.013_N\" néven fut, tehát a névre épülő felismerés itt semmit nem ér — a kerekeket GEOMETRIÁBÓL azonosítjuk (tools/audit/wheels-by-geometry.mjs). JAVÍTVA (a felhasználó jelezte: \"a felni nem forog és nem is mozdul kanyarodásnál\"): a felni kimaradt, mert egy abszolút alsó átmérő-korlát alá esett — a felni természetesen kisebb a guminál, ezért a korlát mostantól a gumihoz képest relatív, és a koncentricitást a tengelyre MERŐLEGES síkban mérjük (az axiális eltolás forgás közben közömbös). Mérve: 4 anyag, 16 darab, kerékátmérő 0.56.",
+  "wheelPattern": "MIRRORS\\.013_18(?![^\\s])|MIRRORS\\.013_19(?![^\\s])|MIRRORS\\.013_20(?![^\\s])|MIRRORS\\.013_95(?![^\\s])"
 }
