@@ -115,22 +115,79 @@ export function cutBlocker(primitive) {
   return null;
 }
 
-// Az elfajulttá tétel a GLB nyers bájtjaiban. A visszaadott szám a ténylegesen
-// átírt háromszögek darabszáma.
-export function patchGlbFaces(bytes, glb, accessorIndex, faces) {
+// Az index-akkumulátor nyers elérése a GLB bájtjaiban. Külön, mert két dolog
+// is használja: az elfajulttá tétel és a lapsorszám-fordítás.
+function glbIndexAccessor(bytes, glb, accessorIndex) {
   const acc = glb.json.accessors[accessorIndex];
   const view = glb.json.bufferViews[acc.bufferView];
   const meret = { 5121: 1, 5123: 2, 5125: 4 }[acc.componentType];
   if (!meret) throw new Error(`Ismeretlen indextípus: ${acc.componentType}`);
   const start = glb.binStart + (view.byteOffset || 0) + (acc.byteOffset || 0);
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const olvas = (k) => (meret === 4 ? dv.getUint32(start + k * 4, true)
-    : meret === 2 ? dv.getUint16(start + k * 2, true) : dv.getUint8(start + k));
-  const ir = (k, v) => (meret === 4 ? dv.setUint32(start + k * 4, v, true)
-    : meret === 2 ? dv.setUint16(start + k * 2, v, true) : dv.setUint8(start + k, v));
+  return {
+    count: acc.count,
+    olvas: (k) => (meret === 4 ? dv.getUint32(start + k * 4, true)
+      : meret === 2 ? dv.getUint16(start + k * 2, true) : dv.getUint8(start + k)),
+    ir: (k, v) => (meret === 4 ? dv.setUint32(start + k * 4, v, true)
+      : meret === 2 ? dv.setUint16(start + k * 2, v, true) : dv.setUint8(start + k, v)),
+  };
+}
+
+// Egy háromszög azonosítója a három csúcsából, a sorrendtől függetlenül.
+function lapKulcs(a, b, c) {
+  let x = a, y = b, z = c, t;
+  if (x > y) { t = x; x = y; y = t; }
+  if (y > z) { t = y; y = z; z = t; }
+  if (x > y) { t = x; x = y; y = t; }
+  return `${x},${y},${z}`;
+}
+
+// A JELENETBELI lapsorszámok lefordítása a GLB lapsorszámaira.
+//
+// Miért kell: a three-mesh-bvh a BVH építésekor HELYBEN átrendezi a geometria
+// indextömbjét (mérve: 300 háromszögnél a 900 index-pozícióból 870 elmozdult).
+// A vágás a jelenetben kiválasztott lapokra vonatkozik, a mentés viszont az
+// eredeti fájlba ír — a két sorszámozás tehát nem ugyanaz. Fordítás nélkül a
+// fájlban MÁS háromszögek fajulnak el, mint amiket a szerkesztőben kivágtál:
+// a kivágott tárgy egy része visszatér, közben máshol csendben eltűnik
+// geometria. Pontosan ez volt a "nem mindent ment el" tünet.
+//
+// A fordítás alapja a csúcshármas: a BVH csak SORRENDET cserél, az indexek
+// ÉRTÉKÉT nem — ugyanaz a háromszög ugyanazzal a három csúccsal szerepel
+// mindkét oldalon.
+//
+// Az azonos hármasok (ismétlődő háromszögek) listában állnak, és mindegyik
+// csak EGYSZER használódik fel, hogy két vágás ne ugyanarra a lapra mutasson.
+//
+// A bemenet CSÚCSHÁRMASOK tömbje, nem lapsorszám: a jelenet indextömbje a
+// vágás pillanatában már elfajulttá vált (mindhárom index azonos), tehát
+// onnan a hármas már nem olvasható ki — a hívónak a visszavonás-adatból kell
+// összeraknia.
+export function mapTrianglesToGlb(bytes, glb, accessorIndex, triples) {
+  const { count, olvas } = glbIndexAccessor(bytes, glb, accessorIndex);
+  const tabla = new Map();
+  for (let t = 0; t * 3 + 2 < count; t++) {
+    const kulcs = lapKulcs(olvas(t * 3), olvas(t * 3 + 1), olvas(t * 3 + 2));
+    const lista = tabla.get(kulcs);
+    if (lista) lista.push(t); else tabla.set(kulcs, [t]);
+  }
+  const mapped = [];
+  let hianyzo = 0;
+  for (const [a, b, c] of triples) {
+    const lista = tabla.get(lapKulcs(a, b, c));
+    if (lista && lista.length) mapped.push(lista.shift());
+    else hianyzo++;
+  }
+  return { mapped, hianyzo };
+}
+
+// Az elfajulttá tétel a GLB nyers bájtjaiban. A visszaadott szám a ténylegesen
+// átírt háromszögek darabszáma.
+export function patchGlbFaces(bytes, glb, accessorIndex, faces) {
+  const { count, olvas, ir } = glbIndexAccessor(bytes, glb, accessorIndex);
   let db = 0;
   for (const t of faces) {
-    if (t * 3 + 2 >= acc.count) continue;
+    if (t * 3 + 2 >= count) continue;
     const a = olvas(t * 3);
     ir(t * 3 + 1, a);
     ir(t * 3 + 2, a);

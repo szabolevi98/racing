@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   mergeByPosition, componentAtFace, boundsOfVertices,
-  degenerateFaces, restoreFaces, parseGlb, patchGlbFaces, cutBlocker,
+  degenerateFaces, restoreFaces, parseGlb, patchGlbFaces, cutBlocker, mapTrianglesToGlb,
 } from '../shared/meshCut.js';
 
 // Egy „geometria", ami úgy viselkedik, mint a Three.js BufferAttribute-ja.
@@ -136,4 +136,49 @@ test('a tömörített geometriát nem vágjuk, hanem megnevezzük az okot', () =
   assert.match(cutBlocker({ indices: 0, extensions: { KHR_draco_mesh_compression: {} } }), /Draco/);
   assert.match(cutBlocker({ indices: 0, extensions: { EXT_meshopt_compression: {} } }), /meshopt/);
   assert.match(cutBlocker({ attributes: {} }), /index nélküli/);
+});
+
+// A three-mesh-bvh a BVH építésekor HELYBEN átrendezi a geometria indextömbjét
+// (mérve: 300 háromszögnél a 900 index-pozícióból 870 elmozdult). A jelenetbeli
+// lapsorszám tehát NEM a GLB lapsorszáma — a mentés e nélkül a fordítás nélkül
+// más háromszögeket fajultatott el, mint amiket a szerkesztőben kivágtak.
+test('a jelenetbeli lapokat csúcshármas alapján találjuk meg az átrendezett GLB-ben', () => {
+  // A fájlban a három háromszög sorrendje: A, B, C.
+  const bytes = keszitGlb([10, 11, 12,  20, 21, 22,  30, 31, 32]);
+  const glb = parseGlb(bytes);
+
+  // A jelenetben a BVH megcserélte őket: C, A, B. A csúcsok ÉRTÉKE ugyanaz.
+  const jelenetIndex = [30, 31, 32,  10, 11, 12,  20, 21, 22];
+
+  // A szerkesztőben a jelenet 0. lapját vágták ki — az a fájlban a 2.
+  const { mapped, hianyzo } = mapTrianglesToGlb(bytes, glb, 0, [[30, 31, 32]]);
+  assert.equal(hianyzo, 0);
+  assert.deepEqual(mapped, [2], 'a jelenet 0. lapja a fájlban a 2.');
+
+  patchGlbFaces(bytes, glb, 0, mapped);
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const olvas = (k) => dv.getUint32(glb.binStart + k * 4, true);
+  assert.deepEqual([olvas(0), olvas(1), olvas(2)], [10, 11, 12], 'A érintetlen');
+  assert.deepEqual([olvas(3), olvas(4), olvas(5)], [20, 21, 22], 'B érintetlen');
+  assert.deepEqual([olvas(6), olvas(7), olvas(8)], [30, 30, 30], 'C elfajult');
+
+  // Fordítás NÉLKÜL a 0. lapot írta volna át — vagyis a rossz háromszöget.
+  assert.notDeepEqual(mapped, [0], 'a nyers lapsorszám más háromszögre mutatna');
+  assert.ok(jelenetIndex.length === 9);
+});
+
+test('az ismétlődő háromszögek nem kapják ugyanazt a fájlbeli lapot', () => {
+  const bytes = keszitGlb([5, 6, 7,  5, 6, 7]);   // kétszer ugyanaz a hármas
+  const glb = parseGlb(bytes);
+  const { mapped, hianyzo } = mapTrianglesToGlb(bytes, glb, 0, [[5, 6, 7], [5, 6, 7]]);
+  assert.equal(hianyzo, 0);
+  assert.deepEqual(mapped, [0, 1], 'mindkét vágás külön lapra mutat');
+});
+
+test('a fájlban nem szereplő háromszöget hiányzóként jelezzük, nem hallgatjuk el', () => {
+  const bytes = keszitGlb([0, 1, 2]);
+  const glb = parseGlb(bytes);
+  const { mapped, hianyzo } = mapTrianglesToGlb(bytes, glb, 0, [[7, 8, 9]]);
+  assert.deepEqual(mapped, []);
+  assert.equal(hianyzo, 1);
 });

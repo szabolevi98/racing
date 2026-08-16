@@ -23,7 +23,7 @@ import {
 import { findGateHit, findSpawnHit } from '/shared/editorSelection.js';
 import {
   mergeByPosition, componentAtFace, boundsOfVertices,
-  degenerateFaces, restoreFaces, parseGlb, patchGlbFaces, cutBlocker,
+  degenerateFaces, restoreFaces, parseGlb, patchGlbFaces, cutBlocker, mapTrianglesToGlb,
 } from '/shared/meshCut.js';
 import { isSmoothingPaint } from '/shared/zone.js';
 
@@ -2693,14 +2693,27 @@ async function cutterSaveModel() {
     const glb = parseGlb(bytes);
 
     let osszes = 0;
+    let hianyzo = 0;
     for (const cut of cutterCuts) {
       const hely = assoc.get(cut.mesh);
       if (!hely || hely.meshes === undefined) throw new Error('Nem találom a hálót a GLB-ben.');
       const prim = glb.json.meshes[hely.meshes].primitives[hely.primitives ?? 0];
       const akadaly = cutBlocker(prim);
       if (akadaly) throw new Error(`Ez a háló nem vágható: ${akadaly}.`);
-      osszes += patchGlbFaces(bytes, glb, prim.indices, cut.faces);
+
+      // A jelenetbeli lapsorszám NEM egyezik a GLB-belivel (a BVH építése
+      // átrendezi az indextömböt), ezért csúcshármas alapján fordítunk. A
+      // hármast a visszavonás-adatból rakjuk össze: a vágás a 2. és 3. indexet
+      // írta felül, az elsőt nem — az még a helyén van.
+      const idx = cut.mesh.geometry.index.array;
+      const triples = cut.restore.map(([t, b, c]) => [idx[t * 3], b, c]);
+      const { mapped, hianyzo: hiany } = mapTrianglesToGlb(bytes, glb, prim.indices, triples);
+      hianyzo += hiany;
+      osszes += patchGlbFaces(bytes, glb, prim.indices, mapped);
     }
+    // Ha egy háromszöget nem sikerült megtalálni a fájlban, azt KI KELL írni:
+    // némán hiányos mentés pont az a hiba, amit ez a fordítás megszüntet.
+    if (hianyzo) throw new Error(`${hianyzo} háromszög nem azonosítható a GLB-ben — a mentés nem lenne teljes.`);
 
     const nev = url.split('/').pop().split('?')[0] || 'palya.glb';
     const blob = new Blob([bytes], { type: 'model/gltf-binary' });
