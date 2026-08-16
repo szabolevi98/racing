@@ -264,6 +264,20 @@ kbd.k {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23aab3c5' stroke-width='1.8'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M3 12h18'/%3E%3Cellipse cx='12' cy='12' rx='4' ry='9'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: 10px center; background-size: 15px;
 }
+/* A mező szélességét a néma mérőelem szabja meg, nem JS. A burkoló egy egycellás
+   rács: benne a mérőelem és a látható mező EGYMÁSON ül, tehát a mező pontosan
+   olyan széles lesz, mint a leghosszabb nyelvnév. A mérőelem nem látszik, de
+   elrendeződik — ezért visibility és nem display:none. */
+.lang-field .ss-wrap { display: inline-grid; }
+.lang-field .ss-wrap > input,
+.lang-field .lang-sizer { grid-area: 1 / 1; }
+.lang-field .ss-wrap > input { width: 100%; }
+.lang-sizer {
+  visibility: hidden; pointer-events: none;
+  display: grid; overflow: hidden;
+}
+/* Minden név ugyanabba a cellába: a doboz a legszélesebbhez igazodik. */
+.lang-sizer > span { grid-area: 1 / 1; white-space: nowrap; }
 /* A lista a tartalomhoz igazodik és jobbra rendeződik. A .ss-menu alapból a
    mező szélességét veszi fel (left:0;right:0) — egy ilyen keskeny mező alatt
    egy hosszabb nyelvnév ettől eltörne, a jobb szélen pedig kilógna. */

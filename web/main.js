@@ -86,33 +86,38 @@ makeSearchableSelect(langSelect);
 // A látható mező szélessége a leghosszabb nyelvnévhez igazodik — enélkül a
 // szöveges mező az alapértelmezett 20 karakteres méretét venné fel.
 //
-// A karakterszám (`size`) viszont túl durva mérce: a böngésző a "0" glifa
-// szélességével számol, ami arányos betűtípusnál jóval szélesebb az átlagos
-// betűnél. Mérve 126 px lett a szükséges 80 helyett, tehát a nyelv neve
-// majdnem kétszer kifért volna a sávban. Ezért a neveket a mező SAJÁT
-// betűjével mérjük meg. Új nyelvvel magától igazodik.
+// Ezt előbb a `size` attribútummal próbáltam (karakterszám: túl durva, a
+// böngésző a "0" glifa szélességével számol), aztán canvasos szövegméréssel
+// induláskor. Utóbbi IDŐZÍTÉSFÜGGŐ volt, és némán rossz eredményt adott: ha a
+// mérés a mező végleges betűje előtt fut, kisebbet mér. Öt nyelvnél a hibás
+// érték véletlenül még elégnek látszott, tizenkilencnél a „Nederlands" 120 px
+// helyett 101-et kapott, és négy név levágódott.
+//
+// Ezért a szélességet már egyáltalán nem JS SZÁMOLJA: a böngészőre bízzuk. Egy
+// néma elembe egymásra rakjuk az összes nyelvnevet (mind egyetlen rácscellába),
+// így annak a doboza magától a leghosszabb névé lesz. Ez az elem a mezővel KÖZÖS
+// rácscellába kerül, tehát a mező szélessége definíció szerint ugyanaz — nincs
+// mérés, nincs időzítés, nincs mit elrontani. Ugyanazt az osztályt is megkapja,
+// tehát ugyanaz a betű, bélés és keret vonatkozik rá, és a töréspontnál a kisebb
+// betűre magától átáll.
+//
+// (Előbb ResizeObserverrel figyeltem ezt az elemet — az viszont a nulla magasságú
+// dobozról nem szólt, és a mező a 20 karakteres alapméretén ragadt.)
 const langInput = document.querySelector('.lang-field input');
-const langTextRuler = document.createElement('canvas').getContext('2d');
-function fitLangInput() {
-  const style = getComputedStyle(langInput);
-  langTextRuler.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-  const text = Math.max(...SUPPORTED_LANGUAGES.map(({ label }) => langTextRuler.measureText(label).width));
-  // A doboz border-box, tehát a bélés és a keret is beleszámít a szélességbe.
-  const frame = ['paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth']
-    .reduce((sum, part) => sum + parseFloat(style[part]), 0);
-  langInput.style.width = `${Math.ceil(text + frame) + 1}px`;
-}
-fitLangInput();
-// Egy mérés nem elég, és ez sokáig NÉMÁN rossz volt: induláskor a mező betűje
-// még nem a végleges, ezért a mérés kisebbet ad. Öt nyelvnél a legszélesebb
-// név épp beleférni látszott, tizenötnél viszont a „Українська" 118 px helyett
-// 100-at kapott és levágódott. Ezért a következő két képkockában újramérünk,
-// amikor a stílusok és az elrendezés már biztosan ülnek — plusz a betűk
-// betöltése és az átméretezés után is, mert alacsony ablaknál kisebb a betű és
-// szűkebb a bélés.
-requestAnimationFrame(() => requestAnimationFrame(fitLangInput));
-addEventListener('resize', fitLangInput);
-document.fonts?.ready.then(() => fitLangInput());
+const langSizer = document.createElement('span');
+langSizer.className = `${langInput.className} lang-sizer`;
+langSizer.setAttribute('aria-hidden', 'true');
+langSizer.append(...SUPPORTED_LANGUAGES.map(({ label }) => {
+  const item = document.createElement('span');
+  item.textContent = label;
+  return item;
+}));
+langInput.parentNode.appendChild(langSizer);
+// A rácsoszlop a benne lévő elemek közül a legszélesebbhez igazodik, és a
+// szöveges mező alapból 20 karakternyit kér (216 px) — azzal ő nyerne a
+// mérőelem ellen. Egy karakterre állítva a mérőelem dönt, a mező pedig
+// kitölti, amit az kimért.
+langInput.size = 1;
 langSelect.addEventListener('change', async () => {
   const code = langSelect.value;
   if (code === currentLanguage()) return;
