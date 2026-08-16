@@ -2218,6 +2218,24 @@ function wireEvents() {
   renderer.domElement.addEventListener('click', (e) => {
     if (api.appState === 'objectcut' && e.button === 0) cutterPickAt(e.clientX, e.clientY);
   });
+  // Görgő-kattintás: kijelölés ÉS vágás egy mozdulattal. Sok apró darab
+  // eltüntetésénél a kéz így a helyén marad — nem kell a bal gomb és a Delete
+  // között váltogatni.
+  //
+  // A preventDefault a mousedown-on kötelező: nélküle a böngésző középső
+  // gombra automatikus görgetésbe kapcsol, és a kurzor helyett egy iránytű
+  // jelenik meg.
+  renderer.domElement.addEventListener('mousedown', (e) => {
+    if (api.appState === 'objectcut' && e.button === 1) e.preventDefault();
+  });
+  renderer.domElement.addEventListener('auxclick', (e) => {
+    if (api.appState !== 'objectcut' || e.button !== 1) return;
+    e.preventDefault();
+    cutterPickAt(e.clientX, e.clientY);
+    // Csak akkor vágunk, ha a kattintás tényleg talált valamit — üres égre
+    // kattintva ne az előző kijelölést tüntessük el.
+    if (cutterSelection) cutterCutSelection();
+  });
   carTesterCarSelectEl.addEventListener('change', () => {
     const manifest = api.manifest;
     if (!manifest) return;

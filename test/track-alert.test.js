@@ -24,7 +24,10 @@ test('track alerts are exposed as language keys with a translation everywhere', 
     messageKey: 'trackAlert.visualGlitches',
   });
   assert.equal(byId.get('redbull_ring_2025_layout')?.alert?.messageKey, 'trackAlert.visualGlitches');
-  assert.equal(byId.get('nurburgring_gp_2016_layout')?.alert?.messageKey, 'trackAlert.visualGlitches');
+  // A Nürburgring vizuális hibái javítva lettek, ezért az alert.json-ja
+  // törölve — a figyelmeztetés HIÁNYA is ellenőrzött állapot, különben egy
+  // véletlenül visszakerülő fájl észrevétlenül maradna a menüben.
+  assert.equal(byId.get('nurburgring_gp_2016_layout')?.alert, undefined);
   assert.deepEqual(byId.get('bahrain_international_circuit_2006_layout')?.alert, {
     type: 'danger',
     messageKey: 'trackAlert.brokenAsphalt',
