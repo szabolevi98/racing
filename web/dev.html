@@ -8,9 +8,11 @@
   átnevezel egy id-t, a dev.js mellette van, nem egy másik fájlban.
 -->
 <style>
-  #devHud.hidden, #carTesterHud.hidden, #devDriveHud.hidden { display: none !important; }
-  #devHud, #carTesterHud { position: fixed; top: 12px; left: 12px; z-index: 10; }
+  #devHud.hidden, #carTesterHud.hidden, #devDriveHud.hidden,
+  #objectCutterHud.hidden { display: none !important; }
+  #devHud, #carTesterHud, #objectCutterHud { position: fixed; top: 12px; left: 12px; z-index: 10; }
   #devHud .card, #carTesterHud .card { min-width: 220px; }
+  #objectCutterHud .card { min-width: 300px; max-width: 340px; }
 
   #devDriveHud {
     position: fixed; top: 12px; right: 12px; z-index: 10;

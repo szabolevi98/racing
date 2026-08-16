@@ -2260,17 +2260,17 @@ function wireEvents() {
   });
 
   renderer.domElement.addEventListener('contextmenu', (e) => {
-    if (api.appState === 'dev') e.preventDefault();
+    if (isFreeCameraState()) e.preventDefault();
   });
   renderer.domElement.addEventListener('mousedown', (e) => {
-    if (api.appState === 'dev' && e.button === 2) {
+    if (isFreeCameraState() && e.button === 2) {
       devLastMouseX = e.clientX;
       devLastMouseY = e.clientY;
     }
   });
   window.addEventListener('mousemove', (e) => {
     const rightButtonHeld = (e.buttons & 2) === 2;
-    if (api.appState !== 'dev' || !rightButtonHeld) {
+    if (!isFreeCameraState() || !rightButtonHeld) {
       devLastMouseX = e.clientX;
       devLastMouseY = e.clientY;
       return;
@@ -2291,11 +2291,11 @@ function wireEvents() {
       else removeLastSpawnPoint();
       return;
     }
-    if (api.appState !== 'dev') return;
+    if (!isFreeCameraState()) return;
     devKeys[e.code] = true;
   });
   window.addEventListener('keyup', (e) => {
-    if (api.appState === 'dev') devKeys[e.code] = false;
+    if (isFreeCameraState()) devKeys[e.code] = false;
   });
 
   document.querySelectorAll('input[name="zoneBrush"]').forEach((el) => {
@@ -2554,6 +2554,14 @@ function wireEvents() {
 // A main.js egyszer hívja meg, a dev modul betöltése után. Azért async, mert
 // előbb le kell kérni és beszúrni a dev.html-t — előtte egyetlen elem sem
 // létezik, amire a kezelőket rá lehetne kötni.
+// Melyik állapotokban él a szabad kamera? A dev nézeten kívül az
+// objektumvágóban is: oda kell tudni repülni ahhoz, amit ki akarsz vágni.
+// (Ezt eleinte csak a kamera-frissítésnél vettem figyelembe, a BEMENETNÉL nem,
+// és a vágóban emiatt mozdíthatatlan volt a kamera.)
+function isFreeCameraState() {
+  return api.appState === 'dev' || api.appState === 'objectcut';
+}
+
 // ---- Objektumvágó ----
 //
 // A letöltött pályamodellekben rendszeresen maradnak oda nem való darabok:
