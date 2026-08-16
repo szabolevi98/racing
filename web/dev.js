@@ -34,6 +34,8 @@ import { isSmoothingPaint } from '/shared/zone.js';
 let devHudEl, devSpawnCountEl, devSpawnStatusEl, devMapSelectEl;
 let bakeCollisionBtn, bakeStatusEl, bakeDebrisFilterCheck, bakeSmoothCheck, openZoneEditorBtn;
 let bakeCanopyCheck, bakeCanopyHeight, bakeAsphaltCheck, bakeAsphaltIterations, bakeAsphaltRadius;
+let shadowRangeEl, shadowMapSizeEl, shadowNormalBiasEl, shadowInfoEl;
+let shadowRangeValEl, shadowMapSizeValEl, shadowNormalBiasValEl;
 let roughnessStatusEl;
 let carTesterBtn, carTesterHudEl, carTesterBackBtn, carTesterCarSelectEl;
 let carTesterCompressedEl, carTesterFileInfoEl;
@@ -82,6 +84,21 @@ function queryElements() {
   bakeStatusEl = $('bakeStatus');
   bakeDebrisFilterCheck = $('bakeDebrisFilterCheck');
   bakeSmoothCheck = $('bakeSmoothCheck');
+  shadowRangeEl = $('shadowRange');
+  shadowMapSizeEl = $('shadowMapSize');
+  shadowNormalBiasEl = $('shadowNormalBias');
+  // Az árnyék-hangolót a JÁTÉK HUD-jába tesszük, a "Vissza a menübe" alá.
+  // Miért nem marad ott, ahová a markup teszi: így a HUD-dal együtt jelenik meg
+  // és tűnik el (a menüben nincs mit hangolni), és vezetés közben kéznél van —
+  // nem csak a vezetéses tesztben, ahol eredetileg volt.
+  const shadowPanel = $('shadowTunerHud');
+  const tlBar = document.querySelector('#topLeft .tl-bar');
+  if (shadowPanel && tlBar) tlBar.after(shadowPanel);
+
+  shadowInfoEl = $('shadowInfo');
+  shadowRangeValEl = $('shadowRangeVal');
+  shadowMapSizeValEl = $('shadowMapSizeVal');
+  shadowNormalBiasValEl = $('shadowNormalBiasVal');
   bakeCanopyCheck = $('bakeCanopyCheck');
   bakeCanopyHeight = $('bakeCanopyHeight');
   bakeAsphaltCheck = $('bakeAsphaltCheck');
@@ -2523,6 +2540,34 @@ function wireEvents() {
   asphaltAdditiveCheck.addEventListener('change', updateAsphaltModeHint);
 
   bakeCollisionBtn.addEventListener('click', bakeCollisionToFile);
+
+  // ---- Árnyék-hangolás ----
+  // A felbontás kettő hatványaiból választ: a köztes értékek nem adnának
+  // semmit, a csúszka viszont így egyértelmű lépésekben mozog.
+  const SHADOW_MAP_SIZES = [1024, 2048, 4096, 8192];
+
+  function refreshShadowUi(s) {
+    shadowRangeEl.value = String(s.range);
+    shadowRangeValEl.textContent = `±${s.range} m`;
+    const i = SHADOW_MAP_SIZES.indexOf(s.mapSize);
+    if (i >= 0) shadowMapSizeEl.value = String(i);
+    shadowMapSizeValEl.textContent = `${s.mapSize}²`;
+    shadowNormalBiasEl.value = String(Math.round(s.normalBias * 100));
+    shadowNormalBiasValEl.textContent = s.normalBias.toFixed(2);
+    // Ez a szám mondja meg, mennyire lesz szemcsés: egy texel ekkora
+    // területet fed a világban.
+    shadowInfoEl.textContent = ` — ${s.texelCm} cm/texel`;
+  }
+
+  const alkalmaz = (patch) => refreshShadowUi(api.setShadowSettings(patch));
+  shadowRangeEl.addEventListener('input', () => alkalmaz({ range: Number(shadowRangeEl.value) }));
+  shadowMapSizeEl.addEventListener('input', () => {
+    alkalmaz({ mapSize: SHADOW_MAP_SIZES[Number(shadowMapSizeEl.value)] });
+  });
+  shadowNormalBiasEl.addEventListener('input', () => {
+    alkalmaz({ normalBias: Number(shadowNormalBiasEl.value) / 100 });
+  });
+  refreshShadowUi(api.shadowSettings());
 
   // A dev pálya-választó csak itt él: a rendes menü mapSelect-jétől külön,
   // de a kiválasztást átvezetjük oda is, hogy az indítás ugyanazt a pályát

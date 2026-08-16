@@ -19,6 +19,10 @@
     max-height: calc(100vh - 24px); overflow-y: auto;
   }
   #devDriveHud .card { min-width: 300px; max-width: 340px; }
+  /* Az árnyék-hangoló a játék HUD-jába kerül, a "Vissza a menübe" alá —
+     a dev.js mozgatja a #topLeft-be, hogy a HUD-dal együtt tűnjön el. */
+  #shadowTunerHud { margin-bottom: 6px; }
+  #shadowTunerHud .card { width: 300px; }
   .vt-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
   .vt-row label { flex: 1 1 auto; font-size: 0.8rem; }
   .vt-row input[type="range"] { flex: 1 1 auto; width: 100%; }
@@ -129,6 +133,37 @@
   </div>
 </div>
 
+<div id="shadowTunerHud">
+  <div class="card bg-dark bg-opacity-75 border-warning text-light">
+    <div class="card-body py-2 px-3 small">
+      <div>
+        <strong class="text-warning">ÁRNYÉK</strong>
+        <span id="shadowInfo" class="text-secondary"></span>
+        <div class="vt-row">
+          <label for="shadowRange">Hatótáv</label>
+          <input type="range" id="shadowRange" min="50" max="600" step="10" value="200">
+          <span class="vt-value" id="shadowRangeVal">±200 m</span>
+        </div>
+        <div class="vt-row">
+          <label for="shadowMapSize">Felbontás</label>
+          <input type="range" id="shadowMapSize" min="0" max="3" step="1" value="2">
+          <span class="vt-value" id="shadowMapSizeVal">4096²</span>
+        </div>
+        <div class="vt-row">
+          <label for="shadowNormalBias">normalBias</label>
+          <input type="range" id="shadowNormalBias" min="0" max="100" step="1" value="2">
+          <span class="vt-value" id="shadowNormalBiasVal">0.02</span>
+        </div>
+        <div class="text-secondary" style="font-size:0.72rem">
+          A hatótáv a látótávolság, a felbontás az élesség — a kettő hányadosa a
+          szemcsézettség. Ha nő a texel, a normalBias-t is emelni kellhet, különben
+          visszajön az önárnyékoló csíkozás az aszfalton.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="carTesterHud" class="hidden">
   <div class="card bg-dark bg-opacity-75 border-success text-light">
     <div class="card-body py-2 px-3 small">
@@ -156,6 +191,7 @@
            itt marad, annak, aki a kódot nézi.) -->
       <strong class="text-primary">VEZETÉSES TESZT</strong>
       <div id="devDriveSliders"></div>
+
       <button id="devDriveSaveBtn" class="btn btn-sm btn-primary mt-2">Mentés fájlba</button>
       <button id="devDriveResetBtn" class="btn btn-sm btn-outline-secondary mt-2">Alapértékek visszaállítása</button>
       <button id="devDriveBackBtn" class="btn btn-sm btn-outline-warning mt-2">Vissza a dev módba</button>

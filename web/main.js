@@ -390,13 +390,23 @@ scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffffff, 3.85);
 sun.position.set(200, 300, 100);
 sun.castShadow = true;
-sun.shadow.camera.left = -100;
-sun.shadow.camera.right = 100;
-sun.shadow.camera.top = 100;
-sun.shadow.camera.bottom = -100;
+// A hatótáv és a felbontás EGYÜTT mozdult: ±100/2048 -> ±200/4096. A texel
+// mérete így változatlan (200 m / 2048 és 400 m / 4096 egyaránt 9,8 cm), tehát
+// az árnyék kétszer messzebbre látszik, ugyanolyan élesen.
+//
+// Ez nem elméleti választás: a dev panel csúszkáival kimérve 1024-es
+// felbontáson (39 cm/texel) megjelenik az önárnyékoló csíkozás az aszfalton,
+// 4096-on nem. A normalBias ezért maradhat a mostani 0.02-n — emelni csak
+// veszteség lenne, mert az alatta lévő geometria megszűnik árnyékot vetni.
+sun.shadow.camera.left = -200;
+sun.shadow.camera.right = 200;
+sun.shadow.camera.top = 200;
+sun.shadow.camera.bottom = -200;
 sun.shadow.camera.near = 1;
-sun.shadow.camera.far = 600;
-sun.shadow.mapSize.set(2048, 2048);
+// A far csak a terep szintkülönbségét kell hogy lefedje, a doboz oldalirányban
+// nő — lásd setShadowSettings, ugyanaz a képlet adja ezt a 800-at.
+sun.shadow.camera.far = 800;
+sun.shadow.mapSize.set(4096, 4096);
 // A normalBias VILÁG-egységben tolja el az árnyék-mintavétel helyét a felszín
 // normálisa mentén, tehát az ASZFALT mintavételi pontját is ennyivel emeli:
 // ami ez alatt van, az megszűnik árnyékot vetni. Itt 0.4 állt (a pályán
@@ -415,6 +425,55 @@ sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 0.02;
 scene.add(sun);
 scene.add(sun.target);
+
+// Az árnyék két számon múlik, és érdemes szétválasztani őket:
+//
+//  - a FRUSZTUM mérete a hatótáv (efölött egyszerűen nincs árnyék),
+//  - az árnyéktextúra FELBONTÁSA az élesség.
+//
+// A kettő hányadosa a szemcsézettség: 200 m / 2048 texel = 9,8 cm/texel az
+// alapbeállításnál. Ha csak a hatótávot növeljük, a texel arányosan nő és az
+// árnyék elmosódik; ha a felbontást is vele emeljük, az élesség megmarad —
+// cserébe négyszereződik az árnyéktérkép, és nagyobb dobozba több geometriát
+// kell berajzolni.
+//
+// A dev panel csúszkái ezt hangolják. A felbontás futásidejű váltásához el
+// KELL dobni a meglévő árnyéktérképet: a Three.js különben a régi méretűt
+// használná tovább, és a csúszka látszólag nem csinálna semmit.
+function setShadowSettings({ range, mapSize, normalBias, bias } = {}) {
+  if (Number.isFinite(range) && range > 0) {
+    const cam = sun.shadow.camera;
+    cam.left = -range; cam.right = range; cam.top = range; cam.bottom = -range;
+    // A far csak ÓVATOSAN nő a hatótávval. A fény fix távolságra van a kocsitól
+    // (sunOffset ~178), a nagyobb doboz oldalra terjed, nem a fény irányában —
+    // ott csak a terep szintkülönbsége számít. Egy fölöslegesen nagy far viszont
+    // szétteríti a mélységi puffer pontosságát, és attól ugyanaz a texel-méret
+    // is csíkozni kezdhet. Alapbeállításnál (±100) marad a korábbi 600.
+    cam.far = Math.max(600, 400 + range * 2);
+    cam.updateProjectionMatrix();
+  }
+  if (Number.isFinite(mapSize) && mapSize > 0 && mapSize !== sun.shadow.mapSize.x) {
+    sun.shadow.mapSize.set(mapSize, mapSize);
+    sun.shadow.map?.dispose();
+    sun.shadow.map = null;
+  }
+  if (Number.isFinite(normalBias)) sun.shadow.normalBias = normalBias;
+  if (Number.isFinite(bias)) sun.shadow.bias = bias;
+  return shadowSettings();
+}
+
+function shadowSettings() {
+  const range = sun.shadow.camera.right;
+  const mapSize = sun.shadow.mapSize.x;
+  return {
+    range,
+    mapSize,
+    normalBias: sun.shadow.normalBias,
+    bias: sun.shadow.bias,
+    // Mekkora területet fed egy texel — ez mondja meg, mennyire lesz szemcsés.
+    texelCm: +((range * 2 / mapSize) * 100).toFixed(1),
+  };
+}
 
 // A nap fix, kis (±100 egységes) árnyék-frusztuma minden képkockán az autó
 // fölé/mellé tolódik — így bárhol jár a pályán, az árnyék-kamera mindig
@@ -3993,6 +4052,7 @@ const devApi = {
   hudEl, menuEl, carSelect,
   NORMAL_FOG_DENSITY,
   moveTowardsAngle, updateSunTarget, updateShowcaseCamera,
+  setShadowSettings, shadowSettings,
   findEntry, fillSelect, assetUrl, setTrack, loadZoneRuntime, extractDrivableTriangles, extractWallTriangles,
   smoothFloorHeights, smoothAsphaltToPlane, measureAsphaltRoughness,
   // Az aszfalt-simításhoz kell megmondani, hol van aszfalt. A futásidejű
