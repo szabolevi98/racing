@@ -103,10 +103,16 @@ function fitLangInput() {
   langInput.style.width = `${Math.ceil(text + frame) + 1}px`;
 }
 fitLangInput();
-// Alacsony ablaknál kisebb a betű és szűkebb a bélés, tehát a töréspont
-// átlépésekor újra kell mérni. A betűk betöltése is elmozdíthatja a méretet.
+// Egy mérés nem elég, és ez sokáig NÉMÁN rossz volt: induláskor a mező betűje
+// még nem a végleges, ezért a mérés kisebbet ad. Öt nyelvnél a legszélesebb
+// név épp beleférni látszott, tizenötnél viszont a „Українська" 118 px helyett
+// 100-at kapott és levágódott. Ezért a következő két képkockában újramérünk,
+// amikor a stílusok és az elrendezés már biztosan ülnek — plusz a betűk
+// betöltése és az átméretezés után is, mert alacsony ablaknál kisebb a betű és
+// szűkebb a bélés.
+requestAnimationFrame(() => requestAnimationFrame(fitLangInput));
 addEventListener('resize', fitLangInput);
-document.fonts?.ready.then(fitLangInput);
+document.fonts?.ready.then(() => fitLangInput());
 langSelect.addEventListener('change', async () => {
   const code = langSelect.value;
   if (code === currentLanguage()) return;
