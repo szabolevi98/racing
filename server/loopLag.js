@@ -35,6 +35,13 @@ let lastBlockMs = 0;
 let lastBlockEndedAt = -Infinity;
 let lastTickAt = performance.now();
 
+// Az akadást nem naplózzuk. Ez a modul épp arról szól, hogy a kiesés VÁRT és
+// KEZELT: amikor észleljük, a rendszer rendeltetésszerűen működik, tehát nincs
+// mit bejelenteni. A fejlesztés közbeni kiírás mérve a napló 43%-át adta
+// (225 sor 529-ből egy nap alatt, valódi forgalom nélkül), és ezzel épp azt
+// nehezítette, amiért naplót olvas az ember. Ha később mégis kell nyom, olyat
+// érdemes, ami hordoz is információt: csak a szokatlanul nagy akadást, vagy
+// napi összegzést.
 const timer = setInterval(() => {
   const now = performance.now();
   const lag = now - lastTickAt - TICK_MS;
@@ -42,7 +49,6 @@ const timer = setInterval(() => {
   if (lag <= LAG_THRESHOLD_MS) return;
   lastBlockMs = lag;
   lastBlockEndedAt = now;
-  console.log(`Eseményhurok: ${Math.round(lag)} ms kiesés (a ping-mérésből kivonva).`);
 }, TICK_MS);
 // Ne tartsa életben a folyamatot: ez csak megfigyelés.
 timer.unref();
