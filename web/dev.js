@@ -21,6 +21,10 @@ import {
   setLiveVehicleTunables, resetLiveVehicleTunables,
 } from '/shared/vehicleConfig.js';
 import { findGateHit, findSpawnHit } from '/shared/editorSelection.js';
+import {
+  mergeByPosition, componentAtFace, boundsOfVertices,
+  degenerateFaces, restoreFaces, parseGlb, patchGlbFaces, cutBlocker,
+} from '/shared/meshCut.js';
 import { isSmoothingPaint } from '/shared/zone.js';
 
 // ---------- DOM: a csak dev módban használt elemek ----------
@@ -34,6 +38,8 @@ let roughnessStatusEl;
 let carTesterBtn, carTesterHudEl, carTesterBackBtn, carTesterCarSelectEl;
 let carTesterCompressedEl, carTesterFileInfoEl;
 let devDriveBtn, devDriveHudEl, devDriveBackBtn, devDriveResetBtn, devDriveSaveBtn, devDriveSlidersEl;
+let objectCutterBtn, objectCutterHudEl, cutterPickEl, cutterCutBtn, cutterUndoBtn;
+let cutterListEl, cutterSaveBtn, cutterBackBtn, cutterStatusEl;
 let openMaterialPickerBtn, generateCheckpointsBtn, autoCheckpointCountEl;
 let materialPickerPanelEl, materialPickerGridEl, generateAsphaltBtn;
 let closeMaterialPickerBtn, materialPickerStatusEl;
@@ -89,6 +95,15 @@ function queryElements() {
   carTesterCarSelectEl = $('carTesterCarSelect');
   carTesterCompressedEl = $('carTesterCompressed');
   carTesterFileInfoEl = $('carTesterFileInfo');
+  objectCutterBtn = $('objectCutterBtn');
+  objectCutterHudEl = $('objectCutterHud');
+  cutterPickEl = $('cutterPick');
+  cutterCutBtn = $('cutterCutBtn');
+  cutterUndoBtn = $('cutterUndoBtn');
+  cutterListEl = $('cutterList');
+  cutterSaveBtn = $('cutterSaveBtn');
+  cutterBackBtn = $('cutterBackBtn');
+  cutterStatusEl = $('cutterStatus');
   devDriveBtn = $('devDriveBtn');
   devDriveHudEl = $('devDriveHud');
   devDriveBackBtn = $('devDriveBackBtn');
@@ -2193,6 +2208,16 @@ function wireEvents() {
 
   carTesterBtn.addEventListener('click', enterCarTester);
   carTesterBackBtn.addEventListener('click', exitCarTester);
+
+  objectCutterBtn.addEventListener('click', enterObjectCutter);
+  cutterBackBtn.addEventListener('click', exitObjectCutter);
+  cutterCutBtn.addEventListener('click', cutterCutSelection);
+  cutterUndoBtn.addEventListener('click', cutterUndo);
+  cutterSaveBtn.addEventListener('click', cutterSaveModel);
+  // Bal gomb jelöl ki; a jobb gomb a kamera forgatása, azt nem foghatjuk el.
+  renderer.domElement.addEventListener('click', (e) => {
+    if (api.appState === 'objectcut' && e.button === 0) cutterPickAt(e.clientX, e.clientY);
+  });
   carTesterCarSelectEl.addEventListener('change', () => {
     const manifest = api.manifest;
     if (!manifest) return;
@@ -2209,6 +2234,13 @@ function wireEvents() {
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Escape' && api.appState === 'cartest') exitCarTester();
     else if (e.code === 'Escape' && devDriveActive) exitDevDrive();
+    else if (api.appState === 'objectcut') {
+      if (e.code === 'Escape') exitObjectCutter();
+      // A vágás gyakran sok apró darab egymás után — érdemes a kéznek is
+      // odaadni, ne csak az egérnek.
+      else if (e.code === 'Delete' || e.code === 'Enter') cutterCutSelection();
+      else if (e.code === 'Backspace') { e.preventDefault(); cutterUndo(); }
+    }
   });
 
   // Kocsiváltás közben a tesztelő legördülője le van tiltva, utána szinkronba
@@ -2522,6 +2554,187 @@ function wireEvents() {
 // A main.js egyszer hívja meg, a dev modul betöltése után. Azért async, mert
 // előbb le kell kérni és beszúrni a dev.html-t — előtte egyetlen elem sem
 // létezik, amire a kezelőket rá lehetne kötni.
+// ---- Objektumvágó ----
+//
+// A letöltött pályamodellekben rendszeresen maradnak oda nem való darabok:
+// placeholder dobozok a rajtrácson, lebegő szemét. Anyagonként össze vannak
+// olvasztva a valódi geometriával, ezért csomópontot törölni nem lehet — a
+// vágás összefüggő DARABRA megy, és a fájlban elfajult háromszöggé alakítja
+// őket. Lásd shared/meshCut.js.
+let cutterHighlight = null;
+let cutterSelection = null;      // { mesh, faces, vertices, bounds }
+let cutterCuts = [];             // { mesh, faces, restore, bounds }
+let cutterHighlightMaterial = null;
+
+function cutterSay(text, kind = 'text-secondary') {
+  cutterStatusEl.className = `mt-1 ${kind}`;
+  cutterStatusEl.textContent = text;
+}
+
+function clearCutterHighlight() {
+  if (!cutterHighlight) return;
+  scene.remove(cutterHighlight);
+  cutterHighlight.geometry.dispose();
+  cutterHighlight = null;
+}
+
+// A kijelölt darabot külön hálóként rajzoljuk a helyére, hogy lásd, mit fogsz
+// kivágni. A pár ezredes eltolás azért kell, hogy ne z-vívjon az eredetivel.
+function showCutterHighlight(mesh, vertices, faces) {
+  clearCutterHighlight();
+  const pos = mesh.geometry.attributes.position;
+  const index = mesh.geometry.index.array;
+  const csucsok = new Float32Array(faces.length * 9);
+  faces.forEach((t, i) => {
+    for (let k = 0; k < 3; k++) {
+      const v = index[t * 3 + k];
+      csucsok[i * 9 + k * 3] = pos.getX(v);
+      csucsok[i * 9 + k * 3 + 1] = pos.getY(v);
+      csucsok[i * 9 + k * 3 + 2] = pos.getZ(v);
+    }
+  });
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(csucsok, 3));
+  cutterHighlight = new THREE.Mesh(geo, cutterHighlightMaterial);
+  cutterHighlight.matrixAutoUpdate = false;
+  mesh.updateWorldMatrix(true, false);
+  cutterHighlight.matrix.copy(mesh.matrixWorld);
+  cutterHighlight.renderOrder = 999;
+  scene.add(cutterHighlight);
+}
+
+function cutterPickAt(clientX, clientY) {
+  const track = api.currentTrack;
+  if (!track) return;
+  const rect = renderer.domElement.getBoundingClientRect();
+  const ndc = new THREE.Vector2(
+    ((clientX - rect.left) / rect.width) * 2 - 1,
+    -((clientY - rect.top) / rect.height) * 2 + 1,
+  );
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(ndc, camera);
+  const hits = raycaster.intersectObject(track, true);
+  const hit = hits.find((h) => h.object?.isMesh && h.object.geometry?.index && h.faceIndex !== undefined);
+  if (!hit) { cutterSay('Nem találtam geometriát a kattintás alatt.', 'text-warning'); return; }
+
+  const geometry = hit.object.geometry;
+  const rep = mergeByPosition(geometry.attributes.position);
+  const { faces, vertices } = componentAtFace(geometry.index.array, rep, hit.faceIndex);
+  const bounds = boundsOfVertices(geometry.attributes.position, vertices);
+  cutterSelection = { mesh: hit.object, faces, vertices, bounds };
+  showCutterHighlight(hit.object, vertices, faces);
+
+  const vilag = new THREE.Vector3(...bounds.center).applyMatrix4(hit.object.matrixWorld);
+  const meret = bounds.size.map((v) => v.toFixed(1)).join(' × ');
+  const resz = (faces.length / (geometry.index.count / 3) * 100).toFixed(1);
+  cutterPickEl.innerHTML = `<strong>${faces.length}</strong> háromszög · méret <strong>${meret}</strong> m`
+    + `<br><span class="text-secondary">a háló ${resz}%-a · középpont `
+    + `${vilag.x.toFixed(1)}, ${vilag.y.toFixed(1)}, ${vilag.z.toFixed(1)}</span>`;
+  cutterCutBtn.disabled = false;
+  // Egy nagy arány azt jelenti, hogy a fél pályát jelölted ki — ilyet ritkán
+  // akar az ember, ezért kiírjuk, mielőtt rákattint a Kivágásra.
+  cutterSay(resz > 20 ? 'Figyelem: a háló nagy részét jelölted ki.' : '', resz > 20 ? 'text-danger' : 'text-secondary');
+}
+
+function refreshCutterList() {
+  cutterListEl.innerHTML = cutterCuts.length
+    ? `Kivágva: <strong>${cutterCuts.length}</strong> darab, `
+      + `${cutterCuts.reduce((s, c) => s + c.faces.length, 0)} háromszög`
+    : '';
+  cutterUndoBtn.disabled = cutterCuts.length === 0;
+  cutterSaveBtn.disabled = cutterCuts.length === 0;
+}
+
+function cutterCutSelection() {
+  if (!cutterSelection) return;
+  const { mesh, faces, bounds } = cutterSelection;
+  const restore = degenerateFaces(mesh.geometry.index.array, faces);
+  mesh.geometry.index.needsUpdate = true;
+  cutterCuts.push({ mesh, faces, restore, bounds });
+  cutterSelection = null;
+  clearCutterHighlight();
+  cutterPickEl.textContent = 'Nincs kijelölve semmi.';
+  cutterCutBtn.disabled = true;
+  refreshCutterList();
+  cutterSay('Kivágva. A mentés a modellfájlba írja.', 'text-success');
+}
+
+function cutterUndo() {
+  const utolso = cutterCuts.pop();
+  if (!utolso) return;
+  restoreFaces(utolso.mesh.geometry.index.array, utolso.restore);
+  utolso.mesh.geometry.index.needsUpdate = true;
+  refreshCutterList();
+  cutterSay('Visszavonva.', 'text-info');
+}
+
+// A mentés nem exportálja újra a modellt — az újrakódolná a textúrákat és
+// elveszíthetne kiterjesztéseket. Az EREDETI fájl bájtjait tölti le, azon
+// javítja az érintett indextartományokat, és azt adja letöltésre: minden más
+// bájt érintetlen marad, a fájl mérete sem változik.
+async function cutterSaveModel() {
+  const url = api.currentTrackUrl;
+  const assoc = api.currentTrackAssociations;
+  if (!url || !assoc) { cutterSay('Nincs betöltött pályamodell.', 'text-danger'); return; }
+  cutterSaveBtn.disabled = true;
+  cutterSay('Modell letöltése…');
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    const glb = parseGlb(bytes);
+
+    let osszes = 0;
+    for (const cut of cutterCuts) {
+      const hely = assoc.get(cut.mesh);
+      if (!hely || hely.meshes === undefined) throw new Error('Nem találom a hálót a GLB-ben.');
+      const prim = glb.json.meshes[hely.meshes].primitives[hely.primitives ?? 0];
+      const akadaly = cutBlocker(prim);
+      if (akadaly) throw new Error(`Ez a háló nem vágható: ${akadaly}.`);
+      osszes += patchGlbFaces(bytes, glb, prim.indices, cut.faces);
+    }
+
+    const nev = url.split('/').pop().split('?')[0] || 'palya.glb';
+    const blob = new Blob([bytes], { type: 'model/gltf-binary' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = nev;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    cutterSay(`Kész: ${osszes} háromszög, ${(bytes.byteLength / 1048576).toFixed(1)} MB. `
+      + `Mentsd a pálya mappájába, a régi ${nev} helyére.`, 'text-success');
+  } catch (err) {
+    cutterSay(`Mentés sikertelen: ${err.message}`, 'text-danger');
+  } finally {
+    cutterSaveBtn.disabled = cutterCuts.length === 0;
+  }
+}
+
+function enterObjectCutter() {
+  api.appState = 'objectcut';
+  devHudEl.classList.add('hidden');
+  objectCutterHudEl.classList.remove('hidden');
+  devSpawnMarkers.forEach((m) => { m.visible = false; });
+  cutterCuts = [];
+  cutterSelection = null;
+  cutterPickEl.textContent = 'Nincs kijelölve semmi.';
+  cutterCutBtn.disabled = true;
+  refreshCutterList();
+  cutterSay('');
+}
+
+function exitObjectCutter() {
+  clearCutterHighlight();
+  // A ki nem mentett vágásokat visszaadjuk: a képernyőn látott állapot és a
+  // lemezen lévő fájl így nem csúszhat szét egymástól észrevétlenül.
+  while (cutterCuts.length) cutterUndo();
+  cutterSelection = null;
+  objectCutterHudEl.classList.add('hidden');
+  api.appState = 'dev';
+  devHudEl.classList.remove('hidden');
+  devSpawnMarkers.forEach((m) => { m.visible = true; });
+}
+
 export async function initDevTools(gameApi) {
   api = gameApi;
 
@@ -2545,6 +2758,11 @@ export async function initDevTools(gameApi) {
   // a két nézet így ugyanazt a nyelvet beszéli.
   devPitMarkerMaterial = new THREE.MeshBasicMaterial({ color: 0xff9f1c });
   highlightMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+  // A kijelölt darab: mélységteszt nélkül, hogy a takarásban lévő része is
+  // látsszon — különben nem derül ki, mekkorát fogsz kivágni.
+  cutterHighlightMaterial = new THREE.MeshBasicMaterial({
+    color: 0xff2d55, side: THREE.DoubleSide, depthTest: false, transparent: true, opacity: 0.75,
+  });
   zoneOrthoCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10000);
   zoneOrthoCam.up.set(0, 0, -1);
 

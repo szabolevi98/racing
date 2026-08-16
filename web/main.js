@@ -731,6 +731,10 @@ function applyCarModelHeight() {
 let currentTrack = null;
 let currentTrackBox = null;
 let currentMapId = null;
+// Csak a dev módú objektumvágónak: honnan jött a pálya modellje, és melyik
+// hálója melyik GLB-primitív. Lásd setTrack().
+let currentTrackAssociations = null;
+let currentTrackUrl = null;
 // A pálya kézi rajtrács-pontjai (assets/maps/<id>/spawn.json-ból, max 8),
 // a jövőbeli multiplayerhez előkészítve — egyelőre mindig az első szabad
 // (üresnek tekintett) pontot használjuk, mert még nincs több játékos.
@@ -1069,6 +1073,11 @@ async function setTrack(trackUrl, mapId, spawnPoints, gates, onProgress, hotLapS
   }
 
   const gltf = await loadGLTF(trackUrl, onProgress);
+  // Melyik betöltött háló melyik GLB-primitívből lett? A GLTFLoader ezt vezeti,
+  // és az objektumvágónak pontosan erre van szüksége: a kattintott hálóból így
+  // talál vissza a fájlbeli indextartományra. Máshol nem használjuk.
+  currentTrackAssociations = gltf.parser?.associations || null;
+  currentTrackUrl = trackUrl;
   const track = gltf.scene;
   const materialSeen = new Set();
   track.traverse((obj) => {
@@ -4007,6 +4016,8 @@ const devApi = {
   get currentMapId() { return currentMapId; },
   get currentTrack() { return currentTrack; },
   get currentTrackBox() { return currentTrackBox; },
+  get currentTrackAssociations() { return currentTrackAssociations; },
+  get currentTrackUrl() { return currentTrackUrl; },
   get currentSpawnPoints() { return currentSpawnPoints; },
   get currentHotLapSpawn() { return currentHotLapSpawn; },
   set currentHotLapSpawn(point) { currentHotLapSpawn = point || null; },
@@ -4653,9 +4664,11 @@ function animate() {
     updateChaseCamera(dt);
   } else if (appState === 'mp') {
     stepMultiplayerFrame(dt);
-  } else if (appState === 'dev') {
+  } else if (appState === 'dev' || appState === 'objectcut') {
     // Ezekbe az állapotokba csak a dev modul tud átbillenteni, tehát ha itt
     // vagyunk, a devTools már be van töltve — a ?. csak biztonsági öv.
+    // Az objektumvágó ugyanazzal a szabad kamerával dolgozik, mint a dev mód:
+    // oda kell tudni repülni ahhoz, amit ki akarsz vágni.
     devTools?.updateDevCamera(dt);
   } else if (appState === 'cartest') {
     devTools?.updateCarTest(dt);
