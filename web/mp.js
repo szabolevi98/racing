@@ -15,7 +15,7 @@ import {
   remoteVisualCorrectionHalfLife, remoteVisualPredictionBlend,
 } from '/shared/remoteVisual.js';
 import { createPitState, hasCompletePitConfig, updatePitState } from '/shared/pit.js';
-import { smoothPing } from '/shared/ping.js';
+import { smoothPing, updateMinRtt, acceptsClockSample } from '/shared/ping.js';
 import { t, hasKey, onLanguageChange, applyToDom } from './lang.js';
 import {
   NET_DIAG_CONNECTION, NET_DIAG_EVENT, NET_DIAG_INCIDENT, NET_DIAG_RACE_STAGE,
@@ -41,6 +41,11 @@ window.__mp = {
   // Hány ping-mintát dobtunk el főszál-akadás miatt (lásd startStallWatch).
   // Ha ez folyamatosan nő, az nem hálózati gond, hanem akadozó kliens.
   pingDiscarded: 0,
+  // Hány ping-minta bizonyult túl késleltetettnek az ÓRA becsléséhez, és hány
+  // állapotküldést hagytunk ki torlódott kimeneti sor miatt. Mindkettő azt
+  // mutatja, hogy a védelem dolgozik — a növekedésük nem hiba.
+  get clockSamplesDropped() { return clockSamplesDropped; },
+  get statesDropped() { return statesDropped; },
   step: () => frame(),
   get others() { return others.size; },
   get room() { return room; },
@@ -770,6 +775,19 @@ let clockReady = false;
 // határ előtt indult válaszokat akkor is eldobjuk, ha csak utána érkeznek meg.
 let pingValidAfter = 0;
 let pingNeedsFreshSample = false;
+// A LEGKISEBB eddig látott körút-idő. A szerveróra becslése ugyanis
+// `serverNow + rtt/2` alakú, ami SZIMMETRIKUS utat feltételez — egy torlódott
+// csomagnál ez nagyot téved, és a hiba fele egyenesen az órabecslésbe megy.
+// Mérve, 30 ms-os valódi ping mellett: egy 500 ms-os minta 235 ms becslési
+// hibát jelent, aminek a 10%-a (az EWMA súlya) azonnal eltolja az órát — és az
+// óra MINDEN távoli kocsi interpolációját hajtja, tehát egyszerre ugranak.
+//
+// A legkevésbé késleltetett csomag torzít a legkevésbé, ezért az órát csak a
+// minimum közelébe eső mintákból frissítjük. A minimum lefelé azonnal követ,
+// felfelé mintánként 1 ms-t kúszik: így egy tartósan romló hálózathoz
+// hozzáigazodik, de egyetlen szerencsés csomag nem zárja ki örökre a többit.
+let pingMinRttMs = Infinity;
+let clockSamplesDropped = 0;
 
 // Minden abszolút szerveridő (snapshot, rajt) ezen keresztül megy. A PONG
 // mintákból becsült offset miatt a kliens elállított órája sem tolja el a
@@ -1243,6 +1261,9 @@ function onMessage(m) {
           lastPingRttMs = null;
           pingJitterMs = 0;
           pingNeedsFreshSample = false;
+          // A minimum is a friss kapcsolathoz tartozik: egy betöltés előtti,
+          // más hálózati helyzetből származó érték itt csak félrevezetne.
+          pingMinRttMs = rtt;
         } else {
           if (lastPingRttMs !== null) {
             const delta = Math.abs(rtt - lastPingRttMs);
@@ -1254,13 +1275,19 @@ function onMessage(m) {
         // A szerver a PONG elküldése előtti saját idejét adja. Szimmetrikus
         // hálózati úttal a válasz megérkezésekor serverNow + RTT/2 a legjobb
         // becslés; az EWMA kiszűri az egy-egy torlódott mintát.
+        pingMinRttMs = updateMinRtt(pingMinRttMs, rtt);
         if (Number.isFinite(m.serverNow)) {
           const sampleOffset = m.serverNow + rtt / 2 - Date.now();
+          // Csak a minimum közelébe eső minta frissítheti az órát. Az elsőt
+          // muszáj elfogadni, különben sosem indulna el a becslés.
+          const usable = !clockReady || acceptsClockSample(rtt, pingMinRttMs);
           if (!clockReady) {
             clockOffsetMs = sampleOffset;
             clockReady = true;
-          } else {
+          } else if (usable) {
             clockOffsetMs += (sampleOffset - clockOffsetMs) * 0.1;
+          } else {
+            clockSamplesDropped++;
           }
         }
         G.setPingMs(pingRttMs);
@@ -2074,6 +2101,10 @@ const PLAYER_LABEL_MAX_RANGE = 50;
 const PLAYER_LABEL_MAX_RANGE_SQ = PLAYER_LABEL_MAX_RANGE * PLAYER_LABEL_MAX_RANGE;
 const REMOTE_PROXY_MAX_AGE_MS = 750;
 const REMOTE_EXTRAP_MAX_MS = 250;
+// Egy állapotcsomag ~210 bájt; hat csomagnyi sor 60 Hz-en kb. 100 ms
+// elmaradás. Efölött a régi állapotokat nem küldjük el — lásd sendOneInput().
+const STATE_BACKLOG_LIMIT_BYTES = 1400;
+let statesDropped = 0;
 // A pálya köde 700 méternél már 5% alá csökkenti a kontrasztot. A teljes,
 // több százezer háromszöges autómodellt ott már nem érdemes kirajzolni. A
 // minitérképes jel megmarad, és spectate-ben a kocsi mindig kivétel.
@@ -2783,7 +2814,23 @@ function sendOneInput(scheduledAt) {
   // 60 Hz-es ciklus a leparkolt (0 km/h) sajátunkat írta ki, a képkockánkénti
   // rajzolás meg a nézettét, és a kijelző 0 és 140 közt ugrált.
   if (!spectateId) G.setSpeed(Math.hypot(state.v[0], state.v[2]) * 3.6);
-  if (shouldSend) {
+  // A saját kimeneti sor fojtása. Ugyanaz a gondolat, mint a szerver
+  // broadcastRoom-jában: egy elavult állapotcsomagot nincs értelme sorba
+  // állítani, mert a következő tick úgyis felülírja. A különbség csak annyi,
+  // hogy TCP-n a már elküldöttet nem tudjuk visszavonni — azt viszont
+  // eldönthetjük, hogy el se induljon.
+  //
+  // Enélkül egy pillanatnyi feltöltési akadásnál (wifi, mobilnet) a csomagok
+  // felgyűlnek, majd késve, SOROZATBAN érkeznek meg: a szerver elavult
+  // állapotok sorát kapja, a többi játékos pedig azt látja, hogy ez a kocsi
+  // megáll, majd ugrik egyet.
+  //
+  // A küszöb 60 Hz-en ~100 ms-nyi torlódás: ennél régebbi állapotot már nem
+  // érdemes útnak indítani.
+  const backlog = ws?.bufferedAmount || 0;
+  const backlogFull = backlog > STATE_BACKLOG_LIMIT_BYTES;
+  if (shouldSend && backlogFull) statesDropped++;
+  if (shouldSend && !backlogFull) {
     const wheels = G.getWheelNetworkState?.() || { st: 0, wr: 0 };
     const offtrack = !!G.isCarFullyOffTrack?.();
     netDiagnostics.record(

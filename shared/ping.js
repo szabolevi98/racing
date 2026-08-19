@@ -30,3 +30,34 @@ export function smoothPing(previousMs, sampleMs) {
   const weight = sample < previous ? 0.7 : 0.25;
   return previous + (sample - previous) * weight;
 }
+
+// ---------- A szerveróra becslésének mintaszűrése ----------
+//
+// Az órabecslés `serverNow + rtt/2` alakú, ami SZIMMETRIKUS hálózati utat
+// feltételez. Egy torlódott csomagnál ez nagyot téved, és a hiba fele
+// egyenesen a becslésbe megy. Mérve, 30 ms-os valódi ping mellett: egy 500
+// ms-os minta 235 ms hibát jelent, aminek a súlyozott része azonnal eltolja az
+// órát — az óra pedig MINDEN távoli kocsi interpolációját hajtja, tehát
+// egyszerre ugranak.
+//
+// A legkevésbé késleltetett csomag torzít a legkevésbé, ezért a minimum
+// közelébe eső mintákat fogadjuk csak el.
+export const CLOCK_SAMPLE_MAX_RATIO = 1.5;
+export const CLOCK_SAMPLE_MARGIN_MS = 20;
+
+// A futó minimum: lefelé azonnal követ, felfelé mintánként 1 ms-t kúszik.
+// Az utóbbi azért kell, hogy egy tartósan romló hálózathoz hozzáigazodjon —
+// enélkül egyetlen szerencsés csomag örökre kizárná az összes többit.
+export function updateMinRtt(previousMin, sampleMs) {
+  const sample = Math.max(0, Number(sampleMs) || 0);
+  if (!Number.isFinite(previousMin)) return sample;
+  return sample < previousMin ? sample : previousMin + 1;
+}
+
+// Elég közel van-e a minta a minimumhoz ahhoz, hogy az órát frissítse?
+// A margó a kis pingű (LAN, localhost) esetekhez kell: 2 ms minimumnál a
+// puszta arány már 3 ms-nál kizárna, ami értelmetlenül szigorú.
+export function acceptsClockSample(sampleMs, minRttMs) {
+  if (!Number.isFinite(minRttMs)) return true;
+  return sampleMs <= minRttMs * CLOCK_SAMPLE_MAX_RATIO + CLOCK_SAMPLE_MARGIN_MS;
+}
