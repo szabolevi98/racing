@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "Nincs név-alapú irány-infó a modellben, alapértelmezés 0. Élőben ellenőrizendő.",
+  "yawDegrees": 0,
+  "_wheelPattern": "A tools/propose.mjs a 'brake'-et is javasolta, de az 31%-os kilengést adott: a féknyereg nem forog a kerékkel, csak a tárcsa. Ezért a nulla kilengésű darabokból áll a minta (rim, disk, tyre), ugyanúgy, mint a testvérmodellnél (1995_mclaren_f1_gtr_gulf). Mérés: 4 szimmetrikus sarok, nyomtáv 1.52, tengelytáv 2.73 — ez a valódi McLaren F1 2.718 m-es tengelytávjával egyezik.",
+  "wheelPattern": "disk|rim|tyre"
+}

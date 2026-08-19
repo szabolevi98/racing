@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "Nincs név-alapú irány-infó a modellben, alapértelmezés 0. Élőben ellenőrizendő.",
+  "_wheelPattern": "FIGYELEM a negatív lookbehindre: a modellben van egy 'rubber_trim' anyag, amiben szintén benne van a 'rim' — enélkül a karosszéria díszléce is a kerékkel forogna. Mérve: a puszta 'rim' minta 41% kilengést adott a kerékátmérő arányában, a (?<!t)rim viszont 0%-ot. A tools/propose.mjs javaslata is 28-41% volt, ezért nem azt használjuk. A mostani minta sarkonként öt darabot fog meg: gumi, felni, belső felni, féktárcsa, keréktest — összesen 20, nulla kilengéssel. Mérés: 4 szimmetrikus sarok, nyomtáv 1.46, tengelytáv 2.57.",
+  "yawDegrees": 0,
+  "wheelPattern": "tyre|(?<!t)rim|rotor|wheel_black"
+}
