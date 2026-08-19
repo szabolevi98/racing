@@ -1986,6 +1986,25 @@ const SMOOTH_RADIUS = 1.5;        // m — ekkora környezetben vizsgáljuk a fe
 const SMOOTH_TRIGGER = 0.004;     // m — 4 mm fölött simítunk (aszfalt: 0.7-1.0 mm)
 const SMOOTH_MAX_SHIFT = 0.05;    // m — egy csúcs sem mozdulhat 5 cm-nél többet
 const SMOOTH_ITERATIONS = 2;
+// Mekkora magasságkülönbségig tartozhat két pont UGYANAHHOZ a útfelülethez?
+// Az X/Z-ben közeli csúcs ugyanis lehet egy teljesen más geometriai réteg:
+// a rajtvonal fölötti fémszerkezet, egy reklámkapu vagy egy felüljáró
+// vízszintes lapja pontosan az aszfalt fölött van, és a talaj-hálóba is
+// bekerül — az extractDrivableTriangles CSAK a lapok normálisát nézi, a
+// magasságukat nem.
+//
+// E nélkül a korlát nélkül a simítás az aszfaltot a fölötte lévő laphoz
+// próbálja húzni, és a ±5 cm-es korlát fogja meg: pontosan ott, ahol tábla
+// vagy kapu van, egy 5 cm-es fekvőrendőr keletkezik a pályán. Mérve, sík
+// aszfalton, 8 m széles táblával: 1361 csúcs emelkedett meg, 5,00 cm-t —
+// és a tábla magassága (3, 5, 10 m) mindegy volt, mert a korlát telítődik.
+//
+// Ugyanez a védelem a smoothAsphaltToPlane-ben már megvolt (maxLayerGap),
+// csak ide nem került át. Az érték is onnan jön, ugyanazzal a képlettel.
+// 1.5 m-es sugárnál 37,5 cm: ez 14 fokos helyi lejtésnek felel meg, tehát a
+// valódi bankolást (Indianapolis oválja 9,2 fok) bőven átengedi, egy 2 m-nél
+// magasabban lévő szerkezetet viszont biztosan kizár.
+const SMOOTH_MAX_LAYER_GAP = Math.max(0.35, SMOOTH_RADIUS * 0.25);
 
 // A csúcsokat CSAK függőlegesen mozgatjuk: a pálya rajzolata, szélessége és íve
 // így biztosan változatlan marad. A ±5 cm-es korlát pedig azt garantálja, hogy
@@ -2003,7 +2022,7 @@ function smoothFloorHeights(positions, indices) {
     a.push(i);
   }
   const neighboursOf = (i) => {
-    const x = positions[i * 3], z = positions[i * 3 + 2];
+    const x = positions[i * 3], y = positions[i * 3 + 1], z = positions[i * 3 + 2];
     const ix = Math.floor(x / cell), iz = Math.floor(z / cell);
     const out = [];
     for (let dx = -1; dx <= 1; dx++) {
@@ -2012,7 +2031,11 @@ function smoothFloorHeights(positions, indices) {
         if (!a) continue;
         for (const j of a) {
           const ddx = positions[j * 3] - x, ddz = positions[j * 3 + 2] - z;
-          if (ddx * ddx + ddz * ddz <= SMOOTH_RADIUS * SMOOTH_RADIUS) out.push(j);
+          // A magasságkorlát tartja külön a felettünk/alattunk futó rétegeket
+          // — lásd SMOOTH_MAX_LAYER_GAP.
+          const ddy = positions[j * 3 + 1] - y;
+          if (ddx * ddx + ddz * ddz <= SMOOTH_RADIUS * SMOOTH_RADIUS
+              && Math.abs(ddy) <= SMOOTH_MAX_LAYER_GAP) out.push(j);
         }
       }
     }
