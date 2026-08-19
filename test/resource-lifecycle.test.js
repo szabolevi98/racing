@@ -25,5 +25,9 @@ test('large model and environment URLs carry manifest content versions', () => {
 
 test('Hot Lap client history is bounded while the displayed lap count stays authoritative', () => {
   assert.match(multiplayer, /myLapTimes\.length > 64/);
-  assert.match(multiplayer, /t\('mp\.lapsDone'\)[\s\S]*\$\{myLap\}/);
+  // A megfutott körök száma a szerver által vezetett myLap, nem a helyben
+  // tárolt (és 64-nél vágott) köridő-lista hossza. A panel közös építője
+  // paraméterként kapja meg.
+  assert.match(multiplayer, /t\('mp\.lapsDone'\)[\s\S]*\$\{lapsDone\}/);
+  assert.match(multiplayer, /lapsDone: myLap,/);
 });

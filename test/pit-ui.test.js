@@ -76,7 +76,10 @@ test('multiplayer loading also shows the centered waiting alert', () => {
   assert.match(mp, /: t\('mp\.waitingForStart'\)/);
   assert.match(mp, /setWaitingPlayersAlert\([\s\S]*?!raceEnded && !isHotLap\(\) && !starting\?\.startsAt,[\s\S]*?waitingPlayers/);
   assert.match(mp, /\.filter\(\(p\) => p\.id !== me\.id && !p\.ready\)/);
-  assert.match(mp, /if \(!starting\?\.startsAt\) \{[\s\S]*?G\.setHud\(''\)/);
+  // A HUD a várakozás alatt sem ÜRES: a végleges vázát mutatja placeholder
+  // értékekkel, hogy a rajtnál ne ugorjon be az egész doboz.
+  assert.match(mp, /if \(!starting\?\.startsAt\) \{[\s\S]*?G\.setHud\(lapPanelHtml\(/);
+  assert.doesNotMatch(mp, /G\.setHud\(''\)/);
   assert.doesNotMatch(mp, /Még tölt:/);
   assert.match(mp, /case S2C\.RACE_COUNTDOWN:[\s\S]*?setWaitingPlayersAlert\(false\)/);
   assert.match(mp, /function cancelRaceLoad\(\) \{[\s\S]*?setWaitingPlayersAlert\(false\)/);

@@ -2505,10 +2505,18 @@ function frame(dt = 1 / 60) {
 
   if (raceEnded) return;
 
-  // Amíg nincs rajtidő, a többiek betöltésére várunk. Ezt ki KELL írni:
-  // különben a játékos egy néma, mozdulatlan képet lát, és azt hiszi, beragadt.
+  // Amíg nincs rajtidő, a többiek betöltésére várunk. A panel ilyenkor is a
+  // VÉGLEGES vázát mutatja, csak placeholder értékekkel — korábban üres volt,
+  // és a rajtnál egyszerre ugrott be az egész doboz. Így viszont a játékos már
+  // a várakozás alatt látja, hány körös a futam, és a rajtkor csak a számok
+  // kezdenek élni.
   if (!starting?.startsAt) {
-    G.setHud('');
+    G.setHud(lapPanelHtml({
+      lapNow: 1,
+      lapTotal: room?.laps ?? '?',
+      current: NaN, best: NaN, total: NaN, lapsDone: 0,
+      hotLap: isHotLap(),
+    }));
     G.setStandings('');
     return;
   }
@@ -2527,6 +2535,38 @@ function frame(dt = 1 / 60) {
     return;
   }
 
+// A jobb felső kör-panel HTML-je. EGY helyen, mert két állapot használja: a
+// várakozó (még nincs rajtidő) és a futó. Ha külön épülnének, elcsúsznának
+// egymástól, és a rajtnál látszana az ugrás.
+//
+// A hiányzó időket nem külön ággal kezeljük: a formatTime a nem véges értékre
+// „--:--.---”-t ad, tehát a placeholder ugyanaz a doboz, ugyanazon a helyen.
+function lapPanelHtml({ lapNow, lapTotal, current, best, total, lapsDone, tainted = false, hotLap = false }) {
+  // Időmérésben nincs körszám-korlát, tehát nincs mihez viszonyítani: csak a
+  // sorszám megy ki, „/ 1” nélkül.
+  const korSzamlalo = hotLap
+    ? `<span class="lap-now num">${lapNow}</span>`
+    : `<span class="lap-now num">${lapNow}</span><span class="lap-total num"> / ${lapTotal}</span>`;
+  return '<div class="lap-head">' +
+      `<span class="lbl">${t('hud.lap')}</span>` +
+      `<span>${korSzamlalo}</span>` +
+    '</div>' +
+    (tainted ? `<div class="t-warn mb-2">${t('hud.lapInvalidNote')}</div>` : '') +
+    `<div class="t-row"><span class="lbl">${t('hud.current')}</span>` +
+      `<span class="t-val num">${G.formatTime(current)}</span></div>` +
+    `<div class="t-row${Number.isFinite(best) ? ' is-best' : ''}">` +
+      `<span class="lbl">${t('hud.best')}</span>` +
+      `<span class="t-val num">${G.formatTime(best)}</span></div>` +
+    // Időmérésben az „Összes” ugyanazt mutatná, mint az „Aktuális” (a
+    // raceClock ott mindkettőt a kör kezdetétől számolja) — korlátlan körnél
+    // a megfutott körök száma többet mond.
+    (hotLap
+      ? `<div class="t-row"><span class="lbl">${t('mp.lapsDone')}</span>` +
+        `<span class="t-val num">${lapsDone}</span></div>`
+      : `<div class="t-row"><span class="lbl">${t('hud.total')}</span>` +
+        `<span class="t-val num">${G.formatTime(total)}</span></div>`);
+}
+
   // A kör-kijelző (jobb fent) ugyanaz a panel, mint egyjátékosban; a mezőny
   // állása KÜLÖN panelbe megy (bal fent). Korábban a kettő egy dobozban volt,
   // és pont ettől lett belőle olvashatatlan szövegfal.
@@ -2543,32 +2583,16 @@ function frame(dt = 1 / 60) {
   const bestTime = Number.isFinite(myBestLap)
     ? myBestLap
     : validTimes.length ? Math.min(...validTimes) : NaN;
-  // Időmérésben nincs körszám-korlát, tehát nincs mihez viszonyítani: csak a
-  // sorszám megy ki, „/ 1" nélkül.
-  const korSzamlalo = isHotLap()
-    ? `<span class="lap-now num">${myLap + 1}</span>`
-    : `<span class="lap-now num">${Math.min(myLap + 1, room?.laps ?? myLap + 1)}</span>` +
-      `<span class="lap-total num"> / ${room?.laps ?? '?'}</span>`;
-  G.setHud(
-    '<div class="lap-head">' +
-      `<span class="lbl">${t('hud.lap')}</span>` +
-      `<span>${korSzamlalo}</span>` +
-    '</div>' +
-    (lapTainted ? `<div class="t-warn mb-2">${t('hud.lapInvalidNote')}</div>` : '') +
-    `<div class="t-row"><span class="lbl">${t('hud.current')}</span>` +
-      `<span class="t-val num">${G.formatTime(currentTime)}</span></div>` +
-    `<div class="t-row${Number.isFinite(bestTime) ? ' is-best' : ''}">` +
-      `<span class="lbl">Legjobb</span>` +
-      `<span class="t-val num">${G.formatTime(bestTime)}</span></div>` +
-    // Időmérésben az „Összes" ugyanazt mutatná, mint az „Aktuális" (a
-    // raceClock ott mindkettőt a kör kezdetétől számolja) — korlátlan körnél
-    // a megfutott körök száma többet mond.
-    (isHotLap()
-      ? `<div class="t-row"><span class="lbl">${t('mp.lapsDone')}</span>` +
-        `<span class="t-val num">${myLap}</span></div>`
-      : `<div class="t-row"><span class="lbl">${t('hud.total')}</span>` +
-        `<span class="t-val num">${G.formatTime(totalTime)}</span></div>`)
-  );
+  G.setHud(lapPanelHtml({
+    lapNow: isHotLap() ? myLap + 1 : Math.min(myLap + 1, room?.laps ?? myLap + 1),
+    lapTotal: room?.laps ?? '?',
+    current: currentTime,
+    best: bestTime,
+    total: totalTime,
+    lapsDone: myLap,
+    tainted: lapTainted,
+    hotLap: isHotLap(),
+  }));
 
   const evt = lastEvents[0];
   if (isHotLap()) {
