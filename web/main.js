@@ -3848,6 +3848,30 @@ function restoreMenuStartPose() {
   return true;
 }
 
+// A menü legördülője azt mutassa, ami TÉNYLEG be van töltve.
+//
+// Multiplayerben a szoba pályája dönt, nem a miénk: ha valaki más
+// Hungaroringjére csatlakozol, a 3D jelenet arra vált. Kilépéskor viszont a
+// legördülő a korábbi választásunkon maradt, így a menü két különböző pályát
+// állított — a felirat az egyiket, a mögötte látszó pálya és a köridőlista a
+// másikat. (A ranglista már eddig is a betöltötthöz igazodott, lásd lentebb a
+// loadLeaderboard(currentMapId) hívást; csak a legördülő nem.)
+//
+// Nem a pályát töltjük újra a felirathoz — az egy 100 MB fölötti letöltés
+// lenne közvetlenül egy verseny után —, hanem a feliratot igazítjuk a
+// valósághoz. Ezzel együtt megy minden, ami a pálya kiválasztásából
+// következik: a figyelmeztetés, a boxkiállás elérhetősége és a megjegyzett
+// utolsó választás.
+function syncMapSelectToLoadedTrack() {
+  if (!manifest || !currentMapId || mapSelect.value === currentMapId) return;
+  const entry = findEntry(manifest.maps, currentMapId);
+  if (!entry || entry.id !== currentMapId) return;
+  mapSelect.value = entry.id;
+  saveLastChoice('map', entry.id);
+  updateTrackAlert(entry);
+  updatePitOptionAvailability(entry);
+}
+
 function enterMenu() {
   // A takarítás ELŐBB fut, mint az állapotváltás: így ha bármi hibázna benne,
   // az nem hagyja félúton a menübe lépést.
@@ -3861,6 +3885,8 @@ function enterMenu() {
   setSpectateTarget(null);
   setTouchControlsEnabled(true);
   appState = 'menu';
+  // A legördülő a betöltött pályára áll, ha a multiplayer másikra váltott.
+  syncMapSelectToLoadedTrack();
   // Újratöltjük: ha épp most futottunk egy multiplayer versenyt, a friss
   // köridő azonnal látszódjon a listán.
   loadLeaderboard(currentMapId);
