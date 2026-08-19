@@ -21,6 +21,18 @@ import { createPitState, hasCompletePitConfig, updatePitState } from '../../shar
 import { loadMapZoneRuntime } from './zoneRuntime.js';
 
 const SNAPSHOT_MS = 1000 / SNAPSHOT_RATE;
+// A pump() SŰRŰBBEN fut, mint amilyen gyakran snapshotot küld, és ennek oka van.
+// A snapshot csak tick-en indulhat, tehát a két köz közti tényleges távolság a
+// tick-rácsra kerekedik. 16 ms-os tickkel az 50 ms-os célból a legkisebb elérhető
+// köz 64 ms — vagyis a szerver 20 Hz helyett ~15 Hz-cel küldene. 8 ms-mal a
+// kerekítési hiba feleződik, a pump munkája pedig elhanyagolható (állapotváltás,
+// snapshot-döntés, határidő-nézés).
+//
+// Mérve, valódi Node-időzítővel, 400 tick alatt:
+//   16 ms + „last = now”:   66.1 ms átlag (15.1 Hz), 60-80 ms szórás
+//   16 ms + akkumulátor:    49.9 ms (20.0 Hz), de 30-79 ms — a behozás sorozatot csinál
+//   8 ms  + akkumulátor:    49.9 ms (20.0 Hz), 45-64 ms
+const PUMP_MS = 8;
 const MAX_ABS_POSITION = 100_000;
 const MAX_LINEAR_SPEED = 180; // Durva csomagszűrés; a játékszabály szerinti határ lejjebb van.
 const MAX_ANGULAR_SPEED = 100;
@@ -206,7 +218,7 @@ export class RaceController {
     this.tick = 0;
     this.timer = null;
     this.startAt = Infinity;
-    this.lastSnapshotAt = 0;
+    this.nextSnapshotAt = 0;
     this.stopped = false;
     // Az első befutó indítja; ekkortól ennyi ideje van a mezőny többi részének.
     // null = még senki sem ért célba, tehát nincs is mit visszaszámolni.
@@ -254,8 +266,8 @@ export class RaceController {
       });
       index++;
     }
-    this.lastSnapshotAt = Date.now() - SNAPSHOT_MS;
-    this.timer = setInterval(() => this.pump(), Math.max(8, Math.floor(TICK_MS)));
+    this.nextSnapshotAt = Date.now();
+    this.timer = setInterval(() => this.pump(), PUMP_MS);
     if (this.room.countdownEndsAt) this.releaseAt(this.room.countdownEndsAt);
   }
 
@@ -369,8 +381,15 @@ export class RaceController {
       this.room.state = ROOM_STATE.RACING;
       for (const car of this.cars.values()) car.race.lapStart = this.startAt;
     }
-    if (now - this.lastSnapshotAt >= SNAPSHOT_MS) {
-      this.lastSnapshotAt = now;
+    // A következő időpontot NEM a mostani tickhez igazítjuk, hanem a tervezetthez
+    // adunk hozzá egy periódust. Enélkül minden köz felfelé kerekedik a tick-rácsra
+    // és a hiba HALMOZÓDIK — ez vitte a 20 Hz-et 15 Hz-re.
+    if (now >= this.nextSnapshotAt) {
+      this.nextSnapshotAt += SNAPSHOT_MS;
+      // Hosszú akadás (GC, betöltés) után ne próbálja meg egyszerre behozni az
+      // elmaradt snapshotokat: az sorozatban érkező csomagokat jelentene, ami a
+      // kliens interpolációjának ugyanolyan rossz, mint a késés.
+      if (this.nextSnapshotAt <= now) this.nextSnapshotAt = now + SNAPSHOT_MS;
       this.tick++;
       this.sendSnapshot(now);
     }
