@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "Nincs név-alapú irány-infó a modellben, alapértelmezés 0. Élőben ellenőrizendő.",
+  "_wheelPattern": "A tools/propose.mjs javaslata 34% kilengést adott a kerékátmérő arányában, mert megfogta a XJR9_CAL féknyerget is — az nem forog a kerékkel, csak a tárcsa. Nélküle 0%. A minta a gumit (TREAD), a felnit (RIM_BLUR), a féktárcsát (DISC) és a keréktesteket (XJR9_2DWHEEL_STYLE2_*, XJR9_WHEEL_STYLE2_*) fogja meg — 30 darab, sarkonként 7-8. Mérés: 4 szimmetrikus sarok, nyomtáv 1.43, tengelytáv 2.41.",
+  "yawDegrees": 0,
+  "wheelPattern": "tread|rim_blur|disc|wheel_style2"
+}
