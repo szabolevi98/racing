@@ -1,0 +1,21 @@
+# Sorvégek: a repóban és a munkafában is LF, minden gépen.
+#
+# A Git for Windows telepítője rendszerszinten `core.autocrlf=true`-t állít, ami
+# LF-fel TÁROL, de CRLF-fel ÍR KI. Emiatt minden LF-fel író eszköz (szerkesztő,
+# szkript) azonnal "módosítottnak" mutatta a fájlokat, pedig egy bájt tartalom
+# sem változott — és emiatt bukott el három teszt is friss klón után, mert a
+# main.js forrásából "sortörés + } + sortörés" mintával vágtak ki függvényeket.
+#
+# LF-et választottunk, mert a repóban amúgy is minden LF (mérve: 565 szöveges
+# fájlból nulla tartalmaz CRLF-et), a kód Linuxon fut (VPS + Apache + Node), és
+# nincs egyetlen Windows-specifikus szkript sem a projektben (.bat/.cmd/.ps1).
+* text=auto eol=lf
+
+# A binárisokhoz a git hozzá se nyúljon. A heurisztikája jó, de a zóna-maszkok
+# verziókövetettek — egy elrontott PNG néma hiba lenne, ezért kimondjuk.
+*.png binary
+*.glb binary
+*.bin binary
+*.hdr binary
+*.woff  binary
+*.woff2 binary
