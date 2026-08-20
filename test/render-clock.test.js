@@ -167,3 +167,30 @@ test('üres ablakra sem ad értelmetlen mélységet', () => {
   assert.equal(transitPercentile([], 0.95), 0);
   assert.equal(remoteDelayTarget([], { minMs: MIN, maxMs: MAX }), MIN);
 });
+
+// ChatGPT 5.6 talalata a refaktor atnezesekor, reprodukalva: a resync ag
+// megkerulte a monoton szabalyt. Egy epp a 250 ms-os kuszob fole nyulo szunet
+// a `now - target`-re ugrott, ami MOGOTTE lehet a mostani renderidonek.
+test('a resync sem viheti vissza az idővonalat — sem szünetnél, sem hátráló óránál', () => {
+  // Az eredeti reprodukció: renderAt=900, előző jelen=1000 (100 ms mélység),
+  // 251 ms szünet, közben a cél 400-ra nőtt. Régen: at=851, azaz 49 ms vissza.
+  for (const szunet of [251, 266, 277, 300, 399]) {
+    const c = remote(900, 1000, 1000 + szunet, MAX, 1);
+    assert.ok(c.at >= 900, `${szunet} ms szünetnél sem léphet vissza: at=${c.at}`);
+  }
+
+  // Hátrafelé korrigáló szerveróra: a "jelen" csökken.
+  const hatra = remote(900, 1000, 980, MIN, 1);
+  assert.ok(hatra.at >= 900, `hátráló óránál sem: at=${hatra.at}`);
+
+  // Ha az óra emiatt a helyén marad, azt NE jelentsük ugrásnak — különben a
+  // hívó feleslegesen rántaná a helyükre a távoli autókat.
+  const helyben = remote(900, 1000, 1251, MAX, 1);
+  assert.equal(helyben.at, 900);
+  assert.equal(helyben.resynced, false, 'nem mozdult, tehát nem ugrás');
+
+  // A valódi előreugrás viszont továbbra is ugrás.
+  const elore = remote(1000, 1000, 6000, MIN, 1);
+  assert.equal(elore.at, 5900);
+  assert.equal(elore.resynced, true);
+});

@@ -802,6 +802,18 @@ function serverNow() {
   return Date.now() + (clockReady ? clockOffsetMs : 0);
 }
 
+// Egy HELYI (performance.now) időpont szerverórára átszámolva.
+//
+// Az ütemező behozáskor egyetlen hívásban akár három fizikai lépést is
+// lefuttat egymás után. Azok a lépések a SAJÁT ütemezett idejükkel dolgoznak,
+// tehát három külön szimulációs pillanatot jelentenek — a falióra viszont
+// közben alig mozdul. Aki `serverNow()`-t hívna mindháromban, gyakorlatilag
+// ugyanazt az időt kapná, és a távoli autók proxyja állna, míg a sajátunk
+// három ticknyit halad. Kontaktban ez háromszorozná a benyomódást.
+function serverTimeFor(localMs) {
+  return serverNow() + (localMs - performance.now());
+}
+
 function sendPing() {
   send(C2S.PING, { t: performance.now(), clientNow: Date.now() });
 }
@@ -2827,8 +2839,9 @@ function sendOneInput(scheduledAt) {
   const input = {
     seq: shouldSend ? ++inputSeq : inputSeq,
     // Csak helyi metaadat: ebből tudjuk, melyik időpontra kell tenni a távoli
-    // autók fizikai proxyját.
-    at: serverNow(),
+    // autók fizikai proxyját. A LÉPÉS ütemezett ideje, nem a hívás pillanata —
+    // lásd serverTimeFor().
+    at: serverTimeFor(scheduledAt),
     frozen: isFrozen(),
     steer: controlsEnabled ? axes.steer : 0,
     throttle: Math.max(0, pedal) || -reverseAmount,
@@ -2900,7 +2913,7 @@ function sendOneInput(scheduledAt) {
     );
     send(C2S.STATE, {
       seq: input.seq,
-      t: serverNow() + (scheduledAt - performance.now()),
+      t: serverTimeFor(scheduledAt),
       ...state,
       ...wheels,
       th: input.throttle,

@@ -89,10 +89,25 @@ export function advanceRenderClock({
   const renderAt = Number(renderAtMs);
   const rawElapsed = now - previousNow;
 
+  // Az ugrás CÉLJA `now - target`, de a monotonitás erre is vonatkozik: ha az
+  // óra már előrébb jár ennél, ott marad. Enélkül egy épp a küszöb fölé nyúló
+  // szünet — vagy egy hátrafelé korrigáló szerveróra — VISSZAVINNÉ az
+  // idővonalat, pontosan azt, amit ez a modul tilt. (Mérve: 251 ms-os szünet
+  // 400 ms-os célnál 49 ms-ot lépett vissza.) Ilyenkor az óra inkább egy
+  // képkockát vár, és a szokásos lassítással mélyíti a puffert.
+  //
+  // Ha nem mozdult el, azt nem is jelentjük ugrásnak: a hívó különben
+  // feleslegesen rántaná a helyükre a távoli autókat.
+  const resyncTo = () => {
+    const want = now - target;
+    const at = Number.isFinite(renderAt) ? Math.max(renderAt, want) : want;
+    return { at, rate: 1, resynced: at !== renderAt };
+  };
+
   // Első képkocka, háttérből visszatérés, vagy visszafelé lépő óra.
   if (!Number.isFinite(renderAt) || !Number.isFinite(previousNow)
       || rawElapsed < 0 || rawElapsed > MAX_ELAPSED_MS) {
-    return { at: now - target, rate: 1, resynced: true };
+    return resyncTo();
   }
 
   const currentDelay = previousNow - renderAt;
@@ -100,7 +115,7 @@ export function advanceRenderClock({
 
   // Reménytelenül sekély (vagy abszurdan mély) puffer: ugrunk, és szólunk.
   if (Math.abs(delayError) > resyncMs) {
-    return { at: now - target, rate: 1, resynced: true };
+    return resyncTo();
   }
 
   const previousRate = Math.max(rateMin, Math.min(rateMax, Number(playbackRate) || 1));
