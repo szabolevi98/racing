@@ -10,10 +10,16 @@ import {
 import { raceClockTimes } from '/shared/raceClock.js';
 import { ghostCheckpointSplits } from '/shared/gate.js';
 import {
-  advanceLocalRenderClock, LOCAL_RENDER_DELAY_MIN_MS,
+  LOCAL_RENDER_DELAY_MAX_MS, LOCAL_RENDER_DELAY_MIN_MS,
   localRenderDelayTarget, remoteDetailPhase, remoteDetailUpdateInterval,
   remoteVisualCorrectionHalfLife, remoteVisualPredictionBlend,
 } from '/shared/remoteVisual.js';
+import {
+  advanceRenderClock, pushTransitSample, expireTransitSamples,
+  remoteDelayTarget, transitSpreadMs,
+  LOCAL_CLOCK_RATE_MIN, LOCAL_CLOCK_RATE_MAX,
+  REMOTE_CLOCK_RATE_MIN, REMOTE_CLOCK_RATE_MAX,
+} from '/shared/renderClock.js';
 import { createPitState, hasCompletePitConfig, updatePitState } from '/shared/pit.js';
 import { smoothPing, updateMinRtt, acceptsClockSample } from '/shared/ping.js';
 import { t, hasKey, onLanguageChange, applyToDom } from './lang.js';
@@ -1804,18 +1810,24 @@ function makeNameSprite(name, color) {
 // van két állapot, ami közt interpolálhatunk.
 const MIN_INTERP_DELAY_MS = 100;
 const MAX_INTERP_DELAY_MS = 400;
+// A transit-minták csúszóablaka. Ebből jön a célmélység — nem a szomszédos
+// csomagok különbségéből, lásd a shared/renderClock.js indoklását.
+const transitSamples = [];
+// A távoli idővonal MEGVALÓSULT késleltetése. Nem ez vezérel: ez a renderóra
+// állásából adódik, és a diagnosztika meg a képi simító olvassa.
 let interpDelayMs = MIN_INTERP_DELAY_MS;
-let snapshotTransitMs = 0;
-let snapshotJitterMs = 0;
-let lastSnapshotTransitMs = null;
+let interpRenderAt = NaN;
+let interpUpdatedAt = 0;
+let interpPlaybackRate = 1;
 // Csak diagnosztikához (lásd __mp.lastSelf) — a feldolgozás nem használja.
 let lastSnapshot = null;
 
 function resetNetworkRaceState() {
+  transitSamples.length = 0;
   interpDelayMs = MIN_INTERP_DELAY_MS;
-  snapshotTransitMs = 0;
-  snapshotJitterMs = 0;
-  lastSnapshotTransitMs = null;
+  interpRenderAt = NaN;
+  interpUpdatedAt = 0;
+  interpPlaybackRate = 1;
 }
 
 function mulQuat(a, b) {
@@ -1889,13 +1901,19 @@ function recordPhysState(scheduledAt, state = G.getCarState()) {
 function interpolatedPhys() {
   if (!predBuf.length) return G.getCarState();
   const now = performance.now();
-  const clock = advanceLocalRenderClock(
-    predRenderAt,
-    predDelayUpdatedAt,
-    now,
-    predDelayTargetMs,
-    predPlaybackRate
-  );
+  const clock = advanceRenderClock({
+    renderAtMs: predRenderAt,
+    previousNowMs: predDelayUpdatedAt,
+    nowMs: now,
+    targetDelayMs: predDelayTargetMs,
+    playbackRate: predPlaybackRate,
+    // A saját kocsinál a lassítás input-késleltetés, amit a kezed érez: szűk
+    // tűrés, és a puffer tartománya is kicsi (33–100 ms).
+    rateMin: LOCAL_CLOCK_RATE_MIN,
+    rateMax: LOCAL_CLOCK_RATE_MAX,
+    minDelayMs: LOCAL_RENDER_DELAY_MIN_MS,
+    maxDelayMs: LOCAL_RENDER_DELAY_MAX_MS,
+  });
   predDelayUpdatedAt = now;
   predRenderAt = clock.at;
   predPlaybackRate = clock.rate;
@@ -1931,16 +1949,10 @@ function onSnapshot(m) {
   // egy elveszett csomag után is helyreáll.
   finishDeadlineAt = Number.isFinite(m.fd) ? m.fd : null;
   const transit = Math.max(0, serverNow() - m.t);
-  if (lastSnapshotTransitMs !== null) {
-    const delta = Math.abs(transit - lastSnapshotTransitMs);
-    snapshotJitterMs += (delta - snapshotJitterMs) * 0.2;
-  }
-  lastSnapshotTransitMs = transit;
-  snapshotTransitMs = snapshotTransitMs ? snapshotTransitMs * 0.8 + transit * 0.2 : transit;
-  interpDelayMs = Math.max(
-    MIN_INTERP_DELAY_MS,
-    Math.min(MAX_INTERP_DELAY_MS, snapshotTransitMs + 75 + snapshotJitterMs * 2)
-  );
+  // A snapshot csak MINTÁT ad; a késleltetést nem itt állítjuk be, hanem a
+  // renderóra közelíti hozzá képkockánként (lásd frame()). Enélkül a
+  // kirajzolt pillanat egyetlen csomag hatására ugorhatna vissza.
+  pushTransitSample(transitSamples, transit, performance.now());
 
   const startAfterSnapshot = awaitingFirstSnapshot;
   awaitingFirstSnapshot = false;
@@ -2039,7 +2051,7 @@ function onSnapshot(m) {
     netDiagnostics.record(
       NET_DIAG_EVENT.SNAPSHOT_IN,
       transit,
-      snapshotJitterMs,
+      transitSpreadMs(transitSamples),
       interpDelayMs,
       selfDiagnosticCar.seq,
       selfDiagnosticCar.rd !== false,
@@ -2370,7 +2382,38 @@ function frame(dt = 1 / 60) {
   window.__mp.frames++;
   remoteDetailFrame = (remoteDetailFrame + 1) % 240;
   const nowServer = serverNow();
-  const renderTime = nowServer - interpDelayMs;
+  // A távoli idővonal órája. Ugyanaz a mechanizmus, mint a saját kocsié, csak
+  // tágabb tűréssel: itt a mélyítés biztonsági kérdés (üres puffer = megálló
+  // autó), a sekélyítés csak kényelmi.
+  const nowLocal = performance.now();
+  const interpClock = advanceRenderClock({
+    renderAtMs: interpRenderAt,
+    previousNowMs: interpUpdatedAt,
+    nowMs: nowServer,
+    targetDelayMs: remoteDelayTarget(transitSamples, {
+      minMs: MIN_INTERP_DELAY_MS,
+      maxMs: MAX_INTERP_DELAY_MS,
+    }),
+    playbackRate: interpPlaybackRate,
+    rateMin: REMOTE_CLOCK_RATE_MIN,
+    rateMax: REMOTE_CLOCK_RATE_MAX,
+    minDelayMs: MIN_INTERP_DELAY_MS,
+    maxDelayMs: MAX_INTERP_DELAY_MS,
+  });
+  interpRenderAt = interpClock.at;
+  interpUpdatedAt = nowServer;
+  interpPlaybackRate = interpClock.rate;
+  interpDelayMs = Math.max(0, nowServer - interpClock.at);
+  const renderTime = interpClock.at;
+  // Ugrás után a képi simítónak nincs mit elrejtenie: a régi helyről indulva
+  // másodpercekig csúszna a helyére. Ilyenkor a következő képkocka odateszi
+  // az autókat, ahol vannak.
+  if (interpClock.resynced) {
+    for (const o of others.values()) o.renderReady = false;
+  }
+  // Az ablak akkor is öregedjen, ha épp nem jön snapshot — különben egy
+  // megszakadt kapcsolat után a régi minták tartanák magasan a célmélységet.
+  expireTransitSamples(transitSamples, nowLocal);
 
   const state = interpolatedPhys();
   G.applyServerTransform(state.p, state.q);

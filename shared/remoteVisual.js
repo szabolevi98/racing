@@ -13,8 +13,6 @@ export const REMOTE_DETAIL_BUCKETS = 8;
 
 export const LOCAL_RENDER_DELAY_MIN_MS = TICK_MS * 2;
 export const LOCAL_RENDER_DELAY_MAX_MS = TICK_MS * 6;
-export const LOCAL_RENDER_RATE_MIN = 0.985;
-export const LOCAL_RENDER_RATE_MAX = 1.005;
 
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 
@@ -72,48 +70,8 @@ export function localRenderDelayTarget(timerLatenessMs, timerJitterMs) {
   );
 }
 
-// A puffer célmélysége nem tolhatja közvetlenül a mintavételi időt: az a saját
-// autót hol lassabban, hol gyorsabban játszaná le. Ehelyett külön, monoton
-// renderórát vezetünk. Az óra csak nagyon enyhe, kisimított sebességkorrekcióval
-// közelít a kívánt puffermélységhez, ezért terhelésnél marad tartalék, de nincs
-// képkockánként változó sebességérzet.
-export function advanceLocalRenderClock(
-  renderAtMs,
-  previousNowMs,
-  nowMs,
-  targetDelayMs,
-  playbackRate = 1
-) {
-  const now = Number(nowMs) || 0;
-  const target = Math.max(
-    LOCAL_RENDER_DELAY_MIN_MS,
-    Math.min(LOCAL_RENDER_DELAY_MAX_MS, Number(targetDelayMs) || LOCAL_RENDER_DELAY_MIN_MS)
-  );
-  const previousNow = Number(previousNowMs);
-  const renderAt = Number(renderAtMs);
-  const previousRate = Math.max(
-    LOCAL_RENDER_RATE_MIN,
-    Math.min(LOCAL_RENDER_RATE_MAX, Number(playbackRate) || 1)
-  );
-  const rawElapsed = now - previousNow;
-
-  // Első képkocka vagy háttérből visszatérés: nincs értelme a régi, már
-  // kidobott pufferhez több másodpercen át visszakapaszkodni.
-  if (!Number.isFinite(renderAt) || !Number.isFinite(previousNow)
-      || rawElapsed < 0 || rawElapsed > 250) {
-    return { at: now - target, rate: 1 };
-  }
-
-  const elapsed = Math.min(100, rawElapsed);
-  const currentDelay = previousNow - renderAt;
-  const delayError = currentDelay - target;
-  const desiredRate = Math.max(
-    LOCAL_RENDER_RATE_MIN,
-    Math.min(LOCAL_RENDER_RATE_MAX, 1 + delayError / 1000)
-  );
-  // Kb. negyed másodperces lecsengés: a korrekció indulása se okozzon apró
-  // sebességlépcsőt a kamerán követett világban.
-  const blend = 1 - Math.exp(-elapsed / 250);
-  const rate = previousRate + (desiredRate - previousRate) * blend;
-  return { at: renderAt + elapsed * rate, rate };
-}
+// A renderóra maga a shared/renderClock.js-ben él, mert a saját kocsi és a
+// többiek UGYANAZT a feladatot végzik vele — csak más célmélységgel és más
+// tűréssel. Korábban itt állt egy külön változat, a távoli idővonalnak pedig
+// egyáltalán nem volt órája: az egy sima változó volt, amit minden snapshot
+// felülírt. Lásd az ottani bevezetőt, hogy ez mit okozott.

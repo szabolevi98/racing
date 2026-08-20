@@ -2,12 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
-  advanceLocalRenderClock, LOCAL_RENDER_DELAY_MAX_MS, LOCAL_RENDER_DELAY_MIN_MS,
-  LOCAL_RENDER_RATE_MAX, LOCAL_RENDER_RATE_MIN,
+  LOCAL_RENDER_DELAY_MAX_MS, LOCAL_RENDER_DELAY_MIN_MS,
   localRenderDelayTarget, remoteDetailPhase, remoteDetailUpdateInterval,
   REMOTE_DETAIL_BUCKETS,
   remoteVisualCorrectionHalfLife, remoteVisualPredictionBlend,
 } from '../shared/remoteVisual.js';
+import {
+  advanceRenderClock, LOCAL_CLOCK_RATE_MIN, LOCAL_CLOCK_RATE_MAX,
+} from '../shared/renderClock.js';
 
 const mp = fs.readFileSync(new URL('../web/mp.js', import.meta.url), 'utf8');
 const main = fs.readFileSync(new URL('../web/main.js', import.meta.url), 'utf8');
@@ -106,8 +108,15 @@ test('local render clock follows timer stress without visible timeline jumps', (
   assert.ok(localRenderDelayTarget(15, 8) > LOCAL_RENDER_DELAY_MIN_MS);
   assert.equal(localRenderDelayTarget(500, 500), LOCAL_RENDER_DELAY_MAX_MS);
 
+  const local = (renderAtMs, previousNowMs, nowMs, targetDelayMs, playbackRate) =>
+    advanceRenderClock({
+      renderAtMs, previousNowMs, nowMs, targetDelayMs, playbackRate,
+      rateMin: LOCAL_CLOCK_RATE_MIN, rateMax: LOCAL_CLOCK_RATE_MAX,
+      minDelayMs: LOCAL_RENDER_DELAY_MIN_MS, maxDelayMs: LOCAL_RENDER_DELAY_MAX_MS,
+    });
+
   let now = 1000;
-  let clock = advanceLocalRenderClock(NaN, NaN, now, LOCAL_RENDER_DELAY_MIN_MS);
+  let clock = local(NaN, NaN, now, LOCAL_RENDER_DELAY_MIN_MS);
   let previousAt = clock.at;
   for (let frame = 0; frame < 600; frame++) {
     const previousNow = now;
@@ -115,20 +124,22 @@ test('local render clock follows timer stress without visible timeline jumps', (
     // Szándékosan pumpáljuk a célpuffert: a renderidő ettől sem állhat meg,
     // nem ugorhat vissza, és nem változtathat észrevehetően sebességet.
     const target = frame % 120 < 60 ? LOCAL_RENDER_DELAY_MAX_MS : LOCAL_RENDER_DELAY_MIN_MS;
-    clock = advanceLocalRenderClock(clock.at, previousNow, now, target, clock.rate);
+    clock = local(clock.at, previousNow, now, target, clock.rate);
     const advancement = clock.at - previousAt;
     assert.ok(advancement > 0, `a renderóra legyen monoton: ${advancement}`);
-    assert.ok(advancement >= (1000 / 60) * LOCAL_RENDER_RATE_MIN - 1e-9);
-    assert.ok(advancement <= (1000 / 60) * LOCAL_RENDER_RATE_MAX + 1e-9);
-    assert.ok(clock.rate >= LOCAL_RENDER_RATE_MIN && clock.rate <= LOCAL_RENDER_RATE_MAX);
+    assert.ok(advancement >= (1000 / 60) * LOCAL_CLOCK_RATE_MIN - 1e-9);
+    assert.ok(advancement <= (1000 / 60) * LOCAL_CLOCK_RATE_MAX + 1e-9);
+    assert.ok(clock.rate >= LOCAL_CLOCK_RATE_MIN && clock.rate <= LOCAL_CLOCK_RATE_MAX);
+    assert.equal(clock.resynced, false);
     previousAt = clock.at;
   }
 
-  const resumed = advanceLocalRenderClock(clock.at, now, now + 1000, LOCAL_RENDER_DELAY_MAX_MS, clock.rate);
+  const resumed = local(clock.at, now, now + 1000, LOCAL_RENDER_DELAY_MAX_MS, clock.rate);
   assert.equal(resumed.at, now + 1000 - LOCAL_RENDER_DELAY_MAX_MS);
   assert.equal(resumed.rate, 1);
+  assert.equal(resumed.resynced, true);
   assert.match(mp, /observePhysicsTimer\(now - next\)/);
-  assert.match(mp, /advanceLocalRenderClock\(/);
+  assert.match(mp, /rateMin: LOCAL_CLOCK_RATE_MIN/);
   assert.match(mp, /get predDelayMs\(\)/);
 });
 
