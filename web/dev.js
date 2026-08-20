@@ -44,7 +44,7 @@ let carTesterBtn, carTesterHudEl, carTesterBackBtn, carTesterCarSelectEl;
 let carTesterCompressedEl, carTesterFileInfoEl;
 let devDriveBtn, devDriveHudEl, devDriveBackBtn, devDriveResetBtn, devDriveSaveBtn, devDriveSlidersEl;
 let objectCutterBtn, objectCutterHudEl, cutterPickEl, cutterCutBtn, cutterUndoBtn;
-let cutterNudgeBtn, cutterNudgeCmEl;
+let cutterNudgeBtn, cutterPushBtn, cutterNudgeCmEl;
 let cutterListEl, cutterSaveBtn, cutterBackBtn, cutterStatusEl;
 let openMaterialPickerBtn, generateCheckpointsBtn, autoCheckpointCountEl;
 let materialPickerPanelEl, materialPickerGridEl, generateAsphaltBtn;
@@ -120,6 +120,7 @@ function queryElements() {
   objectCutterHudEl = $('objectCutterHud');
   cutterPickEl = $('cutterPick');
   cutterNudgeBtn = $('cutterNudgeBtn');
+  cutterPushBtn = $('cutterPushBtn');
   cutterNudgeCmEl = $('cutterNudgeCm');
   cutterCutBtn = $('cutterCutBtn');
   cutterUndoBtn = $('cutterUndoBtn');
@@ -2239,7 +2240,8 @@ function wireEvents() {
   objectCutterBtn.addEventListener('click', enterObjectCutter);
   cutterBackBtn.addEventListener('click', exitObjectCutter);
   cutterCutBtn.addEventListener('click', cutterCutSelection);
-  cutterNudgeBtn.addEventListener('click', cutterNudgeSelection);
+  cutterNudgeBtn.addEventListener('click', () => cutterNudgeSelection(1));
+  cutterPushBtn.addEventListener('click', () => cutterNudgeSelection(-1));
   cutterUndoBtn.addEventListener('click', cutterUndo);
   cutterSaveBtn.addEventListener('click', cutterSaveModel);
   // Bal gomb jelöl ki; a jobb gomb a kamera forgatása, azt nem foghatjuk el.
@@ -2733,6 +2735,7 @@ function cutterPickAt(clientX, clientY) {
     + `${vilag.x.toFixed(1)}, ${vilag.y.toFixed(1)}, ${vilag.z.toFixed(1)}</span>`;
   cutterCutBtn.disabled = false;
   cutterNudgeBtn.disabled = false;
+  cutterPushBtn.disabled = false;
   // Egy nagy arány azt jelenti, hogy a fél pályát jelölted ki — ilyet ritkán
   // akar az ember, ezért kiírjuk, mielőtt rákattint a Kivágásra.
   cutterSay(resz > 20 ? 'Figyelem: a háló nagy részét jelölted ki.' : '', resz > 20 ? 'text-danger' : 'text-secondary');
@@ -2746,9 +2749,11 @@ function refreshCutterList() {
     reszek.push(`Kivágva: <strong>${vagas.length}</strong> darab, `
       + `${vagas.reduce((s, c) => s + c.faces.length, 0)} háromszög`);
   }
-  if (tolas.length) {
-    reszek.push(`Előrébb hozva: <strong>${tolas.length}</strong> darab, `
-      + `${tolas.reduce((s, c) => s + c.restore.length, 0)} csúcs`);
+  for (const [ei, cimke] of [[1, 'Előrébb hozva'], [-1, 'Hátrébb tolva']]) {
+    const l = tolas.filter((c) => (c.elojel ?? 1) === ei);
+    if (!l.length) continue;
+    reszek.push(`${cimke}: <strong>${l.length}</strong> darab, `
+      + `${l.reduce((s, c) => s + c.restore.length, 0)} csúcs`);
   }
   cutterListEl.innerHTML = reszek.join('<br>');
   cutterUndoBtn.disabled = cutterCuts.length === 0;
@@ -2766,29 +2771,35 @@ function cutterCutSelection() {
   cutterPickEl.textContent = 'Nincs kijelölve semmi.';
   cutterCutBtn.disabled = true;
   cutterNudgeBtn.disabled = true;
+  cutterPushBtn.disabled = true;
   refreshCutterList();
   cutterSay('Kivágva. A mentés a modellfájlba írja.', 'text-success');
 }
 
-function cutterNudgeSelection() {
+// `elojel`: +1 a kamera felé (a felirat jön előre), -1 el tőle (a tábla lapja
+// megy hátra). A kettő ugyanazt a villogást szünteti meg — az számít, melyik
+// lapot könnyebb eltalálni a kattintással.
+function cutterNudgeSelection(elojel = 1) {
   if (!cutterSelection) return;
   const { mesh, vertices, egysegIrany } = cutterSelection;
   const cm = Math.max(0.5, Math.min(50, Number(cutterNudgeCmEl.value) || 5));
-  const delta = egysegIrany.clone().multiplyScalar(cm / 100);
+  const delta = egysegIrany.clone().multiplyScalar((elojel < 0 ? -cm : cm) / 100);
   const pos = mesh.geometry.attributes.position;
   const restore = nudgeVertices(pos.array, vertices, [delta.x, delta.y, delta.z]);
   pos.needsUpdate = true;
   // A befoglaló doboz elavul, és a raycast/frustum abból dolgozik.
   mesh.geometry.computeBoundingSphere();
   mesh.geometry.computeBoundingBox();
-  cutterCuts.push({ tipus: 'nudge', mesh, vertices, restore, cm });
+  cutterCuts.push({ tipus: 'nudge', mesh, vertices, restore, cm, elojel: elojel < 0 ? -1 : 1 });
   cutterSelection = null;
   clearCutterHighlight();
   cutterPickEl.textContent = 'Nincs kijelölve semmi.';
   cutterCutBtn.disabled = true;
   cutterNudgeBtn.disabled = true;
+  cutterPushBtn.disabled = true;
   refreshCutterList();
-  cutterSay(`${cm} cm-rel előrébb hozva (${vertices.size ?? restore.length} csúcs). `
+  cutterSay(`${cm} cm-rel ${elojel < 0 ? 'hátrébb tolva' : 'előrébb hozva'} `
+    + `(${vertices.size ?? restore.length} csúcs). `
     + 'Ha még villog, jelöld ki újra és told még.', 'text-success');
 }
 
@@ -2899,6 +2910,7 @@ function enterObjectCutter() {
   cutterPickEl.textContent = 'Nincs kijelölve semmi.';
   cutterCutBtn.disabled = true;
   cutterNudgeBtn.disabled = true;
+  cutterPushBtn.disabled = true;
   refreshCutterList();
   cutterSay('');
 }

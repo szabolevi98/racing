@@ -127,7 +127,19 @@ test('az egymásba fűzött (interleaved) elrendezést a byteStride kezeli', () 
   assert.deepEqual([olvas(1, 0), olvas(1, 1), olvas(1, 2)], [40, 50, 60]);
 });
 
-test('a dev mód a kamera felé told, és a csúcssorszámot nem fordítja', async () => {
+test('a két irány pontosan kioltja egymást', () => {
+  // Ugyanaz a villogás megszűnik attól is, ha a feliratot hozzuk előre, és
+  // attól is, ha a tábla lapját toljuk hátra. A kettő ugyanaz a művelet
+  // ellentétes előjellel, ezért egymás után futtatva vissza kell adnia az
+  // eredetit — különben a "hátrébb" nem a "előrébb" fordítottja lenne.
+  const pos = new Float32Array([1, 2, 3]);
+  nudgeVertices(pos, new Set([0]), [0, 0, 0.05]);
+  nudgeVertices(pos, new Set([0]), [0, 0, -0.05]);
+  assert.ok(Math.abs(pos[0] - 1) < 1e-6 && Math.abs(pos[1] - 2) < 1e-6
+    && Math.abs(pos[2] - 3) < 1e-6, `vissza az eredetire: ${[...pos]}`);
+});
+
+test('a dev mód mindkét irányt kínálja, és a csúcssorszámot nem fordítja', async () => {
   const fs = await import('node:fs/promises');
   const dev = await fs.readFile(new URL('../web/dev.js', import.meta.url), 'utf8');
   assert.match(dev, /vilagNormal\.dot\(kameraFele\) >= 0 \? 1 : -1/,
@@ -136,4 +148,11 @@ test('a dev mód a kamera felé told, és a csúcssorszámot nem fordítja', asy
     'a világtérbeli centiméter objektumtérbe váltva');
   // A lapsorszámot fordítani KELL (a BVH átrendezi), a csúcssorszámot NEM.
   assert.match(dev, /patchGlbPositions\(bytes, glb, prim\.attributes\.POSITION, moves\)/);
+  // Két gomb, egy művelet: az irány paraméter, nem külön kódút.
+  assert.match(dev, /cutterNudgeSelection\(1\)/);
+  assert.match(dev, /cutterNudgeSelection\(-1\)/);
+  assert.match(dev, /elojel < 0 \? -cm : cm/);
+  const html = await fs.readFile(new URL('../web/dev.html', import.meta.url), 'utf8');
+  assert.match(html, /id="cutterNudgeBtn"[^>]*>Előrébb</);
+  assert.match(html, /id="cutterPushBtn"[^>]*>Hátrébb</);
 });

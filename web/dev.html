@@ -124,11 +124,15 @@
         <button id="cutterUndoBtn" class="btn btn-sm btn-outline-info py-0" disabled>Visszavonás</button>
       </div>
       <div class="mt-1">
-        <button id="cutterNudgeBtn" class="btn btn-sm btn-success py-0" disabled>Előrébb hozás</button>
+        <button id="cutterNudgeBtn" class="btn btn-sm btn-success py-0" disabled>Előrébb</button>
+        <button id="cutterPushBtn" class="btn btn-sm btn-outline-success py-0" disabled>Hátrébb</button>
         <input id="cutterNudgeCm" type="number" min="0.5" max="50" step="0.5" value="5"
                style="width:4.5em" class="form-control form-control-sm d-inline-block py-0">
         <span class="text-secondary">cm</span>
-        <div class="text-secondary">Villogó tábla-feliratra: a darabot a kamera felé tolja.</div>
+        <div class="text-secondary">Villogó tábla-feliratra. Az irány a kattintás
+        oldalához képest: <b>Előrébb</b> a kamera felé, <b>Hátrébb</b> el tőle.
+        Ugyanaz az eredmény, ha a feliratot hozod előre, vagy a tábla lapját
+        tolod hátra — amelyiket könnyebb eltalálni.</div>
       </div>
       <div id="cutterList" class="mt-1 text-warning"></div>
       <div class="mt-2">
