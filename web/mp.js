@@ -12,7 +12,7 @@ import { ghostCheckpointSplits } from '/shared/gate.js';
 import {
   LOCAL_RENDER_DELAY_MAX_MS, LOCAL_RENDER_DELAY_MIN_MS,
   localRenderDelayTarget, remoteDetailPhase, remoteDetailUpdateInterval,
-  remoteVisualCorrectionHalfLife, remoteVisualPredictionBlend,
+  remoteVisualCorrectionHalfLife, remoteVisualPredictionBlend, smootherLeadSeconds,
 } from '/shared/remoteVisual.js';
 import {
   advanceRenderClock, pushTransitSample, expireTransitSamples,
@@ -2510,11 +2510,22 @@ function frame(dt = 1 / 60) {
       // új snapshot nem rántja oldalra az autót.
       const halfLife = remoteVisualCorrectionHalfLife(interpDelayMs, predictionBlend);
       const alpha = 1 - Math.pow(0.5, dt / halfLife);
-      o.group.position.x += (s.p[0] - o.group.position.x) * alpha;
-      o.group.position.y += (s.p[1] - o.group.position.y) * alpha;
-      o.group.position.z += (s.p[2] - o.group.position.z) * alpha;
+      // A simító célja a kocsi ELŐRE vetített helye, hogy a szűrő állandósult
+      // lemaradása épp kiessen — különben a látható kocsi a saját ütközőteste
+      // mögött jár, a másik autó sebességével arányosan. Lásd a
+      // smootherLeadSeconds() indoklását.
+      const lead = smootherLeadSeconds(alpha, dt);
+      const v = s.v || [0, 0, 0];
+      const tx = s.p[0] + (v[0] || 0) * lead;
+      const ty = s.p[1] + (v[1] || 0) * lead;
+      const tz = s.p[2] + (v[2] || 0) * lead;
+      o.group.position.x += (tx - o.group.position.x) * alpha;
+      o.group.position.y += (ty - o.group.position.y) * alpha;
+      o.group.position.z += (tz - o.group.position.z) * alpha;
+      // Ugyanez a lemaradás a FORGÁSRA is igaz: kanyarban a látható kocsi
+      // orra elmaradna a valódi állásától.
       const q0 = [o.group.quaternion.x, o.group.quaternion.y, o.group.quaternion.z, o.group.quaternion.w];
-      const qr = slerp(q0, s.q, alpha);
+      const qr = slerp(q0, integrateRotation(s.q, s.w || [0, 0, 0], lead), alpha);
       o.group.quaternion.set(qr[0], qr[1], qr[2], qr[3]);
     }
     const targetSteer = s.st ?? 0;

@@ -26,6 +26,34 @@ export function remoteVisualPredictionBlend(distanceMeters) {
   return linear * linear * (3 - 2 * linear);
 }
 
+// Mennyivel a cél ELÉ kell célozni, hogy a simítónak ne maradjon rendszeres
+// lemaradása.
+//
+// Egy exponenciális simító (`x += (cél - x) * alpha`) egyenletes sebességgel
+// mozgó célt SOSEM ér utol: állandósult állapotban pontosan
+// `v * dt * (1-alpha)/alpha`-val marad mögötte. A látható távoli autó eddig
+// ezért csúszott el a saját ütközőtestétől, amit viszont simítatlanul teszünk
+// a helyére — a kettő közti rés a másik autó SEBESSÉGÉVEL arányos.
+//
+// Mérve (2026-08-20): állva, ha hátulról 200 km/h-val nekünk jönnek, a látható
+// kocsi 4,65 méterrel — egy teljes kocsihossznyival — a saját ütközőteste
+// mögött jár. Innen a "meglökött, de nem is láttam ott a kocsit". Azonos
+// sebességgel haladva a két lemaradás nagyrészt kiejti egymást, ezért csak
+// sebességkülönbségnél tűnik fel.
+//
+// A megoldás nem a simítás elvétele — arra szükség van, mert minden új
+// snapshot elmozdítja az extrapoláció célját, és e nélkül az apró korrekciók
+// látszanának. Ehelyett a célt előretoljuk pontosan a lemaradással: a
+// rendszeres eltolódás így nullára jön ki, a zajszűrés viszont megmarad.
+//
+// A képlet a DISZKRÉT szűrő pontos maradéka, nem a folytonos közelítése —
+// ezért képkockasebességtől függetlenül nullázza a lemaradást.
+export function smootherLeadSeconds(alpha, dt) {
+  if (!(alpha > 0) || !(dt > 0)) return 0;
+  if (alpha >= 1) return 0;
+  return dt * (1 - alpha) / alpha;
+}
+
 export function remoteVisualCorrectionHalfLife(interpDelayMs, predictionBlend) {
   const networkStress = clamp01((interpDelayMs - 100) / 200);
   const near = clamp01(predictionBlend);
