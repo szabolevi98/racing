@@ -21,7 +21,8 @@
 *.woff2 binary
 *.exe   binary
 
-# Nem a kiterjesztésükről ismerszenek meg, ezért külön: egy Windows-bináris és
-# egy PNG-mentés .bak utótaggal. A git NUL-heurisztikája mindkettőt binárisnak
-# látja, de a heurisztikára pont azért nem bízzuk, mert néma hiba lenne.
+# Nem a kiterjesztéséről ismerszik meg, ezért külön. A git NUL-heurisztikája
+# binárisnak látná, de a verziókövetett binárisokat nem bízzuk a heurisztikára:
+# ott egy hiba néma lenne. (A szabály akkor is maradjon, ha épp nincs ilyen
+# fájl: egy zóna-szerkesztés bármikor csinálhat újat.)
 web/assets/maps/**/*.bak-* binary
