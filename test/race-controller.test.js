@@ -66,7 +66,7 @@ test('race controller relays state and still owns lap timing and ghosts', async 
     sim.pump(1000);
     assert.equal(room.state, ROOM_STATE.RACING);
 
-    assert.equal(sim.receiveState('p1', wireState(1, -50_000, 1), { receivedAt: 1100 }), true);
+    assert.equal(sim.receiveState('p1', wireState(1, 1100, 1), { receivedAt: 1100 }), true);
     assert.equal(sim.cars.get('p1').race.hasCrossedStart, true);
     assert.equal(sim.receiveState('p1', wireState(2, 2000, 11), { receivedAt: 2000 }), true);
     assert.equal(sim.cars.get('p1').race.nextCheckpoint, 1);
@@ -78,7 +78,7 @@ test('race controller relays state and still owns lap timing and ghosts', async 
     assert.equal(
       messages.find((message) => message.type === S2C.RACE_EVENT && message.kind === 'lap')?.timeMs,
       1_917,
-      'gate interpolation uses server receipt times and ignores client timestamps'
+      'gate interpolation uses the server-validated client simulation timeline'
     );
     assert.ok(room.lapsSaved[0][4]?.frames?.length >= 2, 'valid lap should save a ghost replay');
     assert.ok(messages.some((message) => message.type === S2C.RACE_EVENT && message.kind === 'lap'));
@@ -88,7 +88,7 @@ test('race controller relays state and still owns lap timing and ghosts', async 
   }
 });
 
-test('race controller speed validation invalidates once and keeps the player racing', async () => {
+test('race controller quarantines invalid physics states and keeps the player racing', async () => {
   const room = makeRoom();
   const messages = [];
   const map = {
@@ -113,8 +113,11 @@ test('race controller speed validation invalidates once and keeps the player rac
 
     assert.equal(sim.receiveState(
       'p1', wireState(2, 1200, 2, 0, { v: [160, 0, 0] }), { receivedAt: 1200 }
-    ), true, 'suspicious state is relayed instead of kicking the player');
-    sim.receiveState('p1', wireState(3, 1300, 3, 0, { v: [160, 0, 0] }), { receivedAt: 1300 });
+    ), false, 'a suspicious pose must not become a remote collision proxy');
+    assert.equal(sim.cars.get('p1').state.p[0], 1, 'the last safe state remains authoritative');
+    assert.equal(sim.cars.get('p1').lastAcceptedSeq, 1);
+    assert.equal(sim.receiveState('p1', wireState(3, 1300, 3), { receivedAt: 1300 }), true,
+      'a later safe state continues the race without kicking the player');
     assert.equal(sim.cars.get('p1').race.taintReason, TAINT.VALIDATION);
     assert.equal(
       messages.filter((message) => message.kind === 'validation').length,
@@ -176,6 +179,45 @@ test('missing mandatory pit stop invalidates only the final lap and still finish
       messages.find((message) => message.kind === 'lap')?.invalid,
       true
     );
+  } finally {
+    sim.stop();
+  }
+});
+
+test('a checkpoint-shortened multiplayer lap must be retried instead of counting as race distance', async () => {
+  const room = makeRoom();
+  room.mode = GAME_MODE.MULTIPLAYER;
+  room.laps = 1;
+  const messages = [];
+  const checkpoints = Array.from({ length: 5 }, (_, index) => ({
+    x1: 100 + index * 10, z1: -5, x2: 100 + index * 10, z2: 5,
+  }));
+  const sim = new RaceController(room, {
+    map: {
+      spawns: [{ x: 1, z: 0, heading: 0 }],
+      gates: { start: { x1: 0, z1: -5, x2: 0, z2: 5 }, checkpoints },
+    },
+    broadcast: (type, payload) => messages.push({ type, payload }),
+  });
+  await sim.start();
+  try {
+    const car = sim.cars.get('p1');
+    car.race.hasCrossedStart = true;
+    car.race.lapStart = 1_000;
+    car.race.prevX = 1;
+    car.race.prevZ = 0;
+    car.race.prevAt = 1_000;
+    car.race.passed = new Set([0, 1, 2, 3]); // 80% megvan, de az ötödik hiányzik
+    car.race.nextCheckpoint = 4;
+    car.state.p = [-1, 0.8, 0];
+    sim.updateCarProgress(car, 2_000);
+
+    assert.equal(car.race.lap, 0);
+    assert.equal(car.race.finished, false);
+    assert.equal(car.race.lapStart, 1_500, 'a rajtvonal interpolált idejétől indul az új próbálkozás');
+    assert.equal(car.race.nextCheckpoint, 0);
+    assert.equal(car.race.taintReason, TAINT.NONE);
+    assert.ok(messages.some((message) => message.payload?.kind === 'lapRetry'));
   } finally {
     sim.stop();
   }
@@ -269,7 +311,8 @@ test('high speed and packets bunched by a ping spike stay valid', async () => {
     sim.receiveState('p1', wireState(1, 1100, 1), { receivedAt: 1100 });
 
     // 450 km/h-s rövid fizikai kilengés, minden harmadik kliensállapot jut át.
-    // A ping után ezek szinte egyszerre érkeznek meg a szerverhez.
+    // A szerverhez egy másodperccel később, szinte egyszerre érkeznek meg, de
+    // a saját szimulációs időpontjuk megmarad.
     const speed = 125;
     let seq = 1;
     let x = 1;
@@ -278,7 +321,7 @@ test('high speed and packets bunched by a ping spike stay valid', async () => {
       x += speed * 3 * TICK_MS / 1_000;
       sim.receiveState(
         'p1', wireState(seq, 1100 + i * 50, x, 0, { v: [speed, 0, 0] }),
-        { receivedAt: 1200 + i }
+        { receivedAt: 2200 + i * 0.1 }
       );
     }
 
@@ -298,7 +341,8 @@ test('race controller reset is server-selected and allows the resulting teleport
   });
   await sim.start();
   try {
-    sim.receiveState('p1', wireState(0, 1000, 5, 6), { initial: true, receivedAt: 1000 });
+    const now = Date.now();
+    sim.receiveState('p1', wireState(0, now, 5, 6), { initial: true, receivedAt: now });
     sim.cars.get('p1').race.hasCrossedStart = true;
     sim.cars.get('p1').respawn = { x: 100, z: 200, heading: 1 };
     sim.resetCar('p1');
@@ -308,7 +352,7 @@ test('race controller reset is server-selected and allows the resulting teleport
       respawn: { x: 100, z: 200, heading: 1 },
     });
     assert.equal(
-      sim.receiveState('p1', wireState(1, 1017, 100, 200), { receivedAt: 1017 }),
+      sim.receiveState('p1', wireState(1, now + 17, 100, 200), { receivedAt: now + 17 }),
       true,
       'the first grounded state after a requested reset may jump to the checkpoint'
     );
@@ -343,19 +387,22 @@ test('stale states sent while reset is in flight cannot invalidate the lap', asy
   });
   await sim.start();
   try {
-    sim.receiveState('p1', wireState(0, 1000, 5, 6), { initial: true, receivedAt: 1000 });
+    const now = Date.now();
+    sim.receiveState('p1', wireState(0, now, 5, 6), { initial: true, receivedAt: now });
     const car = sim.cars.get('p1');
     car.race.hasCrossedStart = true;
     car.respawn = { x: 100, z: 200, heading: 0 };
     assert.equal(sim.resetCar('p1'), true);
 
     assert.equal(
-      sim.receiveState('p1', wireState(1, 1010, 6, 6), { receivedAt: 1010 }),
+      sim.receiveState('p1', wireState(1, now + 10, 6, 6), { receivedAt: now + 10 }),
       false,
       'the pre-reset position is ignored while the reset response is in flight'
     );
     assert.deepEqual(car.state.p.slice(0, 3), [100, 0.8, 200]);
-    assert.equal(sim.receiveState('p1', wireState(2, 1020, 100, 200), { receivedAt: 1020 }), true);
+    assert.equal(sim.receiveState(
+      'p1', wireState(2, now + 20, 100, 200), { receivedAt: now + 20 }
+    ), true);
     assert.equal(car.race.taintReason, TAINT.NONE);
     assert.equal(messages.some((message) => message.kind === 'validation'), false);
   } finally {
@@ -404,7 +451,7 @@ test('multiplayer respawn keeps an asphalt crossing and uses gate middle off tra
   }
 });
 
-test('bunched sequence numbers cannot produce a zero-time valid lap', async () => {
+test('bunched packets keep their simulation time and cannot produce a zero-time valid lap', async () => {
   const room = makeRoom();
   const map = {
     spawns: [{ x: 0, z: -1, heading: 0 }],
@@ -419,13 +466,13 @@ test('bunched sequence numbers cannot produce a zero-time valid lap', async () =
     room.state = ROOM_STATE.RACING;
     sim.releaseAt(0);
     sim.receiveState('p1', wireState(0, 1000, 0, -1), { initial: true, receivedAt: 1000 });
-    sim.receiveState('p1', wireState(12, 1000, 0, 1), { receivedAt: 1000 });
-    sim.receiveState('p1', wireState(24, 1000, 0, 21), { receivedAt: 1000 });
-    sim.receiveState('p1', wireState(36, 1000, 0, -1), { receivedAt: 1000 });
+    sim.receiveState('p1', wireState(12, 1200, 0, 1), { receivedAt: 2000 });
+    sim.receiveState('p1', wireState(24, 1400, 0, 21), { receivedAt: 2000.1 });
+    sim.receiveState('p1', wireState(36, 1600, 0, -1), { receivedAt: 2000.2 });
     await new Promise((resolve) => setImmediate(resolve));
 
     const lap = sim.cars.get('p1').race.lapTimes[0];
-    assert.ok(lap.time >= 400, `a sorszám idővonala is számítson, kapott: ${lap.time} ms`);
+    assert.ok(lap.time >= 400, `a szimulációs idővonal számítson, kapott: ${lap.time} ms`);
     assert.equal(lap.invalid, false);
   } finally {
     sim.stop();
@@ -550,114 +597,153 @@ test('a burst after a ping spike still advances the clock by the simulated time'
   }
   const before = car.lastMovementAt;
 
-  // 500 ms néma szünet, majd 30 állapot egyetlen kötegben.
+  // 500 ms-nyi kliensszimuláció állapotai egyetlen hálózati kötegben
+  // érkeznek meg. A csomagok SAJÁT ideje 16,67 ms-onként halad, miközben a
+  // beérkezési idő csak három milliszekundumot mozdul.
   const burstAt = 1_000 + 30 * TICK_MS + 500;
   for (let n = 1; n <= 30; n++) {
-    sim.receiveState(player.id, wireState(++seq, burstAt, (30 + n) * 0.01), { receivedAt: burstAt + n * 0.1 });
+    const simulatedAt = before + n * TICK_MS;
+    sim.receiveState(
+      player.id,
+      wireState(++seq, simulatedAt, (30 + n) * 0.01),
+      { receivedAt: burstAt + n * 0.1 },
+    );
   }
 
   const advanced = car.lastMovementAt - before;
-  assert.ok(advanced > 400, `a kötegnek valódi időt kell kapnia, nem a beérkezési 3 ms-ot (kapott: ${advanced.toFixed(1)} ms)`);
+  assert.ok(Math.abs(advanced - 500) < 0.01,
+    `a köteg a szimulált 500 ms-ot tartsa meg (kapott: ${advanced.toFixed(1)} ms)`);
 });
 
-// Pingkiugrás után a mozgás-óra tartósan a valós idő előtt jár (lásd
-// clockLead()). A kifelé küldött kör-kezdetből ezt le kell vonni, különben a
-// kliens — ami a saját faliórájához méri — pont ennyivel később indítja a
-// szellemet és a futó órát.
-test('the lap start goes out on the wall clock, not the drifted one', async () => {
-  const player = { id: 'driver', carId: 'f2004' };
-  const room = {
-    laps: 1, mode: GAME_MODE.HOT_LAP, state: ROOM_STATE.LOADING,
-    countdownEndsAt: 0, players: new Map([[player.id, player]]),
-  };
-  const snapshots = [];
-  const sim = new RaceController(room, {
-    map: { spawns: [{ x: 0, z: 0, heading: 0 }], gates: { start: { x1: 200, z1: -50, x2: 200, z2: 50 }, checkpoints: [] } },
-    broadcast: (type, payload) => { if (type === S2C.SNAPSHOT) snapshots.push(payload); },
-  });
-  await sim.start();
-  clearInterval(sim.timer);
-  sim.timer = null;
-  room.state = ROOM_STATE.RACING;
-  sim.startAt = 0;
+// Ugyanaz a fizikai út ugyanazt az időt kell adja akkor is, ha minden állapot
+// külön érkezik, és akkor is, ha a hálózat egy másodpercig tartja, majd TCP-
+// sorrendben egyszerre kézbesíti. A régi szerveróra itt 483 ms eltérést adott.
+test('normal and bunched delivery produce the same lap time', async () => {
+  async function run(bunched) {
+    const player = { id: 'driver', carId: 'f2004' };
+    const room = {
+      laps: 1, mode: GAME_MODE.HOT_LAP, state: ROOM_STATE.RACING,
+      countdownEndsAt: 0, players: new Map([[player.id, player]]),
+      endlessLaps: true,
+      recordLap: async () => {},
+    };
+    const snapshots = [];
+    const sim = new RaceController(room, {
+      map: {
+        spawns: [{ x: 0, z: -1, heading: 0 }],
+        gates: {
+          start: { x1: -5, z1: 0, x2: 5, z2: 0 },
+          checkpoints: [{ x1: -5, z1: 20, x2: 5, z2: 20 }],
+        },
+      },
+      broadcast: (type, payload) => { if (type === S2C.SNAPSHOT) snapshots.push(payload); },
+    });
+    await sim.start();
+    clearInterval(sim.timer);
+    sim.timer = null;
+    sim.startAt = 0;
+    sim.receiveState(player.id, wireState(0, 1_000, 0, -1), { initial: true, receivedAt: 1_000 });
+    const samples = [
+      [1, 1_100, 1],
+      [2, 1_300, 21],
+      [3, 1_600, -1],
+    ];
+    for (let i = 0; i < samples.length; i++) {
+      const [seq, at, z] = samples[i];
+      sim.receiveState(
+        player.id,
+        wireState(seq, at, 0, z),
+        { receivedAt: bunched ? 2_000 + i * 0.1 : at },
+      );
+    }
+    await new Promise((resolve) => setImmediate(resolve));
+    sim.sendSnapshot(bunched ? 2_001 : 1_601);
+    const car = sim.cars.get(player.id);
+    const result = {
+      lapTime: car.race.lapTimes[0]?.time,
+      lapStart: car.race.lapStart,
+      reportedLapStart: snapshots.at(-1).cars[0].ls,
+    };
+    sim.stop();
+    return result;
+  }
 
-  const car = sim.cars.get(player.id);
-  let seq = 0, x = 0, wall = 1_000;
-  const drive = (receivedAt) => {
-    x += 1; // méterenként, azaz 60 m/s — bőven a mozgásvizsgálat határa alatt
-    sim.receiveState(player.id, wireState(++seq, receivedAt, x), { receivedAt });
-  };
-
-  for (let n = 0; n < 60; n++) { wall += TICK_MS; drive(wall); }
-
-  // Fél másodperces akadás: a kliens tovább szimulál, az állapotok utána
-  // egyetlen kupacban érkeznek. Ettől kap az óra tartós előnyt.
-  wall += 500;
-  for (let n = 0; n < 30; n++) drive(wall + n * 0.1);
-  wall += 30 * 0.1;
-  assert.ok(clockLeadOf(car) > 300, 'a kiugrásnak valódi előnyt kell hagynia az órán');
-
-  // Utána szabályos forgalom, egészen a rajtvonal átlépéséig.
-  while (!car.race.hasCrossedStart) { wall += TICK_MS; drive(wall); }
-  const wallCrossing = wall;
-
-  sim.sendSnapshot(wall);
-  const reported = snapshots.at(-1).cars.find((entry) => entry.id === player.id).ls;
-
-  assert.ok(Math.abs(reported - wallCrossing) < 60,
-    `a kör kezdete a faliórán legyen (küldött ${reported}, valós ${wallCrossing.toFixed(0)})`);
-  assert.ok(car.race.lapStart - reported > 300,
-    'a korrekciónak érdemben el kell térnie a nyers, mozgás-órás értéktől');
+  const normal = await run(false);
+  const bunched = await run(true);
+  assert.ok(Number.isFinite(normal.lapTime));
+  assert.ok(Math.abs(normal.lapTime - bunched.lapTime) < 0.001,
+    `normál ${normal.lapTime} ms, kötegelt ${bunched.lapTime} ms`);
+  assert.equal(normal.reportedLapStart, Math.round(normal.lapStart));
+  assert.equal(bunched.reportedLapStart, Math.round(bunched.lapStart));
 });
 
-const clockLeadOf = (car) => Math.max(0, car.lastMovementAt - car.lastStateAt);
-
-// A mezőny hátralévő idejét az első befutó indítja. A határidőt a pump() a
-// Date.now()-hoz méri, és a kliens is a saját órájából számolja a
-// visszaszámlálót — a befutó ideje viszont a mozgás-óráról jön. A győztes
-// akadásának méretével kapott eddig mindenki több időt.
-test('the finish deadline follows the wall clock, not the winner hiccup', async () => {
+test('the finish deadline uses the same validated server timeline as the winner', async () => {
   const winner = { id: 'winner', carId: 'f2004' };
   const other = { id: 'other', carId: 'f2004' };
   const room = {
-    laps: 1, mode: GAME_MODE.MULTIPLAYER, state: ROOM_STATE.LOADING, countdownEndsAt: 0,
+    laps: 1, mode: GAME_MODE.MULTIPLAYER, state: ROOM_STATE.RACING, countdownEndsAt: 0,
     players: new Map([[winner.id, winner], [other.id, other]]),
     recordLap: async () => {},
   };
   const sim = new RaceController(room, {
     map: {
-      spawns: [{ x: 0, z: 0, heading: 0 }, { x: 0, z: 6, heading: 0 }],
-      gates: { start: { x1: 120, z1: -50, x2: 120, z2: 50 }, checkpoints: [] },
+      spawns: [{ x: 0, z: -1, heading: 0 }, { x: 5, z: -1, heading: 0 }],
+      gates: { start: { x1: -20, z1: 0, x2: 20, z2: 0 }, checkpoints: [] },
     },
     broadcast: () => {},
   });
   await sim.start();
   clearInterval(sim.timer);
   sim.timer = null;
-  room.state = ROOM_STATE.RACING;
   sim.startAt = 0;
+  sim.receiveState(winner.id, wireState(0, 1_000, 0, -1), { initial: true, receivedAt: 1_000 });
+  sim.receiveState(winner.id, wireState(1, 1_100, 0, 1), { receivedAt: 2_000 });
+  sim.receiveState(winner.id, wireState(2, 1_600, 0, -1), { receivedAt: 2_000.1 });
 
   const car = sim.cars.get(winner.id);
-  let seq = 0, x = 0, wall = 1_000;
-  const drive = (receivedAt) => {
-    x += 1;
-    sim.receiveState(winner.id, wireState(++seq, receivedAt, x), { receivedAt });
+  assert.equal(car.race.finished, true);
+  assert.equal(sim.finishDeadline, car.race.finishedAt + FINISH_GRACE_MS);
+  sim.stop();
+});
+
+test('race end keeps live progress order and does not wait for result storage', async () => {
+  const a = { id: 'a', carId: 'f2004', dbId: 1, slot: 0 };
+  const b = { id: 'b', carId: 'f2004', dbId: 2, slot: 1 };
+  let releaseStorage;
+  const storage = new Promise((resolve) => { releaseStorage = resolve; });
+  const room = {
+    laps: 3,
+    mode: GAME_MODE.MULTIPLAYER,
+    state: ROOM_STATE.RACING,
+    raceGeneration: 1,
+    raceId: 77,
+    players: new Map([[a.id, a], [b.id, b]]),
+    async recordResults() { await storage; },
+    toJSON() { return { state: this.state }; },
   };
+  const messages = [];
+  const sim = new RaceController(room, {
+    map: { spawns: [{ x: 0, z: 0, heading: 0 }, { x: 0, z: 5, heading: 0 }], gates: null },
+    generation: 1,
+    raceId: 77,
+    broadcast: (type, payload) => messages.push({ type, payload }),
+  });
+  await sim.start();
+  room.sim = sim;
+  const carA = sim.cars.get(a.id);
+  const carB = sim.cars.get(b.id);
+  carA.race.lap = carB.race.lap = 1;
+  carA.race.progressKey = 4;
+  carB.race.progressKey = 5;
+  carA.race.splits.set(4, 1_000);
+  carB.race.splits.set(5, 1_100);
 
-  for (let n = 0; n < 40; n++) { wall += TICK_MS; drive(wall); }
-  wall += 500;                                   // akadás
-  for (let n = 0; n < 30; n++) drive(wall + n * 0.1);
-  wall += 30 * 0.1;
-  assert.ok(clockLeadOf(car) > 300);
+  await sim.endRace();
+  const end = messages.find((message) => message.type === S2C.RACE_END);
+  assert.deepEqual(end.payload.results.map((result) => result.playerId), ['b', 'a']);
+  assert.equal(room.state, ROOM_STATE.LOBBY);
+  assert.equal(room.sim, null);
 
-  // Egy körös futam: a rajtvonal első átlépése indítja, a második zárja.
-  while (!car.race.finished) { wall += TICK_MS; drive(wall); }
-  const wallFinish = wall;
-
-  assert.notEqual(sim.finishDeadline, null);
-  const grace = sim.finishDeadline - wallFinish;
-  assert.ok(Math.abs(grace - FINISH_GRACE_MS) < 60,
-    `a türelmi idő a faliórán mérve legyen ${FINISH_GRACE_MS} ms (mért: ${grace.toFixed(0)})`);
-  assert.ok(car.race.finishedAt - wallFinish > 300,
-    'a befutó nyers ideje továbbra is a mozgás-órán van — épp ezt kellett korrigálni');
+  releaseStorage();
+  await sim.persistence;
 });

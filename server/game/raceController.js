@@ -5,8 +5,7 @@
 // kész állapot érkezik. A szerver továbbra is központilag kezeli a köröket,
 // checkpointokat, sorrendet, eredményeket és a szellem rögzítését.
 import {
-  S2C, ROOM_STATE, GAME_MODE, TAINT, TICK_MS, SNAPSHOT_RATE, requiredCheckpoints,
-  FINISH_GRACE_MS,
+  S2C, ROOM_STATE, GAME_MODE, TAINT, SNAPSHOT_RATE, requiredCheckpoints, FINISH_GRACE_MS,
 } from '../../shared/protocol.js';
 import { gridSlotPose, hotLapStartPose } from '../../shared/grid.js';
 import { crossingTime, gateRespawnPoint } from '../../shared/gate.js';
@@ -40,7 +39,6 @@ const MAX_ANGULAR_SPEED = 100;
 // megengedőbb: egy rövid ütközési kilengés ne tegye tönkre az egész kört.
 const MAX_VALID_HORIZONTAL_SPEED = 500 / 3.6;
 const MAX_PLAUSIBLE_MOVEMENT_SPEED = 150; // 540 km/h a pozícióalapú, tartós ellenőrzéshez.
-const MAX_MOVEMENT_SEQUENCE_GAP = 12;
 const MOVEMENT_PACKET_GRACE_METERS = 3;
 const MOVEMENT_WINDOW_GRACE_METERS = 8;
 // Rövid ütközési/fizikai korrekciók több egymás utáni csomagban is
@@ -48,9 +46,14 @@ const MOVEMENT_WINDOW_GRACE_METERS = 8;
 // gördülő (összeadódó) vizsgálat viszont csak tartós eltérésre lépjen életbe.
 const MOVEMENT_WINDOW_MIN_MS = 500;
 const MOVEMENT_WINDOW_MAX_MS = 1_500;
-// A csomagsorszám segíthet a hálózaton összetorlódott állapotok időzítésében, de
-// nem gyárthat korlátlanul a szerver órája elé futó „virtuális időt”.
-const MAX_MOVEMENT_CLOCK_LEAD_MS = 1_000;
+// A kliens már szerverórára átszámolva küldi a fizikai lépés időpontját. Ezt
+// csak szűk, szerver által ellenőrzött ablakban fogadjuk el: így a hálózaton
+// összetorlódott állapotok megtartják a valódi időközüket, de egy módosított
+// kliens nem gyárthat tetszőleges köridőt a saját órájából.
+const MAX_CLIENT_STATE_AGE_MS = 5_000;
+const MAX_CLIENT_STATE_CLOCK_LEAD_MS = 500;
+const MIN_CLIENT_STATE_ADVANCE_MS = 1;
+const MAX_CLIENT_CLOCK_BACKSTEP_MS = 50;
 const RESET_ACK_RADIUS_METERS = 2;
 const RESET_ACK_TIMEOUT_MS = 5_000;
 const HOT_LAP_HISTORY_LIMIT = 64;
@@ -89,45 +92,38 @@ function horizontalDistance(a, b) {
   return Math.hypot(b.p[0] - a.p[0], b.p[2] - a.p[2]);
 }
 
-function nextMovementTime(car, seq, receivedAt) {
-  if (!car.lastMovementAt || !car.lastStateAt) return receivedAt;
-  const sequenceDelta = Math.max(1, Math.min(MAX_MOVEMENT_SEQUENCE_GAP, seq - car.lastSeq));
-  // Pingkiugrás után több, egymást követő fizikai állapot egyszerre érkezhet be.
-  // A sorszám csak korlátozott időt adhat hozzá, ezért nem használható tetszőleges
-  // teleport elfedésére, a szabályos 60 Hz-es mozgást viszont nem tömörítjük össze.
-  //
-  // A két forrás VERSENYEZ, nem adódik össze. Korábban a lépés
-  // `lastMovementAt + max(beérkezési különbség, sorszám × TICK_MS)` volt, ami
-  // egyirányú racsni: minden korán érkező csomagnál a sorszám-alapú (nagyobb)
-  // tagot írta jóvá, a többletet pedig sosem adta vissza. Mérve, szabályos
-  // 60 Hz-es küldésnél és ±4 ms-os, NULLA ÁTLAGÚ szórásnál: 7 másodperc
-  // vezetés után 763 ms előny, majd beállás a plafonra. Mivel a kapuk is ezen
-  // az órán kapnak időbélyeget, a kör kezdete ennyivel későbbre csúszott — a
-  // szellem pontosan ennyit várt a rajtvonalnál, mielőtt elindult.
-  //
-  // A maximum-képzés ugyanazt a védelmet adja (kötegnél a beérkezési idő alig
-  // mozdul, tehát a sorszám-tag nyer), de szabályos forgalomnál az óra
-  // visszasimul a beérkezési időhöz, így nem halmozódik.
-  const projected = Math.max(car.lastMovementAt + sequenceDelta * TICK_MS, receivedAt);
-  return Math.min(projected, receivedAt + MAX_MOVEMENT_CLOCK_LEAD_MS);
-}
+function clientStateTime(car, rawTime, receivedAt, { initial = false } = {}) {
+  const candidate = Number(rawTime);
+  if (!Number.isFinite(candidate)) {
+    // Átmeneti kompatibilitás régi klienssel: ott csak a beérkezési idő áll
+    // rendelkezésre. Az új kliens mindig küld `t`-t, ezért a csomagkötegek
+    // helyes időköze azon az úton megmarad.
+    return {
+      at: Math.max(receivedAt, (car.lastMovementAt || receivedAt) + (initial ? 0 : MIN_CLIENT_STATE_ADVANCE_MS)),
+      valid: true,
+    };
+  }
+  const inServerWindow = candidate >= receivedAt - MAX_CLIENT_STATE_AGE_MS
+    && candidate <= receivedAt + MAX_CLIENT_STATE_CLOCK_LEAD_MS;
+  const monotonic = !car.lastMovementAt
+    || candidate >= car.lastMovementAt + MIN_CLIENT_STATE_ADVANCE_MS;
 
-// Mennyivel jár a mozgás-óra a valós beérkezési idő előtt.
-//
-// Egy pingkiugrás után a szerver ugyanazt a szünetet KÉTSZER számolja el: a
-// fali órára is felzárkózik ("az előző csomag óta eltelt fél másodperc"), és a
-// kupacban beérkezett állapotoknak is fizet egy-egy fizikai lépést. Mindkettőre
-// szükség van — az első nélkül lemaradna az idővonal, a második nélkül az
-// állapotok nulla idő alatt tett távnak, azaz teleportnak látszanának —, de az
-// előny így nem simul vissza soha (mérve: fél másodperces akadás 480 ms tartós
-// előnyt hagy, 30 másodperc múlva is).
-//
-// Befelé ez nem baj: a köridők és a részidők KÜLÖNBSÉGEK ugyanezen az órán,
-// tehát az előny kiesik belőlük. Kifelé viszont minden olyan időbélyegből le
-// kell vonni, amit a kliens a saját faliórájához hasonlít — különben pont
-// ennyivel csúszik el.
-function clockLead(car) {
-  return Math.max(0, (car.lastMovementAt || 0) - (car.lastStateAt || 0));
+  if (inServerWindow && (initial || monotonic)) return { at: candidate, valid: true };
+  // A pingmintából becsült szerveróra néhány ms-ot hátra korrigálhat. Ez nem
+  // hálózati állapot-visszalépés: kis tartományban monotonra igazítjuk, hogy
+  // egy jó órakorrekció ne érvénytelenítsen egy teljes kört.
+  if (inServerWindow && candidate >= car.lastMovementAt - MAX_CLIENT_CLOCK_BACKSTEP_MS) {
+    return { at: car.lastMovementAt + MIN_CLIENT_STATE_ADVANCE_MS, valid: true };
+  }
+  if (initial) return { at: receivedAt, valid: true };
+
+  // Régi/hibás kliensidővel nem próbálunk virtuális tickeket gyártani. A
+  // beérkezési idő monoton pótlék, de a kör validációs hibát kap, ezért ebből
+  // nem lehet rövid, hiteles kört készíteni.
+  return {
+    at: Math.max(receivedAt, (car.lastMovementAt || receivedAt) + MIN_CLIENT_STATE_ADVANCE_MS),
+    valid: false,
+  };
 }
 
 function hasImplausibleMovement(car, next, movementAt) {
@@ -181,10 +177,6 @@ function createRaceState(x, z, pitRequired = false) {
     taintReason: TAINT.NONE,
     hasCrossedStart: false,
     lapStart: 0,
-    // Mennyit sietett a mozgás-óra, amikor ez a kör elindult — lásd clockLead().
-    // A kliensnek küldött kör-kezdet ezzel korrigálva megy ki, hogy a szellem
-    // és a futó óra a valódi faliórához igazodjon.
-    lapStartLead: 0,
     lapTimes: [],
     bestLapTime: null,
     ghostFrames: null,
@@ -250,6 +242,7 @@ export class RaceController {
           offtrack: false,
         },
         lastSeq: 0,
+        lastAcceptedSeq: 0,
         lastStateAt: 0,
         lastMovementAt: 0,
         movementSamples: [],
@@ -283,9 +276,9 @@ export class RaceController {
     const state = sanitizeClientCarState(raw);
     if (!state) return false;
 
-    // A kliens `t` mezője csak hálózati diagnosztika lehet. A szerver saját,
-    // monoton idővonalát a beérkezési időből és a korlátozott sorszámkülönbségből
-    // építi; ugyanaz hajtja a mozgásvizsgálatot és a körórát is.
+    // A kliens szerverórára vetített fizikai időpontját ugyanaz az idővonal
+    // használja a mozgásvizsgálathoz és a körórához. Az abszolút értéket és a
+    // monoton haladást is a szerver korlátozza.
     const eventTime = Math.max(car.lastStateAt || -Infinity, receivedAt);
     if (!initial && car.pendingReset) {
       const distanceToTarget = Math.hypot(
@@ -302,9 +295,11 @@ export class RaceController {
       car.pendingReset = null;
       car.acceptTeleportOnce = distanceToTarget <= RESET_ACK_RADIUS_METERS;
     }
-    const movementAt = initial ? eventTime : nextMovementTime(car, seq, eventTime);
+    const stateClock = clientStateTime(car, raw?.t, eventTime, { initial });
+    const movementAt = stateClock.at;
     const validationFailed = !initial && (
-      exceedsSpeedLimit(state)
+      !stateClock.valid
+      || exceedsSpeedLimit(state)
       || (!car.acceptTeleportOnce && hasImplausibleMovement(car, state, movementAt))
     );
 
@@ -315,8 +310,19 @@ export class RaceController {
       state.offtrack = allWheelsOffTrack(this.zoneRuntime, stateBody(state), SERVER_WHEEL_PROBES);
     }
 
+    // A hibás állapot nemcsak a köridő szempontjából veszélyes: a fogadó
+    // kliensek dinamikus ütköző proxyt építenek belőle. Ezért nem relézzük és
+    // nem engedjük kaput keresztezni sem. A sorszámot viszont elfogyasztjuk,
+    // hogy ugyanazt a csomagot ne lehessen újrajátszani.
+    if (validationFailed) {
+      car.lastSeq = Math.max(car.lastSeq, seq);
+      if (car.race.hasCrossedStart) this.flagServerValidation(car);
+      return false;
+    }
+
     car.state = state;
     car.lastSeq = Math.max(car.lastSeq, seq);
+    car.lastAcceptedSeq = car.lastSeq;
     car.lastStateAt = eventTime;
     car.lastMovementAt = movementAt;
     car.acceptTeleportOnce = false;
@@ -328,18 +334,7 @@ export class RaceController {
       car.race.prevAt = movementAt;
       return true;
     }
-    const wasOnMeasuredLap = car.race.hasCrossedStart;
-    if (validationFailed && wasOnMeasuredLap) this.flagServerValidation(car);
-    // Ugyanaz az idővonal hajtja a mozgásvizsgálatot és a körórát. Korábban a
-    // sorszám időt adott a mozgásnak, a kapuk viszont a közel azonos beérkezési
-    // időből számoltak; egy csomagköteg így akár 0 ms-os érvényes kört adott.
     this.updateCarProgress(car, movementAt);
-    // Ha pont a szabálytalan szakasz metszette először a rajtvonalat, már az
-    // így elkezdett kör legyen érvénytelen. Célba érésnél az előzetes jelölés
-    // viszont már a lezárt körre került, ezért ott nem jelölünk még egyet.
-    if (validationFailed && !wasOnMeasuredLap && car.race.hasCrossedStart) {
-      this.flagServerValidation(car);
-    }
     return true;
   }
 
@@ -353,6 +348,7 @@ export class RaceController {
     return this.receiveState(playerId, {
       ...state,
       seq: Math.trunc(Number(raw?.seq) || 0),
+      t: raw?.t,
       p: [car.state.p[0], Math.max(-1_000, Math.min(10_000, state.p[1])), car.state.p[2]],
       q: [...car.state.q],
       v: [0, 0, 0],
@@ -417,8 +413,10 @@ export class RaceController {
     };
     car.race.prevX = x;
     car.race.prevZ = z;
-    car.race.prevAt = car.lastStateAt || Date.now();
-    car.lastMovementAt = car.race.prevAt;
+    const resetAt = Math.max(Date.now(), car.lastMovementAt || 0);
+    car.race.prevAt = resetAt;
+    car.lastStateAt = resetAt;
+    car.lastMovementAt = resetAt;
     car.movementSamples = [{ p: [...car.state.p], at: car.lastMovementAt }];
     car.acceptTeleportOnce = true;
     car.pendingReset = { x, z, expiresAt: Date.now() + RESET_ACK_TIMEOUT_MS };
@@ -464,6 +462,27 @@ export class RaceController {
       gate, fromX, fromZ, toX, toZ,
       (x, z) => sampleZone(this.zoneRuntime, x, z) === ZONE_ASPHALT
     );
+  }
+
+  restartCheckpointRejectedLap(car, crossedAt, checkpointCount) {
+    const r = car.race;
+    const baseKey = r.lap * (checkpointCount + 1);
+    for (let key = baseKey + 1; key <= baseKey + checkpointCount; key++) r.splits.delete(key);
+    r.progressKey = baseKey;
+    r.splits.set(baseKey, crossedAt);
+    r.nextCheckpoint = 0;
+    r.passed.clear();
+    r.taintReason = TAINT.NONE;
+    r.lapStart = crossedAt;
+    r.lastSplitIndex = -1;
+    r.lastSplitMs = 0;
+    this.beginGhostRecording(car, crossedAt);
+    // Multiplayer futamban egy kihagyott checkpointtal rövidített, bár
+    // „invalid” kör sem számíthat bele a versenytávba. Különben az eredményt
+    // továbbra is a pálya akár 20%-ának levágásával lehetne megnyerni.
+    this.broadcast(S2C.RACE_EVENT, {
+      kind: 'lapRetry', playerId: car.playerId, startedAt: Math.round(crossedAt),
+    });
   }
 
   updateCarProgress(car, now) {
@@ -519,7 +538,6 @@ export class RaceController {
       r.passed.clear();
       r.taintReason = TAINT.NONE;
       r.lapStart = crossedAt;
-      r.lapStartLead = clockLead(car);
       r.lastSplitIndex = -1;
       this.beginGhostRecording(car, crossedAt);
       r.progressKey = r.lap * (checkpoints.length + 1);
@@ -532,6 +550,7 @@ export class RaceController {
     }
     if (r.passed.size < requiredCheckpoints(checkpoints.length)) {
       r.taintReason = TAINT.CHECKPOINT;
+      if (!this.room.endlessLaps) this.restartCheckpointRejectedLap(car, crossedAt, checkpoints.length);
       return;
     }
 
@@ -540,6 +559,10 @@ export class RaceController {
       heading: headingFrom(fromX, fromZ, x, z, car.respawn.heading),
     };
     if (r.passed.size < checkpoints.length) r.taintReason = TAINT.CHECKPOINT;
+    if (!this.room.endlessLaps && r.taintReason === TAINT.CHECKPOINT) {
+      this.restartCheckpointRejectedLap(car, crossedAt, checkpoints.length);
+      return;
+    }
     if (!this.room.endlessLaps && r.lap + 1 >= this.room.laps && r.pit.required && !r.pit.completed) {
       r.taintReason = TAINT.PIT_STOP;
     }
@@ -559,7 +582,6 @@ export class RaceController {
     r.passed.clear();
     r.taintReason = TAINT.NONE;
     r.lapStart = crossedAt;
-    r.lapStartLead = clockLead(car);
     // Új kör: a delta-kijelző ne az előző kör utolsó részidejét hasonlítgassa.
     r.lastSplitIndex = -1;
     if (this.room.endlessLaps) {
@@ -581,7 +603,7 @@ export class RaceController {
       r.finished = true;
       r.finishedAt = crossedAt;
       this.broadcast(S2C.RACE_EVENT, { kind: 'finished', playerId: car.playerId });
-      this.armFinishDeadline(crossedAt, clockLead(car));
+      this.armFinishDeadline(crossedAt);
     }
     if ([...this.cars.values()].every((entry) => entry.race.finished)) void this.endRace();
   }
@@ -592,15 +614,12 @@ export class RaceController {
   // Ha ekkor már mindenki célban van, nincs mit indítani — a hívó úgyis
   // azonnal lezárja a futamot. Ezért ez a feltétel egyben a Hot Lapot is
   // kizárja: ott egyetlen igazi autó van, amelyik a befutójával végzett is.
-  // A határidőt a faliórához mérjük — a pump() a Date.now()-hoz hasonlítja, és
-  // a kliens is a saját órájából számolja a visszaszámlálót. A befutó ideje
-  // viszont a mozgás-óráról jön, ezért annak az előnyét itt le kell vonni.
-  // Enélkül a mezőny pontosan a győztes akadásának méretével kapott több időt,
-  // és a képernyőn látszó szám is ennyivel volt optimista.
-  armFinishDeadline(finishedAt, lead = 0) {
+  // A kliens mozgásideje már szerveróra-tartományban van, ezért ugyanazon az
+  // abszolút idővonalon képezhető belőle a pump() által figyelt határidő.
+  armFinishDeadline(finishedAt) {
     if (this.finishDeadline !== null) return;
     if ([...this.cars.values()].every((entry) => entry.race.finished)) return;
-    this.finishDeadline = finishedAt - lead + FINISH_GRACE_MS;
+    this.finishDeadline = finishedAt + FINISH_GRACE_MS;
   }
 
   orderedCars() {
@@ -642,7 +661,11 @@ export class RaceController {
         st: +car.state.st.toFixed(3),
         wr: +car.state.wr.toFixed(2),
         th: car.race.finished ? 0 : +car.state.th.toFixed(2),
-        seq: car.lastSeq,
+        seq: car.lastAcceptedSeq,
+        // Az állapot SAJÁT időpontja, nem a snapshot összeállításának ideje.
+        // Változatlan autóállapot változatlan `at`-tal ismétlődik, így a kliens
+        // felismeri a stale állapotot és az ütköző proxy időkorlátja is működik.
+        at: Math.round(car.lastMovementAt),
         ti: car.race.taintReason,
         lap: car.race.lap,
         cp: car.race.nextCheckpoint,
@@ -651,12 +674,8 @@ export class RaceController {
         best: bestLap === null ? null : Math.round(bestLap),
         last: lastLap ? Math.round(lastLap.time) : null,
         li: !!lastLap?.invalid,
-        // A kör kezdete a FALIÓRÁRA visszaszámolva megy ki: a kliens ehhez méri
-        // a szellemet és a futó órát, a mozgás-óra előnyét tehát le kell vonni
-        // (lásd clockLead()). A hiteles köridőt ez nem érinti — az továbbra is
-        // a szerveren, a mozgás-órán képzett különbség.
         ls: car.race.hasCrossedStart
-          ? Math.round(car.race.lapStart - car.race.lapStartLead)
+          ? Math.round(car.race.lapStart)
           : null,
         fin: !!car.race.finished,
         pc: !!car.race.pit.completed,
@@ -694,9 +713,20 @@ export class RaceController {
 
   async endRace() {
     if (this.stopped) return;
+    // Egy már lecserélt Hot Lap-próbálkozás sem a szobát, sem az új futamot
+    // nem írhatja felül. Ezt még bármilyen állapotváltoztatás előtt döntjük el.
+    if ((this.room.sim && this.room.sim !== this)
+      || (Number.isFinite(this.room.raceGeneration)
+        && this.room.raceGeneration !== this.generation)) {
+      this.stop();
+      return;
+    }
     this.stop();
     this.room.state = ROOM_STATE.FINISHED;
-    const results = [...this.cars.values()]
+    // Ugyanaz a sorrend zárja a futamot, mint amit az utolsó élő snapshot
+    // mutatott. A puszta `laps + completed-lap total` a még pályán lévő,
+    // azonos körön haladó autókat rossz sorrendbe rendezte.
+    const results = this.orderedCars()
       .map((car) => {
         const valid = car.race.lapTimes.filter((lap) => !lap.invalid).map((lap) => lap.time);
         return {
@@ -707,15 +737,21 @@ export class RaceController {
           bestLapMs: valid.length ? Math.round(Math.min(...valid)) : null,
           finishedAt: car.race.finishedAt || null,
         };
-      })
-      .sort((a, b) => (b.lapsCompleted - a.lapsCompleted) || (a.totalMs - b.totalMs));
+      });
     results.forEach((result, index) => { result.position = index + 1; });
-    await this.room.recordResults(results, this.raceId).catch(() => {});
-    if (this.room.sim !== this || this.room.raceGeneration !== this.generation) return;
+    this.room.lastResults = results;
+
+    // A hálózati lezárás nem várhat adatbázisra. Egy lassú vagy elérhetetlen
+    // DB korábban befagyasztotta az eredményképernyőt, miközben a szerver már
+    // leállította a snapshotokat. A mentés háttérben, a rögzített raceId-val
+    // fut; a Room generációvédelme nem engedi, hogy egy új futamot leválasszon.
     this.broadcast(S2C.RACE_END, { results });
     this.room.state = ROOM_STATE.LOBBY;
-    this.room.sim = null;
+    if (this.room.sim === this) this.room.sim = null;
     this.broadcast(S2C.ROOM_STATE, { room: this.room.toJSON() });
+    this.persistence = Promise.resolve()
+      .then(() => this.room.recordResults(results, this.raceId))
+      .catch(() => {});
   }
 
   stop() {

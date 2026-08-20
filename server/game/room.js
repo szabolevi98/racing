@@ -46,6 +46,7 @@ export class Room {
     this.loadingSince = 0;    // mikor kezdődött a betöltési szakasz (időkorláthoz)
     this.loadTimer = null;    // a betöltési időkorlát órája, hogy le is lehessen állítani
     this.restarting = false;
+    this.lastResults = null;   // rövid reconnect alatt elmulasztott RACE_END pótlásához
     this.raceGeneration = 0;  // az elkéső, már lecserélt vezérlők érvénytelenítéséhez
     this.createdAt = Date.now();
   }
@@ -207,6 +208,7 @@ export class Room {
   // vagy a rajt után csöppent be.
   async beginLoading() {
     this.state = ROOM_STATE.LOADING;
+    this.lastResults = null;
     this.countdownEndsAt = 0;
     this.loadingSince = Date.now();
     // Új verseny: a korábbi "kész" jelzések nem érvényesek rá.
@@ -275,11 +277,15 @@ export class Room {
   }
 
   async recordResults(results, raceId = this.raceId) {
-    for (const r of results) {
+    // A befejezett futamot azonnal leválasztjuk a szobáról. Közben már
+    // indulhat új raceId-val a következő anélkül, hogy a régi mentése azt
+    // később nullára írná. A játékosonkénti INSERT-ek egymástól függetlenek,
+    // ezért nem kell sorban kivárni őket.
+    if (this.raceId === raceId) this.raceId = null;
+    await Promise.all(results.map(async (r) => {
       const p = this.players.get(r.playerId);
       if (p) await saveResult(raceId, p.dbId, r).catch(() => {});
-    }
+    }));
     await finishRace(raceId).catch(() => {});
-    if (this.raceId === raceId) this.raceId = null;
   }
 }

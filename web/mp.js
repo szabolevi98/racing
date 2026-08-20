@@ -2,7 +2,7 @@
 // szerver ellenőrzi és továbbítja. A többi autó snapshotból, interpolálva jelenik meg.
 import {
   C2S, S2C, ROOM_STATE, GAME_MODE, TAINT, TICK_MS,
-  PLAYER_TOKEN_LENGTH, sanitizeName, sanitizePlayerToken,
+  PLAYER_TOKEN_LENGTH, RECONNECT_GRACE_MS, sanitizeName, sanitizePlayerToken,
 } from '/shared/protocol.js';
 import {
   forwardSpeed, REVERSE_BRAKE_THRESHOLD, shouldBrakeFinishedVelocity, STEER_VISUAL_SPEED,
@@ -22,6 +22,7 @@ import {
 } from '/shared/renderClock.js';
 import { createPitState, hasCompletePitConfig, updatePitState } from '/shared/pit.js';
 import { smoothPing, updateMinRtt, acceptsClockSample } from '/shared/ping.js';
+import { remoteExtrapolationTiming, remoteSnapshotSample } from '/shared/remoteSnapshot.js';
 import { t, hasKey, onLanguageChange, applyToDom } from './lang.js';
 import {
   NET_DIAG_CONNECTION, NET_DIAG_EVENT, NET_DIAG_INCIDENT, NET_DIAG_RACE_STAGE,
@@ -78,6 +79,11 @@ const THREE = G.THREE;
 
 let ws = null;
 let me = { id: null, name: null, token: localStorage.getItem('racing.token') || null };
+let resumeSessionId = null;
+let reconnecting = false;
+let reconnectTimer = null;
+let reconnectDeadline = 0;
+let reconnectAttempt = 0;
 let room = null;
 let starting = null;
 let pendingHotLap = null;
@@ -600,6 +606,8 @@ $('mpRenameName').addEventListener('keydown', (e) => { if (e.key === 'Enter') $(
 let loggingOut = false;
 $('mpLogout').addEventListener('click', () => {
   loggingOut = true;
+  cancelReconnect();
+  resumeSessionId = null;
   pendingAuthentication = null;
   pendingHotLap = null;
   localStorage.removeItem('racing.token');
@@ -613,7 +621,7 @@ $('mpLogout').addEventListener('click', () => {
   show('mpRoom', false);
   setErr('');
   stopPingLoop();
-  if (ws && ws.readyState <= WebSocket.OPEN) ws.close();
+  if (ws && ws.readyState <= WebSocket.OPEN) ws.close(1000, 'logout');
   else {
     ws = null;
     loggingOut = false;
@@ -956,6 +964,69 @@ $('mpBrowseList').addEventListener('click', (e) => {
 
 let pendingAuthentication = null;
 
+function cancelReconnect() {
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  reconnectTimer = null;
+  reconnecting = false;
+  reconnectDeadline = 0;
+  reconnectAttempt = 0;
+}
+
+function disableRemoteProxies() {
+  for (const [id, other] of others) {
+    other.proxyActive = false;
+    other.proxyPose = null;
+    G.setRemoteCarProxy(id, null);
+  }
+}
+
+function leaveDisconnectedRace({ restoreProfile = false } = {}) {
+  cancelReconnect();
+  resumeSessionId = null;
+  const token = me.token;
+  const name = me.name || localStorage.getItem('racing.name') || t('mp.defaultName');
+  const wasInGame = G.appState === 'mp';
+  clearOtherCars();
+  hideMultiplayerResults();
+  cancelRaceLoad();
+  stopInputLoop();
+  awaitingFirstSnapshot = false;
+  room = null;
+  starting = null;
+  G.detachMultiplayerFrame();
+  if (wasInGame) G.leaveMultiplayer();
+  me = { id: null, name, token };
+  show('mpLogin', true);
+  show('mpRooms', false);
+  show('mpRoom', false);
+  if (restoreProfile && token) {
+    authenticate(C2S.HELLO, { name: sanitizeName(name), token });
+  }
+}
+
+function scheduleRaceReconnect() {
+  if (!resumeSessionId || loggingOut) return leaveDisconnectedRace();
+  const now = performance.now();
+  if (!reconnecting) {
+    reconnecting = true;
+    netDiagnostics.record(NET_DIAG_EVENT.CONNECTION, NET_DIAG_CONNECTION.RECONNECTING);
+    reconnectDeadline = now + RECONNECT_GRACE_MS - 750;
+    reconnectAttempt = 0;
+  }
+  if (now >= reconnectDeadline) {
+    setErr('A kapcsolat nem állt helyre időben.');
+    leaveDisconnectedRace({ restoreProfile: true });
+    return;
+  }
+  if (reconnectTimer) return;
+  const delay = Math.min(1_500, 250 * (2 ** Math.min(3, reconnectAttempt++)));
+  setErr('Kapcsolat helyreállítása…');
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    authenticate(C2S.RESUME_SESSION, { sessionId: resumeSessionId });
+  }, delay);
+}
+
 const ROOM_STATE_DIAG_CODE = Object.freeze({
   [ROOM_STATE.LOBBY]: 1,
   [ROOM_STATE.LOADING]: 2,
@@ -994,7 +1065,7 @@ function authenticate(type, data) {
   socket.addEventListener('open', () => {
     if (ws !== socket) return;
     netDiagnostics.record(NET_DIAG_EVENT.CONNECTION, NET_DIAG_CONNECTION.OPEN);
-    setErr('');
+    if (!reconnecting) setErr('');
     const auth = pendingAuthentication;
     if (auth) send(auth.type, auth.data);
     startPingLoop();
@@ -1027,20 +1098,24 @@ function authenticate(type, data) {
     }
     loggingOut = false;
     ws = null;
-    setErr(wasLoggingOut ? '' : 'A kapcsolat megszakadt.');
-    // Verseny közbeni szakadásnál a többiek kocsija ott ragadna a pályán —
-    // örökre mozdulatlanul, hiszen több snapshot nem jön hozzájuk.
-    clearOtherCars();
-    hideMultiplayerResults();
-    cancelRaceLoad();
-    show('mpLogin', true); show('mpRooms', false); show('mpRoom', false);
     stopInputLoop();
     stopPingLoop();
-    awaitingFirstSnapshot = false;
-    room = null;
-    starting = null;
-    G.detachMultiplayerFrame();
-    if (G.appState === 'mp') G.leaveMultiplayer();
+    if (!wasLoggingOut && connectionWasInRace && resumeSessionId) {
+      // A helyi fizika megáll ugyanazon a pózon; a szerver is ezt az utolsó
+      // elfogadott állapotot tartja. A távoli proxykat azonnal levesszük, hogy
+      // a snapshotok nélküli vak időben ne maradjon aktív ütközőtest.
+      disableRemoteProxies();
+      G.setMultiplayerControlsEnabled(false);
+      // Betöltés közben még nem indulhat el az input loop egy közben érkező
+      // snapshotra; a beginRace() majd a fizikai világ elkészültekor élesíti.
+      awaitingFirstSnapshot = G.appState === 'mp';
+      resetNetworkRaceState();
+      resetPredState();
+      scheduleRaceReconnect();
+      return;
+    }
+    setErr(wasLoggingOut ? '' : 'A kapcsolat megszakadt.');
+    leaveDisconnectedRace();
   });
   socket.addEventListener('error', () => {
     if (ws !== socket) return;
@@ -1048,14 +1123,17 @@ function authenticate(type, data) {
     if (G.appState === 'mp' || starting) {
       netDiagnostics.captureIncident(NET_DIAG_INCIDENT.CONNECTION_LOST);
     }
-    setErr(t('mp.connectFailed'));
+    if (!reconnecting) setErr(t('mp.connectFailed'));
   });
 }
 
 function onMessage(m) {
   switch (m.type) {
     case S2C.WELCOME:
+      cancelReconnect();
+      pendingAuthentication = null;
       me = { id: m.playerId, name: m.name, token: m.token };
+      resumeSessionId = sanitizePlayerToken(m.sessionId) || null;
       localStorage.setItem('racing.token', m.token);
       localStorage.setItem('racing.name', m.name);
       $('mpToken').value = '';
@@ -1064,6 +1142,61 @@ function onMessage(m) {
         show('mpLogin', false); show('mpRooms', true);
         requestRoomList();
       }
+      break;
+
+    case S2C.SESSION_RESUMED:
+      netDiagnostics.record(NET_DIAG_EVENT.CONNECTION, NET_DIAG_CONNECTION.RESUMED);
+      cancelReconnect();
+      pendingAuthentication = null;
+      me = { id: m.playerId, name: m.name, token: m.token };
+      resumeSessionId = sanitizePlayerToken(m.sessionId) || resumeSessionId;
+      room = m.room;
+      setErr('');
+      if (!room) {
+        leaveDisconnectedRace({ restoreProfile: true });
+        break;
+      }
+      recordRoomDiagnostic(room);
+      const resumedPlayerIds = new Set(room.players?.map((player) => player.id) || []);
+      for (const id of [...others.keys()]) {
+        if (!resumedPlayerIds.has(id)) removeOtherCar(id);
+      }
+      for (const other of others.values()) other.buf.length = 0;
+      disableRemoteProxies();
+      resetNetworkRaceState();
+      resetPredState();
+      if (Array.isArray(m.results) && m.results.length) {
+        showResults(m.results);
+      } else {
+        if (G.appState === 'mp') {
+          // Ha a pályabetöltés pont a kapcsolat nélküli ablakban ért véget, a
+          // SET_READY csomag elveszett. A szoba visszhangjából ezt felismerjük
+          // és ugyanazzal a kanonikus helyi állapottal megismételjük.
+          const self = room.players?.find((player) => player.id === me.id);
+          if (self?.ready !== true) {
+            const state = G.getCarState();
+            const wheels = G.getWheelNetworkState?.() || { st: 0, wr: 0 };
+            send(C2S.SET_READY, {
+              ready: true,
+              state: {
+                seq: inputSeq,
+                t: serverNow(),
+                ...state,
+                ...wheels,
+                th: 0,
+                offtrack: !!G.isCarFullyOffTrack?.(),
+              },
+            });
+          }
+          awaitingFirstSnapshot = true;
+          G.setMultiplayerControlsEnabled(!finishedDriving && !raceEnded);
+        }
+      }
+      break;
+
+    case S2C.SESSION_RESUME_FAILED:
+      setErr('A futamhoz tartozó kapcsolat lejárt.');
+      leaveDisconnectedRace({ restoreProfile: true });
       break;
 
     case S2C.PROFILE_UPDATED:
@@ -1183,6 +1316,20 @@ function onMessage(m) {
           reset,
         );
         if (reset) resetPredState();
+      } else {
+        // A távoli reset nem normál mozgásminta. Ha a régi és a checkpointi
+        // pózt ugyanabban a pufferben hagynánk, a render interpolálva
+        // végighúzná az autót a pályán, a fizikai proxy pedig ezt a hamis utat
+        // követné. A következő hiteles snapshot tiszta pufferből jeleníti meg.
+        const other = others.get(m.playerId);
+        if (other) {
+          other.buf.length = 0;
+          other.present = false;
+          other.proxyActive = false;
+          other.proxyPose = null;
+          other.group.visible = false;
+          G.setRemoteCarProxy(m.playerId, null);
+        }
       }
       break;
 
@@ -1213,11 +1360,17 @@ function onMessage(m) {
         // szerver által mért köridőt, így az Aktuális óra nem ugrik.
         myLapStartedAt = (myLapStartedAt || starting?.startsAt || serverNow()) + m.timeMs;
       }
+      if (m.kind === 'lapRetry' && m.playerId === me.id) {
+        myLapStartedAt = Number.isFinite(m.startedAt) ? m.startedAt : serverNow();
+        lapSplits = [];
+        lastSeenSplitIndex = -1;
+        hideSplitDelta();
+      }
       if (m.kind === 'finished' && m.playerId === me.id) {
         finishedDriving = true;
         G.setMultiplayerControlsEnabled(false);
       }
-      if (m.kind !== 'validation') {
+      if (m.kind !== 'validation' && m.kind !== 'lapRetry') {
         lastEvents.unshift(m);
         lastEvents = lastEvents.slice(0, 4);
       }
@@ -1656,6 +1809,7 @@ async function addOtherCar(p, onProgress, loadGeneration) {
     engineAudio: G.createRemoteEngine(), buf: [], color: p.color, name: p.name, lap: 0, cp: 0,
     rank: 0, gap: null, bestLap: null, lastLap: null, lastLapInvalid: false, finished: false,
     detailPhase: remoteDetailPhase(p.id), audioDt: 0, visualSteerAngle: 0,
+    proxyPose: null,
   });
 }
 
@@ -1983,10 +2137,23 @@ function onSnapshot(m) {
     if (entry) entry.present = present;
     const buf = present ? entry?.buf : null;
     if (buf) {
-      buf.push({
-        t: m.t, p: c.p, q: c.q, v: c.v, w: c.w,
-        st: c.st ?? 0, wr: c.wr ?? 0, th: c.th, seq: c.seq, lap: c.lap,
-      });
+      const previous = buf[buf.length - 1];
+      const sample = remoteSnapshotSample(previous, c, m.t);
+      // A snapshot 20 Hz-es, az autóállapot viszont csak akkor új, ha a
+      // szerver ténylegesen elfogadott hozzá új csomagot. A régi kód minden
+      // snapshot globális `m.t` idejével újramintázta ugyanazt a pozíciót:
+      // ettől a stale autó frissnek látszott, az extrapoláció újra és újra
+      // nekifutott, a fizikai proxy pedig soha nem évült el.
+      //
+      // Az azonos seq melletti újabb autónkénti idő egy szerveres reset lehet,
+      // ezért azt az új protokollban elfogadjuk. Régi szervernél (nincs `at`)
+      // kizárólag a sorszám növekedése jelent új mintát.
+      if (sample.isNew) {
+        buf.push({
+          t: sample.stateTime, p: c.p, q: c.q, v: c.v, w: c.w,
+          st: c.st ?? 0, wr: c.wr ?? 0, th: c.th, seq: sample.sequence, lap: c.lap,
+        });
+      }
       // Az adaptív puffer nagy pingnél 400 ms-ig nőhet; két másodpercnyi múlt
       // elég hozzá és a proxyk jelenre történő extrapolációjához is.
       while (buf.length > 40) buf.shift();
@@ -2129,6 +2296,7 @@ const REMOTE_EXTRAP_MAX_MS = 250;
 // elmaradás. Efölött a régi állapotokat nem küldjük el — lásd sendOneInput().
 const STATE_BACKLOG_LIMIT_BYTES = 1400;
 let statesDropped = 0;
+let lastProxySyncDiagnosticAt = -Infinity;
 // A pálya köde 700 méternél már 5% alá csökkenti a kontrasztot. A teljes,
 // több százezer háromszöges autómodellt ott már nem érdemes kirajzolni. A
 // minitérképes jel megmarad, és spectate-ben a kocsi mindig kivétel.
@@ -2150,15 +2318,19 @@ function remoteStateAt(buf, targetServerTime) {
   if (!buf.length) return null;
   const latest = buf[buf.length - 1];
   if (targetServerTime <= latest.t) return sampleAt(buf, targetServerTime);
-  const ageMs = Math.max(0, Math.min(REMOTE_EXTRAP_MAX_MS, targetServerTime - latest.t));
-  const dt = ageMs / 1000;
+  const timing = remoteExtrapolationTiming(latest.t, targetServerTime, REMOTE_EXTRAP_MAX_MS);
+  const dt = timing.ageMs / 1000;
   const v = latest.v || [0, 0, 0];
   const w = latest.w || [0, 0, 0];
   return {
     p: [latest.p[0] + v[0] * dt, latest.p[1] + v[1] * dt, latest.p[2] + v[2] * dt],
     q: integrateRotation(latest.q, w, dt),
-    v,
-    w,
+    // A 250 ms-os becslési határ után a POZÍCIÓ már nem mozoghat tovább.
+    // Ilyenkor a sebességet is nullázzuk: különben a dinamikus Rapier-proxy
+    // minden tickben előregurulna, majd a befagyott hálózati cél visszahúzná —
+    // épp az a kontakt alatti fűrészfog, amit ki akarunk zárni.
+    v: timing.moving ? v : [0, 0, 0],
+    w: timing.moving ? w : [0, 0, 0],
     st: latest.st ?? 0,
     wr: latest.wr ?? 0,
     th: latest.th ?? 0,
@@ -2172,11 +2344,22 @@ function syncRemoteProxies(targetServerTime) {
   if (starting?.ghostMode === true || room?.ghostMode === true) return;
   const mine = G.getCarState().p;
   const now = serverNow();
+  let activeCount = 0;
+  let staleCount = 0;
+  let maxStateAgeMs = 0;
+  let maxCorrectionM = 0;
+  let clampedCount = 0;
+  let hardResetCount = 0;
+  let maxSequenceGap = 0;
   for (const [id, o] of others) {
     const latest = o.buf[o.buf.length - 1];
     const state = remoteStateAt(o.buf, targetServerTime);
-    if (!latest || !state || now - latest.t > REMOTE_PROXY_MAX_AGE_MS) {
+    const stateAgeMs = latest ? Math.max(0, now - latest.t) : Infinity;
+    if (Number.isFinite(stateAgeMs)) maxStateAgeMs = Math.max(maxStateAgeMs, stateAgeMs);
+    if (!latest || !state || stateAgeMs > REMOTE_PROXY_MAX_AGE_MS) {
+      if (latest) staleCount++;
       o.proxyActive = false;
+      o.proxyPose = null;
       G.setRemoteCarProxy(id, null);
       continue;
     }
@@ -2185,7 +2368,35 @@ function syncRemoteProxies(targetServerTime) {
     o.proxyActive = o.proxyActive
       ? distSq <= REMOTE_PROXY_EXIT_RANGE_SQ
       : distSq <= REMOTE_PROXY_RANGE_SQ;
-    G.setRemoteCarProxy(id, o.proxyActive ? state : null);
+    const correction = G.setRemoteCarProxy(id, o.proxyActive ? state : null);
+    o.proxyPose = correction && o.proxyActive ? {
+      p: [correction.position.x, correction.position.y, correction.position.z],
+      q: [correction.rotation.x, correction.rotation.y, correction.rotation.z, correction.rotation.w],
+    } : null;
+    if (o.proxyActive) activeCount++;
+    if (correction) {
+      maxCorrectionM = Math.max(maxCorrectionM, correction.distance || 0);
+      if (correction.clamped) clampedCount++;
+      if (correction.hardReset) hardResetCount++;
+    }
+    const previous = o.buf[o.buf.length - 2];
+    if (previous) maxSequenceGap = Math.max(maxSequenceGap, latest.seq - previous.seq);
+  }
+  const diagnosticNow = performance.now();
+  if (others.size && (hardResetCount || diagnosticNow - lastProxySyncDiagnosticAt >= 50)) {
+    lastProxySyncDiagnosticAt = diagnosticNow;
+    netDiagnostics.record(
+      NET_DIAG_EVENT.PROXY_SYNC,
+      others.size,
+      activeCount,
+      staleCount,
+      maxStateAgeMs,
+      maxCorrectionM,
+      clampedCount,
+      hardResetCount,
+      maxSequenceGap,
+    );
+    if (hardResetCount) netDiagnostics.captureIncident(NET_DIAG_INCIDENT.PROXY_CORRECTION);
   }
 }
 
@@ -2439,9 +2650,16 @@ function frame(dt = 1 / 60) {
   // folyamatos, mint vezetés közben a sajátunk.
   const watchedEntry = spectateId ? others.get(spectateId) : null;
   for (const o of others.values()) {
+    const latest = o.buf[o.buf.length - 1];
     const currentState = remoteStateAt(o.buf, nowServer);
-    // Nincs valódi állapota (még tölt, vagy épp most lépett be): ne lássuk.
+    // Nincs valódi vagy még elfogadhatóan friss állapota: a kép és a fizikai
+    // proxy együtt tűnjön el. Így reconnect-türelmi idő alatt sincs 9
+    // másodpercig látható, de már átjárhatóvá vált „szellem-autó”.
     if (!currentState) {
+      hideRemoteCar(o);
+      continue;
+    }
+    if (!latest || nowServer - latest.t > REMOTE_PROXY_MAX_AGE_MS) {
       hideRemoteCar(o);
       continue;
     }
@@ -2511,10 +2729,19 @@ function frame(dt = 1 / 60) {
     const predictionBlend = remoteVisualPredictionBlend(Math.sqrt(distSq));
     const s = blendRemoteStates(delayedState, currentState, predictionBlend);
     if (!s) continue;
+    // Kontaktközelben a kép a TÉNYLEGES helyi fizikai proxyt kövesse. Normál
+    // hálózati állapotnál ez ugyanott van, mint `s`; ütközés vagy korlátozott
+    // proxykorrekció után viszont ez akadályozza meg, hogy a látható kasztni
+    // és az ütközőtest újra több méterre szétváljon. A távolsági blend miatt
+    // a proxy 60 m-es aktiválási határán sincs éles képi váltás.
+    const visualP = o.proxyPose
+      ? s.p.map((value, index) => value + (o.proxyPose.p[index] - value) * predictionBlend)
+      : s.p;
+    const visualQ = o.proxyPose ? slerp(s.q, o.proxyPose.q, predictionBlend) : s.q;
     const firstRenderedFrame = !o.renderReady;
     if (firstRenderedFrame) {
-      o.group.position.set(s.p[0], s.p[1], s.p[2]);
-      o.group.quaternion.set(s.q[0], s.q[1], s.q[2], s.q[3]);
+      o.group.position.set(visualP[0], visualP[1], visualP[2]);
+      o.group.quaternion.set(visualQ[0], visualQ[1], visualQ[2], visualQ[3]);
       o.renderReady = true;
     } else {
       // A fizikai proxy továbbra is a frissebb becslést használja. A látható
@@ -2528,16 +2755,16 @@ function frame(dt = 1 / 60) {
       // smootherLeadSeconds() indoklását.
       const lead = smootherLeadSeconds(alpha, dt);
       const v = s.v || [0, 0, 0];
-      const tx = s.p[0] + (v[0] || 0) * lead;
-      const ty = s.p[1] + (v[1] || 0) * lead;
-      const tz = s.p[2] + (v[2] || 0) * lead;
+      const tx = visualP[0] + (v[0] || 0) * lead;
+      const ty = visualP[1] + (v[1] || 0) * lead;
+      const tz = visualP[2] + (v[2] || 0) * lead;
       o.group.position.x += (tx - o.group.position.x) * alpha;
       o.group.position.y += (ty - o.group.position.y) * alpha;
       o.group.position.z += (tz - o.group.position.z) * alpha;
       // Ugyanez a lemaradás a FORGÁSRA is igaz: kanyarban a látható kocsi
       // orra elmaradna a valódi állásától.
       const q0 = [o.group.quaternion.x, o.group.quaternion.y, o.group.quaternion.z, o.group.quaternion.w];
-      const qr = slerp(q0, integrateRotation(s.q, s.w || [0, 0, 0], lead), alpha);
+      const qr = slerp(q0, integrateRotation(visualQ, s.w || [0, 0, 0], lead), alpha);
       o.group.quaternion.set(qr[0], qr[1], qr[2], qr[3]);
     }
     const targetSteer = s.st ?? 0;
@@ -2875,7 +3102,8 @@ function sendOneInput(scheduledAt) {
     localPitState.required && !localPitState.completed
   );
   G.renderPitStopHud(localPitState, localPitStopIndex);
-  recordPhysState(scheduledAt, state);
+  const steppedAt = scheduledAt + TICK_MS;
+  recordPhysState(steppedAt, state);
   // Nézői módban NEM a saját kocsink hajtja a sebességmérőt — azt a frame()
   // állítja a nézett kocsiról. Enélkül a két forrás váltogatná egymást: ez a
   // 60 Hz-es ciklus a leparkolt (0 km/h) sajátunkat írta ki, a képkockánkénti
@@ -2913,7 +3141,8 @@ function sendOneInput(scheduledAt) {
     );
     send(C2S.STATE, {
       seq: input.seq,
-      t: serverTimeFor(scheduledAt),
+      // A kiküldött állapot a world.step UTÁNI pillanatot írja le.
+      t: serverTimeFor(steppedAt),
       ...state,
       ...wheels,
       th: input.throttle,

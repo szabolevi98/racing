@@ -25,6 +25,8 @@ export const NET_DIAG_EVENT = Object.freeze({
   LAP: 12,
   SERVER_ERROR: 13,
   MANUAL_EXPORT: 14,
+  PROXY_SYNC: 15,
+  PROXY_CONTACT: 16,
 });
 
 export const NET_DIAG_INCIDENT = Object.freeze({
@@ -32,6 +34,7 @@ export const NET_DIAG_INCIDENT = Object.freeze({
   FRAME_STALL: 'frame_stall',
   CONNECTION_LOST: 'connection_lost',
   SERVER_VALIDATION: 'server_validation',
+  PROXY_CORRECTION: 'proxy_correction',
 });
 
 export const NET_DIAG_CONNECTION = Object.freeze({
@@ -39,6 +42,8 @@ export const NET_DIAG_CONNECTION = Object.freeze({
   OPEN: 2,
   CLOSED: 3,
   ERROR: 4,
+  RECONNECTING: 5,
+  RESUMED: 6,
 });
 
 export const NET_DIAG_RACE_STAGE = Object.freeze({
@@ -84,6 +89,13 @@ const EVENT_SCHEMA = Object.freeze({
   [NET_DIAG_EVENT.LAP]: ['lap', ['lap', 'timeMs', 'invalid', 'taintCode']],
   [NET_DIAG_EVENT.SERVER_ERROR]: ['server_error', ['duringRace']],
   [NET_DIAG_EVENT.MANUAL_EXPORT]: ['manual_export', []],
+  [NET_DIAG_EVENT.PROXY_SYNC]: ['proxy_sync', [
+    'remoteCount', 'activeProxyCount', 'staleProxyCount', 'maxStateAgeMs',
+    'maxCorrectionM', 'clampedCount', 'hardResetCount', 'maxSequenceGap',
+  ]],
+  [NET_DIAG_EVENT.PROXY_CONTACT]: ['proxy_contact', [
+    'proxyCount', 'manifoldCount', 'maxImpulse', 'totalImpulse', 'maxPenetrationM',
+  ]],
 });
 
 const INCIDENT_REASONS = new Set(Object.values(NET_DIAG_INCIDENT));
@@ -238,7 +250,7 @@ export class NetDiagnosticsRecorder {
     const fields = {};
     for (const [, [name, names]] of Object.entries(EVENT_SCHEMA)) fields[name] = ['relativeMs', ...names];
     return {
-      schemaVersion: 2,
+      schemaVersion: 3,
       generatedAt: new Date(this.wallNow()).toISOString(),
       windowMs: this.windowMs,
       privacy: 'No player names, room codes, authentication tokens or message text are recorded.',

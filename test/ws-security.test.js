@@ -63,7 +63,68 @@ test('rapid room creation is serialized and disconnect leaves no orphan rooms', 
     await new Promise((resolve) => ws.once('close', resolve));
     await waitForStats({ rooms: 0, players: 0 });
   } finally {
-    if (ws.readyState === WebSocket.OPEN) ws.close();
+    if (ws.readyState === WebSocket.OPEN) ws.close(1000, 'test complete');
+    await new Promise((resolve) => wss.close(resolve));
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('a running room keeps the same player through a brief reconnect', async () => {
+  const server = http.createServer();
+  const wss = attachWebSocket(server);
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const url = `ws://127.0.0.1:${server.address().port}/ws`;
+  const first = new WebSocket(url);
+  let second = null;
+  try {
+    await new Promise((resolve, reject) => {
+      first.once('open', resolve);
+      first.once('error', reject);
+    });
+    const welcomePromise = waitFor(first, (message) => message.type === S2C.WELCOME);
+    first.send(JSON.stringify({ type: C2S.HELLO, name: 'ReconnectAudit' }));
+    const welcome = await welcomePromise;
+    assert.ok(welcome.sessionId);
+
+    const manifest = await getManifest();
+    const roomPromise = waitFor(first, (message) => message.type === S2C.ROOM_STATE && message.room?.code);
+    first.send(JSON.stringify({
+      type: C2S.CREATE_ROOM,
+      mapId: manifest.maps[0].id,
+      carId: manifest.cars[0].id,
+      laps: 2,
+      isPublic: false,
+    }));
+    await roomPromise;
+    const startingPromise = waitFor(first, (message) => message.type === S2C.RACE_STARTING);
+    first.send(JSON.stringify({ type: C2S.START_RACE }));
+    await startingPromise;
+
+    const firstClosed = new Promise((resolve) => first.once('close', resolve));
+    first.terminate();
+    await firstClosed;
+    await waitForStats({ rooms: 1, players: 1 });
+
+    second = new WebSocket(url);
+    await new Promise((resolve, reject) => {
+      second.once('open', resolve);
+      second.once('error', reject);
+    });
+    const resumedPromise = waitFor(second, (message) => message.type === S2C.SESSION_RESUMED);
+    second.send(JSON.stringify({ type: C2S.RESUME_SESSION, sessionId: welcome.sessionId }));
+    const resumed = await resumedPromise;
+    assert.equal(resumed.playerId, welcome.playerId);
+    assert.equal(resumed.room?.players?.find((player) => player.id === welcome.playerId)?.connected, true);
+
+    const left = waitFor(second, (message) => message.type === S2C.ROOM_CLOSED);
+    second.send(JSON.stringify({ type: C2S.LEAVE_ROOM }));
+    await left;
+    second.close(1000, 'test complete');
+    await new Promise((resolve) => second.once('close', resolve));
+    await waitForStats({ rooms: 0, players: 0 });
+  } finally {
+    if (first.readyState === WebSocket.OPEN) first.close(1000, 'test cleanup');
+    if (second?.readyState === WebSocket.OPEN) second.close(1000, 'test cleanup');
     await new Promise((resolve) => wss.close(resolve));
     await new Promise((resolve) => server.close(resolve));
   }
@@ -196,7 +257,7 @@ test('movement waits for a canonical ready state and keeps its server grid posit
     assert.notEqual(serverCar.p[0], 999);
     assert.notEqual(serverCar.p[2], 999);
   } finally {
-    if (ws.readyState === WebSocket.OPEN) ws.close();
+    if (ws.readyState === WebSocket.OPEN) ws.close(1000, 'test complete');
     if (ws.readyState !== WebSocket.CLOSED) {
       await new Promise((resolve) => ws.once('close', resolve));
     }

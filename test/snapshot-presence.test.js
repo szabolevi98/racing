@@ -73,3 +73,37 @@ test('a rejected state does not make the player present', async () => {
     controller.stop();
   }
 });
+
+test('a snapshot preserves each car state time until a new safe state is accepted', async () => {
+  const { controller, sent } = makeController(1);
+  await controller.start();
+  try {
+    const state = {
+      seq: 1, t: 1_000,
+      p: [10, 1, 20], q: [0, 0, 0, 1], v: [0, 0, 0], w: [0, 0, 0],
+      st: 0, wr: 0, th: 0,
+    };
+    controller.receiveState('p0', state, { initial: true, receivedAt: 1_000 });
+    controller.sendSnapshot(1_100);
+    controller.sendSnapshot(1_200);
+    assert.equal(carOf(lastSnapshot(sent), 'p0').at, 1_000);
+    assert.equal(carOf(lastSnapshot(sent), 'p0').seq, 1);
+
+    assert.equal(controller.receiveState('p0', {
+      ...state, seq: 2, t: 1_250, p: [11, 1, 20], v: [160, 0, 0],
+    }, { receivedAt: 1_250 }), false);
+    controller.sendSnapshot(1_300);
+    assert.equal(carOf(lastSnapshot(sent), 'p0').at, 1_000,
+      'a karanténba tett póz nem frissítheti a proxy életkorát');
+    assert.equal(carOf(lastSnapshot(sent), 'p0').seq, 1);
+
+    assert.equal(controller.receiveState('p0', {
+      ...state, seq: 3, t: 1_400, p: [10.1, 1, 20],
+    }, { receivedAt: 1_400 }), true);
+    controller.sendSnapshot(1_450);
+    assert.equal(carOf(lastSnapshot(sent), 'p0').at, 1_400);
+    assert.equal(carOf(lastSnapshot(sent), 'p0').seq, 3);
+  } finally {
+    controller.stop();
+  }
+});

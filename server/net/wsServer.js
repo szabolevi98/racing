@@ -7,7 +7,7 @@ import { ERR } from '../../shared/errorCodes.js';
 import { randomUUID } from 'node:crypto';
 import {
   C2S, S2C, ROOM_STATE, GAME_MODE, ROOM_CODE_LENGTH, sanitizeName, sanitizePlayerToken,
-  RACE_LOAD_TIMEOUT_MS, paginateRooms,
+  RACE_LOAD_TIMEOUT_MS, RECONNECT_GRACE_MS, paginateRooms,
 } from '../../shared/protocol.js';
 import { Room } from '../game/room.js';
 import { RaceController, sanitizeClientCarState } from '../game/raceController.js';
@@ -116,7 +116,67 @@ function welcomePlayer(player, record) {
     playerId: player.id,
     token: record.token,
     name: record.name,
+    sessionId: player.sessionId,
   });
+}
+
+function resumePlayerConnection(candidate, rawSessionId) {
+  const sessionId = sanitizePlayerToken(rawSessionId);
+  const previous = sessionId
+    ? [...players.values()].find((entry) => (
+      entry !== candidate
+      && entry.sessionId === sessionId
+      && !entry.socket
+      && !!entry.reconnectTimer
+      && !!entry.roomCode
+    ))
+    : null;
+  if (!previous) {
+    send(candidate.socket, S2C.SESSION_RESUME_FAILED);
+    return null;
+  }
+
+  const socket = candidate.socket;
+  clearTimeout(previous.reconnectTimer);
+  previous.reconnectTimer = null;
+  previous.disconnectedAt = 0;
+  previous.socket = socket;
+  players.delete(candidate.id);
+  players.set(previous.id, previous);
+
+  const room = rooms.get(previous.roomCode);
+  send(socket, S2C.SESSION_RESUMED, {
+    playerId: previous.id,
+    token: previous.token,
+    name: previous.name,
+    sessionId: previous.sessionId,
+    room: room?.toJSON() || null,
+    results: room?.lastResults || null,
+  });
+  if (room) pushRoomState(room);
+  return previous;
+}
+
+function holdDisconnectedRacePlayer(player) {
+  const room = rooms.get(player.roomCode);
+  // Sima lobbyban a bontás valódi kilépés. Egy épp lezárt futam lobbyjában
+  // viszont még pótolnunk kellhet a kliens által elmulasztott RACE_END-et.
+  if (!room || (room.state === ROOM_STATE.LOBBY && !room.lastResults)) return false;
+  player.socket = null;
+  player.disconnectedAt = Date.now();
+  clearTimeout(player.reconnectTimer);
+  player.reconnectTimer = setTimeout(() => {
+    player.reconnectTimer = null;
+    if (player.socket) return;
+    leaveRoom(player, true);
+    players.delete(player.id);
+  }, RECONNECT_GRACE_MS);
+  // A többiek azonnal látják, hogy a kapcsolat eltűnt. A RaceControllerben
+  // maradó utolsó állapot saját időbélyege nem frissül, így a kliensek 750 ms
+  // után kikapcsolják a fizikai proxyt, miközben a session még visszatérhet.
+  pushRoomState(room);
+  maybeBeginCountdown(room);
+  return true;
 }
 
 function leaveRoom(player, reason) {
@@ -323,6 +383,10 @@ async function handleMessage(player, msg) {
         const initialState = sanitizeClientCarState(msg.state);
         if (!initialState) return fail(socket, ERR.BAD_INITIAL_STATE);
         initialState.seq = Math.trunc(Number(msg.state.seq) || 0);
+        // A sanitizer csak a fizikai mezőket engedi át. Az időbélyeget külön
+        // őrizzük meg, mert a RaceController saját szerveróra-ablakban
+        // ellenőrzi, és erről indítja az autó egyedi állapot-idővonalát.
+        initialState.t = Number(msg.state.t);
         if (room.sim) {
           if (!room.sim.receiveInitialState?.(player.id, initialState)) {
             return fail(socket, ERR.INITIAL_STATE_REJECTED);
@@ -527,8 +591,9 @@ export function attachWebSocket(httpServer) {
   });
 
   wss.on('connection', (socket) => {
-    const player = {
+    let player = {
       id: randomUUID(),
+      sessionId: randomUUID(),
       socket,
       name: null,
       dbId: null,
@@ -538,9 +603,11 @@ export function attachWebSocket(httpServer) {
       slot: null,
       ready: false,
       pendingInitialState: null,
+      reconnectTimer: null,
+      disconnectedAt: 0,
       rateLimits: new Map(),
-      messageChain: Promise.resolve(),
     };
+    let messageChain = Promise.resolve();
     players.set(player.id, player);
     socket.isAlive = true;
     socket.on('pong', () => { socket.isAlive = true; });
@@ -569,9 +636,14 @@ export function attachWebSocket(httpServer) {
       // Az EventEmitter nem várja meg az async callbacket. Saját sor nélkül két
       // CREATE_ROOM ugyanazon await előtt ellenőrizné a roomCode-ot, majd két
       // szobát hozna létre. A lánc kapcsolatonként megőrzi a drót sorrendjét.
-      player.messageChain = player.messageChain
+      messageChain = messageChain
         .then(async () => {
           if (!isActivePlayer(player)) return;
+          if (msg.type === C2S.RESUME_SESSION) {
+            const resumed = resumePlayerConnection(player, msg.sessionId);
+            if (resumed) player = resumed;
+            return;
+          }
           await handleMessage(player, msg);
         })
         .catch((err) => {
@@ -580,8 +652,13 @@ export function attachWebSocket(httpServer) {
         });
     });
 
-    socket.on('close', () => {
+    socket.on('close', (code) => {
+      // Egy régi socket close eseménye a sikeres resume UTÁN már nem
+      // bonthatja le az új kapcsolatot.
+      if (player.socket !== socket) return;
+      if (code !== 1000 && holdDisconnectedRacePlayer(player)) return;
       leaveRoom(player, true);
+      clearTimeout(player.reconnectTimer);
       players.delete(player.id);
     });
 
@@ -590,7 +667,8 @@ export function attachWebSocket(httpServer) {
 
   // Protokollszintű heartbeat: a böngésző akkor is automatikusan PONG-ol, ha a
   // JS főszála háttérben áll. A félbeszakadt TCP kapcsolat viszont a következő
-  // körben terminate-et kap, és a rendes close takarítja a szobáját/szimulációját.
+  // körben terminate-et kap; a close futam közben előbb reconnect-türelmi
+  // állapotba teszi, és csak annak lejárta takarítja a szobából.
   const heartbeat = setInterval(() => {
     for (const socket of wss.clients) {
       if (socket.isAlive === false) {
@@ -601,7 +679,16 @@ export function attachWebSocket(httpServer) {
       socket.ping();
     }
   }, HEARTBEAT_INTERVAL_MS);
-  wss.on('close', () => clearInterval(heartbeat));
+  wss.on('close', () => {
+    clearInterval(heartbeat);
+    // Leállításkor ne tartsák életben a Node folyamatot a reconnect timerek,
+    // és ne maradjon modul-szintű állapot egy következő beágyazott szerverhez.
+    for (const player of [...players.values()]) {
+      clearTimeout(player.reconnectTimer);
+      if (!player.socket) leaveRoom(player);
+      players.delete(player.id);
+    }
+  });
 
   console.log('WebSocket: /ws');
   return wss;

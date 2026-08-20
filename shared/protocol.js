@@ -6,6 +6,7 @@
 export const C2S = {
   HELLO: 'hello',              // { name, token? }        — belépés névvel
   RESTORE_PROFILE: 'restoreProfile', // { token }         — meglévő profil visszaállítása
+  RESUME_SESSION: 'resumeSession',   // { sessionId }     — rövid hálózati szakadás folytatása
   RENAME_PLAYER: 'renamePlayer',     // { name }          — bejelentkezett profil átnevezése
   CREATE_ROOM: 'createRoom',   // { mapId, carId, laps, ghostMode, mandatoryPitStop, isPublic }
   LIST_ROOMS: 'listRooms',     // { page } — a nyitott publikus szobák egy oldala
@@ -22,6 +23,8 @@ export const C2S = {
 
 export const S2C = {
   WELCOME: 'welcome',          // { playerId, token, name }
+  SESSION_RESUMED: 'sessionResumed', // { playerId, token, name, room, results? }
+  SESSION_RESUME_FAILED: 'sessionResumeFailed', // a türelmi idő vagy a session lejárt
   PROFILE_UPDATED: 'profileUpdated', // { name }
   ROOM_STATE: 'roomState',     // { code, hostId, mapId, laps, ghostMode, state, players[] }
   ROOM_LIST: 'roomList',       // { rooms[], page, pages, total } — egy oldalnyi szoba
@@ -152,6 +155,11 @@ export const HOT_LAP_COUNTDOWN_MS = 3000;
 // felső korlát: egy beragadt vagy elhalt kliens különben a végtelenségig
 // túszként tartaná az egész szobát.
 export const RACE_LOAD_TIMEOUT_MS = 30000;
+
+// Futam közbeni hálózati szakadásnál ennyi ideig tartjuk meg az autót és a
+// játékosazonosítót. A stale állapot fizikai proxyja már 750 ms után eltűnik,
+// tehát a türelmi idő nem hagy láthatatlan falat a pályán.
+export const RECONNECT_GRACE_MS = 10_000;
 
 // Mennyi ideje van a mezőnynek célba érni az ELSŐ befutó után. Utána a verseny
 // magától lezárul, a még kint lévők az addigi állásukkal.

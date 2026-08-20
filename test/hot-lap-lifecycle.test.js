@@ -56,20 +56,16 @@ test('Hot Lap warm-up ignores checkpoints before the timing line', () => {
   assert.equal(race.taintReason, TAINT.NONE);
 });
 
-test('an old Hot Lap finish cannot overwrite a restarted attempt', async () => {
-  let releaseResults;
-  const resultsSaved = new Promise((resolve) => { releaseResults = resolve; });
+test('a replaced Hot Lap controller cannot overwrite the restarted attempt', async () => {
   const broadcasts = [];
+  let recorded = false;
   const player = { id: 'driver', carId: 'f2004' };
   const room = {
     state: ROOM_STATE.RACING,
     raceGeneration: 1,
     raceId: 101,
     players: new Map([[player.id, player]]),
-    async recordResults(results, raceId) {
-      assert.equal(raceId, 101);
-      await resultsSaved;
-    },
+    async recordResults() { recorded = true; },
     toJSON() { return { state: this.state }; },
   };
   const sim = new RaceController(room, {
@@ -85,23 +81,19 @@ test('an old Hot Lap finish cannot overwrite a restarted attempt', async () => {
     },
   });
   sim.stop = () => { sim.stopped = true; };
-  room.sim = sim;
-
-  const ending = sim.endRace();
-  await Promise.resolve();
-
-  // Ugyanez történik, amikor az R új generációt és új szimulációt indít.
+  // Ugyanez az állapot áll elő, amikor az R már új generációt és új
+  // szimulációt indított, de a régi vezérlőből még befutna egy lezárás.
   room.raceGeneration = 2;
   room.state = ROOM_STATE.LOADING;
   room.raceId = 202;
   room.sim = { newAttempt: true };
-  releaseResults();
-  await ending;
+  await sim.endRace();
 
   assert.equal(room.state, ROOM_STATE.LOADING);
   assert.equal(room.raceId, 202);
   assert.deepEqual(room.sim, { newAttempt: true });
   assert.equal(broadcasts.some(({ type }) => type === S2C.RACE_END), false);
+  assert.equal(recorded, false);
 });
 
 test('Hot Lap R accepts the first new state without waiting for an old sequence number', async () => {

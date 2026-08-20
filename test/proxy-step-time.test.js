@@ -22,7 +22,11 @@ test('a proxy időpontja a lépés ütemezett idejéből jön, nem a falióráb�
 
 test('ugyanaz az átváltás hajtja az elküldött állapot időbélyegét is', () => {
   // Korábban ez a képlet kézzel, egy helyen szerepelt. Egy forrás, két hívó.
-  assert.match(mp, /t: serverTimeFor\(scheduledAt\)/);
+  assert.match(mp, /const steppedAt = scheduledAt \+ TICK_MS;/);
+  assert.match(mp, /recordPhysState\(steppedAt, state\)/,
+    'a helyi renderpuffer a world.step utáni időpontot kapja');
+  assert.match(mp, /t: serverTimeFor\(steppedAt\)/,
+    'a dróton küldött post-step állapot nem lehet egy tickkel visszadátumozva');
   assert.match(mp, /function serverTimeFor\(localMs\) \{\s*\n\s*return serverNow\(\) \+ \(localMs - performance\.now\(\)\);/);
 });
 
