@@ -26,6 +26,7 @@ import { findGateHit, findSpawnHit } from '/shared/editorSelection.js';
 import {
   mergeByPosition, componentAtFace, boundsOfVertices,
   degenerateFaces, restoreFaces, parseGlb, patchGlbFaces, cutBlocker, mapTrianglesToGlb,
+  nudgeVertices, restoreVertices, patchGlbPositions,
 } from '/shared/meshCut.js';
 import { isSmoothingPaint } from '/shared/zone.js';
 
@@ -43,6 +44,7 @@ let carTesterBtn, carTesterHudEl, carTesterBackBtn, carTesterCarSelectEl;
 let carTesterCompressedEl, carTesterFileInfoEl;
 let devDriveBtn, devDriveHudEl, devDriveBackBtn, devDriveResetBtn, devDriveSaveBtn, devDriveSlidersEl;
 let objectCutterBtn, objectCutterHudEl, cutterPickEl, cutterCutBtn, cutterUndoBtn;
+let cutterNudgeBtn, cutterNudgeCmEl;
 let cutterListEl, cutterSaveBtn, cutterBackBtn, cutterStatusEl;
 let openMaterialPickerBtn, generateCheckpointsBtn, autoCheckpointCountEl;
 let materialPickerPanelEl, materialPickerGridEl, generateAsphaltBtn;
@@ -117,6 +119,8 @@ function queryElements() {
   objectCutterBtn = $('objectCutterBtn');
   objectCutterHudEl = $('objectCutterHud');
   cutterPickEl = $('cutterPick');
+  cutterNudgeBtn = $('cutterNudgeBtn');
+  cutterNudgeCmEl = $('cutterNudgeCm');
   cutterCutBtn = $('cutterCutBtn');
   cutterUndoBtn = $('cutterUndoBtn');
   cutterListEl = $('cutterList');
@@ -2235,6 +2239,7 @@ function wireEvents() {
   objectCutterBtn.addEventListener('click', enterObjectCutter);
   cutterBackBtn.addEventListener('click', exitObjectCutter);
   cutterCutBtn.addEventListener('click', cutterCutSelection);
+  cutterNudgeBtn.addEventListener('click', cutterNudgeSelection);
   cutterUndoBtn.addEventListener('click', cutterUndo);
   cutterSaveBtn.addEventListener('click', cutterSaveModel);
   // Bal gomb jelöl ki; a jobb gomb a kamera forgatása, azt nem foghatjuk el.
@@ -2698,7 +2703,26 @@ function cutterPickAt(clientX, clientY) {
   const rep = mergeByPosition(geometry.attributes.position);
   const { faces, vertices } = componentAtFace(geometry.index.array, rep, hit.faceIndex);
   const bounds = boundsOfVertices(geometry.attributes.position, vertices);
-  cutterSelection = { mesh: hit.object, faces, vertices, bounds };
+  // Merre van a "kamera felé"? A raycast megadja a lap normálisát; a néző
+  // oldalát abból tudjuk, hogy te a pálya felől kattintasz rá. Így nem kell
+  // találgatni, melyik lap a felirat és melyik a tábla.
+  //
+  // A mozgatás a POSITION attribútumot írja, ami OBJEKTUMTÉRBEN van, a kívánt
+  // eltolás viszont világtérben adott (centiméterben). Ezért a világ-eltolást
+  // a modellmátrix inverzével visszük vissza objektumtérbe — így tetszőleges
+  // (akár nem egyenletes) skálázás mellett is pontosan annyit mozdul.
+  const normalMatrix = new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld);
+  const vilagNormal = hit.face.normal.clone().applyMatrix3(normalMatrix).normalize();
+  const kameraFele = camera.position.clone().sub(hit.point);
+  const elojel = vilagNormal.dot(kameraFele) >= 0 ? 1 : -1;
+  const objInverz = new THREE.Matrix3().setFromMatrix4(
+    new THREE.Matrix4().copy(hit.object.matrixWorld).invert()
+  );
+  cutterSelection = {
+    mesh: hit.object, faces, vertices, bounds,
+    // Egységnyi VILÁG-méterhez tartozó objektumtérbeli elmozdulás.
+    egysegIrany: vilagNormal.clone().multiplyScalar(elojel).applyMatrix3(objInverz),
+  };
   showCutterHighlight(hit.object, vertices, faces);
 
   const vilag = new THREE.Vector3(...bounds.center).applyMatrix4(hit.object.matrixWorld);
@@ -2708,16 +2732,25 @@ function cutterPickAt(clientX, clientY) {
     + `<br><span class="text-secondary">a háló ${resz}%-a · középpont `
     + `${vilag.x.toFixed(1)}, ${vilag.y.toFixed(1)}, ${vilag.z.toFixed(1)}</span>`;
   cutterCutBtn.disabled = false;
+  cutterNudgeBtn.disabled = false;
   // Egy nagy arány azt jelenti, hogy a fél pályát jelölted ki — ilyet ritkán
   // akar az ember, ezért kiírjuk, mielőtt rákattint a Kivágásra.
   cutterSay(resz > 20 ? 'Figyelem: a háló nagy részét jelölted ki.' : '', resz > 20 ? 'text-danger' : 'text-secondary');
 }
 
 function refreshCutterList() {
-  cutterListEl.innerHTML = cutterCuts.length
-    ? `Kivágva: <strong>${cutterCuts.length}</strong> darab, `
-      + `${cutterCuts.reduce((s, c) => s + c.faces.length, 0)} háromszög`
-    : '';
+  const vagas = cutterCuts.filter((c) => c.tipus !== 'nudge');
+  const tolas = cutterCuts.filter((c) => c.tipus === 'nudge');
+  const reszek = [];
+  if (vagas.length) {
+    reszek.push(`Kivágva: <strong>${vagas.length}</strong> darab, `
+      + `${vagas.reduce((s, c) => s + c.faces.length, 0)} háromszög`);
+  }
+  if (tolas.length) {
+    reszek.push(`Előrébb hozva: <strong>${tolas.length}</strong> darab, `
+      + `${tolas.reduce((s, c) => s + c.restore.length, 0)} csúcs`);
+  }
+  cutterListEl.innerHTML = reszek.join('<br>');
   cutterUndoBtn.disabled = cutterCuts.length === 0;
   cutterSaveBtn.disabled = cutterCuts.length === 0;
 }
@@ -2727,20 +2760,51 @@ function cutterCutSelection() {
   const { mesh, faces, bounds } = cutterSelection;
   const restore = degenerateFaces(mesh.geometry.index.array, faces);
   mesh.geometry.index.needsUpdate = true;
-  cutterCuts.push({ mesh, faces, restore, bounds });
+  cutterCuts.push({ tipus: 'cut', mesh, faces, restore, bounds });
   cutterSelection = null;
   clearCutterHighlight();
   cutterPickEl.textContent = 'Nincs kijelölve semmi.';
   cutterCutBtn.disabled = true;
+  cutterNudgeBtn.disabled = true;
   refreshCutterList();
   cutterSay('Kivágva. A mentés a modellfájlba írja.', 'text-success');
+}
+
+function cutterNudgeSelection() {
+  if (!cutterSelection) return;
+  const { mesh, vertices, egysegIrany } = cutterSelection;
+  const cm = Math.max(0.5, Math.min(50, Number(cutterNudgeCmEl.value) || 2));
+  const delta = egysegIrany.clone().multiplyScalar(cm / 100);
+  const pos = mesh.geometry.attributes.position;
+  const restore = nudgeVertices(pos.array, vertices, [delta.x, delta.y, delta.z]);
+  pos.needsUpdate = true;
+  // A befoglaló doboz elavul, és a raycast/frustum abból dolgozik.
+  mesh.geometry.computeBoundingSphere();
+  mesh.geometry.computeBoundingBox();
+  cutterCuts.push({ tipus: 'nudge', mesh, vertices, restore, cm });
+  cutterSelection = null;
+  clearCutterHighlight();
+  cutterPickEl.textContent = 'Nincs kijelölve semmi.';
+  cutterCutBtn.disabled = true;
+  cutterNudgeBtn.disabled = true;
+  refreshCutterList();
+  cutterSay(`${cm} cm-rel előrébb hozva (${vertices.size ?? restore.length} csúcs). `
+    + 'Ha még villog, jelöld ki újra és told még.', 'text-success');
 }
 
 function cutterUndo() {
   const utolso = cutterCuts.pop();
   if (!utolso) return;
-  restoreFaces(utolso.mesh.geometry.index.array, utolso.restore);
-  utolso.mesh.geometry.index.needsUpdate = true;
+  if (utolso.tipus === 'nudge') {
+    const pos = utolso.mesh.geometry.attributes.position;
+    restoreVertices(pos.array, utolso.restore);
+    pos.needsUpdate = true;
+    utolso.mesh.geometry.computeBoundingSphere();
+    utolso.mesh.geometry.computeBoundingBox();
+  } else {
+    restoreFaces(utolso.mesh.geometry.index.array, utolso.restore);
+    utolso.mesh.geometry.index.needsUpdate = true;
+  }
   refreshCutterList();
   cutterSay('Visszavonva.', 'text-info');
 }
@@ -2763,12 +2827,26 @@ async function cutterSaveModel() {
 
     let osszes = 0;
     let hianyzo = 0;
+    let csucsok = 0;
+    let kilogo = 0;
     for (const cut of cutterCuts) {
       const hely = assoc.get(cut.mesh);
       if (!hely || hely.meshes === undefined) throw new Error('Nem találom a hálót a GLB-ben.');
       const prim = glb.json.meshes[hely.meshes].primitives[hely.primitives ?? 0];
       const akadaly = cutBlocker(prim);
       if (akadaly) throw new Error(`Ez a háló nem vágható: ${akadaly}.`);
+
+      // A csúcsmozgatás a lapsorszám-fordítást MEGKERÜLI: a three-mesh-bvh az
+      // indextömböt rendezi át, a pozíciótömböt nem, tehát a jelenetbeli
+      // csúcssorszám közvetlenül a GLB accessorának eleme.
+      if (cut.tipus === 'nudge') {
+        const pos = cut.mesh.geometry.attributes.position.array;
+        const moves = cut.restore.map(([v]) => [v, pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]]);
+        const r = patchGlbPositions(bytes, glb, prim.attributes.POSITION, moves);
+        csucsok += r.db;
+        kilogo += r.kilog;
+        continue;
+      }
 
       // A jelenetbeli lapsorszám NEM egyezik a GLB-belivel (a BVH építése
       // átrendezi az indextömböt), ezért csúcshármas alapján fordítunk. A
@@ -2791,8 +2869,19 @@ async function cutterSaveModel() {
     a.download = nev;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-    cutterSay(`Kész: ${osszes} háromszög, ${(bytes.byteLength / 1048576).toFixed(1)} MB. `
-      + `Mentsd a pálya mappájába, a régi ${nev} helyére.`, 'text-success');
+    const mit = [
+      osszes ? `${osszes} háromszög kivágva` : '',
+      csucsok ? `${csucsok} csúcs előrébb hozva` : '',
+    ].filter(Boolean).join(', ');
+    // A min/max mezőket nem írjuk át (az a JSON hosszát változtatná, és elveszne
+    // a bájtpontos javítás), ezért ha egy csúcs kilépett a deklarált befoglaló
+    // dobozból, azt KI KELL írni — némán hagyva egy hibás modellt adnánk vissza.
+    const figyelmeztetes = kilogo
+      ? ` FIGYELEM: ${kilogo} csúcs kilépett a háló deklarált befoglaló dobozából.`
+      : '';
+    cutterSay(`Kész: ${mit}, ${(bytes.byteLength / 1048576).toFixed(1)} MB. `
+      + `Mentsd a pálya mappájába, a régi ${nev} helyére.${figyelmeztetes}`,
+      kilogo ? 'text-warning' : 'text-success');
   } catch (err) {
     cutterSay(`Mentés sikertelen: ${err.message}`, 'text-danger');
   } finally {
@@ -2809,6 +2898,7 @@ function enterObjectCutter() {
   cutterSelection = null;
   cutterPickEl.textContent = 'Nincs kijelölve semmi.';
   cutterCutBtn.disabled = true;
+  cutterNudgeBtn.disabled = true;
   refreshCutterList();
   cutterSay('');
 }

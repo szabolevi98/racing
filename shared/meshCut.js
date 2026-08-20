@@ -195,3 +195,98 @@ export function patchGlbFaces(bytes, glb, accessorIndex, faces) {
   }
   return db;
 }
+
+// ---- Darab előrébb hozása (a matrica-villogás ellen) ----
+//
+// A letöltött pályamodelleken a hirdetőtáblák nyomata KÜLÖN lap a tábla lapja
+// előtt, hajszálnyi réssel. A Hungaroringen mérve, a Pirelli-táblánál: két
+// azonos méretű, 25.62 m²-es négyszög 0.101–0.348 mm-re egymástól. A mélységi
+// puffer ezt nem tudja megkülönböztetni (200 méteren a felbontása 24 mm), ezért
+// képkockánként váltakozik, melyik látszik.
+//
+// Miért a geometriát mozgatjuk, és nem a megjelenítést hangoljuk:
+//
+//   - a kamera `near` emelése 0.1-ről 0.5-re ötszörös felbontást ad, de a
+//     0.1 mm-hez az sem elég;
+//   - a logaritmikus mélységi puffer feloldaná, viszont GPU-időben MÉRVE
+//     +67% (1920×1080) és +113% (3840×2160), mert a töredék maga írja a
+//     mélységet, ami kikapcsolja a korai mélységi elvetést;
+//   - a `polygonOffset` ingyen van, de csak ANYAGRA adható, a modell egy-egy
+//     anyaga pedig a pálya sok felületén osztozik: a Hungaroringen a szóban
+//     forgó anyag lapjai 25 különböző irányba néznek, és mind a 25 iránynak van
+//     szemben néző párja is. Ugyanaz az anyag elöl lévő felirat az egyik
+//     táblán és hátlap a szemköztin — egyetlen eltolás a felét elrontaná.
+//
+// A darab-szintű mozgatás viszont pont akkora, amekkora a probléma: egy
+// összefüggő darab EGY tábla felirata. És ugyanúgy helyben javítható, mint a
+// vágás: a POSITION float32, tehát a fájl mérete nem változik.
+
+/** A kijelölt csúcsok elmozdítása. Visszaadja a visszavonáshoz az eredetit. */
+export function nudgeVertices(positionArray, vertices, delta) {
+  const eredeti = [];
+  for (const v of vertices) {
+    const i = v * 3;
+    eredeti.push([v, positionArray[i], positionArray[i + 1], positionArray[i + 2]]);
+    positionArray[i] += delta[0];
+    positionArray[i + 1] += delta[1];
+    positionArray[i + 2] += delta[2];
+  }
+  return eredeti;
+}
+
+export function restoreVertices(positionArray, eredeti) {
+  for (const [v, x, y, z] of eredeti) {
+    positionArray[v * 3] = x;
+    positionArray[v * 3 + 1] = y;
+    positionArray[v * 3 + 2] = z;
+  }
+}
+
+// A POSITION nyers elérése a GLB bájtjaiban. A `byteStride` azért kell, mert az
+// attribútumok lehetnek egymásba fűzve (interleaved) — olyankor a csúcsok nem
+// szorosan követik egymást.
+function glbPositionAccessor(bytes, glb, accessorIndex) {
+  const acc = glb.json.accessors[accessorIndex];
+  if (acc.componentType !== 5126) {
+    throw new Error('A POSITION nem float32 — így nem javítható helyben.');
+  }
+  const view = glb.json.bufferViews[acc.bufferView];
+  const stride = view.byteStride || 12;
+  const start = glb.binStart + (view.byteOffset || 0) + (acc.byteOffset || 0);
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return {
+    count: acc.count,
+    acc,
+    olvas: (v, k) => dv.getFloat32(start + v * stride + k * 4, true),
+    ir: (v, k, x) => dv.setFloat32(start + v * stride + k * 4, x, true),
+  };
+}
+
+/**
+ * A csúcsmozgatás beírása a GLB bájtjaiba.
+ *
+ * A jelenetbeli csúcssorszám itt — a lapsorszámmal ELLENTÉTBEN — közvetlenül
+ * használható: a three-mesh-bvh az INDEXTÖMBÖT rendezi át, a pozíciótömböt nem.
+ *
+ * A visszaadott `kilog` azt jelzi, hogy a mozgatás kilépett-e az accessor
+ * deklarált befoglaló dobozából. A min/max mezőket szándékosan NEM írjuk át:
+ * az a JSON-darab hosszát változtatná, és elveszne a bájtpontos, helyben
+ * javítás. Egy pályányi méretű összeolvasztott hálón belül néhány centi
+ * gyakorlatilag sosem lép ki — de ha mégis, arról a hívó tudjon.
+ */
+export function patchGlbPositions(bytes, glb, accessorIndex, moves) {
+  const { count, acc, olvas, ir } = glbPositionAccessor(bytes, glb, accessorIndex);
+  const min = acc.min, max = acc.max;
+  let db = 0, kilog = 0;
+  for (const [v, x, y, z] of moves) {
+    if (v < 0 || v >= count) continue;
+    const uj = [x, y, z];
+    for (let k = 0; k < 3; k++) {
+      if (min && max && (uj[k] < min[k] || uj[k] > max[k])) { kilog++; break; }
+    }
+    for (let k = 0; k < 3; k++) ir(v, k, uj[k]);
+    db++;
+  }
+  // `olvas` a hívó ellenőrzéséhez marad elérhető a visszatérésben.
+  return { db, kilog, olvas };
+}
