@@ -130,8 +130,8 @@ const HARMONICS = [
 // determinizmust (és vele a multiplayert) nem érinti.
 //
 // Az áttételek a teljes áttételt jelentik (váltó × véghajtás). Úgy vannak
-// méretezve, hogy a legfelső fokozat a 378 km/h-s sebességplafonon érje el a
-// maximális fordulatot, az első pedig ~108 km/h-nál — ez F1-hez reális.
+// méretezve, hogy a legfelső fokozat a természetes 378 km/h-s cél-végsebességnél
+// érje el a maximális fordulatot, az első pedig ~108 km/h-nál — ez F1-hez reális.
 const GEAR_RATIOS = [22.9, 17.9, 14.0, 11.0, 8.35, 6.54];
 const SHIFT_UP_RPM = 18000;
 const SHIFT_DOWN_RPM = 12000;

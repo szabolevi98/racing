@@ -16,8 +16,10 @@
 import * as THREE from 'three';
 import {
   MAX_STEER, STEER_VISUAL_SPEED,
-  MAX_ENGINE_FORCE, REVERSE_FACTOR, BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_FORCE, HANDBRAKE_REAR_SLIP,
+  MAX_ENGINE_FORCE, MAX_ENGINE_POWER, REVERSE_FACTOR,
+  BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_FORCE, HANDBRAKE_REAR_SLIP,
   FRONT_FRICTION_SLIP, REAR_FRICTION_SLIP, SUSPENSION, LINEAR_DAMPING, ANGULAR_DAMPING,
+  AERO_DRAG_COEFFICIENT, AERO_DOWNFORCE_COEFFICIENT,
   setLiveVehicleTunables, resetLiveVehicleTunables,
 } from '/shared/vehicleConfig.js';
 import { findGateHit, findSpawnHit } from '/shared/editorSelection.js';
@@ -358,11 +360,12 @@ let devDriveActive = false;
 // (azokat az applyTunable közvetlenül a Rapier-objektumon állítja), a többi
 // a shared/vehicleConfig.js élő, mutálható másolatán megy át.
 const VEHICLE_TUNABLES = [
-  ['MAX_ENGINE_FORCE', 'Motorerő', 300, 2500, 10],
+  ['MAX_ENGINE_FORCE', 'Motorerő', 300, 5000, 10],
+  ['MAX_ENGINE_POWER', 'Motorteljesítmény (W)', 300000, 1000000, 10000],
   ['REVERSE_FACTOR', 'Hátramenet szorzó', 0.1, 1, 0.01],
   ['MAX_STEER', 'Kormány max. szöge', 0.2, 1.0, 0.01],
-  // A fék ~50 fölött blokkol (onnan HOSSZABB a fékút) — a 90-es felső határ
-  // szándékosan enged a blokkolásba is belelátni, nem használható tartomány.
+  // A felső tartomány szándékosan enged a blokkolásba is belelátni; a nagyobb
+  // szám nem mindig rövidebb fékút, ezért kell méréssel hangolni.
   ['BRAKE_FRONT', 'Fék — elöl', 5, 90, 0.5],
   ['BRAKE_REAR', 'Fék — hátul', 5, 90, 0.5],
   ['HANDBRAKE_FORCE', 'Kézifék — erő (csak hátsó)', 5, 120, 0.5],
@@ -373,6 +376,8 @@ const VEHICLE_TUNABLES = [
   ['SUSPENSION_COMPRESSION', 'Felfüggesztés — kompresszió', 0.5, 10, 0.1],
   ['SUSPENSION_RELAXATION', 'Felfüggesztés — relaxáció', 0.5, 10, 0.1],
   ['SUSPENSION_MAX_TRAVEL', 'Felfüggesztés — max. löket', 0.05, 1, 0.01],
+  ['AERO_DRAG_COEFFICIENT', 'Aero — légellenállás', 0, 2, 0.01],
+  ['AERO_DOWNFORCE_COEFFICIENT', 'Aero — leszorítóerő', 0, 3, 0.05],
   ['LINEAR_DAMPING', 'Lineáris csillapítás', 0, 1, 0.01],
   ['ANGULAR_DAMPING', 'Szögsebesség-csillapítás', 0, 2, 0.01],
 ];
@@ -380,13 +385,14 @@ const VEHICLE_TUNABLES = [
 // A kanonikus (shared/vehicleTunables.js-beli) alapérték minden kulcshoz —
 // ebből épül a panel induláskor, és ide áll vissza az "Alapértékek".
 const CANONICAL_TUNABLES = {
-  MAX_ENGINE_FORCE, REVERSE_FACTOR, MAX_STEER,
+  MAX_ENGINE_FORCE, MAX_ENGINE_POWER, REVERSE_FACTOR, MAX_STEER,
   BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_FORCE, HANDBRAKE_REAR_SLIP,
   FRONT_FRICTION_SLIP, REAR_FRICTION_SLIP,
   SUSPENSION_STIFFNESS: SUSPENSION.stiffness,
   SUSPENSION_COMPRESSION: SUSPENSION.compression,
   SUSPENSION_RELAXATION: SUSPENSION.relaxation,
   SUSPENSION_MAX_TRAVEL: SUSPENSION.maxTravel,
+  AERO_DRAG_COEFFICIENT, AERO_DOWNFORCE_COEFFICIENT,
   LINEAR_DAMPING, ANGULAR_DAMPING,
 };
 

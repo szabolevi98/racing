@@ -5,7 +5,8 @@ import RAPIER from 'rapier';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import {
   GRAVITY, CHASSIS_SIZE, WHEEL_RADIUS, SUSPENSION_REST_LENGTH, WHEEL_POSITIONS,
-  STEER_VISUAL_SPEED, buildVehicle, applyControls, resetLiveVehicleTunables,
+  STEER_VISUAL_SPEED, buildVehicle, applyControls, applyVehicleStepForces,
+  resetLiveVehicleTunables,
   FLOOR_COLLIDER_GROUPS, WALL_COLLIDER_GROUPS, WHEEL_RAY_FILTER_GROUPS,
   CAR_PROXY_COLLIDER_GROUPS, TRACK_FRICTION, applyChassisMassProperties,
   forwardSpeed, REVERSE_BRAKE_THRESHOLD, applySpeedCap, settleFinishedBody,
@@ -4829,6 +4830,7 @@ function animate() {
     while (physicsAccum >= world.timestep && physSteps < 5) {
       // A Rapiernél a jármű-vezérlőt a világ léptetése ELŐTT kell frissíteni:
       // ez lövi ki a kerék-sugarakat és számolja a felfüggesztés/tapadás erőket.
+      applyVehicleStepForces(vehicle, chassisBody, world.timestep);
       vehicle.updateVehicle(world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
       world.step();
       applySpeedCap(chassisBody);
@@ -5232,6 +5234,7 @@ window.__game = {
     const overPitLimit = pitLimiter && Math.hypot(velocity.x, velocity.z) > PIT_SPEED_LIMIT_MPS;
     const limitedInput = overPitLimit ? { ...input, throttle: 0, brake: 1 } : input;
     applyControls(vehicle, chassisBody, limitedInput, { frozen, offtrackWheels: wheelsOffTrack() });
+    applyVehicleStepForces(vehicle, chassisBody, world.timestep);
     vehicle.updateVehicle(world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
     world.step();
     recordRemoteProxyContacts();

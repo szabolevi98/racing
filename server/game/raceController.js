@@ -35,8 +35,9 @@ const PUMP_MS = 8;
 const MAX_ABS_POSITION = 100_000;
 const MAX_LINEAR_SPEED = 180; // Durva csomagszűrés; a játékszabály szerinti határ lejjebb van.
 const MAX_ANGULAR_SPEED = 100;
-// A kliens fizikai végsebessége 378 km/h. A szerver ennél szándékosan jóval
-// megengedőbb: egy rövid ütközési kilengés ne tegye tönkre az egész kört.
+// A kliens természetes cél-végsebessége ~378 km/h, a csak rendellenes helyzetre
+// szolgáló biztonsági plafonja 420. A szerver ennél is megengedőbb: egy rövid
+// ütközési kilengés ne tegye tönkre az egész kört.
 const MAX_VALID_HORIZONTAL_SPEED = 500 / 3.6;
 const MAX_PLAUSIBLE_MOVEMENT_SPEED = 150; // 540 km/h a pozícióalapú, tartós ellenőrzéshez.
 const MOVEMENT_PACKET_GRACE_METERS = 3;

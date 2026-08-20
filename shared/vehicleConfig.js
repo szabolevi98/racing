@@ -11,9 +11,10 @@
 // kelljen tudnia a szétválasztásról — mindenki továbbra is a
 // shared/vehicleConfig.js-ből importál, ugyanazokkal a nevekkel.
 export {
-  MAX_ENGINE_FORCE, REVERSE_FACTOR, MAX_STEER,
+  MAX_ENGINE_FORCE, MAX_ENGINE_POWER, REVERSE_FACTOR, MAX_STEER,
   BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_FORCE, HANDBRAKE_REAR_SLIP,
   FRONT_FRICTION_SLIP, REAR_FRICTION_SLIP,
+  AERO_DRAG_COEFFICIENT, AERO_DOWNFORCE_COEFFICIENT,
   LINEAR_DAMPING, ANGULAR_DAMPING,
 } from './vehicleTunables.js';
 // Ugyanezek importként is kellenek: az `export ... from` csak TOVÁBBADJA a
@@ -21,10 +22,11 @@ export {
 // objektumnak, a buildVehicle/applyControls-nak és az élő hangoló
 // mechanizmusnak ITT, ebben a fájlban is szüksége van rájuk.
 import {
-  MAX_ENGINE_FORCE, REVERSE_FACTOR, MAX_STEER,
+  MAX_ENGINE_FORCE, MAX_ENGINE_POWER, REVERSE_FACTOR, MAX_STEER,
   BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_FORCE, HANDBRAKE_REAR_SLIP,
   FRONT_FRICTION_SLIP, REAR_FRICTION_SLIP,
   SUSPENSION_STIFFNESS, SUSPENSION_COMPRESSION, SUSPENSION_RELAXATION, SUSPENSION_MAX_TRAVEL,
+  AERO_DRAG_COEFFICIENT, AERO_DOWNFORCE_COEFFICIENT,
   LINEAR_DAMPING, ANGULAR_DAMPING,
 } from './vehicleTunables.js';
 
@@ -75,7 +77,10 @@ export const TRACK_FRICTION = 1.0;
 
 // Fél-méretek: szélesség/2, magasság/2, hossz/2.
 export const CHASSIS_SIZE = { x: 1.0, y: 0.4, z: 2.2 };
-export const CHASSIS_MASS = 250;
+// Egyetlen közös fizikai F1-autó minden vizuális skin alatt. A 600 kg a
+// klasszikus F1 minimumtömeg nagyságrendje; az összes motor-, fék-, futómű- és
+// aeroérték ehhez a tömeghez van együtt hangolva.
+export const CHASSIS_MASS = 600;
 
 // Ez alatt a sebesség (m/s) alatt számít az S/le nyíl VALÓDI hátramenetnek —
 // fölötte fékezésnek. Sok versenyjátékban megszokott: az "S" gomb előre
@@ -119,14 +124,14 @@ export function forwardSpeed(qx, qy, qz, qw, vx, vy, vz) {
 // az autót. Egy versenyautó súlypontja nagyjából a keréktengely magasságában van.
 //
 // A 0.15 még a korábbi, gyengébb fékerőhöz volt méretezve. Az akkori,
-// irreálisan erős fék (BRAKE_FRONT=70, ~5.6 G) mellett ez már nem volt elég:
+// irreálisan erős, 250 kg-ra jutó fék (BRAKE_FRONT=70, ~5.6 G) mellett ez már nem volt elég:
 // mérve, egyenes vonalban 200 km/h-ról fékezve a kocsi 1,05 másodperc alatt
 // teljesen előre bukott (upright -1.0). Minél lejjebb van a súlypont, annál
 // nagyobb fékező nyomatékot visel el a kocsi borulás nélkül — méréssel a 0.55
 // már tökéletesen stabil (upright 0.999) UGYANAZZAL a fékerővel, és mellékesen
 // a kanyarodást is javítja (szögsebesség +53% ugyanannál a kormányszögnél,
 // alacsonyabb súlyponttal kevesebb a bólintás/dőlés, ami elviszi az energiát).
-// A fék azóta reálisra csökkent (32/27, ~3 G), tehát ez most bőven tartalék.
+// A 600 kg-os profil 65/55-ös féke mérve ~2.8–3.1 G, tehát ez most bőven tartalék.
 export const COM_DROP = 0.55;
 
 // A helyi távoli-autó proxy ugyanilyen tömeg/inercia-adatokat kap. Ha csak a
@@ -169,41 +174,35 @@ export const SUSPENSION = {
 
 export const ASPHALT_FRICTION_SLIP = REAR_FRICTION_SLIP;
 // Rajt előtt / verseny után a kocsit helyben kell tartani, akár lejtőn is.
-export const HOLD_BRAKE = 60;
+export const HOLD_BRAKE = 145;
 // Kifutón (fű/kavics) kevesebb erő jut a talajra és csúszósabb is.
 //
-// A három közül MESSZE a DRAG a meghatározó — mérve, teljes gázzal a fűn
-// elérhető egyensúlyi sebesség: mindhárom hatással 103 km/h, de csak a dragot
-// kivéve 378 (a plafon!), csak a motorerő-vágást kivéve 138, a tapadást
-// aszfaltra állítva pedig VÁLTOZATLAN 103. A tapadás tehát az egyenes vonalú
-// sebességre egyáltalán nem hat (ott nem az a korlát) — a KANYARODÁST teszi
-// csúszóssá, és ezért is érdemes alacsonyan tartani.
+// A közvetlen kifutó-drag a meghatározó: a 600 kg-os F1-profillal mérve teljes
+// gáznál 104.5 km/h az egyensúly, 250-ről gázelvétel után 3 másodperccel pedig
+// 124.4 km/h marad. A kisebb frictionSlip főleg a KANYARODÁST teszi csúszóssá.
 export const OFFTRACK_FRICTION_SLIP = 1.0;
-export const OFFTRACK_FORCE_FACTOR = 0.75;
+export const OFFTRACK_FORCE_FACTOR = 0.55;
 // FIGYELEM: ez képkockánkénti SZORZÓ, és a fizika 60×/mp lép — vagyis a
 // másodpercenkénti hatás a 60. hatvány, sokkal erősebb, mint amilyennek
 // első ránézésre tűnik: 0.997^60 = 0.835, tehát másodpercenként a sebesség
 // 16%-a vész el.
 //
-// Hangolás mérés alapján (fűn elérhető max. / 250 km/h-ról gázt levéve 3 mp
-// múlva): 0.995 → 68 / 87 (ez volt az eredeti, vezethetetlenül lassú),
-// 0.997 → 103 / 125 (ez a mostani), 0.998 → 140 / 150 (túl megengedő volt).
+// A 0.997 képkockánként enyhének látszik, de fix 60 Hz-en elég erős ahhoz,
+// hogy a füvön ne lehessen értelmesen levágni a pályát.
 export const OFFTRACK_DRAG = 0.997;
 
-// ---------- Csúcssebesség-plafon ----------
-// Ez VALÓDI, aktív korlát, nem csak vészfék a szélsőségekre: mérve, sík
-// talajon, teljes gázzal a kocsi magától ~633 km/h-ig gyorsul (a plafont
-// ~19 mp folyamatos gáz után éri el). Az ok, hogy a LINEAR_DAMPING
-// sebességARÁNYOS, a valódi légellenállás viszont a sebesség NÉGYZETÉvel nő —
-// a csillapítás ezért nagy sebességen messze alulfékez, és a végsebesség
-// irreálisan magasra szalad. A plafon ezt vágja vissza, és mellékesen a
-// hosszú lejtőn/ütközés lökésétől elszaladó kocsit is megfogja.
+// ---------- Cél-végsebesség és biztonsági plafon ----------
+// A normál végsebességet NEM ez a vágás adja: a 660 kW-os teljesítménykorlát
+// és a négyzetes légellenállás sík pályán természetesen ~378 km/h-nál kerül
+// egyensúlyba. Ez csak ütközés, meredek lejtő vagy hibás pályageometria után
+// fogja meg a fizikailag elszaladó vízszintes sebességet.
 //
 // Ez NEM hangolható a dev panelről (nincs hozzá csúszka), ezért nem is a
 // vehicleTunables.js-ben van: azt a fájlt a panel "Mentés fájlba" gombja
 // egészében újragenerálja a csúszkákból, és egy ott felejtett, csúszka nélküli
 // konstans az első mentésnél nyomtalanul eltűnne.
-export const MAX_SPEED_KMH = 378;
+export const TARGET_TOP_SPEED_KMH = 378;
+export const MAX_SPEED_KMH = 420;
 export const MAX_SPEED = MAX_SPEED_KMH / 3.6;
 
 // Kizárólag a VÍZSZINTES sebességet korlátozza — pont azt a számot, amit a
@@ -245,9 +244,10 @@ export const STEER_VISUAL_SPEED = 3.5;
 // biztonsági hálóként a valódi versenyindítás (startRace / multiplayer
 // beginRace) is hívja ugyanezt.
 const live = {
-  MAX_ENGINE_FORCE, REVERSE_FACTOR, MAX_STEER,
+  MAX_ENGINE_FORCE, MAX_ENGINE_POWER, REVERSE_FACTOR, MAX_STEER,
   BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_FORCE, HANDBRAKE_REAR_SLIP,
   FRONT_FRICTION_SLIP, REAR_FRICTION_SLIP,
+  AERO_DRAG_COEFFICIENT, AERO_DOWNFORCE_COEFFICIENT,
 };
 const LIVE_DEFAULTS = { ...live };
 
@@ -261,6 +261,42 @@ export function resetLiveVehicleTunables() {
 
 export function getLiveVehicleTunables() {
   return { ...live };
+}
+
+// Az applyControls képkockánként is futhat, miközben alacsony FPS-nél több
+// fix fizikai lépést hozunk be. A kért motorerőt ezért eltesszük, és minden
+// egyes fizikai tick előtt frissen alkalmazzuk a teljesítménykorláttal együtt.
+const requestedEngineForce = new WeakMap();
+const ENGINE_POWER_SPEED_FLOOR = 1;
+
+// A motor teljesítménykorlátja és az aerodinamika közös, fix-tickes útja.
+// Singleplayer és multiplayer is pontosan egyszer hívja minden world.step előtt.
+// Az aero impulzusként kerül rá a testre (F * dt), így nem halmozódik a Rapier
+// folyamatos erő-akkumulátorában és nem függ a renderelési FPS-től.
+export function applyVehicleStepForces(vehicle, body, timestep) {
+  let force = requestedEngineForce.get(vehicle) || 0;
+  if (force > 0) {
+    const q = body.rotation();
+    const v = body.linvel();
+    const speed = Math.abs(forwardSpeed(q.x, q.y, q.z, q.w, v.x, v.y, v.z));
+    const perWheelPowerLimit = live.MAX_ENGINE_POWER
+      / (2 * Math.max(ENGINE_POWER_SPEED_FLOOR, speed));
+    force = Math.min(force, perWheelPowerLimit);
+  }
+  vehicle.setWheelEngineForce(2, force);
+  vehicle.setWheelEngineForce(3, force);
+
+  const dt = Number(timestep);
+  if (!(dt > 0) || !Number.isFinite(dt)) return;
+  const v = body.linvel();
+  const speed = Math.hypot(v.x, v.z);
+  if (speed < 0.01) return;
+  const dragImpulseScale = -live.AERO_DRAG_COEFFICIENT * speed * dt;
+  body.applyImpulse({
+    x: v.x * dragImpulseScale,
+    y: -live.AERO_DOWNFORCE_COEFFICIENT * speed * speed * dt,
+    z: v.z * dragImpulseScale,
+  }, true);
 }
 
 // Egy kocsi felépítése a Rapier világban. Ugyanaz a kód fut a kliensen és a
@@ -341,7 +377,7 @@ export function applyControls(
   const slip = Math.min(slipOf(2), slipOf(3));
 
   if (offFrac > 0) {
-    // Arányosan: négy kerékkel a füvön a régi 0.995, kettővel a fele annyi
+    // Arányosan: négy kerékkel a füvön a teljes 0.997, kettővel a fele annyi
     // lassítás — a rázókövet súrolva nem esik ki a kocsi alól a sebesség.
     const drag = 1 - (1 - OFFTRACK_DRAG) * offFrac;
     const v = body.linvel();
@@ -351,6 +387,9 @@ export function applyControls(
   const forceFactor = 1 - (1 - OFFTRACK_FORCE_FACTOR) * offFrac;
   const throttle = frozen ? 0 : Math.max(-1, Math.min(1, input.throttle || 0));
   const force = (throttle >= 0 ? throttle : throttle * live.REVERSE_FACTOR) * live.MAX_ENGINE_FORCE * forceFactor;
+  requestedEngineForce.set(vehicle, force);
+  // Azonnal is beállítjuk, hogy az egyszerű teszt/dev hívók viselkedése ne
+  // változzon; a valódi fizikai lépés előtt applyVehicleStepForces finomítja.
   vehicle.setWheelEngineForce(2, force);
   vehicle.setWheelEngineForce(3, force);
 
@@ -371,13 +410,11 @@ export function applyControls(
   // lehetett érdemben hangolni.
   //
   // A vehicleTunables.js-beli számok MÉRT lassulásra vannak hangolva, nem
-  // érzésre. BRAKE_FRONT/REAR: 200 km/h → 0-ig 27/23 = 2.20 s / 59 m / 2.58 G
-  // (valós F1: 2.2 s / 62 m / 2.6 G); a korábbi 70/60 = 1.02 s / 5.58 G volt —
-  // irreálisan erős, és ~50 fölött a kerék blokkol (csúszó gumi kevesebb erőt
-  // visz át), ezért nem is lehetett feljebb hangolni vele. HANDBRAKE_FORCE és
-  // HANDBRAKE_REAR_SLIP egymástól FÜGGETLENÜL hat: az erő csak a lassítást
-  // szabja (22 → 4.68 s), a tapadás csak a pörgést (~280°/s) — ezért lehet a
-  // kéziféket lassításra szándékosan gyengén, forgatásra viszont erősen hagyni.
+  // érzésre. A 600 kg-os profil 65/55-ös féke 200 km/h-ról 2.20 s / 59.7 m,
+  // 300-ról 3.17 s / 126 m; a leszorítóerő miatt nagy tempónál ~3.1 G-ig nő.
+  // HANDBRAKE_FORCE és HANDBRAKE_REAR_SLIP egymástól FÜGGETLENÜL hat: az erő
+  // csak a lassítást, a tapadás csak a hátulja kitörését szabja — ezért lehet a
+  // kéziféket lassításra gyengébben, forgatásra viszont erősen hagyni.
   if (frozen) {
     for (let i = 0; i < 4; i++) vehicle.setWheelBrake(i, HOLD_BRAKE);
     return;
