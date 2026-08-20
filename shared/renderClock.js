@@ -140,7 +140,9 @@ export function advanceRenderClock({
 // válaszol, nem a szomszédos különbségük. Egy csúszóablak p95-e pontosan ez.
 
 export const TRANSIT_WINDOW_MS = 3000;
-export const TRANSIT_TARGET_PERCENTILE = 0.95;
+// Nem exportált: a p95 belső szabályozási döntés, kifelé a
+// remoteDelayTarget() és a transitSpreadMs() adja a választ.
+const TRANSIT_TARGET_PERCENTILE = 0.95;
 // Ráhagyás a p95 fölé. Egy snapshot-köz azért kell, hogy a kirajzolt pillanat
 // két VALÓDI minta közé essen, ne az utolsó ismertre; a 25 ms pedig tartalék.
 //

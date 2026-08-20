@@ -59,7 +59,12 @@ const EVENT_SCHEMA = Object.freeze({
     'physicsTimerLateMs', 'physicsTimerJitterMs',
   ]],
   [NET_DIAG_EVENT.SNAPSHOT_IN]: ['snapshot_in', [
-    'transitMs', 'snapshotJitterMs', 'interpolationDelayMs', 'selfSequence',
+    // A `snapshotSpreadMs` a transit p95 és p50 különbsége egy 3 másodperces
+    // ablakból: mennyivel érkeznek később a lemaradó csomagok, mint a tipikus.
+    // A séma 1. verziójában ezen a helyen `snapshotJitterMs` állt — a szomszédos
+    // csomagok különbségének exponenciális átlaga —, ami kötegnél a szerver
+    // küldési ütemét mérte ingadozásként. Más szám, más név.
+    'transitMs', 'snapshotSpreadMs', 'interpolationDelayMs', 'selfSequence',
     'selfReady', 'carCount', 'selfEchoDistanceM', 'wsBufferedBytes',
   ]],
   [NET_DIAG_EVENT.PING]: ['ping', [
@@ -233,7 +238,7 @@ export class NetDiagnosticsRecorder {
     const fields = {};
     for (const [, [name, names]] of Object.entries(EVENT_SCHEMA)) fields[name] = ['relativeMs', ...names];
     return {
-      schemaVersion: 1,
+      schemaVersion: 2,
       generatedAt: new Date(this.wallNow()).toISOString(),
       windowMs: this.windowMs,
       privacy: 'No player names, room codes, authentication tokens or message text are recorded.',

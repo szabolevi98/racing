@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import {
   advanceRenderClock, pushTransitSample, expireTransitSamples,
   transitPercentile, transitSpreadMs, remoteDelayTarget,
-  REMOTE_CLOCK_RATE_MIN, REMOTE_CLOCK_RATE_MAX,
+  REMOTE_CLOCK_RATE_MIN, REMOTE_CLOCK_RATE_MAX, RENDER_CLOCK_RESYNC_MS,
   SNAPSHOT_INTERVAL_MS, TRANSIT_HEADROOM_MS, TRANSIT_WINDOW_MS,
 } from '../shared/renderClock.js';
 
@@ -61,12 +61,13 @@ test('a mélyítés lassítással történik, nem visszalépéssel', () => {
 });
 
 test('reménytelenül lemaradt óránál ugrik — de ELŐRE, nem vissza', () => {
-  // Az óra egy másodperccel a cél mögött jár. Ezt 1,05-ös ütemmel tíz
+  // Az óra a küszöbnél is jobban lemaradt. Ezt 1,05-ös ütemmel tíz
   // másodpercig kellene ledolgozni; ilyenkor az őszinte ugrás a jobb.
-  const ugras = remote(1000, 2000, 2000 + FRAME, MIN, 1);
+  const lemaradas = MIN + RENDER_CLOCK_RESYNC_MS + 1;
+  const ugras = remote(2000 - lemaradas, 2000, 2000 + FRAME, MIN, 1);
   assert.equal(ugras.resynced, true);
   assert.equal(ugras.rate, 1);
-  assert.ok(ugras.at > 1000, 'a resync sem viheti vissza az idővonalat');
+  assert.ok(ugras.at > 2000 - lemaradas, 'a resync sem viheti vissza az idővonalat');
 
   // A másik irány nem is tud idáig fajulni: a célmélység a plafonnál (400 ms)
   // megáll, a megvalósult késleltetés pedig nem mehet nulla alá — a kettő közti
