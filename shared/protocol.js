@@ -154,7 +154,7 @@ export const HOT_LAP_COUNTDOWN_MS = 3000;
 // Meddig várunk a betöltésre, mielőtt a hiányzók nélkül is elindulnánk. Kell a
 // felső korlát: egy beragadt vagy elhalt kliens különben a végtelenségig
 // túszként tartaná az egész szobát.
-export const RACE_LOAD_TIMEOUT_MS = 30000;
+export const RACE_LOAD_TIMEOUT_MS = 60000;
 
 // Futam közbeni hálózati szakadásnál ennyi ideig tartjuk meg az autót és a
 // játékosazonosítót. A stale állapot fizikai proxyja már 750 ms után eltűnik,
