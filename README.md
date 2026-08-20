@@ -4,7 +4,7 @@ Böngészőben futó autóverseny-játék valós pályákkal és autókkal. Thre
 megjelenítés, Rapier fizika, Node.js szerver, WebSocket multiplayer és opcionális
 MySQL/MariaDB ranglista.
 
-A jelenlegi assetkészlet 204 autót, 13 pályát és 6 környezetet tartalmaz. A menü
+A jelenlegi assetkészlet 266 autót, 23 pályát és 6 környezetet tartalmaz. A menü
 ezeket nem beégetett listából, hanem a szerver által felépített asset-manifestből
 olvassa, ezért az új modellek automatikusan megjelennek.
 
@@ -51,6 +51,23 @@ pályák rajtpontjait, kapuit, zónatérképét és ütközési fájlját. A nag
 gitignore-osak, ezért teljes assetkészlet nélküli friss klónban a parancs
 szándékosan hibát jelez.
 
+## Nyelvek
+
+A felület 21 nyelven érhető el; a menü jobb felső sarkában lévő legördülő vált
+köztük, és a választás megmarad a következő indulásra.
+
+Magyar · English · Deutsch · Español · Français · Italiano · Português ·
+Nederlands · Polski · Čeština · Slovenčina · Slovenščina · Hrvatski · Srpski ·
+Română · Русский · Українська · Türkçe · 日本語 · 简体中文 · 한국어
+
+A szövegek a `web/lang/<kód>.json` fájlokban élnek, nyelvenként ugyanazzal a 229
+kulccsal. A HTML-ben `data-i18n` attribútumok jelölik a fordítandó elemeket. A
+nyelvek nevei mindig a SAJÁT nyelvükön szerepelnek, zászló nélkül — egy zászló
+országot jelöl, nem nyelvet.
+
+A tesztcsomag őrzi, hogy egyik fájlból se hiányozzon és egyikben se maradjon
+felesleges kulcs.
+
 ## Játékmódok
 
 ### Egyjátékos
@@ -78,7 +95,7 @@ megjelenik a szobakeresőben, vagy privát, ekkor a hatjegyű kóddal lehet bel�
 A host választja ki a pályát, a körszámot és a szabályokat, majd elindítja a futamot.
 
 A verseny csak akkor számol vissza, amikor minden csatlakozott játékos betöltött,
-vagy lejárt a 30 másodperces betöltési időkorlát. A középső értesítés név szerint
+vagy lejárt a 60 másodperces betöltési időkorlát. A középső értesítés név szerint
 mutatja, kire várunk; ha már minden játékos kész, „Várakozás a rajtra…” jelenik meg.
 Egy megszakadt kapcsolat nem tartja bent korlátlanul a többieket.
 
@@ -153,6 +170,20 @@ csomagtorlódással, pillanatnyi pingtüskékkel és a szabályos visszahelyezé
 A szobák memóriában élnek, mert folyamatosan változnak és szerver-újraindítás után
 értelmüket vesztik. Az adatbázisba csak a tartós adatok kerülnek.
 
+### Sorvégek
+
+A repó **LF** sorvéget használ, a `.gitattributes` kényszeríti ki minden gépen
+(`* text=auto eol=lf`). Erre azért van szükség, mert a Git for Windows telepítője
+rendszerszinten `core.autocrlf=true`-t állít: az LF-fel tárol, de CRLF-fel ír ki,
+amitől minden LF-fel író szerkesztő azonnal „módosítottnak" mutatja a fájlokat —
+és amitől néhány, a forrást mintaillesztéssel daraboló teszt friss klónon
+elbukott. A kód Linuxon fut, ahol a CRLF aktívan árt, és a projektben nincs
+egyetlen Windows-specifikus szkript sem.
+
+A verziókövetett binárisokat (`*.png`, `*.glb`, `*.bin`, `*.hdr`, `*.exe`) a
+`.gitattributes` kimondottan `binary`-nak jelöli. A git NUL-heurisztikája
+egyébként felismerné őket, de egy elrontott bináris néma hiba lenne.
+
 ## Hálózati késleltetés tesztelése
 
 Localhoston mesterséges ping és jitter kapcsolható az URL-ből:
@@ -185,11 +216,16 @@ A menü **Fejlesztői mód** gombja szabad kamerás pályaszerkesztőt nyit.
 
 ### Zónák
 
-Aszfalt, kifutó és opcionális, láthatatlan fal jelölhető:
+Aszfalt, kifutó, opcionális láthatatlan fal és simítási terület jelölhető:
 
 - ecsettel, állítható sugárral;
 - pontonként körberajzolt, kitölthető poligonnal;
 - a pálya anyagainak elemzéséből automatikusan generálva.
+
+A **simítási terület** nem a vezetésre hat, hanem az ütközési háló sütésére: az
+aszfalt-simítás csak az itt megjelölt részen dolgozik. Jelölés nélkül a teljes
+aszfaltra fut, ami hosszú, sík szakaszokon jó, de egy döntött oválon épp a
+felület lényegét vinné el.
 
 A valódi falakat és kerítéseket elsősorban a pályamodellből sütött
 `collision.bin` kezeli. A falzóna csak olyan extra lezárásokhoz kell, ahol nincs
@@ -210,6 +246,22 @@ Az **Ütközés bekészítése** a pálya geometriájából `collision.bin` fáj
 Multiplayerhez ez kötelező, mert a szerver és minden kliens ugyanazt az ütközési
 hálót használja. Szűrhetőek az apró törmelékek, simíthatóak a rázókövek és
 kizárhatóak a magas lombkoronák.
+
+### Objektumvágó
+
+Letöltött pályamodellekben gyakran maradnak oda nem illő darabok: placeholder
+dobozok a rajtrácson, lebegő törmelék. Az **Objektumvágó** módban rájuk kattintva
+a vele **összefüggő** darabot jelöli ki — nem az egész hálót —, és kivágja.
+
+A vágás nem törlés, hanem elfajult háromszög: mindhárom index ugyanarra a csúcsra
+mutat, aminek nincs felülete, a GPU eldobja. Ezért a puffer HOSSZA nem változik,
+és a GLB bájtra pontosan, helyben javítható — a textúrák, kiterjesztések és
+eltolások érintetlenek maradnak, újrakódolás nélkül. A mentés a böngésző
+letöltésén keresztül adja vissza a módosított modellt.
+
+Vágás után érdemes újrasütni az ütközési hálót. Gyakran kiderül, hogy a
+kivágott dobozok eleve nem is voltak benne: a törmelékszűrő már korábban
+kiszedte őket, mert különálló darabok.
 
 ### Autókerék-tesztelő
 
@@ -297,7 +349,7 @@ Git pull nem viszi fel a GLB, BIN, HDR és többi nagy modellfájlt.
 
 ## Jelenlegi korlátok
 
-- A pályamodellek nagyok, jelenleg nagyjából 60–150 MB közöttiek, ezért egy új
+- A pályamodellek nagyok, jelenleg nagyjából 40–195 MB közöttiek, ezért egy új
   pálya első betöltése lassabb lehet. A tartalomverziózott, egyéves böngészőcache
   miatt a következő betöltés lényegesen gyorsabb.
 - A saját autó fizikája kliensoldali, ezért autó–autó ütközésnél két játékos
