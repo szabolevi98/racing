@@ -2773,7 +2773,7 @@ function cutterCutSelection() {
 function cutterNudgeSelection() {
   if (!cutterSelection) return;
   const { mesh, vertices, egysegIrany } = cutterSelection;
-  const cm = Math.max(0.5, Math.min(50, Number(cutterNudgeCmEl.value) || 2));
+  const cm = Math.max(0.5, Math.min(50, Number(cutterNudgeCmEl.value) || 5));
   const delta = egysegIrany.clone().multiplyScalar(cm / 100);
   const pos = mesh.geometry.attributes.position;
   const restore = nudgeVertices(pos.array, vertices, [delta.x, delta.y, delta.z]);
