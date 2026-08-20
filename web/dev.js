@@ -2730,9 +2730,16 @@ function cutterPickAt(clientX, clientY) {
   const vilag = new THREE.Vector3(...bounds.center).applyMatrix4(hit.object.matrixWorld);
   const meret = bounds.size.map((v) => v.toFixed(1)).join(' × ');
   const resz = (faces.length / (geometry.index.count / 3) * 100).toFixed(1);
+  // Az ANYAGNÉV nélkül egy kijelölés nem köthető a modell elemzéséhez: ebből
+  // derül ki, milyen textúrát hord a darab. A Suzukán például így jött ki, hogy
+  // a "átlátszó aszfalt" valójában lombozat-textúrát visel.
+  const anyag = Array.isArray(hit.object.material)
+    ? (hit.object.material[hit.face?.materialIndex ?? 0]?.name || '')
+    : (hit.object.material?.name || '');
   cutterPickEl.innerHTML = `<strong>${faces.length}</strong> háromszög · méret <strong>${meret}</strong> m`
     + `<br><span class="text-secondary">a háló ${resz}%-a · középpont `
-    + `${vilag.x.toFixed(1)}, ${vilag.y.toFixed(1)}, ${vilag.z.toFixed(1)}</span>`;
+    + `${vilag.x.toFixed(1)}, ${vilag.y.toFixed(1)}, ${vilag.z.toFixed(1)}</span>`
+    + `<br>anyag: <strong class="text-info">${anyag || '(névtelen)'}</strong>`;
   cutterCutBtn.disabled = false;
   cutterNudgeBtn.disabled = false;
   cutterPushBtn.disabled = false;
