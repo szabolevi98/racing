@@ -2,6 +2,6 @@
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
   "_yawDegrees": "GYORS, ELLENŐRIZETLEN becslés - nincs egyértelmű név-alapú irány-infó, alapértelmezés 0. Ellenőrizd élőben.",
   "yawDegrees": 0,
-  "_wheelPattern": "AUTOMATIKUSAN SZŰKÍTVE (tools/audit/fix-wheel-orbit.mjs): a korábbi minta olyan darabot is megfogott, ami nem a kerékkel forog — a legrosszabb a(z) \"caliper.001\" volt, a kerékátmérő 49%-ával kilengve. Az új minta csak azokat a darabokat fogja meg, amelyek a forgástengelyre központozva ülnek: 329% kilengés, 30 darab. Élőben ellenőrizendő.\n\nKorábbi megjegyzés, referenciaként: Újraírva a tools/propose.mjs automatikával.",
-  "wheelPattern": "brakedisc|dunloptr|fc00tire4|fcootire2|material"
+  "_wheelPattern": "A csupasz \"material\" token MINDEN Material_* anyagot megfogott, koztuk a ket visszapillanto tukrot (Material_480/481, y=0.97, x=+-0.6, 22x7x2 cm). Ezek a kerek pivotjan korbelengtek — merve a kerekatmero 303%-aval, a teljes kocsi-allomany legrosszabbja. Az uj minta felsorolja a valodi kerek-anyagokat: azok a tengelyeknel ulnek (z=+1.42 elol, z=-1.31 hatul), a tukrok nem. Eredmeny: 10 darab, y 0.36-0.38.\n\nKorabbi megjegyzes, referenciakent: AUTOMATIKUSAN SZŰKÍTVE (tools/audit/fix-wheel-orbit.mjs): a korábbi minta olyan darabot is megfogott, ami nem a kerékkel forog — a legrosszabb a(z) \"caliper.001\" volt, a kerékátmérő 49%-ával kilengve. Az új minta csak azokat a darabokat fogja meg, amelyek a forgástengelyre központozva ülnek: 329% kilengés, 30 darab. Élőben ellenőrizendő.\n\nKorábbi megjegyzés, referenciaként: Újraírva a tools/propose.mjs automatikával.",
+  "wheelPattern": "brakedisc|dunloptr|fc00tire4|fcootire2|material_(356|368|393|405|466|478)"
 }
