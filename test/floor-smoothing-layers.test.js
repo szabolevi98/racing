@@ -17,7 +17,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const main = fs.readFileSync(new URL('../web/main.js', import.meta.url), 'utf8');
+// A sorvégeket egységesítjük. A git core.autocrlf=true mellett CRLF-fel írja
+// ki a fájlokat Windowson, a lenti daraboló viszont sortörés + } + sortörés
+// mintát keres, ami CRLF-en SOSEM illeszkedik. Enélkül ez a teszt friss klón
+// után elbukik, pedig a kód hibátlan.
+const main = fs.readFileSync(new URL('../web/main.js', import.meta.url), 'utf8')
+  .replace(/\r\n/g, '\n');
 
 function fuggveny(nev) {
   const kezd = main.indexOf(`function ${nev}(`);
