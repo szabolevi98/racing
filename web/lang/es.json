@@ -51,7 +51,7 @@
   "touch.accelerateBrake": "Acelerar / frenar",
   "touch.drift": "Derrape",
   "leaderboard.title": "Vueltas más rápidas",
-  "leaderboard.multiplayerOnly": "Solo cuentan las vueltas en multijugador",
+  "leaderboard.multiplayerOnly": "Solo cuentan las vueltas en multijugador y en vuelta rápida",
   "alert.waitingForStart": "Esperando la salida…",
   "alert.lapInvalid": "¡Vuelta anulada!",
   "alert.pitStopRequired": "⚠ PARADA EN BOXES OBLIGATORIA",

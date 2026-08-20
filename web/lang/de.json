@@ -51,7 +51,7 @@
   "touch.accelerateBrake": "Beschleunigen / bremsen",
   "touch.drift": "Driften",
   "leaderboard.title": "Schnellste Runden",
-  "leaderboard.multiplayerOnly": "Es zählen nur Mehrspieler-Runden",
+  "leaderboard.multiplayerOnly": "Es zählen nur Mehrspieler- und Zeitfahren-Runden",
   "alert.waitingForStart": "Warten auf den Start…",
   "alert.lapInvalid": "Runde ungültig!",
   "alert.pitStopRequired": "⚠ BOXENSTOPP-PFLICHT",

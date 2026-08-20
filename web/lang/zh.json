@@ -51,7 +51,7 @@
   "touch.accelerateBrake": "加速 / 刹车",
   "touch.drift": "漂移",
   "leaderboard.title": "最快单圈",
-  "leaderboard.multiplayerOnly": "只统计多人游戏中的单圈",
+  "leaderboard.multiplayerOnly": "只统计多人游戏和计时赛中的单圈",
   "alert.waitingForStart": "等待发车…",
   "alert.lapInvalid": "本圈无效！",
   "alert.pitStopRequired": "⚠ 强制进站",

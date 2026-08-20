@@ -51,7 +51,7 @@
   "touch.accelerateBrake": "Hızlanma / frenleme",
   "touch.drift": "Drift",
   "leaderboard.title": "En hızlı turlar",
-  "leaderboard.multiplayerOnly": "Yalnızca çok oyunculu turlar sayılır",
+  "leaderboard.multiplayerOnly": "Yalnızca çok oyunculu ve zamana karşı turlar sayılır",
   "alert.waitingForStart": "Başlangıç bekleniyor…",
   "alert.lapInvalid": "Tur geçersiz!",
   "alert.pitStopRequired": "⚠ ZORUNLU PIT STOP",

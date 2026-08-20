@@ -51,7 +51,7 @@
   "touch.accelerateBrake": "Accelerate / brake",
   "touch.drift": "Drift",
   "leaderboard.title": "Fastest laps",
-  "leaderboard.multiplayerOnly": "Only multiplayer laps count",
+  "leaderboard.multiplayerOnly": "Only multiplayer and hot lap times count",
   "alert.waitingForStart": "Waiting for the start…",
   "alert.lapInvalid": "Lap invalidated!",
   "alert.pitStopRequired": "⚠ PIT STOP REQUIRED",

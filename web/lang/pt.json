@@ -51,7 +51,7 @@
   "touch.accelerateBrake": "Acelerar / travar",
   "touch.drift": "Derrapagem",
   "leaderboard.title": "Voltas mais rápidas",
-  "leaderboard.multiplayerOnly": "Só contam as voltas em multijogador",
+  "leaderboard.multiplayerOnly": "Só contam as voltas em multijogador e cronometradas",
   "alert.waitingForStart": "À espera da partida…",
   "alert.lapInvalid": "Volta anulada!",
   "alert.pitStopRequired": "⚠ PARAGEM NAS BOXES OBRIGATÓRIA",

@@ -51,7 +51,7 @@
   "touch.accelerateBrake": "Accelerare / frenare",
   "touch.drift": "Derapata",
   "leaderboard.title": "Giri più veloci",
-  "leaderboard.multiplayerOnly": "Contano solo i giri in multigiocatore",
+  "leaderboard.multiplayerOnly": "Contano solo i giri in multigiocatore e cronometrati",
   "alert.waitingForStart": "In attesa del via…",
   "alert.lapInvalid": "Giro annullato!",
   "alert.pitStopRequired": "⚠ SOSTA AI BOX OBBLIGATORIA",

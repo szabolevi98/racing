@@ -51,7 +51,7 @@
   "touch.accelerateBrake": "Прискорення / гальмування",
   "touch.drift": "Дрифт",
   "leaderboard.title": "Найшвидші кола",
-  "leaderboard.multiplayerOnly": "Зараховуються лише кола в мультиплеєрі",
+  "leaderboard.multiplayerOnly": "Зараховуються лише кола в мультиплеєрі та на час",
   "alert.waitingForStart": "Очікування старту…",
   "alert.lapInvalid": "Коло анульовано!",
   "alert.pitStopRequired": "⚠ ОБОВʼЯЗКОВИЙ ПІТ-СТОП",

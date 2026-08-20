@@ -51,7 +51,7 @@
   "touch.accelerateBrake": "가속 / 제동",
   "touch.drift": "드리프트",
   "leaderboard.title": "가장 빠른 랩",
-  "leaderboard.multiplayerOnly": "멀티 플레이 랩만 인정됩니다",
+  "leaderboard.multiplayerOnly": "멀티 플레이와 타임 어택 랩만 인정됩니다",
   "alert.waitingForStart": "출발 대기 중…",
   "alert.lapInvalid": "랩 무효!",
   "alert.pitStopRequired": "⚠ 피트 스톱 의무",

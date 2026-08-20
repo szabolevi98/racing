@@ -51,7 +51,7 @@
   "touch.accelerateBrake": "Разгон / торможение",
   "touch.drift": "Дрифт",
   "leaderboard.title": "Быстрейшие круги",
-  "leaderboard.multiplayerOnly": "Засчитываются только круги в мультиплеере",
+  "leaderboard.multiplayerOnly": "Засчитываются только круги в мультиплеере и на время",
   "alert.waitingForStart": "Ожидание старта…",
   "alert.lapInvalid": "Круг аннулирован!",
   "alert.pitStopRequired": "⚠ ОБЯЗАТЕЛЬНЫЙ ПИТ-СТОП",

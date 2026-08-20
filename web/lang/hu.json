@@ -51,7 +51,7 @@
   "touch.accelerateBrake": "Gyorsítás / fékezés",
   "touch.drift": "Csúsztatás",
   "leaderboard.title": "Leggyorsabb körök",
-  "leaderboard.multiplayerOnly": "Csak a többjátékos mód körei számítanak",
+  "leaderboard.multiplayerOnly": "Csak a többjátékos és az időmérős körök számítanak",
   "alert.waitingForStart": "Várakozás a rajtra…",
   "alert.lapInvalid": "Kör érvénytelen!",
   "alert.pitStopRequired": "⚠ KÖTELEZŐ KERÉKCSERE",

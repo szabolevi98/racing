@@ -7,7 +7,7 @@ test('leaderboard stays informational while Hot Lap uses a separate ghost picker
   const multiplayer = await fs.readFile(new URL('../web/mp.js', import.meta.url), 'utf8');
 
   assert.match(html, /Leggyorsabb körök/);
-  assert.match(html, /Csak a többjátékos mód körei számítanak/);
+  assert.match(html, /Csak a többjátékos és az időmérős körök számítanak/);
   assert.match(multiplayer, /hotLapGhostPicker/);
   assert.match(multiplayer, /async function warmGhostCarVisual/);
   assert.match(multiplayer, /renderer\.initTexture\(texture\)/);

@@ -51,7 +51,7 @@
   "touch.accelerateBrake": "アクセル / ブレーキ",
   "touch.drift": "ドリフト",
   "leaderboard.title": "最速ラップ",
-  "leaderboard.multiplayerOnly": "マルチプレイのラップのみ有効",
+  "leaderboard.multiplayerOnly": "マルチプレイとタイムアタックのラップのみ有効",
   "alert.waitingForStart": "スタート待ち…",
   "alert.lapInvalid": "ラップ無効！",
   "alert.pitStopRequired": "⚠ ピットストップ義務",

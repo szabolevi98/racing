@@ -51,7 +51,7 @@
   "touch.accelerateBrake": "Accelerare / frânare",
   "touch.drift": "Drift",
   "leaderboard.title": "Cele mai rapide ture",
-  "leaderboard.multiplayerOnly": "Contează doar turele din multiplayer",
+  "leaderboard.multiplayerOnly": "Contează doar turele din multiplayer și cele contra cronometru",
   "alert.waitingForStart": "Se așteaptă startul…",
   "alert.lapInvalid": "Tur anulat!",
   "alert.pitStopRequired": "⚠ OPRIRE OBLIGATORIE LA BOXE",

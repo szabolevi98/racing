@@ -51,7 +51,7 @@
   "touch.accelerateBrake": "Gas geven / remmen",
   "touch.drift": "Driften",
   "leaderboard.title": "Snelste ronden",
-  "leaderboard.multiplayerOnly": "Alleen ronden in multiplayer tellen mee",
+  "leaderboard.multiplayerOnly": "Alleen ronden in multiplayer en tijdrit tellen mee",
   "alert.waitingForStart": "Wachten op de start…",
   "alert.lapInvalid": "Ronde ongeldig!",
   "alert.pitStopRequired": "⚠ VERPLICHTE PITSTOP",

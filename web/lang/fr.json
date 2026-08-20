@@ -51,7 +51,7 @@
   "touch.accelerateBrake": "Accélérer / freiner",
   "touch.drift": "Drift",
   "leaderboard.title": "Tours les plus rapides",
-  "leaderboard.multiplayerOnly": "Seuls les tours en multijoueur comptent",
+  "leaderboard.multiplayerOnly": "Seuls les tours en multijoueur et chronométrés comptent",
   "alert.waitingForStart": "En attente du départ…",
   "alert.lapInvalid": "Tour annulé !",
   "alert.pitStopRequired": "⚠ ARRÊT AU STAND OBLIGATOIRE",

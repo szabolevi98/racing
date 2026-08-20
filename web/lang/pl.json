@@ -51,7 +51,7 @@
   "touch.accelerateBrake": "Przyspieszanie / hamowanie",
   "touch.drift": "Drift",
   "leaderboard.title": "Najszybsze okrążenia",
-  "leaderboard.multiplayerOnly": "Liczą się tylko okrążenia w trybie wieloosobowym",
+  "leaderboard.multiplayerOnly": "Liczą się tylko okrążenia w trybie wieloosobowym i na czas",
   "alert.waitingForStart": "Czekanie na start…",
   "alert.lapInvalid": "Okrążenie unieważnione!",
   "alert.pitStopRequired": "⚠ OBOWIĄZKOWY PIT STOP",
