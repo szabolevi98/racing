@@ -19,3 +19,9 @@
 *.hdr binary
 *.woff  binary
 *.woff2 binary
+*.exe   binary
+
+# Nem a kiterjesztésükről ismerszenek meg, ezért külön: egy Windows-bináris és
+# egy PNG-mentés .bak utótaggal. A git NUL-heurisztikája mindkettőt binárisnak
+# látja, de a heurisztikára pont azért nem bízzuk, mert néma hiba lenne.
+web/assets/maps/**/*.bak-* binary
