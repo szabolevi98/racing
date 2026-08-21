@@ -2708,7 +2708,12 @@ function cutterPickAt(clientX, clientY) {
   const raycaster = new THREE.Raycaster();
   raycaster.setFromCamera(ndc, camera);
   const hits = raycaster.intersectObject(track, true);
-  const hit = hits.find((h) => h.object?.isMesh && h.object.geometry?.index && h.faceIndex !== undefined);
+  // Az "Anyag ráadása" előnézeti hálóját KIHAGYJUK: az nem a betöltött GLB-ből
+  // származik, tehát nincs benne a fájlbeli megfeleltetésben, és rákattintva a
+  // mentés "Nem találom a hálót a GLB-ben" hibával állna meg. A mögötte lévő
+  // eredeti geometria amúgy is elfajult, tehát nincs mit még egyszer kijelölni.
+  const hit = hits.find((h) => h.object?.isMesh && h.object.geometry?.index
+    && h.faceIndex !== undefined && !h.object.userData?.cutterPreview);
   if (!hit) { cutterSay('Nem találtam geometriát a kattintás alatt.', 'text-warning'); return; }
 
   const geometry = hit.object.geometry;
@@ -2750,11 +2755,18 @@ function cutterPickAt(clientX, clientY) {
     + `<br><span class="text-secondary">a háló ${resz}%-a · középpont `
     + `${vilag.x.toFixed(1)}, ${vilag.y.toFixed(1)}, ${vilag.z.toFixed(1)}</span>`
     + `<br>anyag: <strong class="text-info">${anyag || '(névtelen)'}</strong>`;
-  cutterCutBtn.disabled = false;
-  cutterNudgeBtn.disabled = false;
-  cutterPushBtn.disabled = false;
+  // Menthető-e egyáltalán? A GLB-hez tartozó megfeleltetés hiánya csak a
+  // mentésnél derülne ki, több perc munka után — inkább szóljunk azonnal.
+  const mentheto = api.currentTrackAssociations?.get(hit.object)?.meshes !== undefined;
+  if (!mentheto) {
+    cutterPickEl.innerHTML += '<br><span class="text-danger">Ez a háló nem található '
+      + 'a GLB-ben — a rajta végzett műveletet nem lehetne elmenteni.</span>';
+  }
+  cutterCutBtn.disabled = !mentheto;
+  cutterNudgeBtn.disabled = !mentheto;
+  cutterPushBtn.disabled = !mentheto;
   cutterCopyMatBtn.disabled = false;
-  cutterApplyMatBtn.disabled = !cutterCopiedMaterial;
+  cutterApplyMatBtn.disabled = !mentheto || !cutterCopiedMaterial;
   // Egy nagy arány azt jelenti, hogy a fél pályát jelölted ki — ilyet ritkán
   // akar az ember, ezért kiírjuk, mielőtt rákattint a Kivágásra.
   cutterSay(resz > 20 ? 'Figyelem: a háló nagy részét jelölted ki.' : '', resz > 20 ? 'text-danger' : 'text-secondary');
@@ -2856,6 +2868,7 @@ function cutterApplyMaterial() {
   for (const nev of Object.keys(geo.attributes)) ujGeo.setAttribute(nev, geo.attributes[nev]);
   ujGeo.setIndex(new THREE.BufferAttribute(Uint32Array.from(triples.flat()), 1));
   const ujMesh = new THREE.Mesh(ujGeo, cutterCopiedMaterial);
+  ujMesh.userData.cutterPreview = true;
   ujMesh.castShadow = mesh.castShadow;
   ujMesh.receiveShadow = mesh.receiveShadow;
   mesh.parent.add(ujMesh);
@@ -2930,7 +2943,14 @@ async function cutterSaveModel() {
     let ujPrimitiv = 0;
     for (const cut of cutterCuts) {
       const hely = assoc.get(cut.mesh);
-      if (!hely || hely.meshes === undefined) throw new Error('Nem találom a hálót a GLB-ben.');
+      if (!hely || hely.meshes === undefined) {
+        // Ha ez mégis előfordul, tudni akarjuk, MELYIK művelet és milyen háló
+        // okozta — egy általános üzenetből nem derül ki, mit kell javítani.
+        const mibol = { cut: 'kivágás', nudge: 'eltolás', material: 'anyagcsere' }[cut.tipus] || cut.tipus;
+        const nev = cut.mesh?.name || '(névtelen)';
+        const elonezet = cut.mesh?.userData?.cutterPreview ? ', és ez egy előnézeti háló' : '';
+        throw new Error(`Nem találom a hálót a GLB-ben (${mibol}, "${nev}"${elonezet}).`);
+      }
       const prim = glb.json.meshes[hely.meshes].primitives[hely.primitives ?? 0];
       const akadaly = cutBlocker(prim);
       if (akadaly) throw new Error(`Ez a háló nem vágható: ${akadaly}.`);

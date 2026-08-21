@@ -158,3 +158,17 @@ test('a dev mód két lépésben dolgozik: anyag másolása, majd ráadása', as
   assert.match(dev, /bytes = addPrimitiveWithMaterial\(bytes, glb, \{/);
   assert.match(dev, /glb = parseGlb\(bytes\);/, 'az új fájlt újra kell értelmezni');
 });
+
+test('az előnézeti háló nem jelölhető ki, és a menthetőség kattintáskor kiderül', async () => {
+  const fs = await import('node:fs/promises');
+  const dev = await fs.readFile(new URL('../web/dev.js', import.meta.url), 'utf8');
+  // Az előnézeti háló nem a GLB-ből származik: rákattintva a mentés elhasalna
+  // ("Nem találom a hálót a GLB-ben"), ezért a raycast eleve kihagyja.
+  assert.match(dev, /ujMesh\.userData\.cutterPreview = true/);
+  assert.match(dev, /!h\.object\.userData\?\.cutterPreview/);
+  // És a menthetőséget nem a mentés végén, hanem már kijelöléskor jelezzük.
+  assert.match(dev, /api\.currentTrackAssociations\?\.get\(hit\.object\)\?\.meshes !== undefined/);
+  assert.match(dev, /cutterCutBtn\.disabled = !mentheto/);
+  // A hibaüzenet mondja meg, MELYIK művelet bukott el.
+  assert.match(dev, /kivágás', nudge: 'eltolás', material: 'anyagcsere'/);
+});
