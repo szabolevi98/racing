@@ -2,6 +2,6 @@
   "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
   "_yawDegrees": "Alapértelmezés 0 (előre néző modellt feltételezve). Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
   "yawDegrees": 0,
-  "_wheelPattern": "Automatikusan generálva (tools/build-car-wheels.mjs). Mérés: nyomtáv 1.28, tengelytáv 2.95, 20 darab.",
-  "wheelPattern": "tyre|rim|disk|caliper"
+  "_wheelPattern": "JAVITVA (a felhasznalo jelezte: a keremel egyutt forgott egy futomu-alkatresz). A \"caliper\" token kikerult: a fekyereg az ALLO felfuggesztesre van szerelve, nem a kerekkel forog. A modellben negy ilyen darab van, mind \"carbon_fiber\" anyaggal, es a keret pivotjara kerulve korbelengtek — merve a kerekatmero 24%-aval. Nelkuluk 1%, ami a merheto minimum.\n\nA \"disk\" SZANDEKOSAN bent marad: az a fekkorong (BRAKE anyag), ami valoban a kerekkel forog. Csak \"tyre|rim\"-mel 0% jonne ki, de akkor a korong allna, miközben a kerek forog.\n\nUgyanez a hiba volt a 2004_ferrari_f2004-nel is; ott is az lett a megoldas, hogy a minta CSAK azt sorolja fel, ami a kerekkel egyutt forog.\n\nKorabbi megjegyzes, referenciakent: Automatikusan generálva (tools/build-car-wheels.mjs). Mérés: nyomtáv 1.28, tengelytáv 2.95, 20 darab.",
+  "wheelPattern": "tyre|rim|disk"
 }
