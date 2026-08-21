@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "Alapértelmezés 0 (előre néző modellt feltételezve). Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
+  "yawDegrees": 0,
+  "_wheelPattern": "KEZZEL BOVITVE. Az automatika \"inner|tyre\"-t javasolt, ami a gumit es a BELSO felnit fogta meg, a KULSO felnit (rim.001 anyag, ugyanabban a magassagban) viszont nem — az allva maradt volna, mikozben a gumi forog.\n\nCSAPDA: a csupasz \"rim\" a \"rubber_trim.001\"-re is illeszkedik (karosszeria-diszlec, y=0.89), es azzal a kilenges a kerekatmero 277%-a lett. Ezert szohatarral kerunk: a \\brim a \" rim.001\"-re illeszkedik, a \"rubber_trim.001\"-re nem, mert ott a \"rim\" ele nem esik szohatar.\n\nA jatek EGYETLEN, szokozzel osszefuzott szovegre illeszt (osok nevei + anyagnevek), ezert horgony (^rim) nem hasznalhato: az osszefuzott szoveg szokozzel kezdodik.\n\nKorabbi megjegyzes, referenciakent: Automatikusan generálva (tools/build-car-wheels.mjs). Mérés: nyomtáv 1.31, tengelytáv 2.55, 8 darab.",
+  "wheelPattern": "inner|tyre|\\brim"
+}
