@@ -290,3 +290,107 @@ export function patchGlbPositions(bytes, glb, accessorIndex, moves) {
   // `olvas` a hívó ellenőrzéséhez marad elérhető a visszatérésben.
   return { db, kilog, olvas };
 }
+
+// ---- Darab áthelyezése másik anyag alá ----
+//
+// A Suzukán az aszfalt néhol átlátszó, és ez NEM megjelenítési hiba: az
+// érintett felületek a `Merged_materials` anyagot viselik, aminek a textúrája
+// csempézett LOMBOZAT — 256×256, a látható rész átlaga rgb(55, 66, 40), a
+// képpontok 53,6%-a teljesen átlátszó, a lyukak alatt fekete. A betöltő már a
+// lehető legjobbat csinálja vele (maszknak ismeri fel, alphaTest + depthWrite).
+//
+// Kivágni nem lehet: mérve a két darab lapjainak 64%-a és 81%-a alatt NINCS
+// másik felület, tehát ők MAGUK a vezetett út — a kivágás lyukat hagyna, és az
+// autó átesne rajta.
+//
+// Anyagot cserélni sem lehet a meglévő szinteken:
+//   - az ANYAG szintjén: a `Merged_materials` lapjainak ~85%-a függőleges,
+//     azaz valódi lombkártya — a fák mennének tönkre;
+//   - a PRIMITÍV szintjén: a 725 háromszöges darab egy 7549 háromszögből és
+//     520 összefüggő darabból álló primitívben ül.
+//
+// Marad a helyes szemcsézettség: a darabot SAJÁT PRIMITÍVBE emeljük, és annak
+// adunk rendes aszfalt-anyagot. Az új primitív az EREDETI attribútum-
+// accessorokra hivatkozik (pozíció, UV, normális), csak az indexei újak — így
+// egyetlen csúcsot sem duplázunk, csak a háromszöglistát.
+//
+// Ez az egyetlen művelet a fájlban, ami NEM bájtpontos folt: a JSON hossza és a
+// fájl mérete változik, ezért a GLB-t újra kell építeni. Cserébe minden más
+// bájt (textúrák, kiterjesztések, a teljes eredeti BIN) érintetlen marad.
+
+const GLB_MAGIC = 0x46546c67;
+
+function padTo4(n) { return (4 - (n % 4)) % 4; }
+
+/**
+ * Új primitív a megadott háromszögekből, másik anyaggal.
+ *
+ * @param triples csúcshármasok tömbje (ugyanaz a formátum, amit a
+ *   mapTrianglesToGlb vár) — a hívó a visszavonás-adatból rakja össze.
+ * @returns {Uint8Array} az ÚJ GLB bájtjai. Az eredeti tömb érintetlen.
+ */
+export function addPrimitiveWithMaterial(bytes, glb, {
+  meshIndex, primitiveIndex, triples, materialIndex,
+}) {
+  const json = JSON.parse(JSON.stringify(glb.json));
+  const forras = json.meshes?.[meshIndex]?.primitives?.[primitiveIndex];
+  if (!forras) throw new Error('Nincs ilyen primitív.');
+  if (!forras.attributes?.POSITION && forras.attributes?.POSITION !== 0) {
+    throw new Error('A forrás primitívnek nincs POSITION attribútuma.');
+  }
+  if (!triples?.length) throw new Error('Nincs áthelyezendő háromszög.');
+  if (!json.materials?.[materialIndex]) throw new Error('Nincs ilyen anyag.');
+
+  // Az indexek mindig uint32-ként mennek: a forrás lehet uint16-os, de az új
+  // lista ugyanazokra a csúcsokra mutat, és a 32 bit sosem kevés.
+  const idx = new Uint32Array(triples.length * 3);
+  triples.forEach(([a, b, c], i) => { idx[i * 3] = a; idx[i * 3 + 1] = b; idx[i * 3 + 2] = c; });
+  const ujAdat = new Uint8Array(idx.buffer);
+
+  const regiBin = bytes.subarray(glb.binStart, glb.binStart + glb.binLength);
+  // Az accessor eltolása 4-gyel osztható kell legyen (uint32 komponens).
+  const eltolas = regiBin.byteLength + padTo4(regiBin.byteLength);
+
+  json.bufferViews.push({
+    buffer: 0,
+    byteOffset: eltolas,
+    byteLength: ujAdat.byteLength,
+    target: 34963,   // ELEMENT_ARRAY_BUFFER
+  });
+  json.accessors.push({
+    bufferView: json.bufferViews.length - 1,
+    componentType: 5125,
+    count: idx.length,
+    type: 'SCALAR',
+  });
+  json.meshes[meshIndex].primitives.push({
+    attributes: { ...forras.attributes },
+    indices: json.accessors.length - 1,
+    material: materialIndex,
+    ...(forras.mode !== undefined ? { mode: forras.mode } : {}),
+  });
+  const ujBinHossz = eltolas + ujAdat.byteLength;
+  if (json.buffers?.[0]) json.buffers[0].byteLength = ujBinHossz;
+
+  // ---- Újraépítés ----
+  const jsonBytes = new TextEncoder().encode(JSON.stringify(json));
+  const jsonPad = padTo4(jsonBytes.byteLength);
+  const binPad = padTo4(ujBinHossz);
+  const total = 12 + 8 + jsonBytes.byteLength + jsonPad + 8 + ujBinHossz + binPad;
+  const out = new Uint8Array(total);
+  const dv = new DataView(out.buffer);
+  dv.setUint32(0, GLB_MAGIC, true);
+  dv.setUint32(4, 2, true);
+  dv.setUint32(8, total, true);
+  dv.setUint32(12, jsonBytes.byteLength + jsonPad, true);
+  dv.setUint32(16, 0x4e4f534a, true);
+  out.set(jsonBytes, 20);
+  // A JSON-darab kitöltése SZÓKÖZ, a BIN-é nulla — ezt a glTF előírja.
+  out.fill(0x20, 20 + jsonBytes.byteLength, 20 + jsonBytes.byteLength + jsonPad);
+  const binChunk = 20 + jsonBytes.byteLength + jsonPad;
+  dv.setUint32(binChunk, ujBinHossz + binPad, true);
+  dv.setUint32(binChunk + 4, 0x004e4942, true);
+  out.set(regiBin, binChunk + 8);
+  out.set(ujAdat, binChunk + 8 + eltolas);
+  return out;
+}

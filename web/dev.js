@@ -26,6 +26,7 @@ import { findGateHit, findSpawnHit } from '/shared/editorSelection.js';
 import {
   mergeByPosition, componentAtFace, boundsOfVertices,
   degenerateFaces, restoreFaces, parseGlb, patchGlbFaces, cutBlocker, mapTrianglesToGlb,
+  addPrimitiveWithMaterial,
   nudgeVertices, restoreVertices, patchGlbPositions,
 } from '/shared/meshCut.js';
 import { isSmoothingPaint } from '/shared/zone.js';
@@ -45,6 +46,10 @@ let carTesterCompressedEl, carTesterFileInfoEl;
 let devDriveBtn, devDriveHudEl, devDriveBackBtn, devDriveResetBtn, devDriveSaveBtn, devDriveSlidersEl;
 let objectCutterBtn, objectCutterHudEl, cutterPickEl, cutterCutBtn, cutterUndoBtn;
 let cutterNudgeBtn, cutterPushBtn, cutterNudgeCmEl;
+let cutterCopyMatBtn, cutterApplyMatBtn, cutterMatInfoEl;
+// A MÁSOLT anyag: a jelenetbeli THREE-anyag és a neve. A GLB-beli sorszámát
+// mentéskor keressük ki név alapján — a jelenet nem őrzi meg.
+let cutterCopiedMaterial = null;
 let cutterListEl, cutterSaveBtn, cutterBackBtn, cutterStatusEl;
 let openMaterialPickerBtn, generateCheckpointsBtn, autoCheckpointCountEl;
 let materialPickerPanelEl, materialPickerGridEl, generateAsphaltBtn;
@@ -121,6 +126,9 @@ function queryElements() {
   cutterPickEl = $('cutterPick');
   cutterNudgeBtn = $('cutterNudgeBtn');
   cutterPushBtn = $('cutterPushBtn');
+  cutterCopyMatBtn = $('cutterCopyMatBtn');
+  cutterApplyMatBtn = $('cutterApplyMatBtn');
+  cutterMatInfoEl = $('cutterMatInfo');
   cutterNudgeCmEl = $('cutterNudgeCm');
   cutterCutBtn = $('cutterCutBtn');
   cutterUndoBtn = $('cutterUndoBtn');
@@ -2240,6 +2248,8 @@ function wireEvents() {
   objectCutterBtn.addEventListener('click', enterObjectCutter);
   cutterBackBtn.addEventListener('click', exitObjectCutter);
   cutterCutBtn.addEventListener('click', cutterCutSelection);
+  cutterCopyMatBtn.addEventListener('click', cutterCopyMaterial);
+  cutterApplyMatBtn.addEventListener('click', cutterApplyMaterial);
   cutterNudgeBtn.addEventListener('click', () => cutterNudgeSelection(1));
   cutterPushBtn.addEventListener('click', () => cutterNudgeSelection(-1));
   cutterUndoBtn.addEventListener('click', cutterUndo);
@@ -2743,14 +2753,17 @@ function cutterPickAt(clientX, clientY) {
   cutterCutBtn.disabled = false;
   cutterNudgeBtn.disabled = false;
   cutterPushBtn.disabled = false;
+  cutterCopyMatBtn.disabled = false;
+  cutterApplyMatBtn.disabled = !cutterCopiedMaterial;
   // Egy nagy arány azt jelenti, hogy a fél pályát jelölted ki — ilyet ritkán
   // akar az ember, ezért kiírjuk, mielőtt rákattint a Kivágásra.
   cutterSay(resz > 20 ? 'Figyelem: a háló nagy részét jelölted ki.' : '', resz > 20 ? 'text-danger' : 'text-secondary');
 }
 
 function refreshCutterList() {
-  const vagas = cutterCuts.filter((c) => c.tipus !== 'nudge');
+  const vagas = cutterCuts.filter((c) => c.tipus !== 'nudge' && c.tipus !== 'material');
   const tolas = cutterCuts.filter((c) => c.tipus === 'nudge');
+  const anyag = cutterCuts.filter((c) => c.tipus === 'material');
   const reszek = [];
   if (vagas.length) {
     reszek.push(`Kivágva: <strong>${vagas.length}</strong> darab, `
@@ -2761,6 +2774,10 @@ function refreshCutterList() {
     if (!l.length) continue;
     reszek.push(`${cimke}: <strong>${l.length}</strong> darab, `
       + `${l.reduce((s, c) => s + c.restore.length, 0)} csúcs`);
+  }
+  if (anyag.length) {
+    reszek.push(`Új anyag alá: <strong>${anyag.length}</strong> darab, `
+      + `${anyag.reduce((s2, c) => s2 + c.faces.length, 0)} háromszög`);
   }
   cutterListEl.innerHTML = reszek.join('<br>');
   cutterUndoBtn.disabled = cutterCuts.length === 0;
@@ -2810,10 +2827,72 @@ function cutterNudgeSelection(elojel = 1) {
     + 'Ha még villog, jelöld ki újra és told még.', 'text-success');
 }
 
+function cutterCopyMaterial() {
+  if (!cutterSelection) return;
+  const mesh = cutterSelection.mesh;
+  const anyag = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+  if (!anyag?.name) { cutterSay('Ennek a darabnak nincs nevesített anyaga.', 'text-warning'); return; }
+  cutterCopiedMaterial = anyag;
+  cutterMatInfoEl.textContent = `másolt anyag: ${anyag.name}`;
+  cutterApplyMatBtn.disabled = !cutterSelection;
+  cutterSay(`"${anyag.name}" anyag megjegyezve. Most kattints a rossz felületre.`, 'text-info');
+}
+
+// A darabot SAJÁT hálóba emeljük a másolt anyaggal, az eredeti lapjait pedig
+// elfajulttá tesszük — így a geometria megmarad (az autó nem esik át rajta), de
+// már a jó anyagot viseli. A mentés ugyanezt írja a GLB-be: új primitív, ami az
+// EREDETI attribútum-accessorokra hivatkozik.
+function cutterApplyMaterial() {
+  if (!cutterSelection || !cutterCopiedMaterial) return;
+  const { mesh, faces } = cutterSelection;
+  const geo = mesh.geometry;
+  const idx = geo.index.array;
+
+  // A háromszögek csúcshármasai MÉG az elfajulttá tétel előtt kellenek.
+  const triples = faces.map((t) => [idx[t * 3], idx[t * 3 + 1], idx[t * 3 + 2]]);
+
+  // Előnézet: új háló ugyanazokból a csúcsokból, csak a kiemelt lapokkal.
+  const ujGeo = new THREE.BufferGeometry();
+  for (const nev of Object.keys(geo.attributes)) ujGeo.setAttribute(nev, geo.attributes[nev]);
+  ujGeo.setIndex(new THREE.BufferAttribute(Uint32Array.from(triples.flat()), 1));
+  const ujMesh = new THREE.Mesh(ujGeo, cutterCopiedMaterial);
+  ujMesh.castShadow = mesh.castShadow;
+  ujMesh.receiveShadow = mesh.receiveShadow;
+  mesh.parent.add(ujMesh);
+  // Ugyanaz a hely a jelenetben, mint a forrásnak.
+  ujMesh.position.copy(mesh.position);
+  ujMesh.quaternion.copy(mesh.quaternion);
+  ujMesh.scale.copy(mesh.scale);
+
+  const restore = degenerateFaces(idx, faces);
+  geo.index.needsUpdate = true;
+
+  cutterCuts.push({
+    tipus: 'material', mesh, faces, restore, triples,
+    anyagNev: cutterCopiedMaterial.name, ujMesh,
+  });
+  cutterSelection = null;
+  clearCutterHighlight();
+  cutterPickEl.textContent = 'Nincs kijelölve semmi.';
+  cutterCutBtn.disabled = true;
+  cutterNudgeBtn.disabled = true;
+  cutterPushBtn.disabled = true;
+  cutterCopyMatBtn.disabled = true;
+  cutterApplyMatBtn.disabled = true;
+  refreshCutterList();
+  cutterSay(`${faces.length} háromszög átkerült a(z) "${cutterCopiedMaterial.name}" anyag alá.`,
+    'text-success');
+}
+
 function cutterUndo() {
   const utolso = cutterCuts.pop();
   if (!utolso) return;
-  if (utolso.tipus === 'nudge') {
+  if (utolso.tipus === 'material') {
+    utolso.ujMesh.parent?.remove(utolso.ujMesh);
+    utolso.ujMesh.geometry.dispose();
+    restoreFaces(utolso.mesh.geometry.index.array, utolso.restore);
+    utolso.mesh.geometry.index.needsUpdate = true;
+  } else if (utolso.tipus === 'nudge') {
     const pos = utolso.mesh.geometry.attributes.position;
     restoreVertices(pos.array, utolso.restore);
     pos.needsUpdate = true;
@@ -2840,19 +2919,42 @@ async function cutterSaveModel() {
   try {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const bytes = new Uint8Array(await res.arrayBuffer());
-    const glb = parseGlb(bytes);
+    // `let`, mert az anyagcsere ÚJRAÉPÍTI a fájlt (a mérete változik).
+    let bytes = new Uint8Array(await res.arrayBuffer());
+    let glb = parseGlb(bytes);
 
     let osszes = 0;
     let hianyzo = 0;
     let csucsok = 0;
     let kilogo = 0;
+    let ujPrimitiv = 0;
     for (const cut of cutterCuts) {
       const hely = assoc.get(cut.mesh);
       if (!hely || hely.meshes === undefined) throw new Error('Nem találom a hálót a GLB-ben.');
       const prim = glb.json.meshes[hely.meshes].primitives[hely.primitives ?? 0];
       const akadaly = cutBlocker(prim);
       if (akadaly) throw new Error(`Ez a háló nem vágható: ${akadaly}.`);
+
+      // Anyagcsere: a darabot elfajulttá tesszük az eredeti primitívben, és
+      // felveszünk egy ÚJ primitívet ugyanazokra az attribútumokra, a másolt
+      // anyaggal. Ez az egyetlen művelet, ami a fájl méretét is változtatja,
+      // ezért a bájttömböt le is cseréljük az újraépítettre.
+      if (cut.tipus === 'material') {
+        const { mapped, hianyzo: hiany } = mapTrianglesToGlb(bytes, glb, prim.indices, cut.triples);
+        hianyzo += hiany;
+        osszes += patchGlbFaces(bytes, glb, prim.indices, mapped);
+        const anyagIdx = glb.json.materials.findIndex((m) => m.name === cut.anyagNev);
+        if (anyagIdx < 0) throw new Error(`Nincs "${cut.anyagNev}" nevű anyag a GLB-ben.`);
+        bytes = addPrimitiveWithMaterial(bytes, glb, {
+          meshIndex: hely.meshes,
+          primitiveIndex: hely.primitives ?? 0,
+          triples: cut.triples,
+          materialIndex: anyagIdx,
+        });
+        glb = parseGlb(bytes);
+        ujPrimitiv++;
+        continue;
+      }
 
       // A csúcsmozgatás a lapsorszám-fordítást MEGKERÜLI: a three-mesh-bvh az
       // indextömböt rendezi át, a pozíciótömböt nem, tehát a jelenetbeli
@@ -2889,7 +2991,8 @@ async function cutterSaveModel() {
     setTimeout(() => URL.revokeObjectURL(a.href), 10000);
     const mit = [
       osszes ? `${osszes} háromszög kivágva` : '',
-      csucsok ? `${csucsok} csúcs előrébb hozva` : '',
+      csucsok ? `${csucsok} csúcs eltolva` : '',
+      ujPrimitiv ? `${ujPrimitiv} darab új anyag alá` : '',
     ].filter(Boolean).join(', ');
     // A min/max mezőket nem írjuk át (az a JSON hosszát változtatná, és elveszne
     // a bájtpontos javítás), ezért ha egy csúcs kilépett a deklarált befoglaló
