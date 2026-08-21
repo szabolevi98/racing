@@ -1,7 +1,7 @@
 {
   "version": 4,
   "targetMb": 5,
-  "generatedAt": "2026-08-19T15:11:36.287Z",
+  "generatedAt": "2026-08-21T12:53:51.485Z",
   "cars": {
     "2008_bmw_sauber_f1.08": {
       "signature": "v2:4:41196616:5242880:053203ef9a6dbcd1e218761c0e6e868b30e208db12e8809d8a9872706892abf7",
@@ -4460,6 +4460,50 @@
       "triangles": 22207,
       "imageBytes": 2537762,
       "geometryBytes": 489722
+    },
+    "1991_jaguar_xjr-14": {
+      "signature": "v2:4:8116984:5242880:6dcc01302935e8609feac4ce72201d2c623843198ba076d89c269854eb1951ac",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 0
+      },
+      "limitedBy": "textúra",
+      "bytes": 4727204,
+      "sourceBytes": 8116984,
+      "triangles": 43196,
+      "imageBytes": 3487914,
+      "geometryBytes": 1196012
+    },
+    "2011_cadillac_cts-v_coupe_race_car": {
+      "signature": "v2:4:3474824:5242880:b89529dd50ce3bb09e773a2be62c165d7a448f89c79e3b4519789b8ffea56028",
+      "copied": true,
+      "bytes": 3474824,
+      "sourceBytes": 3474824
+    },
+    "2011_redbull_rb7_showrun": {
+      "signature": "v2:4:6541584:5242880:98854c5fbaeb2c124e1919b3ea4bb7ce7dd7a9f9c401b5cabebafc48711d47fd",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 0
+      },
+      "limitedBy": "textúra",
+      "bytes": 2621148,
+      "sourceBytes": 6541584,
+      "triangles": 55579,
+      "imageBytes": 1277144,
+      "geometryBytes": 1258830
     }
   }
 }
