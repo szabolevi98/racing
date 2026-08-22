@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "Alapértelmezés 0 (előre néző modellt feltételezve). Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
+  "yawDegrees": 0,
+  "_wheelPattern": "KEZZEL SZUKITVE. A modellben a \"mMAT_Tire_Brake_048\" anyagot a FEKNYERGEK (SM_Brake_FL/FR/RL/RR) es az AGYAK (SM_Hub_L/R) is hasznaljak, a gumiknak viszont sajat \"tire\" anyaguk van. A csupasz \"tire\" token ezert a \"Tire_Brake\"-re is illeszkedett, es a nyereg bekerult a kerek pivotjara: 49% kilenges.\n\nSzohatarral (\\btire\\b) csak a sajat \"tire\" anyag marad, mert a \"mMAT_Tire_Brake_048\"-ban a \"Tire\" ele alahuzas esik, ami szo karakter — ott nincs szohatar. Eredmeny: 0%.\n\nA \"hub\" es a \"disk\" SZANDEKOSAN bent van: az agy es a fektarcsa valoban forog a kerekkel. A javaslo tiltolistaja a nyerget nev alapjan mar kiszuri, de itt az anyagnev maga tartalmazza a \"Tire\" szot, ezert az nem segitett.\n\nKorabbi megjegyzes, referenciakent: Automatikusan generálva (tools/build-car-wheels.mjs). Mérés: nyomtáv 1.5, tengelytáv 2.6, 16 darab.",
+  "wheelPattern": "\\btire\\b|disk|hub"
+}

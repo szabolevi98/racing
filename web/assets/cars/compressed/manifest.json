@@ -1,7 +1,7 @@
 {
   "version": 4,
   "targetMb": 5,
-  "generatedAt": "2026-08-22T16:18:39.359Z",
+  "generatedAt": "2026-08-22T16:28:13.519Z",
   "cars": {
     "2008_bmw_sauber_f1.08": {
       "signature": "v2:4:41196616:5242880:053203ef9a6dbcd1e218761c0e6e868b30e208db12e8809d8a9872706892abf7",
@@ -4580,6 +4580,25 @@
       "triangles": 149888,
       "imageBytes": 1549760,
       "geometryBytes": 3453580
+    },
+    "2005_bmw_m3_gtr_need_for_speed_most_wanted": {
+      "signature": "v2:4:7255408:5242880:7faa9bbbd282907f439d0fc2ad51d4db87beade1cd07d4726e6d5c3638032b20",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 0
+      },
+      "limitedBy": "geometria",
+      "bytes": 2803540,
+      "sourceBytes": 7255408,
+      "triangles": 83736,
+      "imageBytes": 858598,
+      "geometryBytes": 1889940
     }
   }
 }
