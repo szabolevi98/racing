@@ -52,10 +52,18 @@ const esc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // forognak a kerékkel (a felfüggesztés csak a kormányzást követi). Ha
 // bekerülnének a kerék-pivotba, gördüléskor együtt pörögnének a kerékkel —
 // az egyik legfeltűnőbb hiba, ezért név alapján kizárjuk őket.
-const BANNED_TOKEN = /^(susp\w*|sospension\w*|sospensioni|wishbone\w*|damper\w*|shock\w*|spring\w*|upright\w*|pushrod\w*|steering|axle|arm|arms|swingarm|strut\w*|linkage|knuckle|fender\w*|body\w*|chassis|floor|diffuser|underbody|splitter|mudguard\w*|arch|wing|aero)$/i;
+const BANNED_TOKEN = /^(susp\w*|sospension\w*|sospensioni|wishbone\w*|damper\w*|shock\w*|spring\w*|upright\w*|pushrod\w*|steering|axle|arm|arms|swingarm|strut\w*|linkage|knuckle|fender\w*|body\w*|chassis|floor|diffuser|underbody|splitter|mudguard\w*|arch|wing|aero|caliper\w*|calliper\w*|brakecaliper\w*)$/i;
 // A teljes anyagneveknél (pl. "ae2_susp_front_stup.003") részstringként is
 // keresni kell, különben a tokenszintű tiltás mellett becsúszik.
-const BANNED_PART = /susp|sospension|wishbone|damper|upright|pushrod|knuckle|swingarm|wheelarch/i;
+//
+// A FÉKNYEREG külön tanulság: geometriailag a kerék BELSEJÉBEN ül, tehát az
+// inWheel() minden mérethatárt teljesít — mégsem forog vele, mert az álló
+// felfüggesztésre van szerelve. Csak név alapján lehet kiszűrni. Kézzel hat
+// autónál kellett utólag kivenni (F2004, RB7 Showrun, Mazda Furai, McLaren
+// 650S GT3, Koenigsegg CCGT, Nissan GT-R), 24-48%-os kilengéssel.
+//
+// A féktárcsa (rotor/disc/disk) SZÁNDÉKOSAN nincs tiltva: az valóban forog.
+const BANNED_PART = /susp|sospension|wishbone|damper|upright|pushrod|knuckle|swingarm|wheelarch|caliper|calliper/i;
 const BANNED = (t) => BANNED_TOKEN.test(t) || BANNED_PART.test(t);
 
 export function tokensOf(prims) {
@@ -191,6 +199,12 @@ export function propose(glb, yaw = 0, verbose = false) {
     // 1 találat is érvényes: az összeolvasztott modelleknél egy alkatrész
     // (pl. az összes féktárcsa) EGYETLEN primitívben van.
     if (hits.length < 1) continue;
+    // Nem elég a TOKENT tiltani: egy rövid, ártatlan token RÉSZSTRINGKÉNT is
+    // beleeshet egy tiltott alkatrész nevébe. A Koenigsegg CCGT-nél a "lip"
+    // (első légterelő) a "caLIPer"-re is illeszkedett, és így a féknyereg
+    // bekerült a kerék pivotjába — 42%-os kilengéssel. Ezért azt is nézzük,
+    // hogy a token TALÁLATAI között van-e tiltott alkatrész.
+    if (hits.some((p) => BANNED_PART.test(p.fullName + ' ' + p.mat))) continue;
     if (hits.every(inWheel)) keep.push({ t, pat, n: hits.length });
   }
   keep.sort((a, b) => b.n - a.n);
