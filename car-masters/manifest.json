@@ -1,7 +1,7 @@
 {
   "version": 4,
   "targetMb": 15,
-  "generatedAt": "2026-08-15T09:03:07.097Z",
+  "generatedAt": "2026-08-22T16:17:47.182Z",
   "cars": {
     "2008_bmw_sauber_f1.08": {
       "signature": "v2:4:41196616:15728640:053203ef9a6dbcd1e218761c0e6e868b30e208db12e8809d8a9872706892abf7",
@@ -1272,6 +1272,43 @@
       "triangles": 469387,
       "imageBytes": 6065014,
       "geometryBytes": 8886618
+    },
+    "2007_koenigsegg_ccgt_gtx_longtail_xs": {
+      "signature": "v2:4:30734708:15728640:3aac80c8d07d4aa574a92298935ce9c4fc13ab3b8cd2221ed2dd1b5186a423af",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "textúra",
+      "bytes": 12890020,
+      "sourceBytes": 30734708,
+      "triangles": 230537,
+      "imageBytes": 6906210,
+      "geometryBytes": 5716190
+    },
+    "2008_mazda_furai": {
+      "signature": "v2:4:21595676:15728640:da9a1f4466d9aeb1518a2dc50b74f2f36a4d46740aa2916960b1fb46e97f091a",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "preserve": true,
+        "cost": 0
+      },
+      "limitedBy": "textúra",
+      "bytes": 8873724,
+      "sourceBytes": 21595676,
+      "triangles": 152485,
+      "imageBytes": 5617386,
+      "geometryBytes": 3113918
     }
   }
 }

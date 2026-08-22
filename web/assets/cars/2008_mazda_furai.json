@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "Alapértelmezés 0 (előre néző modellt feltételezve). Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
+  "yawDegrees": 0,
+  "_wheelPattern": "JAVITVA. A \"caliper\" token kikerult: a fekyereg az ALLO felfuggesztesre van szerelve, nem a kerekkel forog. Merve: 48% -> 2% kilenges. A \"rotor\" bent marad, az a fekkorong, ami valoban forog.\n\nUgyanez a hiba volt a 2004_ferrari_f2004-nel es a 2011_redbull_rb7_showrun-nal is; a hazi szabaly az, hogy a minta CSAK azt sorolja fel, ami a kerekkel egyutt forog.\n\nKorabbi megjegyzes, referenciakent: Automatikusan generálva (tools/build-car-wheels.mjs). Mérés: nyomtáv 1.5, tengelytáv 2.67, 34 darab.",
+  "wheelPattern": "tire|rim|rotor"
+}
