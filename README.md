@@ -1,5 +1,7 @@
 # Racing
 
+![Racing játék](racing.png)
+
 Böngészőben futó autóverseny-játék valós pályákkal és autókkal. Three.js
 megjelenítés, Rapier fizika, Node.js szerver, WebSocket multiplayer és opcionális
 MySQL/MariaDB ranglista.
