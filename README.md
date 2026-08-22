@@ -4,9 +4,14 @@ Böngészőben futó autóverseny-játék valós pályákkal és autókkal. Thre
 megjelenítés, Rapier fizika, Node.js szerver, WebSocket multiplayer és opcionális
 MySQL/MariaDB ranglista.
 
-A jelenlegi assetkészlet 266 autót, 23 pályát és 6 környezetet tartalmaz. A menü
-ezeket nem beégetett listából, hanem a szerver által felépített asset-manifestből
-olvassa, ezért az új modellek automatikusan megjelennek.
+Az assetkészlet több mint **270 autót** és **25 pályát** tartalmaz, hat
+környezetben — és folyamatosan bővül. A menü ezeket nem beégetett listából, hanem
+a szerver által felépített asset-manifestből olvassa, ezért az új modellek
+automatikusan megjelennek.
+
+Szándékosan nincs itt pontos darabszám: hetente változna, és egy elavult szám
+rosszabb, mint a nagyságrend. A mindenkori pontos értéket az
+`npm run verify:assets` írja ki.
 
 ## Indítás
 
@@ -53,17 +58,17 @@ szándékosan hibát jelez.
 
 ## Nyelvek
 
-A felület 21 nyelven érhető el; a menü jobb felső sarkában lévő legördülő vált
-köztük, és a választás megmarad a következő indulásra.
+A felület az alábbi nyelveken érhető el; a menü jobb felső sarkában lévő
+legördülő vált köztük, és a választás megmarad a következő indulásra.
 
 Magyar · English · Deutsch · Español · Français · Italiano · Português ·
 Nederlands · Polski · Čeština · Slovenčina · Slovenščina · Hrvatski · Srpski ·
 Română · Русский · Українська · Türkçe · 日本語 · 简体中文 · 한국어
 
-A szövegek a `web/lang/<kód>.json` fájlokban élnek, nyelvenként ugyanazzal a 229
-kulccsal. A HTML-ben `data-i18n` attribútumok jelölik a fordítandó elemeket. A
-nyelvek nevei mindig a SAJÁT nyelvükön szerepelnek, zászló nélkül — egy zászló
-országot jelöl, nem nyelvet.
+A szövegek a `web/lang/<kód>.json` fájlokban élnek, nyelvenként pontosan ugyanazzal
+a kulcskészlettel. A HTML-ben `data-i18n` attribútumok jelölik a fordítandó
+elemeket. A nyelvek nevei mindig a SAJÁT nyelvükön szerepelnek, zászló nélkül —
+egy zászló országot jelöl, nem nyelvet.
 
 A tesztcsomag őrzi, hogy egyik fájlból se hiányozzon és egyikben se maradjon
 felesleges kulcs.
