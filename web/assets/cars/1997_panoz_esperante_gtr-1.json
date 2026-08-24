@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "Alapértelmezés 0 (előre néző modellt feltételezve). Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
+  "yawDegrees": 0,
+  "_wheelPattern": "Automatikusan generálva (tools/build-car-wheels.mjs). Mérés: nyomtáv 1.54, tengelytáv 2.53, 24 darab. Kézzel javítva: a MCLAREN_F1GTR_MISC a féknyereg (44% kilengés).",
+  "wheelPattern": "generic|MCLAREN_F1GTR_WHEEL"
+}

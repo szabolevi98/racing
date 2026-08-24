@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "Alapértelmezés 0 (előre néző modellt feltételezve). Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
+  "yawDegrees": 0,
+  "_wheelPattern": "Automatikusan generálva (tools/build-car-wheels.mjs). Mérés: nyomtáv 1.4, tengelytáv 2.56, 12 darab. Kézzel javítva: a Material_4.002 a féknyereg (22% kilengés), a Material_2.002 a tárcsa.",
+  "wheelPattern": "tyre|rim|Material_2\\.002(?![^\\s])"
+}

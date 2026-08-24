@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "Alapértelmezés 0 (előre néző modellt feltételezve). Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
+  "yawDegrees": 0,
+  "_wheelPattern": "Automatikusan generálva (tools/build-car-wheels.mjs). Mérés: nyomtáv 1.55, tengelytáv 2.51, 16 darab.",
+  "wheelPattern": "facia_alloy\\.006_2(?![^\\s])|facia_alloy\\.006_3(?![^\\s])|facia_alloy\\.006_5(?![^\\s])|facia_alloy\\.006_7(?![^\\s])"
+}

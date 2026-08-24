@@ -1,7 +1,7 @@
 {
   "version": 4,
   "targetMb": 15,
-  "generatedAt": "2026-08-22T16:17:47.182Z",
+  "generatedAt": "2026-08-24T05:59:10.113Z",
   "cars": {
     "2008_bmw_sauber_f1.08": {
       "signature": "v2:4:41196616:15728640:053203ef9a6dbcd1e218761c0e6e868b30e208db12e8809d8a9872706892abf7",
@@ -172,7 +172,7 @@
       "geometryBytes": 4094216
     },
     "1999_pagani_zonda_c12": {
-      "signature": "v2:4:21695116:15728640:d1b2f2e71f213b3fc2b6bdba037ceaa5207de374409970547b4909423fed2ebb",
+      "signature": "v2:4:21695116:15728640:42b2921b50e65b7026ca88242666100c3f546369b9caaaedc0bb4ee4be6a05d9",
       "geometry": {
         "ratio": 1,
         "error": 0.001,
@@ -1309,6 +1309,63 @@
       "triangles": 152485,
       "imageBytes": 5617386,
       "geometryBytes": 3113918
+    },
+    "1994_bugatti_eb110_lm": {
+      "signature": "v2:4:32340584:15728640:e8151c4aedcf9f192ad98bedfe2ac311e2a48c9675c9288da09a3ef9530258d6",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "textúra",
+      "bytes": 15407952,
+      "sourceBytes": 32340584,
+      "triangles": 219669,
+      "imageBytes": 9576940,
+      "geometryBytes": 5706422
+    },
+    "1997_sard_mc8-r": {
+      "signature": "v2:4:24566612:15728640:52a3ffc1523e719af1e81a6fbebd4d5d8b45ed4dd7a6080d6085e2e66bd5d673",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "textúra",
+      "bytes": 11460236,
+      "sourceBytes": 24566612,
+      "triangles": 32664,
+      "imageBytes": 10565856,
+      "geometryBytes": 865984
+    },
+    "2010_chevrolet_corvette_c6.r": {
+      "signature": "v2:4:28591744:15728640:18f531c90c8ca5cce055962acfbe71dd215f074d6b04899fa4d873dfcea14f29",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 12397160,
+      "sourceBytes": 28591744,
+      "triangles": 257080,
+      "imageBytes": 5289488,
+      "geometryBytes": 7017884
     }
   }
 }

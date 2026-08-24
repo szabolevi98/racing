@@ -1,7 +1,7 @@
 {
   "version": 4,
   "targetMb": 5,
-  "generatedAt": "2026-08-22T16:28:13.519Z",
+  "generatedAt": "2026-08-24T05:59:16.078Z",
   "cars": {
     "2008_bmw_sauber_f1.08": {
       "signature": "v2:4:41196616:5242880:053203ef9a6dbcd1e218761c0e6e868b30e208db12e8809d8a9872706892abf7",
@@ -1212,7 +1212,7 @@
       "geometryBytes": 3640652
     },
     "1999_pagani_zonda_c12": {
-      "signature": "v2:4:21695116:5242880:d1b2f2e71f213b3fc2b6bdba037ceaa5207de374409970547b4909423fed2ebb",
+      "signature": "v2:4:21695116:5242880:42b2921b50e65b7026ca88242666100c3f546369b9caaaedc0bb4ee4be6a05d9",
       "geometry": {
         "ratio": 0.5,
         "error": 0.01,
@@ -4599,6 +4599,215 @@
       "triangles": 83736,
       "imageBytes": 858598,
       "geometryBytes": 1889940
+    },
+    "1993_jaguar_xj220_gt1": {
+      "signature": "v2:4:14962468:5242880:a167b3a4b6e9f8660bf6495fea0df7c771badff712bd06bb978df87c1d78d950",
+      "geometry": {
+        "ratio": 0.75,
+        "error": 0.003,
+        "cost": 2
+      },
+      "texture": {
+        "limit": 2048,
+        "quality": 8,
+        "cost": 2
+      },
+      "limitedBy": "geometria",
+      "bytes": 5149260,
+      "sourceBytes": 14962468,
+      "triangles": 114574,
+      "imageBytes": 2262854,
+      "geometryBytes": 2850256
+    },
+    "1994_bugatti_eb110_lm": {
+      "signature": "v2:4:32340584:5242880:e8151c4aedcf9f192ad98bedfe2ac311e2a48c9675c9288da09a3ef9530258d6",
+      "geometry": {
+        "ratio": 0.25,
+        "error": 0.04,
+        "cost": 11
+      },
+      "texture": {
+        "limit": 1024,
+        "quality": 7,
+        "cost": 9
+      },
+      "limitedBy": "textúra",
+      "bytes": 4823036,
+      "sourceBytes": 32340584,
+      "triangles": 55890,
+      "imageBytes": 2864706,
+      "geometryBytes": 1844204
+    },
+    "1996_renault_sport_spider_v6_gt1": {
+      "signature": "v2:4:8662304:5242880:82c7b34941a6a5a679398f44cae65902c5df1ad2917cb3d804367d21b63148f3",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 0
+      },
+      "limitedBy": "geometria",
+      "bytes": 4668684,
+      "sourceBytes": 8662304,
+      "triangles": 106999,
+      "imageBytes": 1754090,
+      "geometryBytes": 2857462
+    },
+    "1997_lotus_elise_gt1": {
+      "signature": "v2:4:14153672:5242880:2f74de698f91ecf9e328bbe538f92d14557f976d84c489a63958c2241e9d6efd",
+      "geometry": {
+        "ratio": 0.75,
+        "error": 0.003,
+        "cost": 2
+      },
+      "texture": {
+        "limit": 2048,
+        "quality": 8,
+        "cost": 2
+      },
+      "limitedBy": "geometria",
+      "bytes": 5224448,
+      "sourceBytes": 14153672,
+      "triangles": 128713,
+      "imageBytes": 2099698,
+      "geometryBytes": 3057318
+    },
+    "1997_panoz_esperante_gtr-1": {
+      "signature": "v2:4:9236648:5242880:575994c9a505ecb9bd59ea4d48c9deb3f256285659dfb20383a2f7c344acfb9f",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 0
+      },
+      "limitedBy": "geometria",
+      "bytes": 4261016,
+      "sourceBytes": 9236648,
+      "triangles": 119925,
+      "imageBytes": 1715896,
+      "geometryBytes": 2517206
+    },
+    "1997_sard_mc8-r": {
+      "signature": "v2:4:24566612:5242880:52a3ffc1523e719af1e81a6fbebd4d5d8b45ed4dd7a6080d6085e2e66bd5d673",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 1024,
+        "quality": 8,
+        "cost": 7
+      },
+      "limitedBy": "textúra",
+      "bytes": 3103352,
+      "sourceBytes": 24566612,
+      "triangles": 32664,
+      "imageBytes": 2208990,
+      "geometryBytes": 865984
+    },
+    "1998_quaife_r4_gts": {
+      "signature": "v2:4:9077660:5242880:e67cb383edd51d73bc0a127b335a4d4eb73c59b3a10cd2e7f09e0f37ecf85066",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 0
+      },
+      "limitedBy": "geometria",
+      "bytes": 4710832,
+      "sourceBytes": 9077660,
+      "triangles": 110653,
+      "imageBytes": 1874702,
+      "geometryBytes": 2786174
+    },
+    "2002_audi_tt-r_2": {
+      "signature": "v2:4:17972344:5242880:8ac8d0e18fb3aabcf916d8968dd447dd06d04bc8aa7da5b665bce5f5a7501959",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 2048,
+        "quality": 9,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 5094548,
+      "sourceBytes": 17972344,
+      "triangles": 152618,
+      "imageBytes": 1253724,
+      "geometryBytes": 3814928
+    },
+    "2002_mercedes-benz_clk_dtm": {
+      "signature": "v2:4:9963704:5242880:95f42988025e736d384d6ee8da8fb75f66118c7fce4f13745407c03be676522c",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 0
+      },
+      "limitedBy": "geometria",
+      "bytes": 4746420,
+      "sourceBytes": 9963704,
+      "triangles": 124689,
+      "imageBytes": 1849356,
+      "geometryBytes": 2838278
+    },
+    "2010_chevrolet_corvette_c6.r": {
+      "signature": "v2:4:28591744:5242880:18f531c90c8ca5cce055962acfbe71dd215f074d6b04899fa4d873dfcea14f29",
+      "geometry": {
+        "ratio": 0.35,
+        "error": 0.02,
+        "cost": 8
+      },
+      "texture": {
+        "limit": 2048,
+        "quality": 7,
+        "cost": 4
+      },
+      "limitedBy": "geometria",
+      "bytes": 4734936,
+      "sourceBytes": 28591744,
+      "triangles": 85279,
+      "imageBytes": 2038198,
+      "geometryBytes": 2608770
+    },
+    "2014_dallara_f312_max_verstappen": {
+      "signature": "v2:4:18805476:5242880:5d1930e5419036093963eeee2508f701d9971045e5c2fa5ebd1d57b4bccf01af",
+      "geometry": {
+        "ratio": 0.85,
+        "error": 0.002,
+        "cost": 1
+      },
+      "texture": {
+        "limit": 2048,
+        "quality": 7,
+        "cost": 4
+      },
+      "limitedBy": "geometria",
+      "bytes": 4896816,
+      "sourceBytes": 18805476,
+      "triangles": 92796,
+      "imageBytes": 2241218,
+      "geometryBytes": 2589012
     }
   }
 }

@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "Alapértelmezés 0 (előre néző modellt feltételezve). Ha a kocsi hátrafelé áll, ezt kézzel írd át.",
+  "yawDegrees": 0,
+  "_wheelPattern": "Automatikusan generálva (tools/build-car-wheels.mjs). Mérés: nyomtáv 1.57, tengelytáv 2.84, 24 darab. Kézzel javítva: a 18_-_Default.006 a féknyereg (41%). A maradó 52% a gumiszelep (valvPneu), az jogosan kering a felnivel.",
+  "wheelPattern": "ruotaac4|rims|fermaruota|15_-_dadoRuota\\.008(?![^\\s])|16_-_valvPneu\\.010(?![^\\s])|17_-_Default\\.006(?![^\\s])"
+}
