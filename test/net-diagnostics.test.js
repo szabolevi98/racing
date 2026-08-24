@@ -89,8 +89,21 @@ test('default live recorder stays below 200 KiB and has enough room for 30 secon
   const recorder = new NetDiagnosticsRecorder();
   assert.equal(recorder.capacity, NET_DIAG_CAPACITY);
   assert.ok(recorder.memoryBytes() < 200 * 1024);
-  // 60 Hz állapot + 20 Hz snapshot + 4 Hz teljesítmény + 1 Hz ping.
-  assert.ok(recorder.capacity > 30 * (60 + 20 + 4 + 1));
+  // 60 Hz állapot + 20 Hz snapshot + két 4 Hz-es teljesítménysor + 1 Hz ping.
+  assert.ok(recorder.capacity > 30 * (60 + 20 + 4 + 4 + 1));
+});
+
+test('pipeline diagnostics separates proxy, physics and rendering work', () => {
+  const recorder = new NetDiagnosticsRecorder({ now: () => 100, wallNow: () => 1 });
+  recorder.record(NET_DIAG_EVENT.PIPELINE_TIMING, 0.2, 0.5, 1.1, 2.4, 0.8, 3.2, 140, 250_000);
+  const report = recorder.buildReport();
+  assert.equal(report.schemaVersion, 4);
+  assert.deepEqual(report.eventFields.pipeline_timing, [
+    'relativeMs', 'proxySyncAvgMs', 'proxySyncMaxMs', 'physicsAvgMs', 'physicsMaxMs',
+    'multiplayerFrameAvgMs', 'renderCpuAvgMs', 'renderCalls', 'renderTriangles',
+  ]);
+  assert.equal(report.current.events[0][1], 'pipeline_timing');
+  assert.deepEqual(report.current.events[0].slice(2), [0.2, 0.5, 1.1, 2.4, 0.8, 3.2, 140, 250_000]);
 });
 
 test('F9 downloads diagnostics without adding a permanent HUD control', () => {
@@ -104,4 +117,7 @@ test('F9 downloads diagnostics without adding a permanent HUD control', () => {
   assert.match(multiplayer, /NET_DIAG_EVENT\.STATE_OUT/);
   assert.match(multiplayer, /NET_DIAG_EVENT\.SNAPSHOT_IN/);
   assert.match(multiplayer, /NET_DIAG_INCIDENT\.SERVER_VALIDATION/);
+  assert.match(multiplayer, /takePipelineTimings/);
+  assert.match(main, /NET_DIAG_EVENT\.PIPELINE_TIMING/);
+  assert.match(main, /renderer\.info\.render\.triangles/);
 });

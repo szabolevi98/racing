@@ -21,7 +21,9 @@ import {
   REMOTE_CLOCK_RATE_MIN, REMOTE_CLOCK_RATE_MAX,
 } from '/shared/renderClock.js';
 import { createPitState, hasCompletePitConfig, updatePitState } from '/shared/pit.js';
-import { smoothPing, updateMinRtt, acceptsClockSample } from '/shared/ping.js';
+import {
+  acceptsClockSample, isClientFrameStall, smoothPing, updateMinRtt,
+} from '/shared/ping.js';
 import { remoteExtrapolationTiming, remoteSnapshotSample } from '/shared/remoteSnapshot.js';
 import { t, hasKey, onLanguageChange, applyToDom } from './lang.js';
 import {
@@ -69,6 +71,8 @@ window.__mp = {
   get physSteps() { return physSteps; },
   get physicsTimerLatenessMs() { return +physicsTimerLatenessMs.toFixed(1); },
   get physicsTimerJitterMs() { return +physicsTimerJitterMs.toFixed(1); },
+  noteFrameGap: (elapsedMs) => noteMainThreadFrameGap(elapsedMs),
+  takePipelineTimings: () => takePipelineTimings(),
   // A szerver legutóbbi ellenőrzött állapota a saját kocsinkról.
   get lastSelf() { return lastSnapshot?.cars?.find((c) => c.id === me.id) || null; },
   // A helyi fizika és a kirajzolási interpoláció pozíciója diagnosztikához.
@@ -837,10 +841,11 @@ function sendPing() {
 // megnövelné a távoli autók interpolációs késleltetését.
 //
 // A figyelő egy sűrű időzítő: ha két ütés között sokkal több idő telt el, mint
-// kellett volna, akkor a főszál addig blokkolt. A PONG-nál elég annyit nézni,
-// volt-e ilyen akadás a küldés ÓTA.
-const STALL_TICK_MS = 200;
-const STALL_THRESHOLD_MS = 400;
+// kellett volna, akkor a főszál addig blokkolt. Emellett a renderhurok közvetlenül
+// jelenti az 50 ms fölötti képkockákat. A korábbi 200/400 ms-os figyelő a
+// játékélményt már súlyosan rontó 50–300 ms-os akadást hálózati RTT-nek számolta.
+const STALL_TICK_MS = 50;
+const STALL_THRESHOLD_MS = 100;
 // A szerver által jelentett saját akadás, ami fölött a mintát eldobjuk. Bőven
 // a hurok normális ingadozása fölött van, de jóval a rajtnál mért blokkok
 // (több száz ms) alatt.
@@ -848,6 +853,10 @@ const SERVER_BLOCK_IGNORE_MS = 50;
 let stallTimer = null;
 let lastHeartbeatAt = 0;
 let lastStallAt = 0;
+
+function noteMainThreadFrameGap(elapsedMs) {
+  if (isClientFrameStall(elapsedMs)) lastStallAt = performance.now();
+}
 
 function startStallWatch() {
   stopStallWatch();
@@ -2030,6 +2039,41 @@ let predRenderAt = NaN;
 let predPlaybackRate = 1;
 let physicsTimerLatenessMs = 0;
 let physicsTimerJitterMs = 0;
+let proxyTimingTotalMs = 0;
+let proxyTimingMaxMs = 0;
+let physicsTimingTotalMs = 0;
+let physicsTimingMaxMs = 0;
+let pipelineTimingSteps = 0;
+
+function resetPipelineTimings() {
+  proxyTimingTotalMs = 0;
+  proxyTimingMaxMs = 0;
+  physicsTimingTotalMs = 0;
+  physicsTimingMaxMs = 0;
+  pipelineTimingSteps = 0;
+}
+
+function observePipelineTimings(proxyMs, physicsMs) {
+  proxyTimingTotalMs += proxyMs;
+  proxyTimingMaxMs = Math.max(proxyTimingMaxMs, proxyMs);
+  physicsTimingTotalMs += physicsMs;
+  physicsTimingMaxMs = Math.max(physicsTimingMaxMs, physicsMs);
+  pipelineTimingSteps++;
+}
+
+// A képkocka-diagnosztika 250 ms-onként fogyasztja el. Így nem írunk 120 új
+// eseményt másodpercenként, de az átlag és a csúcs külön megmarad.
+function takePipelineTimings() {
+  const count = pipelineTimingSteps;
+  const sample = {
+    proxyAvgMs: count ? proxyTimingTotalMs / count : 0,
+    proxyMaxMs: proxyTimingMaxMs,
+    physicsAvgMs: count ? physicsTimingTotalMs / count : 0,
+    physicsMaxMs: physicsTimingMaxMs,
+  };
+  resetPipelineTimings();
+  return sample;
+}
 
 function resetPredState() {
   predBuf.length = 0;
@@ -2040,6 +2084,7 @@ function resetPredState() {
   predPlaybackRate = 1;
   physicsTimerLatenessMs = 0;
   physicsTimerJitterMs = 0;
+  resetPipelineTimings();
 }
 
 function observePhysicsTimer(latenessMs) {
@@ -2727,21 +2772,22 @@ function frame(dt = 1 / 60) {
     // pufferelt állapotról a jelenre extrapoláltra. Nagy pingnél ez többméteres
     // idővonal-ugrás lehetett. Most a távolság függvényében fokozatos az átmenet.
     const predictionBlend = remoteVisualPredictionBlend(Math.sqrt(distSq));
-    const s = blendRemoteStates(delayedState, currentState, predictionBlend);
+    // A közelre használt cél vagy a jelenre extrapolált hálózati állapot, vagy
+    // aktív proxy esetén annak TÉNYLEGES Rapier-póza. Ezt EGYETLEN alkalommal
+    // keverjük a stabil, késleltetett állapottal. Korábban előbb currentState,
+    // majd még egyszer proxyPose felé kevertünk: a proxy 60 méteres
+    // bekapcsolása 378 km/h-nál kétméteres képi ugrást okozhatott.
+    const nearState = o.proxyPose ? {
+      ...currentState,
+      p: o.proxyPose.p,
+      q: o.proxyPose.q,
+    } : currentState;
+    const s = blendRemoteStates(delayedState, nearState, predictionBlend);
     if (!s) continue;
-    // Kontaktközelben a kép a TÉNYLEGES helyi fizikai proxyt kövesse. Normál
-    // hálózati állapotnál ez ugyanott van, mint `s`; ütközés vagy korlátozott
-    // proxykorrekció után viszont ez akadályozza meg, hogy a látható kasztni
-    // és az ütközőtest újra több méterre szétváljon. A távolsági blend miatt
-    // a proxy 60 m-es aktiválási határán sincs éles képi váltás.
-    const visualP = o.proxyPose
-      ? s.p.map((value, index) => value + (o.proxyPose.p[index] - value) * predictionBlend)
-      : s.p;
-    const visualQ = o.proxyPose ? slerp(s.q, o.proxyPose.q, predictionBlend) : s.q;
     const firstRenderedFrame = !o.renderReady;
     if (firstRenderedFrame) {
-      o.group.position.set(visualP[0], visualP[1], visualP[2]);
-      o.group.quaternion.set(visualQ[0], visualQ[1], visualQ[2], visualQ[3]);
+      o.group.position.set(s.p[0], s.p[1], s.p[2]);
+      o.group.quaternion.set(s.q[0], s.q[1], s.q[2], s.q[3]);
       o.renderReady = true;
     } else {
       // A fizikai proxy továbbra is a frissebb becslést használja. A látható
@@ -2755,16 +2801,16 @@ function frame(dt = 1 / 60) {
       // smootherLeadSeconds() indoklását.
       const lead = smootherLeadSeconds(alpha, dt);
       const v = s.v || [0, 0, 0];
-      const tx = visualP[0] + (v[0] || 0) * lead;
-      const ty = visualP[1] + (v[1] || 0) * lead;
-      const tz = visualP[2] + (v[2] || 0) * lead;
+      const tx = s.p[0] + (v[0] || 0) * lead;
+      const ty = s.p[1] + (v[1] || 0) * lead;
+      const tz = s.p[2] + (v[2] || 0) * lead;
       o.group.position.x += (tx - o.group.position.x) * alpha;
       o.group.position.y += (ty - o.group.position.y) * alpha;
       o.group.position.z += (tz - o.group.position.z) * alpha;
       // Ugyanez a lemaradás a FORGÁSRA is igaz: kanyarban a látható kocsi
       // orra elmaradna a valódi állásától.
       const q0 = [o.group.quaternion.x, o.group.quaternion.y, o.group.quaternion.z, o.group.quaternion.w];
-      const qr = slerp(q0, integrateRotation(visualQ, s.w || [0, 0, 0], lead), alpha);
+      const qr = slerp(q0, integrateRotation(s.q, s.w || [0, 0, 0], lead), alpha);
       o.group.quaternion.set(qr[0], qr[1], qr[2], qr[3]);
     }
     const targetSteer = s.st ?? 0;
@@ -3085,8 +3131,15 @@ function sendOneInput(scheduledAt) {
       room?.players?.length,
     );
   }
+  const proxyStartedAt = performance.now();
   syncRemoteProxies(input.at);
+  const physicsStartedAt = performance.now();
   G.stepLocalPhysics(input, input.frozen, !controlsEnabled, localPitState.required && localPitState.inLane);
+  const physicsFinishedAt = performance.now();
+  observePipelineTimings(
+    physicsStartedAt - proxyStartedAt,
+    physicsFinishedAt - physicsStartedAt,
+  );
   const state = G.getCarState();
   updatePitState(localPitState, localPitConfig, localPitStopIndex, {
     fromX: beforeState.p[0],

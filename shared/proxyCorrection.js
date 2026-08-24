@@ -13,6 +13,14 @@ export const PROXY_DEEP_OVERLAP_DISTANCE_M = 1.25;
 // a hálózati céljára. A Rapier így egyszer oldja meg az ütközést, ahelyett hogy
 // a következő tick újra ugyanazzal a sebességgel belenyomná a saját autónkba.
 export const PROXY_CONTACT_HOLD_STEPS = 6;
+// Kontakt után a hálózati cél és a helyben megoldott Rapier-póz szükségszerűen
+// eltérhet. A normál 35 cm/tick korrekció 21 m/s-os oldalirányú „visszarántás”,
+// a 4,5 méteres hard reset pedig egyetlen képkockás teleport lenne. A kontaktból
+// kifelé ezért külön, lassabb üzemmód simul vissza, hard reset nélkül.
+export const PROXY_CONTACT_RECOVERY_MAX_POSITION_STEP_M = 0.12;
+export const PROXY_CONTACT_RECOVERY_MAX_ROTATION_STEP_RAD = 3 * Math.PI / 180;
+export const PROXY_CONTACT_RECOVERY_DONE_DISTANCE_M = 0.12;
+export const PROXY_CONTACT_RECOVERY_DONE_ROTATION_RAD = 2 * Math.PI / 180;
 // A valódi autók laposak, a közös doboz-hitbox és az alacsony súlypont viszont
 // nagy tempójú kontaktban emelőként tud viselkedni. Csak az autó-autó ütközést
 // követő rövid ablakban fogjuk meg ezt; a pálya ugratóit nem érinti.
@@ -55,15 +63,27 @@ function slerpQuaternion(from, target, amount) {
   };
 }
 
-export function planProxyCorrection(currentPosition, currentRotation, targetPosition, targetRotation) {
+export function planProxyCorrection(
+  currentPosition,
+  currentRotation,
+  targetPosition,
+  targetRotation,
+  {
+    maxPositionStepM = PROXY_MAX_POSITION_STEP_M,
+    maxRotationStepRad = PROXY_MAX_ROTATION_STEP_RAD,
+    allowHardReset = true,
+  } = {},
+) {
+  const positionStepLimit = Math.max(0.001, Number(maxPositionStepM) || PROXY_MAX_POSITION_STEP_M);
+  const rotationStepLimit = Math.max(0.001, Number(maxRotationStepRad) || PROXY_MAX_ROTATION_STEP_RAD);
   const dx = targetPosition.x - currentPosition.x;
   const dy = targetPosition.y - currentPosition.y;
   const dz = targetPosition.z - currentPosition.z;
   const distance = Math.hypot(dx, dy, dz);
-  const hardReset = distance > PROXY_HARD_RESET_DISTANCE_M;
-  const positionAmount = hardReset || distance <= PROXY_MAX_POSITION_STEP_M
+  const hardReset = allowHardReset && distance > PROXY_HARD_RESET_DISTANCE_M;
+  const positionAmount = hardReset || distance <= positionStepLimit
     ? 1
-    : PROXY_MAX_POSITION_STEP_M / distance;
+    : positionStepLimit / distance;
 
   const fromQ = normalizedQuaternion(currentRotation);
   const toQ = normalizedQuaternion(targetRotation);
@@ -71,9 +91,9 @@ export function planProxyCorrection(currentPosition, currentRotation, targetPosi
     fromQ.x * toQ.x + fromQ.y * toQ.y + fromQ.z * toQ.z + fromQ.w * toQ.w
   ));
   const rotationError = 2 * Math.acos(absDot);
-  const rotationAmount = hardReset || rotationError <= PROXY_MAX_ROTATION_STEP_RAD
+  const rotationAmount = hardReset || rotationError <= rotationStepLimit
     ? 1
-    : PROXY_MAX_ROTATION_STEP_RAD / rotationError;
+    : rotationStepLimit / rotationError;
 
   return {
     position: {
@@ -85,8 +105,9 @@ export function planProxyCorrection(currentPosition, currentRotation, targetPosi
       ? toQ
       : slerpQuaternion(fromQ, toQ, rotationAmount),
     distance,
-    positionStep: hardReset ? distance : Math.min(distance, PROXY_MAX_POSITION_STEP_M),
+    positionStep: hardReset ? distance : Math.min(distance, positionStepLimit),
     rotationError,
+    rotationStep: hardReset ? rotationError : Math.min(rotationError, rotationStepLimit),
     clamped: !hardReset && (positionAmount < 1 || rotationAmount < 1),
     hardReset,
   };
@@ -95,25 +116,45 @@ export function planProxyCorrection(currentPosition, currentRotation, targetPosi
 // Kontakt közben a dinamikus proxy pillanatnyi Rapier-állapota az igazság. A
 // hálózati cél eltérését továbbra is megmérjük a diagnosztikának, de se a
 // pozíciót, se a sebességet nem szabad ráerőltetni. Amint letelik a rövid
-// tartás, a normál korlátozott korrekció (vagy nagy eltérésnél a collider-safe
-// hard reset) magától visszahozza a hálózati idővonalra.
+// tartás, a külön kontakt-helyreállító korlát finoman, hard reset nélkül hozza
+// vissza a hálózati idővonalra.
 export function planContactSafeProxyMotion(
   currentPosition,
   currentRotation,
   targetPosition,
   targetRotation,
   contactHoldSteps = 0,
+  recoveringFromContact = false,
 ) {
+  const recovering = recoveringFromContact || contactHoldSteps > 0;
   const correction = planProxyCorrection(
-    currentPosition, currentRotation, targetPosition, targetRotation
+    currentPosition,
+    currentRotation,
+    targetPosition,
+    targetRotation,
+    recovering ? {
+      maxPositionStepM: PROXY_CONTACT_RECOVERY_MAX_POSITION_STEP_M,
+      maxRotationStepRad: PROXY_CONTACT_RECOVERY_MAX_ROTATION_STEP_RAD,
+      allowHardReset: false,
+    } : undefined,
   );
   const remaining = Math.max(0, Math.trunc(Number(contactHoldSteps) || 0));
   if (!remaining) {
+    const remainingDistance = Math.max(0, correction.distance - correction.positionStep);
+    const remainingRotation = Math.max(0, correction.rotationError - correction.rotationStep);
     return {
       ...correction,
       applyNetworkMotion: true,
       contactHeld: false,
       remainingContactHoldSteps: 0,
+      // A hálózati cél felé mozgatott proxy átmenetileg ne tudjon újabb,
+      // mesterséges kontaktot kelteni. A következő, már helyreállt lépésben
+      // automatikusan visszakapcsolható.
+      suppressCollider: recovering,
+      recoveringFromContact: recovering && (
+        remainingDistance > PROXY_CONTACT_RECOVERY_DONE_DISTANCE_M
+        || remainingRotation > PROXY_CONTACT_RECOVERY_DONE_ROTATION_RAD
+      ),
     };
   }
   return {
@@ -126,6 +167,8 @@ export function planContactSafeProxyMotion(
     applyNetworkMotion: false,
     contactHeld: true,
     remainingContactHoldSteps: remaining - 1,
+    suppressCollider: false,
+    recoveringFromContact: true,
   };
 }
 

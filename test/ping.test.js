@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { classifyPing, HIGH_PING_ALERT_MS, shouldWarnAboutPing, smoothPing } from '../shared/ping.js';
+import {
+  classifyPing, CLIENT_FRAME_STALL_THRESHOLD_MS, HIGH_PING_ALERT_MS,
+  isClientFrameStall, shouldWarnAboutPing, smoothPing,
+} from '../shared/ping.js';
 
 test('ping quality uses the multiplayer HUD boundaries', () => {
   assert.deepEqual(classifyPing(0), { value: 0, quality: 'good' });
@@ -33,4 +36,11 @@ test('ping recovery follows a lower clean sample much faster than an upward spik
   assert.equal(smoothPing(900, 40), 298);
   assert.ok(smoothPing(smoothPing(900, 40), 40) < 120);
   assert.equal(smoothPing(0, 37), 37);
+});
+
+test('a short client frame stall is not mistaken for network RTT', () => {
+  assert.equal(CLIENT_FRAME_STALL_THRESHOLD_MS, 50);
+  assert.equal(isClientFrameStall(49.9), false);
+  assert.equal(isClientFrameStall(50), true);
+  assert.equal(isClientFrameStall(180), true);
 });

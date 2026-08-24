@@ -526,6 +526,8 @@ function setRemoteCarProxy(id, state) {
       proxy.collider.setEnabled(false);
       proxy.body.setEnabled(false);
       proxy.active = false;
+      proxy.contactHoldSteps = 0;
+      proxy.recoveringFromContact = false;
     }
     return null;
   }
@@ -549,6 +551,7 @@ function setRemoteCarProxy(id, state) {
       colliderCooldown: PROXY_COLLIDER_COOLDOWN_STEPS,
       deepOverlapWaitSteps: 0,
       contactHoldSteps: 0,
+      recoveringFromContact: false,
     };
     remoteCarProxies.set(id, proxy);
   }
@@ -562,13 +565,17 @@ function setRemoteCarProxy(id, state) {
     ? planContactSafeProxyMotion(
       proxy.body.translation(), proxy.body.rotation(), targetPosition, targetRotation,
       proxy.contactHoldSteps,
+      proxy.recoveringFromContact,
     )
     : {
       position: targetPosition, rotation: targetRotation, distance: 0,
       positionStep: 0, rotationError: 0, clamped: false, hardReset: false,
       applyNetworkMotion: true, contactHeld: false, remainingContactHoldSteps: 0,
+      suppressCollider: false,
+      recoveringFromContact: false,
     };
   proxy.contactHoldSteps = correction.remainingContactHoldSteps;
+  proxy.recoveringFromContact = correction.recoveringFromContact;
 
   if (!wasActive || correction.hardReset) {
     // Nagy eltérésnél a testet csak kikapcsolt colliderrel tesszük helyre.
@@ -584,8 +591,10 @@ function setRemoteCarProxy(id, state) {
     proxy.body.setAngvel({ x: w[0], y: w[1], z: w[2] }, true);
   }
 
-  let colliderEnabled = proxy.colliderCooldown <= 0;
-  if (proxy.colliderCooldown > 0) {
+  let colliderEnabled = proxy.colliderCooldown <= 0 && !correction.suppressCollider;
+  if (correction.suppressCollider) {
+    colliderEnabled = false;
+  } else if (proxy.colliderCooldown > 0) {
     proxy.colliderCooldown--;
     colliderEnabled = false;
   } else {
@@ -634,6 +643,7 @@ function recordRemoteProxyContacts() {
         proxy.contactHoldSteps,
         PROXY_CONTACT_HOLD_STEPS,
       );
+      proxy.recoveringFromContact = true;
     }
   }
   if (!proxyCount) return false;
@@ -4765,6 +4775,13 @@ let netPerfFrameCount = 0;
 let netPerfFrameTotalMs = 0;
 let netPerfFrameMaxMs = 0;
 let netPerfLastPhysicsSteps = 0;
+let netPipelineActive = false;
+let netPipelineStartedAt = 0;
+let netPipelineFrames = 0;
+let netPipelineMpFrameTotalMs = 0;
+let netPipelineRenderTotalMs = 0;
+let netPipelineRenderCallsTotal = 0;
+let netPipelineRenderTrianglesTotal = 0;
 
 function sampleNetPerformance(nowMs, rawFrameMs) {
   if (appState !== 'mp') {
@@ -4811,11 +4828,63 @@ function sampleNetPerformance(nowMs, rawFrameMs) {
   netPerfLastPhysicsSteps = physicsSteps;
 }
 
+// A teljes képkockaidő megmondja, HOGY akadt a játék; ez mondja meg, HOL.
+// A proxy/fizika időt a fix 60 Hz-es hálózati ciklus gyűjti, a távoli autók
+// képi munkáját és a renderer CPU-oldali beadását itt mérjük. A renderCpuMs
+// nem tiszta GPU-idő, de a draw call/triangle számmal együtt jól elkülöníti a
+// fizikai és a kirajzolási terhelést.
+function sampleNetPipeline(nowMs, multiplayerFrameMs, renderCpuMs) {
+  if (appState !== 'mp') {
+    netPipelineActive = false;
+    return;
+  }
+  if (!netPipelineActive) {
+    netPipelineActive = true;
+    netPipelineStartedAt = nowMs;
+    netPipelineFrames = 0;
+    netPipelineMpFrameTotalMs = 0;
+    netPipelineRenderTotalMs = 0;
+    netPipelineRenderCallsTotal = 0;
+    netPipelineRenderTrianglesTotal = 0;
+  }
+  netPipelineFrames++;
+  netPipelineMpFrameTotalMs += multiplayerFrameMs;
+  netPipelineRenderTotalMs += renderCpuMs;
+  netPipelineRenderCallsTotal += renderer.info.render.calls;
+  netPipelineRenderTrianglesTotal += renderer.info.render.triangles;
+  const elapsed = nowMs - netPipelineStartedAt;
+  if (elapsed < NET_PERF_SAMPLE_MS) return;
+
+  const physics = window.__mp?.takePipelineTimings?.() || {};
+  const frames = Math.max(1, netPipelineFrames);
+  netDiagnostics.record(
+    NET_DIAG_EVENT.PIPELINE_TIMING,
+    physics.proxyAvgMs,
+    physics.proxyMaxMs,
+    physics.physicsAvgMs,
+    physics.physicsMaxMs,
+    netPipelineMpFrameTotalMs / frames,
+    netPipelineRenderTotalMs / frames,
+    netPipelineRenderCallsTotal / frames,
+    netPipelineRenderTrianglesTotal / frames,
+  );
+  netPipelineStartedAt = nowMs;
+  netPipelineFrames = 0;
+  netPipelineMpFrameTotalMs = 0;
+  netPipelineRenderTotalMs = 0;
+  netPipelineRenderCallsTotal = 0;
+  netPipelineRenderTrianglesTotal = 0;
+}
+
 
 function animate() {
   requestAnimationFrame(animate);
   const rawDt = clock.getDelta();
   const dt = Math.min(rawDt, 0.1);
+  // A WebSocket PONG ugyanazon a főszálon kerül feldolgozásra, mint a kép.
+  // Így a hálózati modul el tudja dobni azt a pingmintát, amely valójában egy
+  // hosszú képkocka miatt késett, nem az interneten.
+  window.__mp?.noteFrameGap?.(rawDt * 1000);
   // Minden állapotban mérünk (menü, vezetés, mp, dev), nem csak vezetés
   // közben — az fps-doboz a #hud-on belül van, tehát csak driving/mp-ben
   // LÁTSZIK, de a számláló futása nem függ ettől.
@@ -4825,6 +4894,7 @@ function animate() {
   // MINDEN állapotban, a zone-edit korai kilépése ELŐTT — lásd
   // syncMiniMapVisibility: ez teszi fölöslegessé az állapotonkénti kapcsolgatást.
   syncMiniMapVisibility();
+  let multiplayerFrameMs = 0;
 
   if (appState === 'driving') {
     updateControls(dt);
@@ -4875,7 +4945,9 @@ function animate() {
 
     updateChaseCamera(dt);
   } else if (appState === 'mp') {
+    const multiplayerFrameStartedAt = performance.now();
     stepMultiplayerFrame(dt);
+    multiplayerFrameMs = performance.now() - multiplayerFrameStartedAt;
   } else if (appState === 'dev' || appState === 'objectcut') {
     // Ezekbe az állapotokba csak a dev modul tud átbillenteni, tehát ha itt
     // vagyunk, a devTools már be van töltve — a ?. csak biztonsági öv.
@@ -4899,7 +4971,10 @@ function animate() {
   }
 
   recordDiagFrame();
+  const renderStartedAt = performance.now();
   renderer.render(scene, camera);
+  const renderedAt = performance.now();
+  sampleNetPipeline(renderedAt, multiplayerFrameMs, renderedAt - renderStartedAt);
 }
 
 // ---------- Rángatás-diagnosztika ----------

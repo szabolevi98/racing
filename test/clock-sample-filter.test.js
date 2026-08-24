@@ -50,7 +50,8 @@ test('az első minta mindig elmegy, különben sosem indulna a becslés', () => 
 
 test('a kliens tényleg ezeket használja, és a kiszűrt mintákat számolja', () => {
   const mp = fs.readFileSync(new URL('../web/mp.js', import.meta.url), 'utf8');
-  assert.match(mp, /updateMinRtt, acceptsClockSample/, 'nincs importálva a két szabály');
+  assert.match(mp, /updateMinRtt/, 'nincs importálva a minimum RTT szabály');
+  assert.match(mp, /acceptsClockSample/, 'nincs importálva az óraminta-szűrés');
   assert.match(mp, /pingMinRttMs = updateMinRtt\(pingMinRttMs, rtt\)/);
   assert.match(mp, /!clockReady \|\| acceptsClockSample\(rtt, pingMinRttMs\)/);
   assert.match(mp, /clockSamplesDropped\+\+/, 'a kiszűrt minta nem látszik a diagnosztikában');

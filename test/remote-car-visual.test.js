@@ -165,7 +165,12 @@ test('remote visuals blend gradually toward prediction without changing the 20 H
   assert.equal(remoteVisualPredictionBlend(20), 1);
   assert.ok(remoteVisualPredictionBlend(60) > 0);
   assert.ok(remoteVisualPredictionBlend(60) < remoteVisualPredictionBlend(40));
-  assert.match(mp, /blendRemoteStates\(delayedState, currentState, predictionBlend\)/);
+  assert.match(mp, /const nearState = o\.proxyPose \? \{/);
+  assert.match(mp, /blendRemoteStates\(delayedState, nearState, predictionBlend\)/);
+  assert.equal((mp.match(/blendRemoteStates\(delayedState,/g) || []).length, 1,
+    'a késleltetett állapot csak egyszer keveredhet a közeli cél felé');
+  assert.doesNotMatch(mp, /s\.p\.map\([\s\S]*?o\.proxyPose/,
+    'a már kevert állapotot nem szabad még egyszer a proxy felé húzni');
   assert.doesNotMatch(mp, /const s = near \? currentState : delayedState/);
   assert.match(fs.readFileSync(new URL('../shared/protocol.js', import.meta.url), 'utf8'), /SNAPSHOT_RATE = 20/);
 });

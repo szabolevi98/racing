@@ -81,8 +81,8 @@ test('elfajult bemenetre nem ad értelmetlen előrecélzást', () => {
 test('a kliens a sebességgel ELŐRE tolt célra simít, és a forgásra is', async () => {
   const mp = await fs.readFile(new URL('../web/mp.js', import.meta.url), 'utf8');
   assert.match(mp, /const lead = smootherLeadSeconds\(alpha, dt\);/);
-  assert.match(mp, /const tx = visualP\[0\] \+ \(v\[0\] \|\| 0\) \* lead;/);
-  assert.match(mp, /integrateRotation\(visualQ, s\.w \|\| \[0, 0, 0\], lead\)/);
-  assert.match(mp, /o\.proxyPose\.p\[index\][\s\S]{0,80}predictionBlend/,
-    'kontaktközelben a kép a korlátozott fizikai proxy korrekcióját is kövesse');
+  assert.match(mp, /const tx = s\.p\[0\] \+ \(v\[0\] \|\| 0\) \* lead;/);
+  assert.match(mp, /integrateRotation\(s\.q, s\.w \|\| \[0, 0, 0\], lead\)/);
+  assert.match(mp, /const nearState = o\.proxyPose[\s\S]{0,240}blendRemoteStates\(delayedState, nearState, predictionBlend\)/,
+    'kontaktközelben egyetlen keveréssel kövesse a korlátozott fizikai proxyt');
 });

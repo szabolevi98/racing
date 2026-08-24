@@ -117,6 +117,7 @@ test('a 300 km/h rear impact stays a hard collision without launching the car of
     const rotation = { x: 0, y: 0, z: 0, w: 1 };
     const target = { x: 0, y: 0.85, z: -12 };
     let contactHoldSteps = 0;
+    let recoveringFromContact = false;
     let impactRecoverySteps = 0;
     let contactSteps = 0;
     let maxHeight = own.body.translation().y;
@@ -127,8 +128,11 @@ test('a 300 km/h rear impact stays a hard collision without launching the car of
       const motion = planContactSafeProxyMotion(
         proxyBody.translation(), proxyBody.rotation(), target, rotation,
         contactHoldSteps,
+        recoveringFromContact,
       );
       contactHoldSteps = motion.remainingContactHoldSteps;
+      recoveringFromContact = motion.recoveringFromContact;
+      proxy.setEnabled(!motion.suppressCollider);
       if (motion.applyNetworkMotion) {
         proxyBody.setTranslation(motion.position, true);
         proxyBody.setRotation(motion.rotation, true);
@@ -146,6 +150,7 @@ test('a 300 km/h rear impact stays a hard collision without launching the car of
       if (touching) {
         contactSteps++;
         contactHoldSteps = PROXY_CONTACT_HOLD_STEPS;
+        recoveringFromContact = true;
         impactRecoverySteps = PROXY_IMPACT_RECOVERY_STEPS;
       }
       if (impactRecoverySteps > 0) {

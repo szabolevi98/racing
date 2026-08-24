@@ -27,6 +27,7 @@ export const NET_DIAG_EVENT = Object.freeze({
   MANUAL_EXPORT: 14,
   PROXY_SYNC: 15,
   PROXY_CONTACT: 16,
+  PIPELINE_TIMING: 17,
 });
 
 export const NET_DIAG_INCIDENT = Object.freeze({
@@ -95,6 +96,10 @@ const EVENT_SCHEMA = Object.freeze({
   ]],
   [NET_DIAG_EVENT.PROXY_CONTACT]: ['proxy_contact', [
     'proxyCount', 'manifoldCount', 'maxImpulse', 'totalImpulse', 'maxPenetrationM',
+  ]],
+  [NET_DIAG_EVENT.PIPELINE_TIMING]: ['pipeline_timing', [
+    'proxySyncAvgMs', 'proxySyncMaxMs', 'physicsAvgMs', 'physicsMaxMs',
+    'multiplayerFrameAvgMs', 'renderCpuAvgMs', 'renderCalls', 'renderTriangles',
   ]],
 });
 
@@ -250,7 +255,7 @@ export class NetDiagnosticsRecorder {
     const fields = {};
     for (const [, [name, names]] of Object.entries(EVENT_SCHEMA)) fields[name] = ['relativeMs', ...names];
     return {
-      schemaVersion: 3,
+      schemaVersion: 4,
       generatedAt: new Date(this.wallNow()).toISOString(),
       windowMs: this.windowMs,
       privacy: 'No player names, room codes, authentication tokens or message text are recorded.',

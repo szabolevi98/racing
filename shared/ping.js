@@ -6,6 +6,13 @@
 // játék még játszható, egy folyton kint lévő figyelmeztetés ott nem segít,
 // csak takarja a pályát.
 export const HIGH_PING_ALERT_MS = 100;
+// Ennyi ideig tartó képkocka már érezhető helyi akadás, és a főszálon érkező
+// PONG feldolgozását is ugyanennyivel késleltetheti. Ez nem hálózati RTT.
+export const CLIENT_FRAME_STALL_THRESHOLD_MS = 50;
+
+export function isClientFrameStall(elapsedMs) {
+  return Math.max(0, Number(elapsedMs) || 0) >= CLIENT_FRAME_STALL_THRESHOLD_MS;
+}
 
 export function classifyPing(ms) {
   const value = Math.max(0, Math.round(Number(ms) || 0));

@@ -4,6 +4,7 @@ import {
   PROXY_HARD_RESET_DISTANCE_M, PROXY_MAX_POSITION_STEP_M,
   PROXY_MAX_ROTATION_STEP_RAD, PROXY_MAX_TILT_SPEED_RAD_S,
   PROXY_MAX_UPWARD_SPEED_MPS, limitProxyImpactMotion,
+  PROXY_CONTACT_RECOVERY_MAX_POSITION_STEP_M,
   planContactSafeProxyMotion, planProxyCorrection,
 } from '../shared/proxyCorrection.js';
 
@@ -46,8 +47,30 @@ test('a proxy in contact keeps its Rapier pose instead of being forced into the 
   );
   assert.equal(motion.applyNetworkMotion, false);
   assert.equal(motion.contactHeld, true);
+  assert.equal(motion.suppressCollider, false);
   assert.equal(motion.remainingContactHoldSteps, 2);
+  assert.equal(motion.recoveringFromContact, true);
   assert.deepEqual(motion.position, { x: 1, y: 2, z: 3 });
+});
+
+test('post-contact recovery cannot hard reset or snap back to a distant network pose', () => {
+  const target = { x: 10, y: 0, z: 0 };
+  let position = { x: 0, y: 0, z: 0 };
+  let recovering = true;
+  let steps = 0;
+  while (recovering && steps < 200) {
+    const motion = planContactSafeProxyMotion(position, Q0, target, Q0, 0, recovering);
+    assert.equal(motion.hardReset, false);
+    assert.equal(motion.suppressCollider, true);
+    assert.ok(motion.positionStep <= PROXY_CONTACT_RECOVERY_MAX_POSITION_STEP_M + 1e-9);
+    assert.ok(motion.position.x >= position.x, 'a helyreállítás legyen monoton');
+    position = motion.position;
+    recovering = motion.recoveringFromContact;
+    steps++;
+  }
+  assert.equal(recovering, false);
+  assert.ok(steps > 1, 'a tízméteres eltérés nem tűnhet el egy képkockában');
+  assert.ok(Math.abs(target.x - position.x) <= PROXY_CONTACT_RECOVERY_MAX_POSITION_STEP_M + 1e-9);
 });
 
 test('the proxy impact limiter only caps newly-created lift and pitch-roll', () => {
