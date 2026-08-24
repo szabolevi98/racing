@@ -184,7 +184,7 @@ test('missing mandatory pit stop invalidates only the final lap and still finish
   }
 });
 
-test('a checkpoint-shortened multiplayer lap must be retried instead of counting as race distance', async () => {
+test('a multiplayer lap with 80% of checkpoints counts as invalid race distance', async () => {
   const room = makeRoom();
   room.mode = GAME_MODE.MULTIPLAYER;
   room.laps = 1;
@@ -211,10 +211,51 @@ test('a checkpoint-shortened multiplayer lap must be retried instead of counting
     car.race.nextCheckpoint = 4;
     car.state.p = [-1, 0.8, 0];
     sim.updateCarProgress(car, 2_000);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(car.race.lap, 1, 'the invalid lap still counts toward race distance');
+    assert.equal(car.race.finished, true, 'the final invalid lap still finishes the race');
+    assert.equal(car.race.lapTimes[0].invalid, true);
+    assert.equal(room.lapsSaved[0][3], true, 'the stored lap must remain invalid');
+    assert.equal(room.lapsSaved[0][4], null, 'an invalid lap must not save a ghost');
+    assert.equal(messages.find((message) => message.payload?.kind === 'lap')?.payload.invalid, true);
+    assert.equal(messages.some((message) => message.payload?.kind === 'lapRetry'), false);
+  } finally {
+    sim.stop();
+  }
+});
+
+test('a multiplayer lap below the 80% checkpoint threshold must be retried', async () => {
+  const room = makeRoom();
+  room.mode = GAME_MODE.MULTIPLAYER;
+  room.laps = 1;
+  const messages = [];
+  const checkpoints = Array.from({ length: 5 }, (_, index) => ({
+    x1: 100 + index * 10, z1: -5, x2: 100 + index * 10, z2: 5,
+  }));
+  const sim = new RaceController(room, {
+    map: {
+      spawns: [{ x: 1, z: 0, heading: 0 }],
+      gates: { start: { x1: 0, z1: -5, x2: 0, z2: 5 }, checkpoints },
+    },
+    broadcast: (type, payload) => messages.push({ type, payload }),
+  });
+  await sim.start();
+  try {
+    const car = sim.cars.get('p1');
+    car.race.hasCrossedStart = true;
+    car.race.lapStart = 1_000;
+    car.race.prevX = 1;
+    car.race.prevZ = 0;
+    car.race.prevAt = 1_000;
+    car.race.passed = new Set([0, 1, 2]); // 60%: a rajtvonal még nem zárhatja le a kört
+    car.race.nextCheckpoint = 3;
+    car.state.p = [-1, 0.8, 0];
+    sim.updateCarProgress(car, 2_000);
 
     assert.equal(car.race.lap, 0);
     assert.equal(car.race.finished, false);
-    assert.equal(car.race.lapStart, 1_500, 'a rajtvonal interpolált idejétől indul az új próbálkozás');
+    assert.equal(car.race.lapStart, 1_500, 'the retry starts at the interpolated line crossing');
     assert.equal(car.race.nextCheckpoint, 0);
     assert.equal(car.race.taintReason, TAINT.NONE);
     assert.ok(messages.some((message) => message.payload?.kind === 'lapRetry'));

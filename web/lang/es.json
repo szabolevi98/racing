@@ -72,7 +72,7 @@
   "leaderboard.empty": "Aún no hay tiempos en este circuito",
   "zone.offtrack": "escapatoria",
   "race.lapInvalidOfftrack": "Vuelta anulada: las cuatro ruedas salieron del asfalto.",
-  "race.lapInvalidCheckpoint": "Punto de control perdido: una vuelta solo cuenta si pasas por todos.",
+  "race.lapInvalidCheckpoint": "Punto de control omitido — vuelta invalidada.",
   "race.lapInvalidPitStop": "Última vuelta anulada: faltó la parada en boxes obligatoria.",
   "race.lapInvalidValidation": "La comprobación del servidor detectó un movimiento no válido. Esta vuelta no cuenta.",
   "race.flippedRestart": "¡Has volcado! Pulsa R para reiniciar.",

@@ -72,7 +72,7 @@
   "leaderboard.empty": "Na tomto okruhu zatím nejsou žádné časy",
   "zone.offtrack": "úniková zóna",
   "race.lapInvalidOfftrack": "Kolo neplatné — všechna čtyři kola opustila asfalt!",
-  "race.lapInvalidCheckpoint": "Vynechaný kontrolní bod — kolo se počítá, jen když projedeš všechny!",
+  "race.lapInvalidCheckpoint": "Vynechaný kontrolní bod — kolo je neplatné!",
   "race.lapInvalidPitStop": "Poslední kolo neplatné — chyběla povinná zastávka v boxech!",
   "race.lapInvalidValidation": "Kontrola na serveru zjistila neplatný pohyb. Toto kolo se nepočítá.",
   "race.flippedRestart": "Převrátil ses! Stiskni R pro nový start.",

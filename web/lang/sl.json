@@ -72,7 +72,7 @@
   "leaderboard.empty": "Na tej stezi še ni časov",
   "zone.offtrack": "izletno območje",
   "race.lapInvalidOfftrack": "Krog razveljavljen — vsa štiri kolesa so zapustila asfalt!",
-  "race.lapInvalidCheckpoint": "Zamujena kontrolna točka — krog šteje samo, če jih prevoziš vse!",
+  "race.lapInvalidCheckpoint": "Zamujena kontrolna točka — krog je neveljaven!",
   "race.lapInvalidPitStop": "Zadnji krog razveljavljen — manjkal je obvezen postanek v boksih!",
   "race.lapInvalidValidation": "Preverjanje na strežniku je zaznalo neveljavno gibanje. Ta krog ne šteje.",
   "race.flippedRestart": "Prevrnil si se! Pritisni R za nov začetek.",

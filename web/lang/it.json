@@ -72,7 +72,7 @@
   "leaderboard.empty": "Ancora nessun tempo su questo circuito",
   "zone.offtrack": "via di fuga",
   "race.lapInvalidOfftrack": "Giro annullato: tutte e quattro le ruote hanno lasciato l'asfalto!",
-  "race.lapInvalidCheckpoint": "Checkpoint mancato: un giro conta solo se li passi tutti!",
+  "race.lapInvalidCheckpoint": "Checkpoint mancato — giro invalidato!",
   "race.lapInvalidPitStop": "Ultimo giro annullato: è mancata la sosta ai box obbligatoria!",
   "race.lapInvalidValidation": "Il controllo sul server ha rilevato un movimento non valido. Questo giro non conta.",
   "race.flippedRestart": "Ti sei ribaltato! Premi R per ricominciare.",

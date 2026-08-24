@@ -72,7 +72,7 @@
   "leaderboard.empty": "Aucun temps sur ce circuit pour l'instant",
   "zone.offtrack": "dégagement",
   "race.lapInvalidOfftrack": "Tour annulé — les quatre roues ont quitté l'asphalte !",
-  "race.lapInvalidCheckpoint": "Point de contrôle manqué — un tour ne compte que si tu les passes tous !",
+  "race.lapInvalidCheckpoint": "Point de contrôle manqué — tour invalidé !",
   "race.lapInvalidPitStop": "Dernier tour annulé — l'arrêt au stand obligatoire n'a pas eu lieu !",
   "race.lapInvalidValidation": "La vérification côté serveur a détecté un déplacement non valide. Ce tour ne compte pas.",
   "race.flippedRestart": "Tu t'es retourné ! Appuie sur R pour recommencer.",

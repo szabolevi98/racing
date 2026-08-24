@@ -72,7 +72,7 @@
   "leaderboard.empty": "이 트랙에는 아직 기록이 없습니다",
   "zone.offtrack": "이탈 구역",
   "race.lapInvalidOfftrack": "랩 무효 — 네 바퀴 모두 포장면을 벗어났습니다!",
-  "race.lapInvalidCheckpoint": "체크포인트 누락 — 전부 통과해야 랩이 인정됩니다!",
+  "race.lapInvalidCheckpoint": "체크포인트 누락 — 랩 무효!",
   "race.lapInvalidPitStop": "마지막 랩 무효 — 의무 피트 스톱을 하지 않았습니다!",
   "race.lapInvalidValidation": "서버 검증에서 잘못된 움직임이 발견되었습니다. 이 랩은 인정되지 않습니다.",
   "race.flippedRestart": "차가 뒤집혔습니다! R 키를 눌러 다시 시작하세요.",

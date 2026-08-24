@@ -72,7 +72,7 @@
   "leaderboard.empty": "Na tym torze nie ma jeszcze czasów",
   "zone.offtrack": "strefa wybiegu",
   "race.lapInvalidOfftrack": "Okrążenie unieważnione — wszystkie cztery koła zjechały z asfaltu!",
-  "race.lapInvalidCheckpoint": "Pominięty punkt kontrolny — okrążenie liczy się tylko wtedy, gdy miniesz wszystkie!",
+  "race.lapInvalidCheckpoint": "Pominięto punkt kontrolny — okrążenie nieważne!",
   "race.lapInvalidPitStop": "Ostatnie okrążenie unieważnione — zabrakło obowiązkowego pit stopu!",
   "race.lapInvalidValidation": "Kontrola po stronie serwera wykryła nieprawidłowy ruch. To okrążenie się nie liczy.",
   "race.flippedRestart": "Dachowałeś! Naciśnij R, aby zacząć od nowa.",

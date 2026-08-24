@@ -72,7 +72,7 @@
   "leaderboard.empty": "Még nincs köridő ezen a pályán",
   "zone.offtrack": "kifutó",
   "race.lapInvalidOfftrack": "Kör érvénytelen — mind a négy kerékkel letértél az aszfaltról!",
-  "race.lapInvalidCheckpoint": "Checkpoint kimaradt — a kör csak akkor számít, ha mindegyiken áthaladsz!",
+  "race.lapInvalidCheckpoint": "Checkpoint kimaradt — a kör érvénytelen!",
   "race.lapInvalidPitStop": "Az utolsó kör érvénytelen — kimaradt a kötelező kerékcsere!",
   "race.lapInvalidValidation": "A szerveroldali ellenőrzés szabálytalan mozgást észlelt. Ez a kör érvénytelen.",
   "race.flippedRestart": "Felborultál! Nyomj R-et az újraindításhoz.",

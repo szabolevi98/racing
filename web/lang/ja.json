@@ -72,7 +72,7 @@
   "leaderboard.empty": "このコースにはまだタイムがありません",
   "zone.offtrack": "エスケープゾーン",
   "race.lapInvalidOfftrack": "ラップ無効 — 4輪すべてが舗装から外れました！",
-  "race.lapInvalidCheckpoint": "チェックポイント未通過 — すべて通過しないとラップは成立しません！",
+  "race.lapInvalidCheckpoint": "チェックポイント未通過 — ラップ無効！",
   "race.lapInvalidPitStop": "最終ラップ無効 — 義務のピットストップがありませんでした！",
   "race.lapInvalidValidation": "サーバー側の検証で不正な動きが検出されました。このラップは無効です。",
   "race.flippedRestart": "横転しました！ R キーでやり直せます。",

@@ -3130,9 +3130,8 @@ function lapInvalidText(reason) {
   if (reason === TAINT.VALIDATION) {
     return t('race.lapInvalidValidation');
   }
-  // A kihagyott checkpoint nem "érvénytelenít", hanem meg sem engedi a kör
-  // lezárását — a szöveg ezt mondja meg, hogy a játékos tudja: nem elég
-  // átgurulni a rajtvonalon, tényleg körbe kell menni.
+  // A minimum checkpointarány alatt a kör nem zárul le; a küszöböt elérő,
+  // de hiányos kör lezárul és érvénytelenként beleszámít a versenytávba.
   if (reason === TAINT.CHECKPOINT) return t('race.lapInvalidCheckpoint');
   if (reason === TAINT.PIT_STOP) return t('race.lapInvalidPitStop');
   return t('alert.lapInvalid');
@@ -3268,14 +3267,9 @@ function updateRace(dt) {
     }
   }
 
-  // A kört a rajtvonal zárja le, de CSAK akkor, ha közben minden checkpoint
-  // megvolt. Enélkül a rajtvonalon oda-vissza gurulva végig lehetett "menni" a
-  // versenyen, mert a crossedGate iránytól függetlenül metsz szakaszt.
-  //
-  // Ennek ára van: aki kihagy egy kaput, annak a nextCheckpoint azon a kapun
-  // marad, tehát a kör csak a KÖVETKEZŐ körben zárul le, amikor visszaér oda.
-  // Egy hiba így egy egész körbe kerül — nem holtpont, de nem is a régi,
-  // elnéző szabály (ott a kör lezárult, csak "érvénytelen" jelzést kapott).
+  // A rajtvonal csak a minimum checkpointarány után zárhatja le a kört.
+  // Enélkül oda-vissza gurulva végig lehetne "menni" a versenyen. Ha a minimum
+  // megvan, de akár egy kapu hiányzik, a kör lezárul és érvénytelen lesz.
   if (crossedCheckpoint !== -1) {
     // A Set miatt ugyanaz a kapu kétszer sem számít duplán.
     race.passed.add(crossedCheckpoint);

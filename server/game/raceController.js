@@ -478,9 +478,9 @@ export class RaceController {
     r.lastSplitIndex = -1;
     r.lastSplitMs = 0;
     this.beginGhostRecording(car, crossedAt);
-    // Multiplayer futamban egy kihagyott checkpointtal rövidített, bár
-    // „invalid” kör sem számíthat bele a versenytávba. Különben az eredményt
-    // továbbra is a pálya akár 20%-ának levágásával lehetne megnyerni.
+    // A minimum alatt a rajtvonal nem zárhatja le a kört: ez akadályozza meg,
+    // hogy valaki oda-vissza gurulással teljesítse a versenyt. A küszöböt elérő,
+    // de hiányos kör viszont lezárul és érvénytelenként beleszámít a távba.
     this.broadcast(S2C.RACE_EVENT, {
       kind: 'lapRetry', playerId: car.playerId, startedAt: Math.round(crossedAt),
     });
@@ -560,10 +560,6 @@ export class RaceController {
       heading: headingFrom(fromX, fromZ, x, z, car.respawn.heading),
     };
     if (r.passed.size < checkpoints.length) r.taintReason = TAINT.CHECKPOINT;
-    if (!this.room.endlessLaps && r.taintReason === TAINT.CHECKPOINT) {
-      this.restartCheckpointRejectedLap(car, crossedAt, checkpoints.length);
-      return;
-    }
     if (!this.room.endlessLaps && r.lap + 1 >= this.room.laps && r.pit.required && !r.pit.completed) {
       r.taintReason = TAINT.PIT_STOP;
     }

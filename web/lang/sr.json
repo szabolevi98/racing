@@ -72,7 +72,7 @@
   "leaderboard.empty": "Na ovoj stazi još nema vremena",
   "zone.offtrack": "izletna zona",
   "race.lapInvalidOfftrack": "Krug poništen — sva četiri točka su napustila asfalt!",
-  "race.lapInvalidCheckpoint": "Propuštena kontrolna tačka — krug se broji samo ako prođeš sve!",
+  "race.lapInvalidCheckpoint": "Propuštena kontrolna tačka — krug je nevažeći!",
   "race.lapInvalidPitStop": "Poslednji krug poništen — izostalo je obavezno zaustavljanje u boksu!",
   "race.lapInvalidValidation": "Provera na serveru otkrila je nevažeće kretanje. Ovaj krug se ne broji.",
   "race.flippedRestart": "Prevrnuo si se! Pritisni R za novi početak.",

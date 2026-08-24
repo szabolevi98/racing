@@ -72,7 +72,7 @@
   "leaderboard.empty": "Încă nu există timpi pe acest circuit",
   "zone.offtrack": "zonă de evadare",
   "race.lapInvalidOfftrack": "Tur anulat — toate cele patru roți au părăsit asfaltul!",
-  "race.lapInvalidCheckpoint": "Punct de control ratat — un tur contează doar dacă le treci pe toate!",
+  "race.lapInvalidCheckpoint": "Punct de control ratat — tur invalid!",
   "race.lapInvalidPitStop": "Ultimul tur anulat — a lipsit oprirea obligatorie la boxe!",
   "race.lapInvalidValidation": "Verificarea de pe server a detectat o mișcare nevalidă. Acest tur nu contează.",
   "race.flippedRestart": "Te-ai răsturnat! Apasă R pentru a relua.",

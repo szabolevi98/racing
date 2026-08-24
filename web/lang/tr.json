@@ -72,7 +72,7 @@
   "leaderboard.empty": "Bu pistte henüz tur süresi yok",
   "zone.offtrack": "kaçış alanı",
   "race.lapInvalidOfftrack": "Tur geçersiz — dört tekerlek de asfalttan çıktı!",
-  "race.lapInvalidCheckpoint": "Kontrol noktası kaçırıldı — bir tur ancak hepsinden geçersen sayılır!",
+  "race.lapInvalidCheckpoint": "Kontrol noktası kaçırıldı — tur geçersiz!",
   "race.lapInvalidPitStop": "Son tur geçersiz — zorunlu pit stop yapılmadı!",
   "race.lapInvalidValidation": "Sunucu tarafındaki kontrol geçersiz hareket saptadı. Bu tur sayılmıyor.",
   "race.flippedRestart": "Takla attın! Yeniden başlamak için R'ye bas.",

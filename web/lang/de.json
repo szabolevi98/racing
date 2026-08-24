@@ -72,7 +72,7 @@
   "leaderboard.empty": "Noch keine Rundenzeiten auf dieser Strecke",
   "zone.offtrack": "Auslaufzone",
   "race.lapInvalidOfftrack": "Runde ungültig — alle vier Räder haben den Asphalt verlassen!",
-  "race.lapInvalidCheckpoint": "Checkpoint verpasst — eine Runde zählt nur, wenn du alle passierst!",
+  "race.lapInvalidCheckpoint": "Checkpoint verpasst — Runde ungültig!",
   "race.lapInvalidPitStop": "Letzte Runde ungültig — der Pflicht-Boxenstopp wurde ausgelassen!",
   "race.lapInvalidValidation": "Die serverseitige Prüfung hat ungültige Bewegung erkannt. Diese Runde zählt nicht.",
   "race.flippedRestart": "Du hast dich überschlagen! Drücke R für einen Neustart.",

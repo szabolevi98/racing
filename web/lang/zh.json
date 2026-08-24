@@ -72,7 +72,7 @@
   "leaderboard.empty": "这条赛道还没有成绩",
   "zone.offtrack": "缓冲区",
   "race.lapInvalidOfftrack": "本圈无效 — 四个轮子都驶离了铺装路面！",
-  "race.lapInvalidCheckpoint": "漏过检查点 — 必须全部通过，本圈才算数！",
+  "race.lapInvalidCheckpoint": "漏过检查点 — 本圈无效！",
   "race.lapInvalidPitStop": "最后一圈无效 — 漏掉了强制进站！",
   "race.lapInvalidValidation": "服务器端检查发现了无效的移动。本圈不计入成绩。",
   "race.flippedRestart": "你翻车了！按 R 重新开始。",

@@ -72,7 +72,7 @@
   "leaderboard.empty": "No lap times on this track yet",
   "zone.offtrack": "run-off",
   "race.lapInvalidOfftrack": "Lap invalidated — all four wheels left the asphalt!",
-  "race.lapInvalidCheckpoint": "Checkpoint missed — a lap only counts if you pass them all!",
+  "race.lapInvalidCheckpoint": "Checkpoint missed — lap invalidated!",
   "race.lapInvalidPitStop": "Last lap invalidated — the mandatory pit stop was missed!",
   "race.lapInvalidValidation": "The server-side check detected invalid movement. This lap does not count.",
   "race.flippedRestart": "You flipped over! Press R to restart.",

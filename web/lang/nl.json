@@ -72,7 +72,7 @@
   "leaderboard.empty": "Nog geen rondetijden op dit circuit",
   "zone.offtrack": "uitloopstrook",
   "race.lapInvalidOfftrack": "Ronde ongeldig — alle vier de wielen verlieten het asfalt!",
-  "race.lapInvalidCheckpoint": "Checkpoint gemist — een ronde telt alleen als je ze allemaal passeert!",
+  "race.lapInvalidCheckpoint": "Checkpoint gemist — ronde ongeldig!",
   "race.lapInvalidPitStop": "Laatste ronde ongeldig — de verplichte pitstop is overgeslagen!",
   "race.lapInvalidValidation": "De controle op de server ontdekte ongeldige beweging. Deze ronde telt niet.",
   "race.flippedRestart": "Je bent over de kop gegaan! Druk op R om opnieuw te beginnen.",
