@@ -4,6 +4,7 @@
   "menu.subtitle": "サーキットレース",
   "menu.map": "コース",
   "menu.car": "車",
+  "menu.carPhysicsHint": "車は見た目だけが異なり、すべて同じF1物理を使用します。",
   "menu.environment": "環境",
   "menu.laps": "周回数",
   "menu.solo": "シングルプレイ",

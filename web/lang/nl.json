@@ -4,6 +4,7 @@
   "menu.subtitle": "Circuitracen",
   "menu.map": "Circuit",
   "menu.car": "Auto",
+  "menu.carPhysicsHint": "Auto’s zijn alleen skins; ze gebruiken allemaal dezelfde F1-fysica.",
   "menu.environment": "Omgeving",
   "menu.laps": "Ronden",
   "menu.solo": "Eén speler",

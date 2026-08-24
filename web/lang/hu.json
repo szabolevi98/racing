@@ -4,6 +4,7 @@
   "menu.subtitle": "Körverseny",
   "menu.map": "Pálya",
   "menu.car": "Kocsi",
+  "menu.carPhysicsHint": "Az autók csak skinek; mind ugyanazt az F1-es fizikát használja.",
   "menu.environment": "Környezet",
   "menu.laps": "Körök",
   "menu.solo": "Egyjátékos",

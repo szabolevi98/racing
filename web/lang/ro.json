@@ -4,6 +4,7 @@
   "menu.subtitle": "Curse pe circuit",
   "menu.map": "Circuit",
   "menu.car": "Mașină",
+  "menu.carPhysicsHint": "Mașinile sunt doar aspecte; toate folosesc aceeași fizică F1.",
   "menu.environment": "Mediu",
   "menu.laps": "Ture",
   "menu.solo": "Un jucător",

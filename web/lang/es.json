@@ -4,6 +4,7 @@
   "menu.subtitle": "Carreras en circuito",
   "menu.map": "Circuito",
   "menu.car": "Coche",
+  "menu.carPhysicsHint": "Los coches son solo apariencias; todos usan la misma física de F1.",
   "menu.environment": "Entorno",
   "menu.laps": "Vueltas",
   "menu.solo": "Un jugador",

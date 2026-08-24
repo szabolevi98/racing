@@ -4,6 +4,7 @@
   "menu.subtitle": "Кольцевые гонки",
   "menu.map": "Трасса",
   "menu.car": "Машина",
+  "menu.carPhysicsHint": "Машины отличаются лишь внешне; физика F1 у всех одинакова.",
   "menu.environment": "Окружение",
   "menu.laps": "Круги",
   "menu.solo": "Одиночная игра",

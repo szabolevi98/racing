@@ -4,6 +4,7 @@
   "menu.subtitle": "Utrke na stazi",
   "menu.map": "Staza",
   "menu.car": "Automobil",
+  "menu.carPhysicsHint": "Automobili su samo skinovi; svi koriste istu F1 fiziku.",
   "menu.environment": "Okruženje",
   "menu.laps": "Krugovi",
   "menu.solo": "Jedan igrač",

@@ -4,6 +4,7 @@
   "menu.subtitle": "Wyścigi torowe",
   "menu.map": "Tor",
   "menu.car": "Samochód",
+  "menu.carPhysicsHint": "Auta to tylko skórki; wszystkie korzystają z tej samej fizyki F1.",
   "menu.environment": "Otoczenie",
   "menu.laps": "Okrążenia",
   "menu.solo": "Jeden gracz",

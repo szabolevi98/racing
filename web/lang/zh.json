@@ -4,6 +4,7 @@
   "menu.subtitle": "场地赛车",
   "menu.map": "赛道",
   "menu.car": "赛车",
+  "menu.carPhysicsHint": "车辆仅外观不同，全部采用相同的 F1 物理特性。",
   "menu.environment": "环境",
   "menu.laps": "圈数",
   "menu.solo": "单人游戏",

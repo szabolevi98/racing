@@ -4,6 +4,7 @@
   "menu.subtitle": "Course sur circuit",
   "menu.map": "Circuit",
   "menu.car": "Voiture",
+  "menu.carPhysicsHint": "Les voitures ne sont que des skins ; toutes utilisent la même physique F1.",
   "menu.environment": "Environnement",
   "menu.laps": "Tours",
   "menu.solo": "Un joueur",

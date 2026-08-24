@@ -4,6 +4,7 @@
   "menu.subtitle": "Кільцеві перегони",
   "menu.map": "Траса",
   "menu.car": "Автомобіль",
+  "menu.carPhysicsHint": "Автомобілі відрізняються лише виглядом; фізика F1 у всіх однакова.",
   "menu.environment": "Оточення",
   "menu.laps": "Кола",
   "menu.solo": "Один гравець",
