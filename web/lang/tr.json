@@ -4,7 +4,7 @@
   "menu.subtitle": "Pist yarışı",
   "menu.map": "Pist",
   "menu.car": "Araba",
-  "menu.carPhysicsHint": "Arabalar sadece görünümdür; hepsi aynı F1 fiziğini kullanır.",
+  "menu.carPhysicsHint": "Tüm arabalar aynı F1 fiziğini kullanır.",
   "menu.environment": "Ortam",
   "menu.laps": "Tur",
   "menu.solo": "Tek oyuncu",

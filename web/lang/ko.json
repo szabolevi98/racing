@@ -4,7 +4,7 @@
   "menu.subtitle": "서킷 레이싱",
   "menu.map": "트랙",
   "menu.car": "차량",
-  "menu.carPhysicsHint": "차량은 외형만 다르며 모두 같은 F1 물리 효과를 사용합니다.",
+  "menu.carPhysicsHint": "모든 차량에 동일한 F1 물리가 적용됩니다.",
   "menu.environment": "환경",
   "menu.laps": "랩 수",
   "menu.solo": "싱글 플레이",

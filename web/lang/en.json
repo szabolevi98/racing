@@ -4,7 +4,7 @@
   "menu.subtitle": "Circuit racing",
   "menu.map": "Track",
   "menu.car": "Car",
-  "menu.carPhysicsHint": "Cars are just skins; all use the same F1 physics.",
+  "menu.carPhysicsHint": "All cars use the same F1 physics.",
   "menu.environment": "Conditions",
   "menu.laps": "Laps",
   "menu.solo": "Single player",
