@@ -9,6 +9,17 @@ export const PROXY_HARD_RESET_DISTANCE_M = 4.5;
 export const PROXY_COLLIDER_COOLDOWN_STEPS = 6;
 export const PROXY_MAX_DEEP_OVERLAP_WAIT_STEPS = 30;
 export const PROXY_DEEP_OVERLAP_DISTANCE_M = 1.25;
+// Kontakt után ennyi fizikai lépésig nem kényszerítjük vissza a távoli testet
+// a hálózati céljára. A Rapier így egyszer oldja meg az ütközést, ahelyett hogy
+// a következő tick újra ugyanazzal a sebességgel belenyomná a saját autónkba.
+export const PROXY_CONTACT_HOLD_STEPS = 6;
+// A valódi autók laposak, a közös doboz-hitbox és az alacsony súlypont viszont
+// nagy tempójú kontaktban emelőként tud viselkedni. Csak az autó-autó ütközést
+// követő rövid ablakban fogjuk meg ezt; a pálya ugratóit nem érinti.
+export const PROXY_IMPACT_RECOVERY_STEPS = 24;
+export const PROXY_MAX_UPWARD_SPEED_MPS = 5;
+export const PROXY_MAX_TILT_SPEED_RAD_S = 3;
+export const PROXY_TILT_RECOVERY_FACTOR = 0.9;
 
 function normalizedQuaternion(q) {
   const length = Math.hypot(q.x, q.y, q.z, q.w) || 1;
@@ -78,5 +89,80 @@ export function planProxyCorrection(currentPosition, currentRotation, targetPosi
     rotationError,
     clamped: !hardReset && (positionAmount < 1 || rotationAmount < 1),
     hardReset,
+  };
+}
+
+// Kontakt közben a dinamikus proxy pillanatnyi Rapier-állapota az igazság. A
+// hálózati cél eltérését továbbra is megmérjük a diagnosztikának, de se a
+// pozíciót, se a sebességet nem szabad ráerőltetni. Amint letelik a rövid
+// tartás, a normál korlátozott korrekció (vagy nagy eltérésnél a collider-safe
+// hard reset) magától visszahozza a hálózati idővonalra.
+export function planContactSafeProxyMotion(
+  currentPosition,
+  currentRotation,
+  targetPosition,
+  targetRotation,
+  contactHoldSteps = 0,
+) {
+  const correction = planProxyCorrection(
+    currentPosition, currentRotation, targetPosition, targetRotation
+  );
+  const remaining = Math.max(0, Math.trunc(Number(contactHoldSteps) || 0));
+  if (!remaining) {
+    return {
+      ...correction,
+      applyNetworkMotion: true,
+      contactHeld: false,
+      remainingContactHoldSteps: 0,
+    };
+  }
+  return {
+    ...correction,
+    position: { x: currentPosition.x, y: currentPosition.y, z: currentPosition.z },
+    rotation: normalizedQuaternion(currentRotation),
+    positionStep: 0,
+    hardReset: false,
+    clamped: true,
+    applyNetworkMotion: false,
+    contactHeld: true,
+    remainingContactHoldSteps: remaining - 1,
+  };
+}
+
+function finite(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+// A world.step() előtti és utáni mozgásból kizárólag azt a részt fogjuk meg,
+// amely autó-proxy kontakt alatt keletkezett. Egy már felfelé repülő autót nem
+// lassítunk vissza a plafonra; csak az ütközés nem adhat hozzá annál nagyobb
+// új függőleges sebességet. A yaw érintetlen marad, hogy az oldalütés továbbra
+// is látványosan megforgathassa az autót; csak a bukfencet okozó pitch/roll kap
+// rövid, fokozatos csillapítást.
+export function limitProxyImpactMotion(beforeVelocity, afterVelocity, afterAngularVelocity) {
+  const beforeY = finite(beforeVelocity?.y);
+  const velocity = {
+    x: finite(afterVelocity?.x),
+    y: Math.min(
+      finite(afterVelocity?.y),
+      Math.max(beforeY, PROXY_MAX_UPWARD_SPEED_MPS),
+    ),
+    z: finite(afterVelocity?.z),
+  };
+  let wx = finite(afterAngularVelocity?.x);
+  const wy = finite(afterAngularVelocity?.y);
+  let wz = finite(afterAngularVelocity?.z);
+  const tiltSpeed = Math.hypot(wx, wz);
+  if (tiltSpeed > PROXY_MAX_TILT_SPEED_RAD_S) {
+    const scale = PROXY_MAX_TILT_SPEED_RAD_S / tiltSpeed;
+    wx *= scale;
+    wz *= scale;
+  }
+  wx *= PROXY_TILT_RECOVERY_FACTOR;
+  wz *= PROXY_TILT_RECOVERY_FACTOR;
+  return {
+    velocity,
+    angularVelocity: { x: wx, y: wy, z: wz },
   };
 }

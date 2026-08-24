@@ -13,8 +13,10 @@ import {
 } from '/shared/vehicleConfig.js';
 import { TAINT, requiredCheckpoints } from '/shared/protocol.js';
 import {
-  PROXY_COLLIDER_COOLDOWN_STEPS, PROXY_DEEP_OVERLAP_DISTANCE_M,
-  PROXY_MAX_DEEP_OVERLAP_WAIT_STEPS, planProxyCorrection,
+  PROXY_COLLIDER_COOLDOWN_STEPS, PROXY_CONTACT_HOLD_STEPS,
+  PROXY_DEEP_OVERLAP_DISTANCE_M, PROXY_IMPACT_RECOVERY_STEPS,
+  PROXY_MAX_DEEP_OVERLAP_WAIT_STEPS, limitProxyImpactMotion,
+  planContactSafeProxyMotion,
 } from '/shared/proxyCorrection.js';
 import {
   PIT_SPEED_LIMIT_MPS, PIT_STOP_DURATION_MS, createPitState, hasCompletePitConfig,
@@ -515,6 +517,7 @@ const { body: chassisBody, collider: chassisCollider, vehicle } =
 // autó–autó kontaktot.
 const remoteCarProxies = new Map();
 let lastRemoteContactDiagnosticAt = -Infinity;
+let proxyImpactRecoverySteps = 0;
 
 function setRemoteCarProxy(id, state) {
   let proxy = remoteCarProxies.get(id);
@@ -545,6 +548,7 @@ function setRemoteCarProxy(id, state) {
       body, collider, active: false,
       colliderCooldown: PROXY_COLLIDER_COOLDOWN_STEPS,
       deepOverlapWaitSteps: 0,
+      contactHoldSteps: 0,
     };
     remoteCarProxies.set(id, proxy);
   }
@@ -555,13 +559,16 @@ function setRemoteCarProxy(id, state) {
   const targetPosition = { x: p[0], y: p[1], z: p[2] };
   const targetRotation = { x: q[0], y: q[1], z: q[2], w: q[3] };
   const correction = wasActive
-    ? planProxyCorrection(
-      proxy.body.translation(), proxy.body.rotation(), targetPosition, targetRotation
+    ? planContactSafeProxyMotion(
+      proxy.body.translation(), proxy.body.rotation(), targetPosition, targetRotation,
+      proxy.contactHoldSteps,
     )
     : {
       position: targetPosition, rotation: targetRotation, distance: 0,
       positionStep: 0, rotationError: 0, clamped: false, hardReset: false,
+      applyNetworkMotion: true, contactHeld: false, remainingContactHoldSteps: 0,
     };
+  proxy.contactHoldSteps = correction.remainingContactHoldSteps;
 
   if (!wasActive || correction.hardReset) {
     // Nagy eltérésnél a testet csak kikapcsolt colliderrel tesszük helyre.
@@ -570,10 +577,12 @@ function setRemoteCarProxy(id, state) {
     proxy.colliderCooldown = PROXY_COLLIDER_COOLDOWN_STEPS;
     proxy.deepOverlapWaitSteps = 0;
   }
-  proxy.body.setTranslation(correction.position, true);
-  proxy.body.setRotation(correction.rotation, true);
-  proxy.body.setLinvel({ x: v[0], y: v[1], z: v[2] }, true);
-  proxy.body.setAngvel({ x: w[0], y: w[1], z: w[2] }, true);
+  if (correction.applyNetworkMotion) {
+    proxy.body.setTranslation(correction.position, true);
+    proxy.body.setRotation(correction.rotation, true);
+    proxy.body.setLinvel({ x: v[0], y: v[1], z: v[2] }, true);
+    proxy.body.setAngvel({ x: w[0], y: w[1], z: w[2] }, true);
+  }
 
   let colliderEnabled = proxy.colliderCooldown <= 0;
   if (proxy.colliderCooldown > 0) {
@@ -600,8 +609,6 @@ function setRemoteCarProxy(id, state) {
 
 function recordRemoteProxyContacts() {
   const now = performance.now();
-  if (now - lastRemoteContactDiagnosticAt < 100) return;
-  lastRemoteContactDiagnosticAt = now;
   let proxyCount = 0;
   let manifoldCount = 0;
   let maxImpulse = 0;
@@ -621,9 +628,19 @@ function recordRemoteProxyContacts() {
         maxPenetration = Math.max(maxPenetration, penetration);
       }
     });
-    if (touching) proxyCount++;
+    if (touching) {
+      proxyCount++;
+      proxy.contactHoldSteps = Math.max(
+        proxy.contactHoldSteps,
+        PROXY_CONTACT_HOLD_STEPS,
+      );
+    }
   }
-  if (!proxyCount) return;
+  if (!proxyCount) return false;
+  // A kontaktot minden fizikai lépésben meg kell nézni a biztonságos
+  // proxyvezérléshez. Csak a diagnosztikai MENTÉST ritkítjuk 10 Hz-re.
+  if (now - lastRemoteContactDiagnosticAt < 100) return true;
+  lastRemoteContactDiagnosticAt = now;
   netDiagnostics.record(
     NET_DIAG_EVENT.PROXY_CONTACT,
     proxyCount,
@@ -632,6 +649,7 @@ function recordRemoteProxyContacts() {
     totalImpulse,
     maxPenetration,
   );
+  return true;
 }
 
 function removeRemoteCarProxy(id) {
@@ -643,6 +661,7 @@ function removeRemoteCarProxy(id) {
 
 function clearRemoteCarProxies() {
   for (const id of [...remoteCarProxies.keys()]) removeRemoteCarProxy(id);
+  proxyImpactRecoverySteps = 0;
 }
 
 // Milyen mélyen van a talaj a kasztni KÖZEPE alatt, ha az autó nyugalomban áll?
@@ -5230,8 +5249,20 @@ window.__game = {
     applyControls(vehicle, chassisBody, limitedInput, { frozen, offtrackWheels: wheelsOffTrack() });
     applyVehicleStepForces(vehicle, chassisBody, world.timestep);
     vehicle.updateVehicle(world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
+    const velocityBeforeContacts = chassisBody.linvel();
     world.step();
-    recordRemoteProxyContacts();
+    const hasRemoteContact = recordRemoteProxyContacts();
+    if (hasRemoteContact) proxyImpactRecoverySteps = PROXY_IMPACT_RECOVERY_STEPS;
+    if (proxyImpactRecoverySteps > 0) {
+      const limited = limitProxyImpactMotion(
+        velocityBeforeContacts,
+        chassisBody.linvel(),
+        chassisBody.angvel(),
+      );
+      chassisBody.setLinvel(limited.velocity, true);
+      chassisBody.setAngvel(limited.angularVelocity, true);
+      proxyImpactRecoverySteps--;
+    }
     // A sebességplafon és a láthatatlan fal a lépés UTÁN, ugyanabban a
     // sorrendben, mint az egyjátékos animate()-ben.
     applySpeedCap(chassisBody);

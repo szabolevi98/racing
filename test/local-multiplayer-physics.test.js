@@ -3,9 +3,14 @@ import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier3d-compat';
 import {
   GRAVITY, CHASSIS_SIZE, buildVehicle, applyChassisMassProperties,
+  applyVehicleStepForces,
   FLOOR_COLLIDER_GROUPS, CAR_COLLIDER_GROUPS, GHOST_CAR_COLLIDER_GROUPS,
   CAR_PROXY_COLLIDER_GROUPS, WHEEL_RAY_FILTER_GROUPS,
 } from '../shared/vehicleConfig.js';
+import {
+  PROXY_CONTACT_HOLD_STEPS, PROXY_IMPACT_RECOVERY_STEPS,
+  limitProxyImpactMotion, planContactSafeProxyMotion,
+} from '../shared/proxyCorrection.js';
 
 await RAPIER.init();
 
@@ -77,6 +82,93 @@ test('a nearby dynamic proxy can physically push the local car', () => {
     const after = own.body.translation();
     assert.ok(Math.hypot(after.x - before.x, after.z - before.z) > 0.5);
     assert.ok(after.y < 1.5, 'the proxy must not launch the car vertically');
+  } finally {
+    world.free();
+  }
+});
+
+test('a 300 km/h rear impact stays a hard collision without launching the car off the track', () => {
+  const world = new RAPIER.World(GRAVITY);
+  world.timestep = 1 / 60;
+  try {
+    const floorBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+    world.createCollider(
+      RAPIER.ColliderDesc.cuboid(200, 0.1, 200)
+        .setTranslation(0, -0.1, 0)
+        .setCollisionGroups(FLOOR_COLLIDER_GROUPS),
+      floorBody
+    );
+    const own = buildVehicle(RAPIER, world, { x: 0, y: 0.85, z: 0 });
+    const proxyBody = world.createRigidBody(
+      RAPIER.RigidBodyDesc.dynamic()
+        .setTranslation(0, 0.85, -12)
+        .setGravityScale(0)
+        .setCanSleep(false)
+        .setCcdEnabled(true)
+    );
+    const proxy = world.createCollider(
+      RAPIER.ColliderDesc.cuboid(CHASSIS_SIZE.x, CHASSIS_SIZE.y, CHASSIS_SIZE.z)
+        .setCollisionGroups(CAR_PROXY_COLLIDER_GROUPS),
+      proxyBody
+    );
+    applyChassisMassProperties(proxy, proxyBody);
+
+    const speed = 300 / 3.6;
+    const rotation = { x: 0, y: 0, z: 0, w: 1 };
+    const target = { x: 0, y: 0.85, z: -12 };
+    let contactHoldSteps = 0;
+    let impactRecoverySteps = 0;
+    let contactSteps = 0;
+    let maxHeight = own.body.translation().y;
+    let maxTiltDegrees = 0;
+
+    for (let step = 0; step < 180; step++) {
+      target.z += speed * world.timestep;
+      const motion = planContactSafeProxyMotion(
+        proxyBody.translation(), proxyBody.rotation(), target, rotation,
+        contactHoldSteps,
+      );
+      contactHoldSteps = motion.remainingContactHoldSteps;
+      if (motion.applyNetworkMotion) {
+        proxyBody.setTranslation(motion.position, true);
+        proxyBody.setRotation(motion.rotation, true);
+        proxyBody.setLinvel({ x: 0, y: 0, z: speed }, true);
+        proxyBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      }
+
+      own.vehicle.updateVehicle(world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
+      applyVehicleStepForces(own.vehicle, own.body, world.timestep);
+      const velocityBeforeContacts = own.body.linvel();
+      world.step();
+
+      let touching = false;
+      world.contactPair(own.collider, proxy, () => { touching = true; });
+      if (touching) {
+        contactSteps++;
+        contactHoldSteps = PROXY_CONTACT_HOLD_STEPS;
+        impactRecoverySteps = PROXY_IMPACT_RECOVERY_STEPS;
+      }
+      if (impactRecoverySteps > 0) {
+        const limited = limitProxyImpactMotion(
+          velocityBeforeContacts,
+          own.body.linvel(),
+          own.body.angvel(),
+        );
+        own.body.setLinvel(limited.velocity, true);
+        own.body.setAngvel(limited.angularVelocity, true);
+        impactRecoverySteps--;
+      }
+
+      const position = own.body.translation();
+      const q = own.body.rotation();
+      const upY = Math.max(-1, Math.min(1, 1 - 2 * (q.x * q.x + q.z * q.z)));
+      maxHeight = Math.max(maxHeight, position.y);
+      maxTiltDegrees = Math.max(maxTiltDegrees, Math.acos(upY) * 180 / Math.PI);
+    }
+
+    assert.ok(contactSteps > 0, 'the high-speed cars must actually collide');
+    assert.ok(maxHeight < 2.5, `the impact launched the chassis to ${maxHeight.toFixed(2)} m`);
+    assert.ok(maxTiltDegrees < 45, `the impact tilted the chassis by ${maxTiltDegrees.toFixed(1)} degrees`);
   } finally {
     world.free();
   }
