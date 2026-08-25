@@ -159,9 +159,10 @@ function resetSplitTracking({ keepPrevious = false } = {}) {
 // Mihez mérjük magunkat? Időmérésben a szellemhez, ha van — ő az ellenfél,
 // az ő idejét akarjuk verni. Egyébként (és szellem nélküli időmérésben) a
 // saját előző körünkhöz. Ha egyik sincs, nincs mit kiírni.
-// A szellem checkpoint-részidői a felvett pályájából. Első kérésre készülnek
-// el, mert betöltéskor a kapuk még hiányozhatnak; a pálya azonosítóját is
-// eltesszük, hogy egy másik pályára maradt számítás ne ragadjon bent.
+// A szellem checkpoint-részidői a felvett pályájából. A párhuzamos assetek
+// elkészülte után előre kiszámoljuk őket; ez a függvény lazy tartalék is arra,
+// ha akkor még nem álltak a kapuk. A pálya azonosítóját is eltesszük, hogy egy
+// másik pályára maradt számítás ne ragadjon bent.
 function ghostSplits() {
   if (!ghostCar?.frames) return null;
   const mapId = G.currentMapId;
@@ -1705,6 +1706,15 @@ async function beginRace(info) {
   G.showLoadingOverlay(true);
   try {
     await G.runLoadTasks(tasks);
+    if (signal.aborted || loadGeneration !== raceLoadGeneration) return;
+    // A compileAsync a shaderprogramokat elkészíti, de a GLB vertex/index
+    // buffereit csak egy valódi draw tölti fel a GPU-ra. Ezt az összes
+    // párhuzamos asset betöltése után, még a loading overlay alatt végezzük el.
+    // Így nem a felvezető végén, a szellem első látható képkockáján fizetjük ki.
+    if (ghostReplay && !reuseGhost && ghostCar) {
+      await warmGhostCarVisual(ghostCar.group);
+    }
+    if (ghostReplay) ghostSplits();
   } finally {
     if (loadGeneration === raceLoadGeneration) G.hideLoadingOverlay();
   }
@@ -2029,9 +2039,11 @@ async function loadRemoteCarVisual(car, fallbackColor, onProgress, translucent =
 
 async function warmGhostCarVisual(group) {
   // A rejtett szellemet a renderer az első valódi megjelenéséig nem készítené
-  // elő. Ezért a GLB betöltése után, még a loading overlay alatt feltöltjük az
-  // összes textúráját, majd lefordítjuk az áttetsző anyagok shaderprogramjait.
-  // A rajtvonalnál így már csak a visible kapcsoló változik meg.
+  // elő. Ezért még a loading overlay alatt feltöltjük az összes textúráját,
+  // lefordítjuk az áttetsző anyagok shaderprogramjait, majd egy 1x1 pixeles
+  // rejtett célra ténylegesen ki is rajzoljuk. Az utolsó lépés azért szükséges,
+  // mert a Three.js compile/compileAsync NEM tölti fel a vertex- és indexbuffert;
+  // az csak az első valódi draw-nál történik meg.
   const textures = new Set();
   group.traverse((object) => {
     if (!object.material) return;
@@ -2050,6 +2062,45 @@ async function warmGhostCarVisual(group) {
   } else {
     G.renderer.compile(group, G.camera, G.scene);
   }
+
+  const renderer = G.renderer;
+  const warmTarget = new THREE.WebGLRenderTarget(1, 1, {
+    depthBuffer: false,
+    stencilBuffer: false,
+  });
+  const previousTarget = renderer.getRenderTarget();
+  const previousCubeFace = renderer.getActiveCubeFace();
+  const previousMipmapLevel = renderer.getActiveMipmapLevel();
+  const previousGroupVisible = group.visible;
+  const previousShadowAutoUpdate = renderer.shadowMap.autoUpdate;
+  const previousShadowNeedsUpdate = renderer.shadowMap.needsUpdate;
+  const frustumStates = [];
+  group.traverse((object) => {
+    if (!(object.isMesh || object.isLine || object.isPoints)) return;
+    frustumStates.push([object, object.frustumCulled]);
+    // A szellem betöltéskor még az origóban van, amely az aktuális kamera
+    // látómezején kívül eshet. A warm-up draw ettől még érje el minden geometriáját.
+    object.frustumCulled = false;
+  });
+
+  try {
+    group.visible = true;
+    // Az árnyéktérkép már elkészült, a szellem pedig nem vet árnyékot. Ne
+    // rajzoljuk újra a teljes pálya shadow passát csak a bufferfeltöltés miatt.
+    renderer.shadowMap.autoUpdate = false;
+    renderer.shadowMap.needsUpdate = false;
+    renderer.setRenderTarget(warmTarget);
+    renderer.render(G.scene, G.camera);
+  } finally {
+    renderer.setRenderTarget(previousTarget, previousCubeFace, previousMipmapLevel);
+    renderer.shadowMap.autoUpdate = previousShadowAutoUpdate;
+    renderer.shadowMap.needsUpdate = previousShadowNeedsUpdate;
+    group.visible = previousGroupVisible;
+    frustumStates.forEach(([object, frustumCulled]) => {
+      object.frustumCulled = frustumCulled;
+    });
+    warmTarget.dispose();
+  }
 }
 
 async function addGhostCar(ghost, onProgress, loadGeneration, signal) {
@@ -2061,12 +2112,6 @@ async function addGhostCar(ghost, onProgress, loadGeneration, signal) {
   }
   group.visible = false;
   G.scene.add(group);
-  await warmGhostCarVisual(group);
-  if (signal?.aborted || loadGeneration !== raceLoadGeneration) {
-    G.scene.remove(group);
-    G.disposeObject3D(group);
-    return;
-  }
   ghostCar = {
     group,
     playerId: ghost.playerId,
@@ -2077,8 +2122,7 @@ async function addGhostCar(ghost, onProgress, loadGeneration, signal) {
     timeMs: ghost.timeMs,
     // A checkpoint-részidők NEM itt készülnek: a szellem a pályával
     // párhuzamosan töltődik (runLoadTasks: Promise.all), tehát itt még nem
-    // biztos, hogy állnak a kapuk. Első használatkor számolunk — lásd
-    // ghostSplits().
+    // biztos, hogy állnak a kapuk. A beginRace az összes task után számolja ki.
     splits: null,
     splitsMapId: null,
   };
