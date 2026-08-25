@@ -4,11 +4,19 @@ import {
   PROXY_HARD_RESET_DISTANCE_M, PROXY_MAX_POSITION_STEP_M,
   PROXY_MAX_ROTATION_STEP_RAD, PROXY_MAX_TILT_SPEED_RAD_S,
   PROXY_MAX_UPWARD_SPEED_MPS, limitProxyImpactMotion,
+  PROXY_COLLISION_MAX_STATE_AGE_MS, proxyCollisionStateIsFresh,
   PROXY_CONTACT_RECOVERY_MAX_POSITION_STEP_M,
   planContactSafeProxyMotion, planProxyCorrection,
 } from '../shared/proxyCorrection.js';
 
 const Q0 = { x: 0, y: 0, z: 0, w: 1 };
+
+test('a stale remote state loses only its physical collision authority', () => {
+  assert.equal(proxyCollisionStateIsFresh(PROXY_COLLISION_MAX_STATE_AGE_MS), true);
+  assert.equal(proxyCollisionStateIsFresh(PROXY_COLLISION_MAX_STATE_AGE_MS + 0.001), false);
+  assert.equal(proxyCollisionStateIsFresh(Infinity), false);
+  assert.equal(proxyCollisionStateIsFresh(-1), false);
+});
 
 test('ordinary proxy correction is capped per physics step', () => {
   const correction = planProxyCorrection(

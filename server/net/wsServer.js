@@ -15,7 +15,9 @@ import {
   dbAvailable, findPlayerByToken, ghostLap, renamePlayer, upsertPlayer,
 } from '../db/index.js';
 import { getManifest } from '../assets.js';
-import { recentBlockMs } from '../loopLag.js';
+import {
+  measureServerWork, recentBlockMs, registerLoopLagContext,
+} from '../loopLag.js';
 import { hasCompletePitConfig } from '../../shared/pit.js';
 
 const rooms = new Map();    // kód -> Room
@@ -23,6 +25,13 @@ const players = new Map();  // playerId -> player
 const MAX_BUFFERED_SNAPSHOTS = 3;
 const MAX_WS_PAYLOAD_BYTES = 64 * 1024;
 const HEARTBEAT_INTERVAL_MS = 15_000;
+
+registerLoopLagContext('multiplayer', () => ({
+  rooms: rooms.size,
+  connectedPlayers: [...players.values()].filter((player) => player.socket?.readyState === 1).length,
+  loadingRooms: [...rooms.values()].filter((room) => room.state === ROOM_STATE.LOADING).length,
+  racingRooms: [...rooms.values()].filter((room) => room.state === ROOM_STATE.RACING).length,
+}));
 
 // Összetéveszthető karakterek (0/O, 1/I) nélkül — a kódot élőszóban is
 // szokták diktálni.
@@ -74,17 +83,20 @@ function messageRateAllowed(player, type, now = Date.now()) {
 }
 
 function broadcastRoom(room, type, data = {}) {
-  // Egy snapshot minden címzettnél azonos. Korábban játékosonként újra
-  // JSON.stringify-oltuk, és lassú kapcsolatnál korlátlanul sorba állítottuk a
-  // már elavult állapotokat. Az állapotcsomag eldobható: hamarosan jön frissebb.
-  const payload = JSON.stringify({ type, ...data });
-  const snapshotBacklogLimit = Math.max(4096, payload.length * MAX_BUFFERED_SNAPSHOTS);
-  for (const p of room.players.values()) {
-    const socket = p.socket;
-    if (socket?.readyState !== 1) continue;
-    if (type === S2C.SNAPSHOT && socket.bufferedAmount > snapshotBacklogLimit) continue;
-    socket.send(payload);
-  }
+  const workName = type === S2C.SNAPSHOT ? 'snapshot_broadcast' : 'room_broadcast';
+  return measureServerWork(workName, () => {
+    // Egy snapshot minden címzettnél azonos. Korábban játékosonként újra
+    // JSON.stringify-oltuk, és lassú kapcsolatnál korlátlanul sorba állítottuk a
+    // már elavult állapotokat. Az állapotcsomag eldobható: hamarosan jön frissebb.
+    const payload = JSON.stringify({ type, ...data });
+    const snapshotBacklogLimit = Math.max(4096, payload.length * MAX_BUFFERED_SNAPSHOTS);
+    for (const p of room.players.values()) {
+      const socket = p.socket;
+      if (socket?.readyState !== 1) continue;
+      if (type === S2C.SNAPSHOT && socket.bufferedAmount > snapshotBacklogLimit) continue;
+      socket.send(payload);
+    }
+  });
 }
 
 function pushRoomState(room) {
@@ -658,7 +670,7 @@ export function attachWebSocket(httpServer) {
       }
       let msg;
       try {
-        msg = JSON.parse(raw.toString());
+        msg = measureServerWork('ws_parse', () => JSON.parse(raw.toString()));
       } catch {
         return fail(socket, ERR.BAD_JSON);
       }
@@ -677,7 +689,10 @@ export function attachWebSocket(httpServer) {
             if (resumed) player = resumed;
             return;
           }
-          await handleMessage(player, msg);
+          await measureServerWork(
+            msg.type === C2S.STATE ? 'state_message' : 'control_message',
+            () => handleMessage(player, msg),
+          );
         })
         .catch((err) => {
           console.error('WS üzenet hiba:', err);

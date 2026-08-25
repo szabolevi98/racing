@@ -18,6 +18,7 @@ import {
 } from '../../shared/ghost.js';
 import { createPitState, hasCompletePitConfig, updatePitState } from '../../shared/pit.js';
 import { loadMapZoneRuntime } from './zoneRuntime.js';
+import { measureServerWork } from '../loopLag.js';
 
 const SNAPSHOT_MS = 1000 / SNAPSHOT_RATE;
 // A pump() SŰRŰBBEN fut, mint amilyen gyakran snapshotot küld, és ennek oka van.
@@ -654,6 +655,10 @@ export class RaceController {
   }
 
   sendSnapshot(now) {
+    return measureServerWork('snapshot_build', () => this.sendSnapshotMeasured(now));
+  }
+
+  sendSnapshotMeasured(now) {
     const ordered = this.orderedCars();
     const rankById = new Map(ordered.map((car, index) => [car.playerId, index + 1]));
     const leader = ordered[0] || null;

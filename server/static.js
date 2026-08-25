@@ -15,6 +15,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { pipeline } from 'node:stream';
 import { WEB_DIR, SHARED_DIR } from './paths.js';
+import { registerLoopLagContext } from './loopLag.js';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -47,6 +48,31 @@ const NO_CACHE = new Set(['.html', '.js', '.mjs', '.css']);
 const COMPRESSIBLE = new Set(['.js', '.mjs', '.css', '.html', '.json', '.gltf', '.bin', '.svg', '.txt']);
 // Ez alatt nem érdemes: a fejléc-többlet többe kerül, mint amennyit nyerünk.
 const MIN_COMPRESS_BYTES = 1024;
+let activeTransfers = 0;
+let activeCompressedTransfers = 0;
+let activeSourceBytes = 0;
+
+registerLoopLagContext('static', () => ({
+  activeTransfers,
+  activeCompressedTransfers,
+  activeSourceMb: Math.round(activeSourceBytes / (1024 * 1024) * 10) / 10,
+}));
+
+function trackTransfer(res, sourceBytes, compressed = false) {
+  activeTransfers++;
+  if (compressed) activeCompressedTransfers++;
+  activeSourceBytes += Math.max(0, Number(sourceBytes) || 0);
+  let active = true;
+  const finish = () => {
+    if (!active) return;
+    active = false;
+    activeTransfers--;
+    if (compressed) activeCompressedTransfers--;
+    activeSourceBytes -= Math.max(0, Number(sourceBytes) || 0);
+  };
+  res.once('finish', finish);
+  res.once('close', finish);
+}
 
 // A kérés útvonalát fájlrendszer-útvonallá alakítja, és megakadályozza a
 // kitörést a gyökér alól (../-es kérések).
@@ -157,6 +183,7 @@ function sendFile(req, res, full, stat) {
         headers['Content-Length'] = end - start + 1;
         headers['Accept-Ranges'] = 'bytes';
         res.writeHead(206, headers);
+        trackTransfer(res, end - start + 1);
         fs.createReadStream(full, { start, end }).pipe(res);
         return true;
       }
@@ -171,6 +198,7 @@ function sendFile(req, res, full, stat) {
     headers['Content-Encoding'] = 'gzip';
     headers.Vary = 'Accept-Encoding';
     res.writeHead(200, headers);
+    trackTransfer(res, stat.size, true);
     pipeline(fs.createReadStream(full), zlib.createGzip({ level: 6 }), res, () => {});
     return true;
   }
@@ -181,6 +209,7 @@ function sendFile(req, res, full, stat) {
   if (req.method === 'HEAD') {
     res.end();
   } else {
+    trackTransfer(res, stat.size);
     fs.createReadStream(full).pipe(res);
   }
   return true;

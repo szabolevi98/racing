@@ -124,6 +124,12 @@ test('finished remote cars never keep a physical collision proxy', () => {
   assert.match(mp, /entry\.finished = !!c\.fin;[\s\S]*?G\.setRemoteCarProxy\(c\.id, null\)/);
 });
 
+test('stale collision disappears before the still-useful remote visual', () => {
+  assert.match(mp, /!proxyCollisionStateIsFresh\(stateAgeMs\)/);
+  assert.match(mp, /nowServer - latest\.t > REMOTE_VISUAL_MAX_AGE_MS/);
+  assert.doesNotMatch(mp, /REMOTE_PROXY_MAX_AGE_MS/);
+});
+
 test('local render clock follows timer stress without visible timeline jumps', () => {
   assert.equal(localRenderDelayTarget(0, 0), LOCAL_RENDER_DELAY_MIN_MS);
   assert.ok(localRenderDelayTarget(15, 8) > LOCAL_RENDER_DELAY_MIN_MS);

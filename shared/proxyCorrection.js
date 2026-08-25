@@ -6,6 +6,10 @@
 export const PROXY_MAX_POSITION_STEP_M = 0.35;
 export const PROXY_MAX_ROTATION_STEP_RAD = 8 * Math.PI / 180;
 export const PROXY_HARD_RESET_DISTANCE_M = 4.5;
+// A távoli mozgást legfeljebb 250 ms-ig becsüljük tovább. Utána a proxy már
+// egy befagyott, egyre bizonytalanabb helyen állna, ezért kis ráhagyással csak
+// a COLLIDERÉT kapcsoljuk ki. A látható autó külön idővonalon marad a képen.
+export const PROXY_COLLISION_MAX_STATE_AGE_MS = 300;
 export const PROXY_COLLIDER_COOLDOWN_STEPS = 6;
 export const PROXY_MAX_DEEP_OVERLAP_WAIT_STEPS = 30;
 export const PROXY_DEEP_OVERLAP_DISTANCE_M = 1.25;
@@ -28,6 +32,11 @@ export const PROXY_IMPACT_RECOVERY_STEPS = 24;
 export const PROXY_MAX_UPWARD_SPEED_MPS = 5;
 export const PROXY_MAX_TILT_SPEED_RAD_S = 3;
 export const PROXY_TILT_RECOVERY_FACTOR = 0.9;
+
+export function proxyCollisionStateIsFresh(stateAgeMs) {
+  const age = Number(stateAgeMs);
+  return Number.isFinite(age) && age >= 0 && age <= PROXY_COLLISION_MAX_STATE_AGE_MS;
+}
 
 function normalizedQuaternion(q) {
   const length = Math.hypot(q.x, q.y, q.z, q.w) || 1;

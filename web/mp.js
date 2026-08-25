@@ -27,6 +27,7 @@ import {
 } from '/shared/ping.js';
 import { ERR } from '/shared/errorCodes.js';
 import { remoteExtrapolationTiming, remoteSnapshotSample } from '/shared/remoteSnapshot.js';
+import { proxyCollisionStateIsFresh } from '/shared/proxyCorrection.js';
 import { t, hasKey, onLanguageChange, applyToDom } from './lang.js';
 import {
   NET_DIAG_CONNECTION, NET_DIAG_EVENT, NET_DIAG_INCIDENT, NET_DIAG_RACE_STAGE,
@@ -2475,7 +2476,10 @@ const REMOTE_PROXY_EXIT_RANGE_SQ = REMOTE_PROXY_EXIT_RANGE * REMOTE_PROXY_EXIT_R
 const PLAYER_LABEL_FADE_START = 38;
 const PLAYER_LABEL_MAX_RANGE = 50;
 const PLAYER_LABEL_MAX_RANGE_SQ = PLAYER_LABEL_MAX_RANGE * PLAYER_LABEL_MAX_RANGE;
-const REMOTE_PROXY_MAX_AGE_MS = 750;
+// A kép tovább maradhat látható egy rövid csomagkimaradás alatt, mint ameddig
+// biztonságos fizikai falat építeni belőle. A collider külön, 300 ms-os határát
+// a proxyCorrection közös szabálya adja.
+const REMOTE_VISUAL_MAX_AGE_MS = 750;
 const REMOTE_EXTRAP_MAX_MS = 250;
 // Egy állapotcsomag ~210 bájt; hat csomagnyi sor 60 Hz-en kb. 100 ms
 // elmaradás. Efölött a régi állapotokat nem küldjük el — lásd sendOneInput().
@@ -2548,7 +2552,7 @@ function syncRemoteProxies(targetServerTime) {
     const state = remoteStateAt(o.buf, targetServerTime);
     const stateAgeMs = latest ? Math.max(0, now - latest.t) : Infinity;
     if (Number.isFinite(stateAgeMs)) maxStateAgeMs = Math.max(maxStateAgeMs, stateAgeMs);
-    if (!latest || !state || stateAgeMs > REMOTE_PROXY_MAX_AGE_MS) {
+    if (!latest || !state || !proxyCollisionStateIsFresh(stateAgeMs)) {
       if (latest) staleCount++;
       o.proxyActive = false;
       o.proxyPose = null;
@@ -2852,7 +2856,7 @@ function frame(dt = 1 / 60) {
       hideRemoteCar(o);
       continue;
     }
-    if (!latest || nowServer - latest.t > REMOTE_PROXY_MAX_AGE_MS) {
+    if (!latest || nowServer - latest.t > REMOTE_VISUAL_MAX_AGE_MS) {
       hideRemoteCar(o);
       continue;
     }
