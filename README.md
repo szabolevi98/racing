@@ -214,8 +214,28 @@ Multiplayer közben a kliens egy fix méretű körpufferben őrzi az utolsó 30
 másodperc ping-, snapshot-, állapotküldési, fizikaidőzítési és képkocka-adatait.
 Az `F9` egy JSON-riportba tölti le ezeket és a legutóbbi automatikusan megőrzött
 pingtüske-, főszálakadás-, kapcsolatvesztés- vagy szervervalidációs pillanatokat.
+A riport megadja a tényleges GPU-t, pixelarányt és rajzolási felbontást, valamint
+a feltorlódott snapshotok, a helyi fizikai puffer és a kamera helyreállításának
+mérőszámait is.
 A riport nem tartalmaz játékosnevet, szobakódot, belépési tokent vagy szerveres
 üzenetszöveget; fájl- és JSON-készítés csak az `F9` megnyomásakor történik.
+
+### Későbbi helyi fizikai munka
+
+A helyi fizikai ciklus nagyobb átalakítása és a saját autó rövid vizuális
+extrapolációja szándékosan nincs vakon bekapcsolva. Egyik sem szabadítja fel
+önmagában a főszálat: az ütemező átalakítása ugyanazt a Rapier-munkát számolná,
+az extrapoláció pedig csak a meglévő állapotok közti képet becsülné. A teljes
+fizika Web Workerbe költöztetése valóban levenné ezt a munkát a főszálról, de
+nagy refaktor, és egy blokkoló renderelés alatt attól még nem készülne új kép.
+
+Az F9-riport ezért külön méri a fizikai lépések idejét és késését, a saját
+megjelenítési puffer kifogyását, valamint a kamera lemaradását. Ha a képkockák
+még elkészülnek, miközben a fizikai időzítő vagy a helyi puffer rendszeresen
+éhezik, következő lépésként képkockához igazított fix lépéses ütemezést kell
+kipróbálni. Saját autós, legfeljebb egy tickes extrapoláció csak ezután indokolt;
+Workerre pedig akkor érdemes váltani, ha a mérés szerint maga a fizika terheli
+érdemben a főszálat.
 
 ## Fejlesztői mód
 

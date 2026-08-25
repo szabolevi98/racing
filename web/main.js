@@ -289,7 +289,14 @@ scene.fog = new THREE.FogExp2(0x9aa5ab, NORMAL_FOG_DENSITY);
 
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 5000);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const RENDER_POWER_PREFERENCE = 'high-performance';
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  // Két grafikus vezérlős gépen a böngésző lehetőleg ne az energiatakarékos
+  // GPU-t válassza. Ez csak szabványos kérés: az operációs rendszer továbbra
+  // is felülbírálhatja, egyetlen GPU-s gépen pedig nincs mellékhatása.
+  powerPreference: RENDER_POWER_PREFERENCE,
+});
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
@@ -299,10 +306,33 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.8;
 document.body.appendChild(renderer.domElement);
 
+const drawingBufferSize = new THREE.Vector2();
+
+function updateClientRenderingDiagnostics() {
+  const gl = renderer.getContext();
+  const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+  const gpuRenderer = debugInfo
+    ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)
+    : gl.getParameter(gl.RENDERER);
+  renderer.getDrawingBufferSize(drawingBufferSize);
+  netDiagnostics.setClientRendering({
+    gpuRenderer,
+    powerPreference: RENDER_POWER_PREFERENCE,
+    devicePixelRatio: window.devicePixelRatio,
+    cssWidth: renderer.domElement.clientWidth || window.innerWidth,
+    cssHeight: renderer.domElement.clientHeight || window.innerHeight,
+    drawingBufferWidth: drawingBufferSize.x,
+    drawingBufferHeight: drawingBufferSize.y,
+  });
+}
+
+updateClientRenderingDiagnostics();
+
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  updateClientRenderingDiagnostics();
 });
 
 // ---------- HDRI skybox (háttér + környezeti fény/tükröződés) ----------
@@ -3783,6 +3813,31 @@ let spectateTarget = null;
 // Váltáskor a kamerának ODA kell ugrania, nem átcsúsznia: a két kocsi között
 // akár fél pálya is lehet, azon végigsöpörve senki nem látna semmit.
 let cameraSnapPending = false;
+let cameraStallSnapPending = false;
+let cameraFollowErrorMaxM = 0;
+let cameraStallSnapCount = 0;
+const CAMERA_STALL_SNAP_MS = 150;
+
+function requestCameraSnapAfterFrameStall() {
+  cameraSnapPending = true;
+  cameraStallSnapPending = true;
+}
+
+function consumeCameraSnap() {
+  cameraSnapPending = false;
+  if (cameraStallSnapPending) cameraStallSnapCount++;
+  cameraStallSnapPending = false;
+}
+
+function takeCameraPlaybackDiagnostics() {
+  const sample = {
+    followErrorMaxM: cameraFollowErrorMaxM,
+    stallSnapCount: cameraStallSnapCount,
+  };
+  cameraFollowErrorMaxM = 0;
+  cameraStallSnapCount = 0;
+  return sample;
+}
 
 function setSpectateTarget(object) {
   const next = object || null;
@@ -3916,6 +3971,7 @@ function updateChaseCamera(dt = 1 / 60) {
     const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(yawQuat);
     chaseTarget.copy(desiredPos).add(forward.multiplyScalar(50));
     camera.lookAt(chaseTarget);
+    if (cameraSnapPending) consumeCameraSnap();
     return;
   }
 
@@ -3940,10 +3996,11 @@ function updateChaseCamera(dt = 1 / 60) {
   const a = 1 - Math.pow(1 - perFrameAt60, Math.max(dt, 0) * 60);
   if (cameraSnapPending) {
     camera.position.copy(desiredPos);
-    cameraSnapPending = false;
+    consumeCameraSnap();
   } else {
     camera.position.lerp(desiredPos, a);
   }
+  cameraFollowErrorMaxM = Math.max(cameraFollowErrorMaxM, camera.position.distanceTo(desiredPos));
   chaseTarget.set(chassisPos.x, chassisPos.y + 1, chassisPos.z);
   camera.lookAt(chaseTarget);
 }
@@ -4891,6 +4948,9 @@ let netPipelineRenderTrianglesTotal = 0;
 function sampleNetPerformance(nowMs, rawFrameMs) {
   if (appState !== 'mp') {
     netPerfActive = false;
+    cameraFollowErrorMaxM = 0;
+    cameraStallSnapCount = 0;
+    cameraStallSnapPending = false;
     return;
   }
   const mp = window.__mp;
@@ -4901,6 +4961,9 @@ function sampleNetPerformance(nowMs, rawFrameMs) {
     netPerfFrameTotalMs = 0;
     netPerfFrameMaxMs = 0;
     netPerfLastPhysicsSteps = mp?.physSteps ?? 0;
+    mp?.takeLocalPlaybackDiagnostics?.();
+    cameraFollowErrorMaxM = 0;
+    cameraStallSnapCount = 0;
     return;
   }
   netPerfFrameCount++;
@@ -4920,6 +4983,17 @@ function sampleNetPerformance(nowMs, rawFrameMs) {
     mp?.physicsTimerJitterMs,
     mp?.predDelayMs,
     mp?.interpDelayMs,
+  );
+  const localPlayback = mp?.takeLocalPlaybackDiagnostics?.() || {};
+  const cameraPlayback = takeCameraPlaybackDiagnostics();
+  netDiagnostics.record(
+    NET_DIAG_EVENT.LOCAL_PLAYBACK,
+    localPlayback.bufferStarvedMaxMs,
+    localPlayback.bufferHeadroomMs,
+    localPlayback.inputTickGapMaxMs,
+    cameraPlayback.followErrorMaxM,
+    cameraPlayback.stallSnapCount,
+    localPlayback.predictionBufferSamples,
   );
   // Csak fókuszban lévő játéknál tekintjük automatikus incidensnek. Egy
   // háttérfülről való visszatérés hosszú képkockája önmagában nem netcode-hiba.
@@ -5001,6 +5075,12 @@ function animate() {
   // közben — az fps-doboz a #hud-on belül van, tehát csak driving/mp-ben
   // LÁTSZIK, de a számláló futása nem függ ettől.
   const frameNow = performance.now();
+  if ((appState === 'driving' || appState === 'mp') && rawDt * 1000 >= CAMERA_STALL_SNAP_MS) {
+    // A fagyás alatt képet úgysem tudunk rajzolni. Felengedéskor viszont ne a
+    // régi kamerahelyről kezdjünk még külön utánacsúszni az időközben odébb
+    // került autóhoz: a következő chase-frissítés egyszer odapattan.
+    requestCameraSnapAfterFrameStall();
+  }
   tickFpsCounter(frameNow);
   sampleNetPerformance(frameNow, rawDt * 1000);
   // MINDEN állapotban, a zone-edit korai kilépése ELŐTT — lásd

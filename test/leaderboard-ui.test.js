@@ -9,17 +9,19 @@ test('leaderboard stays informational while Hot Lap uses a separate ghost picker
   assert.match(html, /Leggyorsabb körök/);
   assert.match(html, /Csak a többjátékos és az időmérős körök számítanak/);
   assert.match(multiplayer, /hotLapGhostPicker/);
-  assert.match(multiplayer, /async function warmGhostCarVisual/);
+  assert.match(multiplayer, /async function warmCarVisuals/);
   assert.match(multiplayer, /renderer\.initTexture\(texture\)/);
-  assert.match(multiplayer, /await G\.renderer\.compileAsync\(group, G\.camera, G\.scene\)/);
+  assert.match(multiplayer, /await renderer\.compileAsync\(G\.scene, G\.camera\)/);
   assert.match(multiplayer, /new THREE\.WebGLRenderTarget\(1, 1/);
   assert.match(multiplayer, /object\.frustumCulled = false/);
   assert.match(multiplayer, /renderer\.render\(G\.scene, G\.camera\)/);
   assert.match(
     multiplayer,
-    /await G\.runLoadTasks\(tasks\);[\s\S]*await warmGhostCarVisual\(ghostCar\.group\)/,
+    /await G\.runLoadTasks\(tasks\);[\s\S]*await warmCarVisuals\(visualsToWarm\)/,
   );
-  assert.doesNotMatch(multiplayer, /G\.scene\.add\(group\);\s*await warmGhostCarVisual\(group\)/);
+  assert.match(multiplayer, /for \(const lowDetail of \[false, true\]\)/);
+  assert.match(multiplayer, /setRemoteVisualQuality\(group, lowDetail\)/);
+  assert.doesNotMatch(multiplayer, /G\.scene\.add\(group\);\s*await warmCarVisuals\(group\)/);
   assert.match(multiplayer, /clearOtherCars\(\{ preserveGhost: reuseGhost \}\)/);
   assert.match(multiplayer, /if \(ghostReplay && !reuseGhost\)/);
   assert.match(multiplayer, /if \(ghostCar\?\.group\.visible\)/);

@@ -29,6 +29,8 @@ export const NET_DIAG_EVENT = Object.freeze({
   PROXY_CONTACT: 16,
   PIPELINE_TIMING: 17,
   RENDER_LOAD: 18,
+  SNAPSHOT_QUEUE: 19,
+  LOCAL_PLAYBACK: 20,
 });
 
 export const NET_DIAG_INCIDENT = Object.freeze({
@@ -103,6 +105,13 @@ const EVENT_SCHEMA = Object.freeze({
     'multiplayerFrameAvgMs', 'multiplayerFrameMaxMs', 'renderCpuAvgMs', 'renderCpuMaxMs',
   ]],
   [NET_DIAG_EVENT.RENDER_LOAD]: ['render_load', ['renderCalls', 'renderTriangles']],
+  [NET_DIAG_EVENT.SNAPSHOT_QUEUE]: ['snapshot_queue', [
+    'receivedCount', 'coalescedCount', 'queueWaitMs', 'arrivalSpanMs', 'flushReasonCode',
+  ]],
+  [NET_DIAG_EVENT.LOCAL_PLAYBACK]: ['local_playback', [
+    'bufferStarvedMaxMs', 'bufferHeadroomMs', 'inputTickGapMaxMs',
+    'cameraFollowErrorMaxM', 'cameraSnapCount', 'predictionBufferSamples',
+  ]],
 });
 
 const INCIDENT_REASONS = new Set(Object.values(NET_DIAG_INCIDENT));
@@ -112,6 +121,12 @@ function safeId(value) {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   return /^[a-z0-9_.-]{1,80}$/i.test(trimmed) ? trimmed : null;
+}
+
+function safeRuntimeText(value) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
+  return trimmed ? trimmed.slice(0, 256) : null;
 }
 
 function numeric(value) {
@@ -145,6 +160,15 @@ export class NetDiagnosticsRecorder {
     this.writeIndex = 0;
     this.count = 0;
     this.context = Object.freeze({ mode: null, mapId: null, carId: null });
+    this.clientRendering = Object.freeze({
+      gpuRenderer: null,
+      powerPreference: null,
+      devicePixelRatio: null,
+      cssWidth: null,
+      cssHeight: null,
+      drawingBufferWidth: null,
+      drawingBufferHeight: null,
+    });
     this.incidents = [];
     this.lastIncidentAt = new Map();
   }
@@ -154,6 +178,31 @@ export class NetDiagnosticsRecorder {
       mode: safeId(mode),
       mapId: safeId(mapId),
       carId: safeId(carId),
+    });
+  }
+
+  setClientRendering({
+    gpuRenderer = null,
+    powerPreference = null,
+    devicePixelRatio = null,
+    cssWidth = null,
+    cssHeight = null,
+    drawingBufferWidth = null,
+    drawingBufferHeight = null,
+  } = {}) {
+    const finiteOrNull = (value) => {
+      if (value === null || value === undefined || value === '') return null;
+      const number = Number(value);
+      return Number.isFinite(number) ? number : null;
+    };
+    this.clientRendering = Object.freeze({
+      gpuRenderer: safeRuntimeText(gpuRenderer),
+      powerPreference: safeRuntimeText(powerPreference),
+      devicePixelRatio: finiteOrNull(devicePixelRatio),
+      cssWidth: finiteOrNull(cssWidth),
+      cssHeight: finiteOrNull(cssHeight),
+      drawingBufferWidth: finiteOrNull(drawingBufferWidth),
+      drawingBufferHeight: finiteOrNull(drawingBufferHeight),
     });
   }
 
@@ -257,10 +306,11 @@ export class NetDiagnosticsRecorder {
     const fields = {};
     for (const [, [name, names]] of Object.entries(EVENT_SCHEMA)) fields[name] = ['relativeMs', ...names];
     return {
-      schemaVersion: 5,
+      schemaVersion: 6,
       generatedAt: new Date(this.wallNow()).toISOString(),
       windowMs: this.windowMs,
       privacy: 'No player names, room codes, authentication tokens or message text are recorded.',
+      clientRendering: { ...this.clientRendering },
       eventFields: fields,
       current: this.serializeWindow(current),
       incidents: this.incidents.map((sample) => this.serializeWindow(sample, sample.reason)),

@@ -50,7 +50,7 @@ const G = window.__game;
 // a lap háttérbe kerül — enélkül a hálózati réteget nem lehetne automatizáltan
 // tesztelni (a képkocka-számláló ilyenkor csalókán nullán marad).
 window.__mp = {
-  stage: 'init', frames: 0, snaps: 0,
+  stage: 'init', frames: 0, snaps: 0, snapshotsApplied: 0,
   // Hány ping-mintát dobtunk el főszál-akadás miatt (lásd startStallWatch).
   // Ha ez folyamatosan nő, az nem hálózati gond, hanem akadozó kliens.
   pingDiscarded: 0,
@@ -77,6 +77,7 @@ window.__mp = {
   get physicsTimerLatenessMs() { return +physicsTimerLatenessMs.toFixed(1); },
   get physicsTimerJitterMs() { return +physicsTimerJitterMs.toFixed(1); },
   takePipelineTimings: () => takePipelineTimings(),
+  takeLocalPlaybackDiagnostics: () => takeLocalPlaybackDiagnostics(),
   // A szerver legutóbbi ellenőrzött állapota a saját kocsinkról.
   get lastSelf() { return lastSnapshot?.cars?.find((c) => c.id === me.id) || null; },
   // A helyi fizika és a kirajzolási interpoláció pozíciója diagnosztikához.
@@ -1117,6 +1118,7 @@ function authenticate(type, data) {
     loggingOut = false;
     ws = null;
     stopInputLoop();
+    clearPendingSnapshot();
     stopPingLoop();
     if (!wasLoggingOut && connectionWasInRace && resumeSessionId) {
       // A helyi fizika megáll ugyanazon a pózon; a szerver is ezt az utolsó
@@ -1146,6 +1148,11 @@ function authenticate(type, data) {
 }
 
 function onMessage(m) {
+  // A snapshot állapotminta, ezért több egymás után feltorlódott példányából a
+  // legfrissebb elég. Egy külön versenyesemény előtt viszont előbb alkalmazzuk
+  // az addig várót: így a WebSocket eredeti sorrendje az összevonás mellett is
+  // megmarad (például snapshot -> reset -> snapshot).
+  if (m.type !== S2C.SNAPSHOT) flushPendingSnapshot(2);
   switch (m.type) {
     case S2C.WELCOME:
       cancelReconnect();
@@ -1335,7 +1342,7 @@ function onMessage(m) {
       break;
 
     case S2C.SNAPSHOT:
-      onSnapshot(m);
+      queueSnapshot(m);
       break;
 
     case S2C.CAR_RESET:
@@ -1712,12 +1719,13 @@ async function beginRace(info) {
     await G.runLoadTasks(tasks);
     if (signal.aborted || loadGeneration !== raceLoadGeneration) return;
     // A compileAsync a shaderprogramokat elkészíti, de a GLB vertex/index
-    // buffereit csak egy valódi draw tölti fel a GPU-ra. Ezt az összes
-    // párhuzamos asset betöltése után, még a loading overlay alatt végezzük el.
-    // Így nem a felvezető végén, a szellem első látható képkockáján fizetjük ki.
-    if (ghostReplay && !reuseGhost && ghostCar) {
-      await warmGhostCarVisual(ghostCar.group);
-    }
+    // buffereit csak egy valódi draw tölti fel a GPU-ra. Az új ellenfélmodellek
+    // normál és egyszerűsített változatát is itt rajzoljuk először, még a
+    // loading overlay alatt. Így sem az első megjelenésük, sem a terhelés alatti
+    // első minőségváltás nem fordul verseny közbeni shader/buffer-akadásba.
+    const visualsToWarm = [...others.values()].map((entry) => entry.group);
+    if (ghostReplay && !reuseGhost && ghostCar) visualsToWarm.push(ghostCar.group);
+    await warmCarVisuals(visualsToWarm);
     if (ghostReplay) ghostSplits();
   } finally {
     if (loadGeneration === raceLoadGeneration) G.hideLoadingOverlay();
@@ -2041,31 +2049,28 @@ async function loadRemoteCarVisual(car, fallbackColor, onProgress, translucent =
   return group;
 }
 
-async function warmGhostCarVisual(group) {
-  // A rejtett szellemet a renderer az első valódi megjelenéséig nem készítené
-  // elő. Ezért még a loading overlay alatt feltöltjük az összes textúráját,
-  // lefordítjuk az áttetsző anyagok shaderprogramjait, majd egy 1x1 pixeles
-  // rejtett célra ténylegesen ki is rajzoljuk. Az utolsó lépés azért szükséges,
-  // mert a Three.js compile/compileAsync NEM tölti fel a vertex- és indexbuffert;
-  // az csak az első valódi draw-nál történik meg.
+async function warmCarVisuals(groups) {
+  const visuals = groups.filter(Boolean);
+  if (!visuals.length) return;
+  // A rejtett távoli autókat a renderer az első valódi megjelenésükig nem
+  // készítené elő. Még a loading overlay alatt feltöltjük a textúrákat,
+  // lefordítjuk a shaderprogramokat, majd egy 1x1 pixeles rejtett célra
+  // ténylegesen kirajzoljuk a normál ÉS az egyszerűsített változatot. A draw
+  // szükséges: a compile/compileAsync a vertex- és indexbuffert nem tölti fel.
   const textures = new Set();
-  group.traverse((object) => {
-    if (!object.material) return;
-    const materials = Array.isArray(object.material) ? object.material : [object.material];
-    materials.forEach((material) => {
-      if (!material) return;
-      Object.values(material).forEach((value) => {
-        if (value?.isTexture) textures.add(value);
+  visuals.forEach((group) => {
+    group.traverse((object) => {
+      if (!object.material) return;
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      materials.forEach((material) => {
+        if (!material) return;
+        Object.values(material).forEach((value) => {
+          if (value?.isTexture) textures.add(value);
+        });
       });
     });
   });
   textures.forEach((texture) => G.renderer.initTexture(texture));
-
-  if (typeof G.renderer.compileAsync === 'function') {
-    await G.renderer.compileAsync(group, G.camera, G.scene);
-  } else {
-    G.renderer.compile(group, G.camera, G.scene);
-  }
 
   const renderer = G.renderer;
   const warmTarget = new THREE.WebGLRenderTarget(1, 1, {
@@ -2075,31 +2080,52 @@ async function warmGhostCarVisual(group) {
   const previousTarget = renderer.getRenderTarget();
   const previousCubeFace = renderer.getActiveCubeFace();
   const previousMipmapLevel = renderer.getActiveMipmapLevel();
-  const previousGroupVisible = group.visible;
   const previousShadowAutoUpdate = renderer.shadowMap.autoUpdate;
   const previousShadowNeedsUpdate = renderer.shadowMap.needsUpdate;
+  const visualStates = visuals.map((group) => ({
+    group,
+    groupVisible: group.visible,
+    highVisible: group.userData.highDetail?.visible,
+    lowVisible: group.userData.lowDetail?.visible,
+  }));
   const frustumStates = [];
-  group.traverse((object) => {
-    if (!(object.isMesh || object.isLine || object.isPoints)) return;
-    frustumStates.push([object, object.frustumCulled]);
-    // A szellem betöltéskor még az origóban van, amely az aktuális kamera
-    // látómezején kívül eshet. A warm-up draw ettől még érje el minden geometriáját.
-    object.frustumCulled = false;
+  visuals.forEach((group) => {
+    group.traverse((object) => {
+      if (!(object.isMesh || object.isLine || object.isPoints || object.isSprite)) return;
+      frustumStates.push([object, object.frustumCulled]);
+      // Betöltéskor még az origóban vannak, amely az aktuális kamera
+      // látómezején kívül eshet. A warm-up draw így is érjen el mindent.
+      object.frustumCulled = false;
+    });
   });
 
   try {
-    group.visible = true;
-    // Az árnyéktérkép már elkészült, a szellem pedig nem vet árnyékot. Ne
-    // rajzoljuk újra a teljes pálya shadow passát csak a bufferfeltöltés miatt.
+    // Az előmelegítéshez nem kell új árnyéktérkép. Ne rajzoljuk újra a teljes
+    // pálya shadow passát csak a bufferfeltöltés miatt.
     renderer.shadowMap.autoUpdate = false;
     renderer.shadowMap.needsUpdate = false;
     renderer.setRenderTarget(warmTarget);
-    renderer.render(G.scene, G.camera);
+    for (const lowDetail of [false, true]) {
+      visuals.forEach((group) => {
+        group.visible = true;
+        setRemoteVisualQuality(group, lowDetail);
+      });
+      if (typeof renderer.compileAsync === 'function') {
+        await renderer.compileAsync(G.scene, G.camera);
+      } else {
+        renderer.compile(G.scene, G.camera);
+      }
+      renderer.render(G.scene, G.camera);
+    }
   } finally {
     renderer.setRenderTarget(previousTarget, previousCubeFace, previousMipmapLevel);
     renderer.shadowMap.autoUpdate = previousShadowAutoUpdate;
     renderer.shadowMap.needsUpdate = previousShadowNeedsUpdate;
-    group.visible = previousGroupVisible;
+    visualStates.forEach(({ group, groupVisible, highVisible, lowVisible }) => {
+      group.visible = groupVisible;
+      if (group.userData.highDetail) group.userData.highDetail.visible = highVisible;
+      if (group.userData.lowDetail) group.userData.lowDetail.visible = lowVisible;
+    });
     frustumStates.forEach(([object, frustumCulled]) => {
       object.frustumCulled = frustumCulled;
     });
@@ -2180,8 +2206,60 @@ let interpUpdatedAt = 0;
 let interpPlaybackRate = 1;
 // Csak diagnosztikához (lásd __mp.lastSelf) — a feldolgozás nem használja.
 let lastSnapshot = null;
+let pendingSnapshot = null;
+let pendingSnapshotCount = 0;
+let pendingSnapshotFirstAt = 0;
+let pendingSnapshotLastAt = 0;
+let pendingSnapshotTransitMs = 0;
+
+function clearPendingSnapshot() {
+  pendingSnapshot = null;
+  pendingSnapshotCount = 0;
+  pendingSnapshotFirstAt = 0;
+  pendingSnapshotLastAt = 0;
+  pendingSnapshotTransitMs = 0;
+}
+
+function queueSnapshot(snapshot) {
+  const now = performance.now();
+  window.__mp.snaps++;
+  if (!pendingSnapshot) {
+    pendingSnapshotFirstAt = now;
+    pendingSnapshotCount = 1;
+  } else {
+    pendingSnapshotCount++;
+  }
+  pendingSnapshot = snapshot;
+  pendingSnapshotLastAt = now;
+  // A hálózati érkezési időt MOST mérjük, nem a következő képkockás
+  // feldolgozáskor. Különben a 0–16 ms-os render-várakozást hamisan hálózati
+  // jitternek nézné az adaptív interpolációs puffer.
+  pendingSnapshotTransitMs = Math.max(0, serverNow() - snapshot.t);
+}
+
+function flushPendingSnapshot(reasonCode) {
+  if (!pendingSnapshot) return false;
+  const snapshot = pendingSnapshot;
+  const count = pendingSnapshotCount;
+  const firstAt = pendingSnapshotFirstAt;
+  const lastAt = pendingSnapshotLastAt;
+  const transitMs = pendingSnapshotTransitMs;
+  clearPendingSnapshot();
+  window.__mp.snapshotsApplied++;
+  netDiagnostics.record(
+    NET_DIAG_EVENT.SNAPSHOT_QUEUE,
+    count,
+    Math.max(0, count - 1),
+    Math.max(0, performance.now() - firstAt),
+    Math.max(0, lastAt - firstAt),
+    reasonCode,
+  );
+  onSnapshot(snapshot, transitMs, lastAt);
+  return true;
+}
 
 function resetNetworkRaceState() {
+  clearPendingSnapshot();
   transitSamples.length = 0;
   interpDelayMs = MIN_INTERP_DELAY_MS;
   interpRenderAt = NaN;
@@ -2228,6 +2306,10 @@ let proxyTimingMaxMs = 0;
 let physicsTimingTotalMs = 0;
 let physicsTimingMaxMs = 0;
 let pipelineTimingSteps = 0;
+let localBufferStarvedMaxMs = 0;
+let localBufferHeadroomMs = 0;
+let inputTickGapMaxMs = 0;
+let lastInputTickAt = 0;
 
 function resetPipelineTimings() {
   proxyTimingTotalMs = 0;
@@ -2259,6 +2341,18 @@ function takePipelineTimings() {
   return sample;
 }
 
+function takeLocalPlaybackDiagnostics() {
+  const sample = {
+    bufferStarvedMaxMs: localBufferStarvedMaxMs,
+    bufferHeadroomMs: localBufferHeadroomMs,
+    inputTickGapMaxMs,
+    predictionBufferSamples: predBuf.length,
+  };
+  localBufferStarvedMaxMs = 0;
+  inputTickGapMaxMs = 0;
+  return sample;
+}
+
 function resetPredState() {
   predBuf.length = 0;
   predDelayMs = LOCAL_RENDER_DELAY_MIN_MS;
@@ -2268,6 +2362,10 @@ function resetPredState() {
   predPlaybackRate = 1;
   physicsTimerLatenessMs = 0;
   physicsTimerJitterMs = 0;
+  localBufferStarvedMaxMs = 0;
+  localBufferHeadroomMs = 0;
+  inputTickGapMaxMs = 0;
+  lastInputTickAt = 0;
   resetPipelineTimings();
 }
 
@@ -2294,7 +2392,10 @@ function recordPhysState(scheduledAt, state = G.getCarState()) {
 }
 
 function interpolatedPhys() {
-  if (!predBuf.length) return G.getCarState();
+  if (!predBuf.length) {
+    localBufferHeadroomMs = 0;
+    return G.getCarState();
+  }
   const now = performance.now();
   const clock = advanceRenderClock({
     renderAtMs: predRenderAt,
@@ -2314,6 +2415,12 @@ function interpolatedPhys() {
   predPlaybackRate = clock.rate;
   predDelayMs = Math.max(0, now - predRenderAt);
   const at = predRenderAt;
+  const newest = predBuf[predBuf.length - 1];
+  localBufferHeadroomMs = newest.t - at;
+  localBufferStarvedMaxMs = Math.max(
+    localBufferStarvedMaxMs,
+    Math.max(0, -localBufferHeadroomMs),
+  );
   for (let i = predBuf.length - 1; i > 0; i--) {
     const a = predBuf[i - 1], b = predBuf[i];
     if (a.t <= at && at <= b.t) {
@@ -2337,17 +2444,16 @@ function isFrozen() {
   return !starting?.startsAt || serverNow() < starting.startsAt;
 }
 
-function onSnapshot(m) {
-  window.__mp.snaps++;
+function onSnapshot(m, receivedTransitMs = Math.max(0, serverNow() - m.t), receivedAt = performance.now()) {
   lastSnapshot = m;
   // Mikor zárul le magától a futam (szerver-óra). Minden snapshot hozza, tehát
   // egy elveszett csomag után is helyreáll.
   finishDeadlineAt = Number.isFinite(m.fd) ? m.fd : null;
-  const transit = Math.max(0, serverNow() - m.t);
+  const transit = receivedTransitMs;
   // A snapshot csak MINTÁT ad; a késleltetést nem itt állítjuk be, hanem a
   // renderóra közelíti hozzá képkockánként (lásd frame()). Enélkül a
   // kirajzolt pillanat egyetlen csomag hatására ugorhatna vissza.
-  pushTransitSample(transitSamples, transit, performance.now());
+  pushTransitSample(transitSamples, transit, receivedAt);
 
   const startAfterSnapshot = awaitingFirstSnapshot;
   awaitingFirstSnapshot = false;
@@ -2847,6 +2953,11 @@ function hideRemoteCar(o) {
 // Minden képkockán fut (a main.js animate-jéből).
 function frame(dt = 1 / 60) {
   window.__mp.frames++;
+  // A böngésző egy hosszú render/főszál-akadás után több WebSocket message
+  // callbacket is lefuttathat a következő kép előtt. Ezekből itt pontosan egy,
+  // a legfrissebb állapot kerül a pufferekbe; az eseményeket az onMessage
+  // továbbra is mind, érkezési sorrendben dolgozza fel.
+  flushPendingSnapshot(1);
   remoteDetailFrame = (remoteDetailFrame + 1) % 240;
   remoteQualityBudget = updateRemoteQualityBudget(remoteQualityBudget, dt * 1000);
   const nowServer = serverNow();
@@ -3265,6 +3376,10 @@ function startInputLoop() {
   let next = performance.now();
   const tick = () => {
     const now = performance.now();
+    if (lastInputTickAt > 0) {
+      inputTickGapMaxMs = Math.max(inputTickGapMaxMs, now - lastInputTickAt);
+    }
+    lastInputTickAt = now;
     observePhysicsTimer(now - next);
     // A behozatalt korlátozzuk. Ha a lap háttérbe került, az ütemező befagy,
     // és visszatéréskor több száz bemenetet akarna egyszerre kilőni — az csak
@@ -3419,6 +3534,7 @@ function sendOneInput(scheduledAt) {
 function stopInputLoop() {
   if (inputTimer) clearTimeout(inputTimer);
   inputTimer = null;
+  lastInputTickAt = 0;
 }
 
 function showResults(results) {
