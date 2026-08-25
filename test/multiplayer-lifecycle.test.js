@@ -28,6 +28,11 @@ test('load timeout removes unready cars instead of carrying them into results', 
   assert.match(server, /const missing = \[\.\.\.room\.players\.values\(\)\]\.filter\(\(player\) => !player\.ready\)/);
   assert.match(server, /room\.sim\?\.removeCar\(player\.id\)/);
   assert.match(server, /room\.remove\(player\.id\)/);
+  assert.match(
+    server,
+    /room\.remove\(player\.id\);[\s\S]*?S2C\.RACE_EVENT[\s\S]*?kind: 'left'/,
+    'a bent maradó kliensek nem kapnak jelzést az árva autó leszedéséhez',
+  );
   assert.match(server, /S2C\.ROOM_CLOSED, \{ code: ERR\.RACE_LOAD_TIMEOUT \}/);
 });
 

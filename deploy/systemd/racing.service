@@ -1,0 +1,18 @@
+[Unit]
+Description=Racing jatekszerver
+After=network.target mariadb.service
+
+[Service]
+Type=simple
+User=racing
+WorkingDirectory=/opt/racing
+Environment="NODE_OPTIONS=--max-old-space-size=512 --max-semi-space-size=32"
+ExecStart=/usr/bin/node server/index.js
+Restart=always
+RestartSec=5
+Nice=-5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

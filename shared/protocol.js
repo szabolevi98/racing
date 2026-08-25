@@ -96,10 +96,21 @@ export const GAME_MODE = {
   HOT_LAP: 'hotLap',
 };
 
-// A kliens ennyiszer lépteti a saját fizikáját és küldi az állapotát
-// másodpercenként. A szerver ezeket ellenőrzi és továbbítja.
+// A kliens ennyiszer lépteti a saját fizikáját másodpercenként. Ez helyi
+// játékélmény: a hálózati küldés ritkítható anélkül, hogy a kormányzás vagy a
+// futómű felbontása romlana.
 export const TICK_RATE = 60;
 export const TICK_MS = 1000 / TICK_RATE;
+
+// A saját állapotot elég minden második fizikai lépés után elküldeni. A
+// távoli autók továbbra is a szerver 20 Hz-es snapshotjaiból, interpolálva
+// rajzolódnak; a 30 Hz az elvesző/késő csomagokhoz is hagy tartalékot.
+export const CLIENT_STATE_RATE = 30;
+export const CLIENT_STATE_INTERVAL_TICKS = TICK_RATE / CLIENT_STATE_RATE;
+
+export function clientStateSendDue(phase) {
+  return Math.trunc(Number(phase) || 0) % CLIENT_STATE_INTERVAL_TICKS === 0;
+}
 
 // Ennyiszer küld állapotot másodpercenként. Kevesebb, mint a tickRate — a
 // kliens a köztes időt interpolálja, így a sávszélesség töredékére csökken

@@ -2,6 +2,7 @@
 // szerver ellenőrzi és továbbítja. A többi autó snapshotból, interpolálva jelenik meg.
 import {
   C2S, S2C, ROOM_STATE, GAME_MODE, TAINT, TICK_MS,
+  CLIENT_STATE_INTERVAL_TICKS, clientStateSendDue,
   PLAYER_TOKEN_LENGTH, RECONNECT_GRACE_MS, sanitizeName, sanitizePlayerToken,
 } from '/shared/protocol.js';
 import {
@@ -118,6 +119,9 @@ let localPitState = createPitState(false);
 let localPitStopIndex = 0;
 let pitPrevPosition = null;
 let inputTimer = null;
+// A helyi fizika 60 Hz marad, de csak minden második lépés kerül hálózatra.
+// Futam/reconnect kezdetén a nulla fázis azonnali első csomagot jelent.
+let stateSendPhase = 0;
 // A RACE_END után true: a frame() innentől nem írja felül a HUD-ot a
 // kör/játékos szöveggel, különben a showResults() eredménylistája egyetlen
 // képkockányi ideig látszana csak, mielőtt a következő frame() lenullázná.
@@ -2525,9 +2529,9 @@ const PLAYER_LABEL_MAX_RANGE_SQ = PLAYER_LABEL_MAX_RANGE * PLAYER_LABEL_MAX_RANG
 // a proxyCorrection közös szabálya adja.
 const REMOTE_VISUAL_MAX_AGE_MS = 750;
 const REMOTE_EXTRAP_MAX_MS = 250;
-// Egy állapotcsomag ~210 bájt; hat csomagnyi sor 60 Hz-en kb. 100 ms
+// Egy állapotcsomag ~210 bájt; nagyjából öt csomagnyi sor 30 Hz-en ~160 ms
 // elmaradás. Efölött a régi állapotokat nem küldjük el — lásd sendOneInput().
-const STATE_BACKLOG_LIMIT_BYTES = 1400;
+const STATE_BACKLOG_LIMIT_BYTES = 1000;
 let statesDropped = 0;
 let lastProxySyncDiagnosticAt = -Infinity;
 // A pálya köde 700 méternél már 5% alá csökkenti a kontrasztot. A teljes,
@@ -3254,6 +3258,7 @@ function startInputLoop() {
   finishedDriving = false;
   G.setMultiplayerControlsEnabled(true);
   resetPredState();
+  stateSendPhase = 0;
 
   // Önkorrigáló ütemező, nem setInterval: az utóbbi ezredmásodpercre kerekít
   // és hosszabb távon sodródna.
@@ -3309,8 +3314,15 @@ function sendOneInput(scheduledAt) {
   const reverseAmount = backwardHeld && !brake ? backwardAmount : 0;
   const finishedBraking = !controlsEnabled && shouldBrakeFinishedVelocity(v[0], v[2]);
   const shouldSend = !raceEnded && !resetPending;
+  const sendStateNow = shouldSend && clientStateSendDue(stateSendPhase);
+  if (shouldSend) {
+    stateSendPhase = (stateSendPhase + 1) % CLIENT_STATE_INTERVAL_TICKS;
+  } else {
+    // Reset/eredmény után az első újra engedélyezett lépés rögtön menjen ki.
+    stateSendPhase = 0;
+  }
   const input = {
-    seq: shouldSend ? ++inputSeq : inputSeq,
+    seq: sendStateNow ? ++inputSeq : inputSeq,
     // Csak helyi metaadat: ebből tudjuk, melyik időpontra kell tenni a távoli
     // autók fizikai proxyját. A LÉPÉS ütemezett ideje, nem a hívás pillanata —
     // lásd serverTimeFor().
@@ -3373,12 +3385,12 @@ function sendOneInput(scheduledAt) {
   // állapotok sorát kapja, a többi játékos pedig azt látja, hogy ez a kocsi
   // megáll, majd ugrik egyet.
   //
-  // A küszöb 60 Hz-en ~100 ms-nyi torlódás: ennél régebbi állapotot már nem
+  // A küszöb 30 Hz-en ~160 ms-nyi torlódás: ennél régebbi állapotot már nem
   // érdemes útnak indítani.
   const backlog = ws?.bufferedAmount || 0;
   const backlogFull = backlog > STATE_BACKLOG_LIMIT_BYTES;
-  if (shouldSend && backlogFull) statesDropped++;
-  if (shouldSend && !backlogFull) {
+  if (sendStateNow && backlogFull) statesDropped++;
+  if (sendStateNow && !backlogFull) {
     const wheels = G.getWheelNetworkState?.() || { st: 0, wr: 0 };
     const offtrack = !!G.isCarFullyOffTrack?.();
     netDiagnostics.record(

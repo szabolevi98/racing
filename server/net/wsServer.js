@@ -61,9 +61,9 @@ function isActivePlayer(player) {
   return players.get(player.id) === player && player.socket?.readyState === 1;
 }
 
-// Egyszerű token bucket kapcsolatonként. A normál kliens 60 STATE/s + 1 PING/s
-// körül küld; a limitek hagynak bőséges burst-t a hálózaton összetorlódott
-// csomagokra, de nem engednek korlátlan JSON/DB/szobalétrehozási áradatot.
+// Egyszerű token bucket kapcsolatonként. A normál kliens 30 STATE/s + 1 PING/s
+// körül küld. A 60/s limit a már megnyitott, régi 60 Hz-es klienseket sem
+// vágja le az élesítés pillanatában, de nem enged korlátlan JSON-áradatot.
 function consumeRate(player, key, refillPerSecond, capacity, now = Date.now()) {
   const previous = player.rateLimits.get(key) || { tokens: capacity, at: now };
   const elapsed = Math.max(0, now - previous.at) / 1_000;
@@ -77,7 +77,7 @@ function consumeRate(player, key, refillPerSecond, capacity, now = Date.now()) {
 }
 
 function messageRateAllowed(player, type, now = Date.now()) {
-  if (type === C2S.STATE) return consumeRate(player, 'state', 90, 150, now);
+  if (type === C2S.STATE) return consumeRate(player, 'state', 60, 90, now);
   if (type === C2S.PING) return consumeRate(player, 'ping', 2, 4, now);
   return consumeRate(player, 'control', 4, 8, now);
 }
@@ -602,6 +602,12 @@ function maybeBeginCountdown(room, timedOut = false) {
       room.sim?.removeCar(player.id);
       player.pendingInitialState = null;
       room.remove(player.id);
+      // A bent maradó kliensek már betöltötték ennek a játékosnak a modelljét.
+      // A roomState önmagában a HUD-ot frissíti; a `left` esemény szedi le a
+      // scene-ből, GPU-memóriából és a fizikai proxyk közül is az árva autót.
+      broadcastRoom(room, S2C.RACE_EVENT, {
+        kind: 'left', playerId: player.id, name: player.name,
+      });
       if (player.socket?.readyState === 1) {
         send(player.socket, S2C.ROOM_CLOSED, { code: ERR.RACE_LOAD_TIMEOUT });
       }

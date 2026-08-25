@@ -45,19 +45,18 @@ ugyanazt a válaszkódot adja.
 ## Mi az a reverse proxy — röviden
 
 Az Apache már fut a gépen, és ő birtokolja a 80/443-as portot. A játék egy Node
-folyamat, ami a 3000-esen figyel. A reverse proxy annyit tesz, hogy az Apache a
-`racing.levente.net`-re jövő kéréseket **továbbadja** a Node-nak, a választ meg
-visszaküldi a böngészőnek:
+folyamat, ami a 3000-esen figyel. Apache maga adja a statikus fájlokat, és csak
+az `/api/` és `/ws` kéréseket továbbítja Node-nak:
 
 ```
-böngésző ──https://racing.levente.net──> [Apache :443] ──http://127.0.0.1:3000──> Node
-              TLS, tanúsítvány                            belső, titkosítás nélkül
+böngésző ──https──> [Apache :443] ── web/shared fájlok
+                           └─────── /api és /ws ──> [Node :3000]
 ```
 
-Két dolgot nyerünk: a Node-nak nem kell tanúsítványt kezelnie, és nem kell
-rootként futnia ahhoz, hogy a 443-as porton legyen elérhető. A `levente.net`
-ettől függetlenül megy tovább a saját VirtualHostjában — külön fájl, külön
-`ServerName`, nem érnek egymáshoz.
+Így a Node-nak nem kell tanúsítványt vagy nagy fájltranszfereket kezelnie, és
+nem kell rootként futnia ahhoz, hogy a 443-as porton legyen elérhető. A
+`levente.net` ettől függetlenül megy tovább a saját VirtualHostjában — külön
+fájl, külön `ServerName`, nem érnek egymáshoz.
 
 Ehhez kell még egy **systemd unit**: az a ~15 soros fájl írja le, hogyan induljon
 a Node folyamat. Cserébe elindul bootoláskor, újraindul összeomlás után, a
@@ -220,9 +219,11 @@ After=network.target mariadb.service
 Type=simple
 User=racing
 WorkingDirectory=/opt/racing
+Environment="NODE_OPTIONS=--max-old-space-size=512 --max-semi-space-size=32"
 ExecStart=/usr/bin/node server/index.js
 Restart=always
 RestartSec=5
+Nice=-5
 NoNewPrivileges=true
 PrivateTmp=true
 
@@ -263,12 +264,17 @@ Itt már ellenőrizhető, hogy a Node maga megy-e, még proxy nélkül:
 curl -I http://127.0.0.1:3000/     # 200 kell
 ```
 
-## 6. Apache reverse proxy
+Az éles unit követett mintája: `deploy/systemd/racing.service`. A nagyobb V8
+fiatal generáció ritkítja a rövid életű hálózati objektumok minor GC-jét, a
+`Nice=-5` pedig a VPS más folyamataival szemben ad mérsékelt CPU-prioritást.
 
-Három modul kell, ebből a harmadik a lényeg:
+## 6. Apache statikus kiszolgálás és reverse proxy
+
+Az Apache közvetlenül adja a nagy asseteket; csak az API és a WebSocket megy
+Node-hoz. Ehhez ezek a modulok kellenek:
 
 ```bash
-sudo a2enmod proxy proxy_http proxy_wstunnel ssl
+sudo a2enmod proxy proxy_http proxy_wstunnel ssl rewrite headers deflate
 ```
 
 A `proxy_wstunnel` engedi át a WebSocketet. **Enélkül az oldal betöltődik, de a
@@ -281,8 +287,7 @@ A `proxy_wstunnel` engedi át a WebSocketet. **Enélkül az oldal betöltődik, 
 <VirtualHost *:80>
     ServerName racing.levente.net
     # A certbot ezt fogja átírni https-átirányításra.
-    ProxyPass        /    http://127.0.0.1:3000/
-    ProxyPassReverse /    http://127.0.0.1:3000/
+    DocumentRoot /var/www/racing-acme
 </VirtualHost>
 ```
 
@@ -307,19 +312,28 @@ Ez **csak ezt az egy hostot** érinti: legyártja a tanúsítványt, létrehoz e
 `*:443`-as VirtualHostot (`racing.levente.net-le-ssl.conf`), beállítja a
 http → https átirányítást és az automatikus megújítást.
 
-Utána ellenőrizd a certbot által létrehozott 443-as blokkot. A fenti `:80`-as
-vhostból az általános HTTP-proxy átkerülhet, de a külön WebSocket-szabály még
-nincs benne. A `racing.levente.net-le-ssl.conf`-ban a
-`SSLCertificateFile` sorok ELÉ kerüljenek az alábbi szabályok; ha a certbot már
-bemásolta a `/` szabályt, cseréld le erre a teljes, helyes sorrendű blokkra:
+Utána a certbot által létrehozott 443-as fájlt cseréld a repóban követett
+`deploy/apache/racing.levente.net-le-ssl.conf` tartalmára. A lényegi rész:
 
 ```apache
-    # FIGYELEM: a /ws-nek a "/" ELŐTT kell állnia
+    DocumentRoot /opt/racing/web
+    Alias /shared/ /opt/racing/shared/
+
+    <Directory /opt/racing/web>
+        Options -Indexes
+        AllowOverride None
+        Require all granted
+    </Directory>
+    <Directory /opt/racing/shared>
+        Options -Indexes
+        AllowOverride None
+        Require all granted
+    </Directory>
+
     ProxyPass        /ws  ws://127.0.0.1:3000/ws
     ProxyPassReverse /ws  ws://127.0.0.1:3000/ws
-
-    ProxyPass        /    http://127.0.0.1:3000/
-    ProxyPassReverse /    http://127.0.0.1:3000/
+    ProxyPass        /api/  http://127.0.0.1:3000/api/
+    ProxyPassReverse /api/  http://127.0.0.1:3000/api/
     ProxyPreserveHost On
 
     # Az alapértelmezett 300 s elvághatja a lobbyban tétlenül ülő játékost
@@ -328,13 +342,10 @@ bemásolta a `/` szabályt, cseréld le erre a teljes, helyes sorrendű blokkra:
 
 A `/ws` a kliens tényleges útvonala (`web/mp.js`).
 
-Az Apache **felülről lefelé** nézi a `ProxyPass` szabályokat, és az elsőt
-használja, ami illeszkedik. Ha a `/` kerül előre, minden WebSocket kérés is oda
-megy sima HTTP-ként — **ez a leggyakoribb hiba ennél a felállásnál.**
-
-Az egészet **a Node-nak adjuk tovább**, az Apache nem szolgál ki statikus fájlt
-közvetlenül. Így megmarad a Node-ba épített cache-kezelés — nem kell két helyen
-karbantartani ugyanazt.
+A gyökérre nincs `ProxyPass`: a `web/` és az Alias alatti `shared/` fájlokat
+Apache szolgálja ki. A teljes minta a Node-dal azonos cache-fejléceket, MIME
+típusokat és a `/dev -> index.html` átírást is tartalmazza. A Node statikus
+kiszolgálója megmarad a `localhost:3000` fejlesztői használathoz.
 
 ## Ellenőrzés
 
@@ -364,8 +375,11 @@ Böngészőből még érdemes: a menü betölt, a legördülők tele vannak, **T
 
 ## Ha valami nem megy
 
-- **A menü se jön be:** a Node megy-e? `systemctl status racing`,
-  `journalctl -u racing -n 50`. Aztán `curl -I http://127.0.0.1:3000/`.
+- **A menü se jön be:** az Apache vhost és a fájljogosultság a kérdés:
+  `apache2ctl configtest`, `tail -n 50 /var/log/apache2/racing-error.log`,
+  `namei -l /opt/racing/web/index.html`.
+- **A menü megy, de az API nem:** `systemctl status racing`,
+  `journalctl -u racing -n 50`, majd `curl http://127.0.0.1:3000/api/status`.
 - **Az oldal megy, a Többjátékos nem:** ez a `proxy_wstunnel`, vagy a `/ws`
   szabály sorrendje. `sudo a2enmod proxy_wstunnel && sudo systemctl reload apache2`.
   A böngésző konzoljában a WebSocket hiba is látszik.

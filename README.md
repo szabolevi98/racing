@@ -151,8 +151,8 @@ Mobilon külön kormány-, gáz- és fékgombok jelennek meg.
 ## Architektúra
 
 ```text
-web/          publikus kliens és assetek
-server/       statikus kiszolgálás, REST API, WebSocket és versenyvezérlés
+web/          publikus kliens és assetek; élesben közvetlenül Apache szolgálja ki
+server/       helyi statikus kiszolgálás, REST API, WebSocket és versenyvezérlés
 shared/       kliens és szerver által közösen használt fizika és szabályok
 tools/        autóelemző, kerékfelismerő és modelloptimalizáló eszközök
 car-masters/  nagy autók nem publikus, teljes minőségű forrásmodelljei
@@ -160,8 +160,8 @@ test/         Node tesztcsomag
 ```
 
 A saját autó fizikáját a játékos böngészője számolja fix 60 Hz-en, ezért a
-kormányzás nem vár hálózati válaszra. A kliens az állapotát elküldi a szervernek;
-a szerver ellenőrzi a mozgást, kezeli a rajtot, checkpointokat, köröket,
+kormányzás nem vár hálózati válaszra. A kliens 30 Hz-en küldi az állapotát; a
+szerver ellenőrzi a mozgást, kezeli a rajtot, checkpointokat, köröket,
 boxkiállást, eredményeket és szellemeket, majd 20 Hz-es snapshotokat továbbít.
 
 A távoli autók késleltetett, adaptív interpolációval jelennek meg. A korrekció,
@@ -346,9 +346,10 @@ Ezután a Node szolgáltatást újra kell indítani, mert az asset-manifest gyor
 
 ## Éles kiszolgálás
 
-Az éles rendszer systemd szolgáltatásként fut Apache HTTPS/WebSocket reverse proxy
-mögött. A pontos első telepítés, `.env`, jogosultságok, assetfeltöltés, frissítés
-és hibakeresés leírása: [DEPLOY.md](DEPLOY.md).
+Az éles Node rendszer systemd szolgáltatásként fut. Apache kezeli a HTTPS-t,
+közvetlenül szolgálja ki a statikus fájlokat, és csak az API/WebSocket kéréseket
+proxyzza Node-hoz. A pontos első telepítés, `.env`, jogosultságok, assetfeltöltés,
+frissítés és hibakeresés leírása: [DEPLOY.md](DEPLOY.md).
 
 Kódfrissítéskor általában Git pull és a `racing` szolgáltatás újraindítása kell.
 Új vagy módosított gitignore-os assetet külön is fel kell tölteni; önmagában a

@@ -15,17 +15,17 @@ const server = fs.readFileSync(new URL('../server/net/wsServer.js', import.meta.
 test('a kliens a kimeneti sor méretéhez köti az állapotküldést', () => {
   assert.match(mp, /const backlog = ws\?\.bufferedAmount \|\| 0/);
   assert.match(mp, /const backlogFull = backlog > STATE_BACKLOG_LIMIT_BYTES/);
-  assert.match(mp, /if \(shouldSend && !backlogFull\)/, 'a küldés nincs a sorhoz kötve');
+  assert.match(mp, /if \(sendStateNow && !backlogFull\)/, 'a küldés nincs a sorhoz kötve');
 });
 
 test('a küszöb nagyságrendje néhány csomagnyi, nem több másodpercnyi', () => {
   const m = /const STATE_BACKLOG_LIMIT_BYTES = (\d+);/.exec(mp);
   assert.ok(m, 'nincs küszöb-konstans');
   const limit = Number(m[1]);
-  // Egy állapotcsomag ~210 bájt, a küldés 60 Hz. A sor ne jelentsen többet
+  // Egy állapotcsomag ~210 bájt, a küldés 30 Hz. A sor ne jelentsen többet
   // ~200 ms elmaradásnál, mert annál régebbi állapotot már nem érdemes útnak
   // indítani — de legyen benne néhány csomagnyi tartalék a normál működéshez.
-  const csomag = 210, hz = 60;
+  const csomag = 210, hz = 30;
   const elmaradasMs = limit / csomag / hz * 1000;
   assert.ok(elmaradasMs >= 30, `a küszöb túl szoros: ${elmaradasMs.toFixed(0)} ms`);
   assert.ok(elmaradasMs <= 200, `a küszöb túl laza: ${elmaradasMs.toFixed(0)} ms`);

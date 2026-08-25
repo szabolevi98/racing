@@ -60,7 +60,11 @@ const RESET_ACK_RADIUS_METERS = 2;
 const HOT_LAP_HISTORY_LIMIT = 64;
 const SERVER_WHEEL_PROBES = wheelProbes(WHEEL_POSITIONS);
 
-const roundArray = (values, digits) => values.map((value) => +value.toFixed(digits));
+// A toFixed minden számhoz átmeneti stringet gyártott. Snapshotonként minden
+// autónál több tucat ilyen keletkezett, majd a következő GC kidobta őket.
+// Numerikus kerekítéssel ugyanazt a drótformátumot kapjuk string-allokációk nélkül.
+const roundNumber = (value, factor) => Math.round(value * factor) / factor;
+const roundArray = (values, factor) => values.map((value) => roundNumber(value, factor));
 
 function finiteVector(raw, length, maxAbs) {
   if (!Array.isArray(raw) || raw.length !== length) return null;
@@ -677,13 +681,13 @@ export class RaceController {
       }
       return {
         id: car.playerId,
-        p: roundArray(car.state.p, 3),
-        q: roundArray(car.state.q, 4),
-        v: roundArray(car.state.v, 2),
-        w: roundArray(car.state.w, 3),
-        st: +car.state.st.toFixed(3),
-        wr: +car.state.wr.toFixed(2),
-        th: car.race.finished ? 0 : +car.state.th.toFixed(2),
+        p: roundArray(car.state.p, 1_000),
+        q: roundArray(car.state.q, 10_000),
+        v: roundArray(car.state.v, 100),
+        w: roundArray(car.state.w, 1_000),
+        st: roundNumber(car.state.st, 1_000),
+        wr: roundNumber(car.state.wr, 100),
+        th: car.race.finished ? 0 : roundNumber(car.state.th, 100),
         seq: car.lastAcceptedSeq,
         // Az állapot SAJÁT időpontja, nem a snapshot összeállításának ideje.
         // Változatlan autóállapot változatlan `at`-tal ismétlődik, így a kliens
