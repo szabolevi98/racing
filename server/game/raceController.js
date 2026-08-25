@@ -188,7 +188,9 @@ function createRaceState(x, z, pitRequired = false) {
     lastGhostSampleAt: 0,
     progressKey: -1,
     splits: new Map(),
-    // A legutóbb SORRENDBEN érintett checkpoint és a kör kezdetétől mért ideje.
+    // A legutóbbi, pályán ELŐREFELÉ haladást jelentő checkpoint és a kör
+    // kezdetétől mért ideje. Hiányzó kapu után is továbbhalad, miközben a kör
+    // érvénytelen marad; különben a standings a rajtvonalig beragadna.
     // Ebből számol a kliens delta-kijelzője; azért a szerver adja, mert itt van
     // meg az interpolált átlépési idő — a kliens a 20 Hz-es snapshotokból
     // legfeljebb 50 ms pontossággal tippelhetne, ami századokat mérő
@@ -536,19 +538,26 @@ export class RaceController {
       crossings.sort((a, b) => a.crossedAt - b.crossedAt || a.i - b.i);
       for (const { i, crossedAt } of crossings) {
         r.passed.add(i);
-        if (i === r.nextCheckpoint) {
-          r.nextCheckpoint++;
+        if (i >= r.nextCheckpoint) {
+          const skippedCheckpoint = i > r.nextCheckpoint;
+          if (skippedCheckpoint) r.taintReason = TAINT.CHECKPOINT;
+          // A nextCheckpoint a standings előrehaladási mutatója is. Ha egy
+          // kapu kimaradt, a kör már érvénytelen, de a következő ténylegesen
+          // érintett kapunál nem maradhat a teljes körre a régi helyen.
+          r.nextCheckpoint = i + 1;
           const splitKey = r.lap * (checkpoints.length + 1) + i + 1;
           r.progressKey = splitKey;
           r.splits.set(splitKey, crossedAt);
           r.lastSplitIndex = i;
           r.lastSplitMs = Math.max(0, crossedAt - r.lapStart);
-          car.respawn = {
-            ...this.respawnPoint(checkpoints[i], fromX, fromZ, x, z),
-            heading: headingFrom(fromX, fromZ, x, z, car.respawn.heading),
-          };
-        } else if (i > r.nextCheckpoint) {
-          r.taintReason = TAINT.CHECKPOINT;
+          // A standings helyrejöhet, de a reset ne váljon pályalevágási
+          // kiskapuvá: csak hiánytalan checkpoint-prefix lehet respawnpont.
+          if (r.passed.size === i + 1) {
+            car.respawn = {
+              ...this.respawnPoint(checkpoints[i], fromX, fromZ, x, z),
+              heading: headingFrom(fromX, fromZ, x, z, car.respawn.heading),
+            };
+          }
         }
       }
     }

@@ -125,6 +125,52 @@ test('one accepted movement segment counts every checkpoint it crosses in order'
   }
 });
 
+test('a checkpoint skip taints the lap but later checkpoints restore standings progress', async () => {
+  const room = makeRoom();
+  room.mode = GAME_MODE.MULTIPLAYER;
+  room.players.set('p2', { id: 'p2', carId: 'car', dbId: 2, slot: 1 });
+  const checkpoints = [10, 20, 30, 40].map((x) => ({ x1: x, z1: -5, x2: x, z2: 5 }));
+  const sim = new RaceController(room, {
+    map: {
+      spawns: [{ x: 0, z: 0, heading: 0 }, { x: 0, z: 2, heading: 0 }],
+      gates: { start: { x1: 100, z1: -5, x2: 100, z2: 5 }, checkpoints },
+    },
+    broadcast: () => {},
+  });
+  await sim.start();
+  try {
+    const car = sim.cars.get('p1');
+    car.race.hasCrossedStart = true;
+    car.race.lapStart = 1_000;
+    car.race.prevX = 0;
+    car.race.prevZ = 0;
+    car.race.prevAt = 1_000;
+
+    // CP0 szabályos, CP1 mellett z=10-nél elmegy, majd CP2-nél visszatér a
+    // pályára és CP3-on is áthalad. A kihagyás nem tűnhet el a passed Setből.
+    for (const [x, z, at] of [[11, 0, 1_100], [15, 10, 1_150], [25, 10, 1_250], [31, 0, 1_350], [41, 0, 1_450]]) {
+      car.state.p = [x, 0.8, z];
+      sim.updateCarProgress(car, at);
+    }
+
+    assert.equal(car.race.taintReason, TAINT.CHECKPOINT);
+    assert.deepEqual([...car.race.passed].sort((a, b) => a - b), [0, 2, 3]);
+    assert.equal(car.race.nextCheckpoint, 4, 'the next real checkpoint resumes progress');
+    assert.equal(car.race.progressKey, 4, 'standings reaches the latest crossed checkpoint');
+    assert.equal(car.race.splits.has(2), false, 'the missing checkpoint gets no fabricated split');
+    assert.ok(Number.isFinite(car.race.splits.get(3)));
+    assert.ok(Number.isFinite(car.race.splits.get(4)));
+    assert.equal(car.respawn.x, 10, 'reset stays at the last checkpoint before the shortcut');
+
+    const other = sim.cars.get('p2');
+    other.race.progressKey = 3;
+    other.race.splits.set(3, 1_300);
+    assert.deepEqual(sim.orderedCars().map((entry) => entry.playerId), ['p1', 'p2']);
+  } finally {
+    sim.stop();
+  }
+});
+
 test('race controller quarantines invalid physics states and keeps the player racing', async () => {
   const room = makeRoom();
   const messages = [];
