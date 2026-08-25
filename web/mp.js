@@ -13,7 +13,8 @@ import { ghostCheckpointSplits } from '/shared/gate.js';
 import {
   LOCAL_RENDER_DELAY_MAX_MS, LOCAL_RENDER_DELAY_MIN_MS,
   localRenderDelayTarget, remoteDetailPhase, remoteDetailUpdateInterval,
-  remoteVisualCorrectionHalfLife, remoteVisualPredictionBlend, smootherLeadSeconds,
+  remoteCollisionVisualState, remoteVisualCorrectionHalfLife,
+  remoteVisualPredictionBlend, smootherLeadSeconds,
   updateRemoteQualityBudget,
 } from '/shared/remoteVisual.js';
 import {
@@ -3087,16 +3088,10 @@ function frame(dt = 1 / 60) {
     // pufferelt állapotról a jelenre extrapoláltra. Nagy pingnél ez többméteres
     // idővonal-ugrás lehetett. Most a távolság függvényében fokozatos az átmenet.
     const predictionBlend = remoteVisualPredictionBlend(Math.sqrt(distSq));
-    // A közelre használt cél vagy a jelenre extrapolált hálózati állapot, vagy
-    // aktív proxy esetén annak TÉNYLEGES Rapier-póza. Ezt EGYETLEN alkalommal
-    // keverjük a stabil, késleltetett állapottal. Korábban előbb currentState,
-    // majd még egyszer proxyPose felé kevertünk: a proxy 60 méteres
-    // bekapcsolása 378 km/h-nál kétméteres képi ugrást okozhatott.
-    const nearState = o.proxyPose ? {
-      ...currentState,
-      p: o.proxyPose.p,
-      q: o.proxyPose.q,
-    } : currentState;
+    // A közeli cél az aktív proxy vízszintes kontaktreakcióját is mutatja,
+    // de annak helyi, talajt nem ismerő magasságát/dőlését nem. Ezt
+    // EGYETLEN alkalommal keverjük a stabil, késleltetett állapottal.
+    const nearState = remoteCollisionVisualState(currentState, o.proxyPose);
     const s = blendRemoteStates(delayedState, nearState, predictionBlend);
     if (!s) continue;
     const firstRenderedFrame = !o.renderReady;

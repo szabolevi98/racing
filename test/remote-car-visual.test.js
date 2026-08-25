@@ -5,6 +5,7 @@ import {
   LOCAL_RENDER_DELAY_MAX_MS, LOCAL_RENDER_DELAY_MIN_MS,
   localRenderDelayTarget, remoteDetailPhase, remoteDetailUpdateInterval,
   REMOTE_DETAIL_BUCKETS,
+  remoteCollisionVisualState,
   remoteVisualCorrectionHalfLife, remoteVisualPredictionBlend,
   updateRemoteQualityBudget,
 } from '../shared/remoteVisual.js';
@@ -192,7 +193,7 @@ test('remote visuals blend gradually toward prediction without changing the 20 H
   assert.equal(remoteVisualPredictionBlend(20), 1);
   assert.ok(remoteVisualPredictionBlend(60) > 0);
   assert.ok(remoteVisualPredictionBlend(60) < remoteVisualPredictionBlend(40));
-  assert.match(mp, /const nearState = o\.proxyPose \? \{/);
+  assert.match(mp, /const nearState = remoteCollisionVisualState\(currentState, o\.proxyPose\)/);
   assert.match(mp, /blendRemoteStates\(delayedState, nearState, predictionBlend\)/);
   assert.equal((mp.match(/blendRemoteStates\(delayedState,/g) || []).length, 1,
     'a késleltetett állapot csak egyszer keveredhet a közeli cél felé');
@@ -200,6 +201,49 @@ test('remote visuals blend gradually toward prediction without changing the 20 H
     'a már kevert állapotot nem szabad még egyszer a proxy felé húzni');
   assert.doesNotMatch(mp, /const s = near \? currentState : delayedState/);
   assert.match(fs.readFileSync(new URL('../shared/protocol.js', import.meta.url), 'utf8'), /SNAPSHOT_RATE = 20/);
+});
+
+test('a local collision proxy cannot sink or tilt the visible remote car into the track', () => {
+  const yaw = 25 * Math.PI / 180;
+  const pitch = 8 * Math.PI / 180;
+  const networkQ = [
+    Math.sin(pitch / 2) * Math.cos(yaw / 2),
+    Math.cos(pitch / 2) * Math.sin(yaw / 2),
+    -Math.sin(pitch / 2) * Math.sin(yaw / 2),
+    Math.cos(pitch / 2) * Math.cos(yaw / 2),
+  ];
+  const proxyYaw = 70 * Math.PI / 180;
+  const proxyPitch = 55 * Math.PI / 180;
+  const proxyQ = [
+    Math.sin(proxyPitch / 2) * Math.cos(proxyYaw / 2),
+    Math.cos(proxyPitch / 2) * Math.sin(proxyYaw / 2),
+    -Math.sin(proxyPitch / 2) * Math.sin(proxyYaw / 2),
+    Math.cos(proxyPitch / 2) * Math.cos(proxyYaw / 2),
+  ];
+  const network = {
+    p: [10, 0.85, 20], q: networkQ,
+    v: [5, 0, 30], w: [0, 0.2, 0], st: 0.1,
+  };
+
+  const visual = remoteCollisionVisualState(network, {
+    p: [11.5, -0.6, 18.75],
+    q: proxyQ,
+  });
+
+  assert.deepEqual(visual.p, [11.5, 0.85, 18.75],
+    'the proxy may move the visual horizontally but never below its network height');
+  const networkUpY = 1 - 2 * (networkQ[0] ** 2 + networkQ[2] ** 2);
+  const visualUpY = 1 - 2 * (visual.q[0] ** 2 + visual.q[2] ** 2);
+  assert.ok(Math.abs(visualUpY - networkUpY) < 1e-12,
+    'the proxy cannot add pitch/roll to the network car');
+  const visualYaw = Math.atan2(
+    2 * (visual.q[0] * visual.q[2] + visual.q[3] * visual.q[1]),
+    1 - 2 * (visual.q[0] ** 2 + visual.q[1] ** 2),
+  );
+  assert.ok(Math.abs(visualYaw - proxyYaw) < 1e-12,
+    'the immediate horizontal collision rotation still follows the proxy');
+  assert.equal(visual.v, network.v, 'the network motion still drives visual prediction');
+  assert.equal(remoteCollisionVisualState(network, null), network);
 });
 
 test('remote correction becomes softer as network delay grows', () => {
