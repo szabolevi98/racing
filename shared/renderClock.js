@@ -48,13 +48,13 @@ export const REMOTE_CLOCK_RATE_MAX = 1.05;
 // ugrás a jobb — és jelezzük is a hívónak, hogy a képi simítót nullázhassa.
 export const RENDER_CLOCK_RESYNC_MS = 500;
 
-// Ennél hosszabb szünet után (háttérfül, alvó gép) nincs értelme a rég kidobott
-// pufferhez visszakapaszkodni.
-const MAX_ELAPSED_MS = 250;
-
-// Egy képkockányi elmozdulás felső korlátja: egy hosszú képkocka ne rántsa
-// előre az órát egy fél másodpercet.
-const MAX_STEP_MS = 100;
+// Egy 100 ms-nál hosszabb képkocka után a köztes képeket már úgysem látta a
+// játékos. Ha ilyenkor csak 100 ms-ot lépnénk, a hiányzó időt valódi késésként
+// cipelnénk tovább: a 2026-08-25-i felvételen három 144–247 ms-os renderakadás
+// 359 ms-ra mélyítette a SAJÁT autó képét, amelyet az 1,005-ös órasebesség
+// majdnem egy perc alatt dolgozott volna le. A szünet után ezért a célmélységre
+// állunk vissza. A resyncTo() monoton korlátja továbbra sem enged visszalépést.
+const MAX_CONTINUOUS_ELAPSED_MS = 100;
 
 // Mekkora sebességkorrekciót kérünk adott hibára. 1000 azt jelenti, hogy
 // 100 ms eltérésnél 10%-ot — a tényleges értéket utána a sáv vágja le.
@@ -104,9 +104,9 @@ export function advanceRenderClock({
     return { at, rate: 1, resynced: at !== renderAt };
   };
 
-  // Első képkocka, háttérből visszatérés, vagy visszafelé lépő óra.
+  // Első képkocka, hosszú render/főszál-szünet, vagy visszafelé lépő óra.
   if (!Number.isFinite(renderAt) || !Number.isFinite(previousNow)
-      || rawElapsed < 0 || rawElapsed > MAX_ELAPSED_MS) {
+      || rawElapsed < 0 || rawElapsed > MAX_CONTINUOUS_ELAPSED_MS) {
     return resyncTo();
   }
 
@@ -119,7 +119,7 @@ export function advanceRenderClock({
   }
 
   const previousRate = Math.max(rateMin, Math.min(rateMax, Number(playbackRate) || 1));
-  const elapsed = Math.min(MAX_STEP_MS, rawElapsed);
+  const elapsed = rawElapsed;
   const desiredRate = Math.max(
     rateMin,
     Math.min(rateMax, 1 + delayError / RATE_GAIN_MS)

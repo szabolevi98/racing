@@ -11,10 +11,12 @@ test('leaderboard stays informational while Hot Lap uses a separate ghost picker
   assert.match(multiplayer, /hotLapGhostPicker/);
   assert.match(multiplayer, /async function warmCarVisuals/);
   assert.match(multiplayer, /renderer\.initTexture\(texture\)/);
-  assert.match(multiplayer, /await renderer\.compileAsync\(G\.scene, G\.camera\)/);
-  assert.match(multiplayer, /new THREE\.WebGLRenderTarget\(1, 1/);
+  assert.match(multiplayer, /await renderer\.compileAsync\(warmScene, warmCamera\)/);
+  assert.match(multiplayer, /new THREE\.WebGLRenderTarget\(256, 256/);
   assert.match(multiplayer, /object\.frustumCulled = false/);
-  assert.match(multiplayer, /renderer\.render\(G\.scene, G\.camera\)/);
+  assert.match(multiplayer, /for \(const z of \[8, -8\]\)/);
+  assert.match(multiplayer, /renderer\.render\(warmScene, warmCamera\)/);
+  assert.match(multiplayer, /if \(!gl\.isContextLost\(\)\) gl\.finish\(\)/);
   assert.match(
     multiplayer,
     /await G\.runLoadTasks\(tasks\);[\s\S]*await warmCarVisuals\(visualsToWarm\)/,

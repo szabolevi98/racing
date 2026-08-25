@@ -86,6 +86,33 @@ test('háttérből visszatérve nem kapaszkodik a rég kidobott pufferhez', () =
   assert.equal(vissza.resynced, true);
 });
 
+test('egymást követő 100–250 ms-os renderakadások sem mélyítik el az órát', () => {
+  const localMin = SNAPSHOT_INTERVAL_MS * 2 / 3;
+  const localMax = SNAPSHOT_INTERVAL_MS * 2;
+  const local = (renderAtMs, previousNowMs, nowMs, targetDelayMs, playbackRate) =>
+    advanceRenderClock({
+      renderAtMs, previousNowMs, nowMs, targetDelayMs, playbackRate,
+      rateMin: 0.985, rateMax: 1.005,
+      minDelayMs: localMin, maxDelayMs: localMax,
+    });
+
+  let now = 1000;
+  let clock = local(NaN, NaN, now, localMin, 1);
+  let previousAt = clock.at;
+  // A 2026-08-25-i exportban pontosan ez a három renderidő hagyta a saját
+  // autó képét 359 ms-mal a fizika mögött, noha a cél plafonja 100 ms volt.
+  for (const gap of [247.4, 226.5, 143.8]) {
+    const previousNow = now;
+    now += gap;
+    clock = local(clock.at, previousNow, now, localMax, clock.rate);
+    assert.ok(clock.at >= previousAt, 'a helyreállítás sem léphet vissza');
+    assert.ok(now - clock.at <= localMax + 1e-9,
+      `a megvalósult késés maradjon a plafonon belül: ${now - clock.at}`);
+    assert.equal(clock.resynced, true);
+    previousAt = clock.at;
+  }
+});
+
 // ---- A célmélység becslése ----
 
 test('a percentilis és a szórás az ablakból jön', () => {
@@ -193,4 +220,15 @@ test('a resync sem viheti vissza az idővonalat — sem szünetnél, sem hátrá
   const elore = remote(1000, 1000, 6000, MIN, 1);
   assert.equal(elore.at, 5900);
   assert.equal(elore.resynced, true);
+});
+
+test('a helyi főszálfagyás utáni snapshot nem kerülhet a transit p95-be', async () => {
+  const source = await import('node:fs/promises').then((fs) =>
+    fs.readFile(new URL('../web/mp.js', import.meta.url), 'utf8'));
+  assert.match(source, /const STALL_TRANSIT_GRACE_MS = 500/);
+  assert.match(source, /const heartbeatLate = lastHeartbeatAt > 0/);
+  assert.match(source, /pendingSnapshotTransitTrusted = transitTrusted/);
+  assert.match(source, /onSnapshot\(snapshot, transitMs, lastAt, transitTrusted\)/);
+  assert.match(source, /if \(transitTrusted\) \{\s*pushTransitSample/);
+  assert.match(source, /window\.__mp\.snapshotTransitDropped\+\+/);
 });

@@ -19,11 +19,20 @@ export const REMOTE_LOW_DETAIL_FRAME_MS = 40;
 export const REMOTE_LOW_DETAIL_CLEAN_FRAME_MS = 28;
 export const REMOTE_LOW_DETAIL_ENTER_MS = 1_500;
 export const REMOTE_LOW_DETAIL_EXIT_MS = 8_000;
+// Egyetlen ekkora képkocka már nem „rossz FPS", hanem valódi megállás. A
+// 2026-08-25-i felvételen a távoli skin első közeli megjelenése 247 ms-ot
+// blokkolt, majd még két nagy tüskét okozott. Az első után azonnal a könnyű
+// modellre váltunk; nyolc tiszta másodperc után a részletes skin visszatér.
+export const REMOTE_LOW_DETAIL_STALL_MS = 120;
 
 export function updateRemoteQualityBudget(previous, frameMs) {
   const state = previous || { degraded: false, slowMs: 0, cleanMs: 0 };
-  const elapsed = Math.max(0, Math.min(100, Number(frameMs) || 0));
+  const rawFrameMs = Math.max(0, Number(frameMs) || 0);
+  const elapsed = Math.min(100, rawFrameMs);
   if (!state.degraded) {
+    if (rawFrameMs >= REMOTE_LOW_DETAIL_STALL_MS) {
+      return { degraded: true, slowMs: REMOTE_LOW_DETAIL_ENTER_MS, cleanMs: 0 };
+    }
     const slowMs = elapsed >= REMOTE_LOW_DETAIL_FRAME_MS
       ? state.slowMs + elapsed
       : Math.max(0, state.slowMs - elapsed * 2);

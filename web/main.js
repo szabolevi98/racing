@@ -5214,7 +5214,7 @@ function animate() {
     updateChaseCamera(dt);
   } else if (appState === 'mp') {
     const multiplayerFrameStartedAt = performance.now();
-    stepMultiplayerFrame(dt);
+    stepMultiplayerFrame(dt, rawDt * 1000);
     multiplayerFrameMs = performance.now() - multiplayerFrameStartedAt;
   } else if (appState === 'dev' || appState === 'objectcut') {
     // Ezekbe az állapotokba csak a dev modul tud átbillenteni, tehát ha itt
@@ -5408,8 +5408,8 @@ let multiplayerControlsEnabled = true;
 // léptethető legyen: a requestAnimationFrame megáll, ha a lap háttérbe kerül.
 // Online futamban a hálózati modul lépteti a saját kocsi végleges helyi
 // fizikáját. A frame hook a kirajzolást és a távoli autók interpolációját végzi.
-function stepMultiplayerFrame(dt) {
-  mpFrameHook?.(dt);
+function stepMultiplayerFrame(dt, rawFrameMs = dt * 1000) {
+  mpFrameHook?.(dt, rawFrameMs);
   // Ugyanaz, mint az egyjátékos animate()-ben: a modell magasságát a VALÓDI,
   // terhelt felfüggesztés-hosszból kell beállítani. Eddig ez csak vezetés
   // közben futott, multiplayerben nem — ezért a kocsi a teljesen kinyúlt
