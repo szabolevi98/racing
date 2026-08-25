@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import {
   LOCAL_RENDER_DELAY_MAX_MS, LOCAL_RENDER_DELAY_MIN_MS,
   localRenderDelayTarget, remoteDetailPhase, remoteDetailUpdateInterval,
-  REMOTE_DETAIL_BUCKETS, REMOTE_LOW_DETAIL_STALL_MS,
+  REMOTE_DETAIL_BUCKETS,
   remoteCollisionVisualState,
   remoteVisualCorrectionHalfLife, remoteVisualPredictionBlend,
   updateRemoteQualityBudget,
@@ -105,10 +105,12 @@ test('remote detail throttling always keeps the spectated car at full rate', () 
   assert.match(mp, /if \(!watched && labelDistSq > REMOTE_RENDER_MAX_RANGE_SQ\)/);
 });
 
-test('heavy remote models fall back after sustained load or one real stall, then recover with hysteresis', () => {
+test('heavy remote models fall back only after sustained load, then recover with hysteresis', () => {
   let state = { degraded: false, slowMs: 0, cleanMs: 0 };
   state = updateRemoteQualityBudget(state, 100);
   assert.equal(state.degraded, false, 'a merely slow frame does not flap quality');
+  state = updateRemoteQualityBudget(state, 250);
+  assert.equal(state.degraded, false, 'one real stall must not replace the selected car skin');
   for (let i = 0; i < 30; i++) state = updateRemoteQualityBudget(state, 50);
   assert.equal(state.degraded, true, 'sustained 20 FPS enables the lightweight visual');
   for (let i = 0; i < 300; i++) state = updateRemoteQualityBudget(state, 16);
@@ -116,8 +118,6 @@ test('heavy remote models fall back after sustained load or one real stall, then
   for (let i = 0; i < 220; i++) state = updateRemoteQualityBudget(state, 16);
   assert.equal(state.degraded, false, 'long stable rendering restores the detailed skins');
 
-  state = updateRemoteQualityBudget(state, REMOTE_LOW_DETAIL_STALL_MS);
-  assert.equal(state.degraded, true, 'one genuine frame stall activates the safety model immediately');
   assert.match(mp, /createRemoteLowDetailVisual/);
   assert.match(mp, /remoteQualityBudget\.degraded && !watched/,
     'the spectated car must stay detailed even during fallback');
