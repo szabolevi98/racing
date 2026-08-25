@@ -181,6 +181,7 @@
   "server.hostOnlyStart": "Solo il proprietario della stanza può dare il via.",
   "server.unknownMessage": "Messaggio sconosciuto: ",
   "server.raceStartFailed": "La gara non può iniziare: ",
+  "server.raceLoadTimeout": "Il caricamento è scaduto; la gara è partita senza di te.",
   "server.badJson": "Messaggio malformato (non è JSON).",
   "server.serverError": "Errore del server durante l'elaborazione del messaggio.",
   "mp.ui.backToMenu": "Torna al menu",

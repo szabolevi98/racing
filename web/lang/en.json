@@ -181,6 +181,7 @@
   "server.hostOnlyStart": "Only the room owner can start the race.",
   "server.unknownMessage": "Unknown message: ",
   "server.raceStartFailed": "The race cannot start: ",
+  "server.raceLoadTimeout": "Loading timed out; the race started without you.",
   "server.badJson": "Malformed message (not JSON).",
   "server.serverError": "Server error while processing the message.",
   "mp.ui.backToMenu": "Back to menu",

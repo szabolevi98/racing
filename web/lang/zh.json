@@ -181,6 +181,7 @@
   "server.hostOnlyStart": "只有房主才能开始比赛。",
   "server.unknownMessage": "未知消息：",
   "server.raceStartFailed": "比赛无法开始：",
+  "server.raceLoadTimeout": "加载超时；比赛已在没有你的情况下开始。",
   "server.badJson": "消息格式错误（不是 JSON）。",
   "server.serverError": "处理消息时服务器出错。",
   "mp.ui.backToMenu": "返回菜单",

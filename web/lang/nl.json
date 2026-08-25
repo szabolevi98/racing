@@ -181,6 +181,7 @@
   "server.hostOnlyStart": "Alleen de kamereigenaar kan de race starten.",
   "server.unknownMessage": "Onbekend bericht: ",
   "server.raceStartFailed": "De race kan niet starten: ",
+  "server.raceLoadTimeout": "De laadtijd is verstreken; de race is zonder jou gestart.",
   "server.badJson": "Onjuist opgemaakt bericht (geen JSON).",
   "server.serverError": "Serverfout bij het verwerken van het bericht.",
   "mp.ui.backToMenu": "Terug naar het menu",

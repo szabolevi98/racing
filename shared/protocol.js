@@ -23,7 +23,7 @@ export const C2S = {
 
 export const S2C = {
   WELCOME: 'welcome',          // { playerId, token, name }
-  SESSION_RESUMED: 'sessionResumed', // { playerId, token, name, room, results? }
+  SESSION_RESUMED: 'sessionResumed', // { playerId, token, name, room, results?, pendingReset? }
   SESSION_RESUME_FAILED: 'sessionResumeFailed', // a türelmi idő vagy a session lejárt
   PROFILE_UPDATED: 'profileUpdated', // { name }
   ROOM_STATE: 'roomState',     // { code, hostId, mapId, laps, ghostMode, state, players[] }

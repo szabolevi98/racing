@@ -181,6 +181,7 @@
   "server.hostOnlyStart": "Tylko właściciel pokoju może wystartować wyścig.",
   "server.unknownMessage": "Nieznana wiadomość: ",
   "server.raceStartFailed": "Wyścig nie może się zacząć: ",
+  "server.raceLoadTimeout": "Minął czas ładowania; wyścig rozpoczął się bez ciebie.",
   "server.badJson": "Zniekształcona wiadomość (to nie JSON).",
   "server.serverError": "Błąd serwera podczas przetwarzania wiadomości.",
   "mp.ui.backToMenu": "Powrót do menu",

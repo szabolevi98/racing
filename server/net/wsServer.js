@@ -152,6 +152,10 @@ function resumePlayerConnection(candidate, rawSessionId) {
     sessionId: previous.sessionId,
     room: room?.toJSON() || null,
     results: room?.lastResults || null,
+    // A reset szerveroldali tranzakció. Ha a CAR_RESET pont a kapcsolat
+    // megszakadása miatt veszett el, a kliens ebből ugyanarra a kanonikus
+    // checkpoint-pózra áll, és a következő STATE lezárja a tranzakciót.
+    pendingReset: room?.sim?.pendingResetPose?.(previous.id) || null,
   });
   if (room) pushRoomState(room);
   return previous;
@@ -570,9 +574,38 @@ async function restartHotLap(room) {
 function maybeBeginCountdown(room, timedOut = false) {
   if (room.state !== ROOM_STATE.LOADING) return;
   if (!timedOut && !room.allReady()) return;
-  if (timedOut) {
-    const missing = [...room.players.values()].filter((p) => !p.ready).map((p) => p.name);
-    if (missing.length) console.warn(`[${room.code}] Betöltési időkorlát, nélkülük indulunk: ${missing.join(', ')}`);
+
+  // `allReady()` szándékosan nem vár a megszakadt socketekre, ezért nemcsak
+  // a 60 másodperces timeoutnál lehetnek itt nem kész játékosok. Ők ebből a
+  // futamból ténylegesen kimaradnak: különben a RaceControllerben egy soha el
+  // nem induló autóként bent maradnának, és az első befutó után még a teljes
+  // FINISH_GRACE időt is kiváratnák a valódi mezőnnyel.
+  const missing = [...room.players.values()].filter((player) => !player.ready);
+  if (missing.length) {
+    console.warn(
+      `[${room.code}] ${timedOut ? 'Betöltési időkorlát' : 'Kapcsolatvesztés betöltés közben'}, `
+      + `nélkülük indulunk: ${missing.map((player) => player.name).join(', ')}`
+    );
+    for (const player of missing) {
+      room.sim?.removeCar(player.id);
+      player.pendingInitialState = null;
+      room.remove(player.id);
+      if (player.socket?.readyState === 1) {
+        send(player.socket, S2C.ROOM_CLOSED, { code: ERR.RACE_LOAD_TIMEOUT });
+      }
+    }
+  }
+
+  // Ha senki sem töltött be, nincs mit elindítani. A szobát és a DB-ben
+  // megnyitott próbálkozást ugyanúgy lezárjuk, mint az utolsó kilépőnél.
+  if (room.size === 0) {
+    clearTimeout(room.loadTimer);
+    room.loadTimer = null;
+    room.sim?.stop();
+    room.sim = null;
+    void room.finishAttempt();
+    rooms.delete(room.code);
+    return;
   }
   clearTimeout(room.loadTimer);
   room.loadTimer = null;

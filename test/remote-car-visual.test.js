@@ -6,6 +6,7 @@ import {
   localRenderDelayTarget, remoteDetailPhase, remoteDetailUpdateInterval,
   REMOTE_DETAIL_BUCKETS,
   remoteVisualCorrectionHalfLife, remoteVisualPredictionBlend,
+  updateRemoteQualityBudget,
 } from '../shared/remoteVisual.js';
 import {
   advanceRenderClock, LOCAL_CLOCK_RATE_MIN, LOCAL_CLOCK_RATE_MAX,
@@ -101,6 +102,26 @@ test('remote detail throttling always keeps the spectated car at full rate', () 
   assert.match(mp, /const watched = o === watchedEntry/);
   assert.match(mp, /remoteDetailUpdateInterval\(cameraDistance, watched\)/);
   assert.match(mp, /if \(!watched && labelDistSq > REMOTE_RENDER_MAX_RANGE_SQ\)/);
+});
+
+test('heavy remote models fall back only after sustained slow frames and recover with hysteresis', () => {
+  let state = { degraded: false, slowMs: 0, cleanMs: 0 };
+  state = updateRemoteQualityBudget(state, 100);
+  assert.equal(state.degraded, false, 'one large frame cannot change car quality');
+  for (let i = 0; i < 30; i++) state = updateRemoteQualityBudget(state, 50);
+  assert.equal(state.degraded, true, 'sustained 20 FPS enables the lightweight visual');
+  for (let i = 0; i < 300; i++) state = updateRemoteQualityBudget(state, 16);
+  assert.equal(state.degraded, true, 'short recovery cannot make quality flap');
+  for (let i = 0; i < 220; i++) state = updateRemoteQualityBudget(state, 16);
+  assert.equal(state.degraded, false, 'long stable rendering restores the detailed skins');
+  assert.match(mp, /createRemoteLowDetailVisual/);
+  assert.match(mp, /remoteQualityBudget\.degraded && !watched/,
+    'the spectated car must stay detailed even during fallback');
+});
+
+test('finished remote cars never keep a physical collision proxy', () => {
+  assert.match(mp, /for \(const \[id, o\] of others\) \{\s*if \(o\.finished\) \{/);
+  assert.match(mp, /entry\.finished = !!c\.fin;[\s\S]*?G\.setRemoteCarProxy\(c\.id, null\)/);
 });
 
 test('local render clock follows timer stress without visible timeline jumps', () => {

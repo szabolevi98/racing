@@ -11,6 +11,35 @@ export const REMOTE_DETAIL_FAR = 300;
 // A legritkább frissítés — egyben ennyi fázisra osztjuk szét a mezőnyt.
 export const REMOTE_DETAIL_BUCKETS = 8;
 
+// Ha a teljes képkocka tartósan 40 ms fölé kerül, a nagy (akár 200k+
+// háromszöges) ellenfélmodelleket ideiglenesen könnyű F1-helyettesítőre
+// cseréljük. Egyetlen tüske nem elég a váltáshoz, a visszakapcsolás pedig
+// hosszú tiszta időt kér, így nem villog a két minőség között.
+export const REMOTE_LOW_DETAIL_FRAME_MS = 40;
+export const REMOTE_LOW_DETAIL_CLEAN_FRAME_MS = 28;
+export const REMOTE_LOW_DETAIL_ENTER_MS = 1_500;
+export const REMOTE_LOW_DETAIL_EXIT_MS = 8_000;
+
+export function updateRemoteQualityBudget(previous, frameMs) {
+  const state = previous || { degraded: false, slowMs: 0, cleanMs: 0 };
+  const elapsed = Math.max(0, Math.min(100, Number(frameMs) || 0));
+  if (!state.degraded) {
+    const slowMs = elapsed >= REMOTE_LOW_DETAIL_FRAME_MS
+      ? state.slowMs + elapsed
+      : Math.max(0, state.slowMs - elapsed * 2);
+    return slowMs >= REMOTE_LOW_DETAIL_ENTER_MS
+      ? { degraded: true, slowMs: REMOTE_LOW_DETAIL_ENTER_MS, cleanMs: 0 }
+      : { degraded: false, slowMs, cleanMs: 0 };
+  }
+
+  const cleanMs = elapsed <= REMOTE_LOW_DETAIL_CLEAN_FRAME_MS
+    ? state.cleanMs + elapsed
+    : 0;
+  return cleanMs >= REMOTE_LOW_DETAIL_EXIT_MS
+    ? { degraded: false, slowMs: 0, cleanMs: 0 }
+    : { degraded: true, slowMs: state.slowMs, cleanMs };
+}
+
 export const LOCAL_RENDER_DELAY_MIN_MS = TICK_MS * 2;
 export const LOCAL_RENDER_DELAY_MAX_MS = TICK_MS * 6;
 

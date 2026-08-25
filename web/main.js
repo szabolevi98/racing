@@ -936,8 +936,74 @@ function pickSpawnSlot(spawnPoints, occupiedIndices = []) {
   return { x: chosen.x, z: chosen.z, heading: chosen.heading || 0 };
 }
 
-function loadGLTF(url, onProgress) {
-  return new Promise((resolve, reject) => gltfLoader.load(url, resolve, onProgress, reject));
+function abortError() {
+  const error = new Error('A betöltés megszakadt.');
+  error.name = 'AbortError';
+  return error;
+}
+
+function throwIfAborted(signal) {
+  if (signal?.aborted) throw abortError();
+}
+
+async function fetchArrayBuffer(url, onProgress, signal) {
+  throwIfAborted(signal);
+  const response = await fetch(url, { signal });
+  if (!response.ok) throw new Error(`${url} HTTP ${response.status}`);
+  const total = Math.max(0, Number(response.headers.get('content-length')) || 0);
+  if (!response.body?.getReader) {
+    const buffer = await response.arrayBuffer();
+    onProgress?.({ lengthComputable: total > 0, loaded: buffer.byteLength, total });
+    return buffer;
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let loaded = 0;
+  for (;;) {
+    throwIfAborted(signal);
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    loaded += value.byteLength;
+    onProgress?.({ lengthComputable: total > 0, loaded, total });
+  }
+  const bytes = new Uint8Array(loaded);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes.buffer;
+}
+
+async function loadGLTF(url, onProgress, signal) {
+  const data = await fetchArrayBuffer(url, onProgress, signal);
+  throwIfAborted(signal);
+  const basePath = new URL('.', new URL(url, window.location.href)).href;
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const onAbort = () => {
+      if (settled) return;
+      settled = true;
+      reject(abortError());
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+    gltfLoader.parse(data, basePath, (gltf) => {
+      signal?.removeEventListener('abort', onAbort);
+      if (settled || signal?.aborted) {
+        disposeObject3D(gltf.scene);
+        return;
+      }
+      settled = true;
+      resolve(gltf);
+    }, (error) => {
+      signal?.removeEventListener('abort', onAbort);
+      if (settled) return;
+      settled = true;
+      reject(error);
+    });
+  });
 }
 
 function assetUrl(entry, remote = false) {
@@ -1232,7 +1298,13 @@ function refreshFoliageShading() {
   }
 }
 
-async function setTrack(trackUrl, mapId, spawnPoints, gates, onProgress, hotLapSpawn = null, pit = null) {
+async function setTrack(
+  trackUrl, mapId, spawnPoints, gates, onProgress, hotLapSpawn = null, pit = null, signal
+) {
+  // Előbb elkészítjük az új jelenetet, és csak utána bontjuk le a régit. Egy
+  // megszakított multiplayer-betöltés így nem hagy üres menüt maga után.
+  const gltf = await loadGLTF(trackUrl, onProgress, signal);
+  throwIfAborted(signal);
   currentMapId = mapId || null;
   currentSpawnPoints = spawnPoints || [];
   currentHotLapSpawn = hotLapSpawn || null;
@@ -1249,7 +1321,6 @@ async function setTrack(trackUrl, mapId, spawnPoints, gates, onProgress, hotLapS
     currentTrack = null;
   }
 
-  const gltf = await loadGLTF(trackUrl, onProgress);
   // Melyik betöltött háló melyik GLB-primitívből lett? A GLTFLoader ezt vezeti,
   // és az objektumvágónak pontosan erre van szüksége: a kattintott hálóból így
   // talál vissza a fájlbeli indextartományra. Máshol nem használjuk.
@@ -1341,7 +1412,8 @@ async function setTrack(trackUrl, mapId, spawnPoints, gates, onProgress, hotLapS
   );
 
   // A pályához tartozó zóna-térkép (ha van) betöltése a vezetéshez.
-  await loadZoneRuntime(manifest && findEntry(manifest.maps, mapId));
+  await loadZoneRuntime(manifest && findEntry(manifest.maps, mapId), signal);
+  throwIfAborted(signal);
 
   setMenuStatus('');
 }
@@ -1742,7 +1814,11 @@ function measureLocalBottom(root) {
   return Number.isFinite(min) ? min : 0;
 }
 
-async function setCar(carUrl, carId, config, onProgress) {
+async function setCar(carUrl, carId, config, onProgress, signal) {
+  // A régi modell addig marad érvényes, amíg az új teljesen be nem töltött.
+  // Abort esetén tehát nincs félbehagyott, autó nélküli állapot.
+  const gltf = await loadGLTF(carUrl, onProgress, signal);
+  throwIfAborted(signal);
   carLoaded = false;
   // A groundOffset kocsinkénti kalibrálása (calibrateGroundOffset) csak EGYSZER
   // futott le a teljes oldal-betöltés alatt (a groundOffsetCalibrated zászló
@@ -1768,7 +1844,6 @@ async function setCar(carUrl, carId, config, onProgress) {
   wheelPivots = [];
   wheelSources = [];
 
-  const gltf = await loadGLTF(carUrl, onProgress);
   const carRoot = gltf.scene;
   carRoot.traverse((obj) => {
     if (obj.isMesh) {
@@ -2567,22 +2642,39 @@ function applyPitLimiter(dt, active) {
 // lassul-e a kocsi a kifutón, a kliens pedig ezt előre jósolja.
 let zoneRuntime = null;
 
-async function loadZoneRuntime(entry) {
-  zoneRuntime = null;
-  miniMapTrackCanvas = null;
-  miniMapBounds = null;
-  miniMapStartSpans = null;
-  if (!entry || !entry.zonemap) return;
+async function loadZoneRuntime(entry, signal) {
+  throwIfAborted(signal);
+  if (!entry || !entry.zonemap) {
+    zoneRuntime = null;
+    miniMapTrackCanvas = null;
+    miniMapBounds = null;
+    miniMapStartSpans = null;
+    return;
+  }
 
   const img = new Image();
   await new Promise((resolve, reject) => {
-    img.onload = resolve;
-    img.onerror = reject;
+    let settled = false;
+    const cleanup = () => signal?.removeEventListener('abort', onAbort);
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      callback(value);
+    };
+    const onAbort = () => {
+      img.src = '';
+      finish(reject, abortError());
+    };
+    img.onload = () => finish(resolve);
+    img.onerror = (error) => finish(reject, error);
+    signal?.addEventListener('abort', onAbort, { once: true });
     // Cache-kulcs a manifestből (méret + mtime), nem Date.now() — ugyanaz a
     // minta, mint a collision.bin-nél. A Date.now() minden pályabetöltésnél
     // újratöltette ezt a 330-900 KB-os képet, hiába nem változott.
     img.src = 'assets/' + entry.zonemap.file + (entry.zonemap.v ? '?v=' + entry.zonemap.v : '');
   });
+  throwIfAborted(signal);
 
   const c = document.createElement('canvas');
   c.width = img.width;
@@ -2598,11 +2690,16 @@ async function loadZoneRuntime(entry) {
   let smoothingCount = 0;
   if (smoothing) for (const marked of smoothing) smoothingCount += marked;
 
-  zoneRuntime = {
+  const runtime = {
     codes, smoothing, smoothingCount,
     w: img.width, h: img.height, bounds: entry.zonemap.bounds,
   };
-  buildMiniMapTrack(zoneRuntime);
+  throwIfAborted(signal);
+  zoneRuntime = runtime;
+  miniMapTrackCanvas = null;
+  miniMapBounds = null;
+  miniMapStartSpans = null;
+  buildMiniMapTrack(runtime);
 }
 
 // A mini-térkép pálya-sziluettje ugyanabból a zonemap-ből épül, amit a zóna-
@@ -4267,8 +4364,9 @@ const devApi = {
 // indítás ÉS a multiplayer is ugyanezt kell csinálja — különösen a
 // bekészített ütközési fájlt, hogy minden kliens (és a szerver) bitre
 // azonos geometrián számoljon.
-async function prepareTrackPhysics({ strict = false } = {}) {
-  const mesh = await loadOrExtractCollision(strict);
+async function prepareTrackPhysics({ strict = false, signal } = {}) {
+  const mesh = await loadOrExtractCollision(strict, signal);
+  throwIfAborted(signal);
   applyTrackCollider(mesh.floor, mesh.wall);
   return mesh;
 }
@@ -4341,7 +4439,7 @@ function readCollisionMesh(view, buf, offset) {
   return { positions, indices, nextOffset: offset + 8 + vertexCount * 12 + indexCount * 4 };
 }
 
-async function fetchPreparedCollision(entry) {
+async function fetchPreparedCollision(entry, signal) {
   // Cache-kulcs a manifestből (méret + mtime), nem Date.now(): így a böngésző
   // MEGTARTHATJA a fájlt két verseny között, de dev módbeli újragenerálás után
   // magától újat kér.
@@ -4349,9 +4447,11 @@ async function fetchPreparedCollision(entry) {
   let lastErr = null;
   for (let attempt = 1; attempt <= COLLISION_FETCH_ATTEMPTS; attempt++) {
     try {
-      const res = await fetch(url);
+      throwIfAborted(signal);
+      const res = await fetch(url, { signal });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const buf = await res.arrayBuffer();
+      throwIfAborted(signal);
       const view = new DataView(buf);
       if (buf.byteLength < 4 || view.getUint32(0, true) !== COLLISION_MAGIC) {
         throw new Error('érvénytelen vagy régi formátumú collision.bin — süsd be újra a Fejlesztői eszközökből');
@@ -4360,6 +4460,7 @@ async function fetchPreparedCollision(entry) {
       const wall = readCollisionMesh(view, buf, floor.nextOffset);
       return { floor, wall, source: 'fájlból' };
     } catch (err) {
+      if (err?.name === 'AbortError' || signal?.aborted) throw abortError();
       lastErr = err;
       console.warn(`Ütközési fájl letöltése sikertelen (${attempt}/${COLLISION_FETCH_ATTEMPTS})`, err);
     }
@@ -4372,12 +4473,13 @@ async function fetchPreparedCollision(entry) {
 // Online futamban nem esünk vissza a modellből kinyert hálóra: minden kliensnek
 // ugyanazt a bekészített collision.bin-t kell használnia. Inkább ne induljon a
 // verseny, mint hogy valaki eltérő geometrián játsszon.
-async function loadOrExtractCollision(strict = false) {
+async function loadOrExtractCollision(strict = false, signal) {
   const entry = manifest && findEntry(manifest.maps, currentMapId);
   if (entry?.collision) {
     try {
-      return await fetchPreparedCollision(entry);
+      return await fetchPreparedCollision(entry, signal);
     } catch (err) {
+      if (err?.name === 'AbortError' || signal?.aborted) throw abortError();
       if (strict) {
         throw new Error(
           t('error.collisionDownload') + t('error.checkNetwork') + err.message + ')'
@@ -4388,6 +4490,7 @@ async function loadOrExtractCollision(strict = false) {
   } else if (strict) {
     throw new Error(t('error.noCollisionFile'));
   }
+  throwIfAborted(signal);
   const floor = extractDrivableTriangles(currentTrack);
   const wall = extractWallTriangles(currentTrack);
   return { floor, wall, source: 'modellből' };
@@ -4780,6 +4883,8 @@ let netPipelineStartedAt = 0;
 let netPipelineFrames = 0;
 let netPipelineMpFrameTotalMs = 0;
 let netPipelineRenderTotalMs = 0;
+let netPipelineMpFrameMaxMs = 0;
+let netPipelineRenderMaxMs = 0;
 let netPipelineRenderCallsTotal = 0;
 let netPipelineRenderTrianglesTotal = 0;
 
@@ -4844,12 +4949,16 @@ function sampleNetPipeline(nowMs, multiplayerFrameMs, renderCpuMs) {
     netPipelineFrames = 0;
     netPipelineMpFrameTotalMs = 0;
     netPipelineRenderTotalMs = 0;
+    netPipelineMpFrameMaxMs = 0;
+    netPipelineRenderMaxMs = 0;
     netPipelineRenderCallsTotal = 0;
     netPipelineRenderTrianglesTotal = 0;
   }
   netPipelineFrames++;
   netPipelineMpFrameTotalMs += multiplayerFrameMs;
   netPipelineRenderTotalMs += renderCpuMs;
+  netPipelineMpFrameMaxMs = Math.max(netPipelineMpFrameMaxMs, multiplayerFrameMs);
+  netPipelineRenderMaxMs = Math.max(netPipelineRenderMaxMs, renderCpuMs);
   netPipelineRenderCallsTotal += renderer.info.render.calls;
   netPipelineRenderTrianglesTotal += renderer.info.render.triangles;
   const elapsed = nowMs - netPipelineStartedAt;
@@ -4864,7 +4973,12 @@ function sampleNetPipeline(nowMs, multiplayerFrameMs, renderCpuMs) {
     physics.physicsAvgMs,
     physics.physicsMaxMs,
     netPipelineMpFrameTotalMs / frames,
+    netPipelineMpFrameMaxMs,
     netPipelineRenderTotalMs / frames,
+    netPipelineRenderMaxMs,
+  );
+  netDiagnostics.record(
+    NET_DIAG_EVENT.RENDER_LOAD,
     netPipelineRenderCallsTotal / frames,
     netPipelineRenderTrianglesTotal / frames,
   );
@@ -4872,6 +4986,8 @@ function sampleNetPipeline(nowMs, multiplayerFrameMs, renderCpuMs) {
   netPipelineFrames = 0;
   netPipelineMpFrameTotalMs = 0;
   netPipelineRenderTotalMs = 0;
+  netPipelineMpFrameMaxMs = 0;
+  netPipelineRenderMaxMs = 0;
   netPipelineRenderCallsTotal = 0;
   netPipelineRenderTrianglesTotal = 0;
 }
@@ -4881,10 +4997,6 @@ function animate() {
   requestAnimationFrame(animate);
   const rawDt = clock.getDelta();
   const dt = Math.min(rawDt, 0.1);
-  // A WebSocket PONG ugyanazon a főszálon kerül feldolgozásra, mint a kép.
-  // Így a hálózati modul el tudja dobni azt a pingmintát, amely valójában egy
-  // hosszú képkocka miatt késett, nem az interneten.
-  window.__mp?.noteFrameGap?.(rawDt * 1000);
   // Minden állapotban mérünk (menü, vezetés, mp, dev), nem csak vezetés
   // közben — az fps-doboz a #hud-on belül van, tehát csak driving/mp-ben
   // LÁTSZIK, de a számláló futása nem függ ettől.

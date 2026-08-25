@@ -181,6 +181,7 @@
   "server.hostOnlyStart": "Doar proprietarul camerei poate porni cursa.",
   "server.unknownMessage": "Mesaj necunoscut: ",
   "server.raceStartFailed": "Cursa nu poate începe: ",
+  "server.raceLoadTimeout": "Timpul de încărcare a expirat; cursa a început fără tine.",
   "server.badJson": "Mesaj deteriorat (nu este JSON).",
   "server.serverError": "Eroare de server la procesarea mesajului.",
   "mp.ui.backToMenu": "Înapoi la meniu",

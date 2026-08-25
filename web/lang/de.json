@@ -181,6 +181,7 @@
   "server.hostOnlyStart": "Nur der Raumbesitzer kann das Rennen starten.",
   "server.unknownMessage": "Unbekannte Nachricht: ",
   "server.raceStartFailed": "Das Rennen kann nicht starten: ",
+  "server.raceLoadTimeout": "Die Ladezeit ist abgelaufen; das Rennen startete ohne dich.",
   "server.badJson": "Fehlerhafte Nachricht (kein JSON).",
   "server.serverError": "Serverfehler bei der Verarbeitung der Nachricht.",
   "mp.ui.backToMenu": "Zurück zum Menü",

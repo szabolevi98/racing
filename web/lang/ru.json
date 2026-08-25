@@ -181,6 +181,7 @@
   "server.hostOnlyStart": "Запустить гонку может только владелец комнаты.",
   "server.unknownMessage": "Неизвестное сообщение: ",
   "server.raceStartFailed": "Гонка не может начаться: ",
+  "server.raceLoadTimeout": "Время загрузки истекло; гонка началась без тебя.",
   "server.badJson": "Повреждённое сообщение (это не JSON).",
   "server.serverError": "Ошибка сервера при обработке сообщения.",
   "mp.ui.backToMenu": "Назад в меню",

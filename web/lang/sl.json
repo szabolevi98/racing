@@ -181,6 +181,7 @@
   "server.hostOnlyStart": "Dirko lahko zažene samo lastnik sobe.",
   "server.unknownMessage": "Neznano sporočilo: ",
   "server.raceStartFailed": "Dirka se ne more začeti: ",
+  "server.raceLoadTimeout": "Čas za nalaganje je potekel; dirka se je začela brez tebe.",
   "server.badJson": "Pokvarjeno sporočilo (ni JSON).",
   "server.serverError": "Napaka strežnika pri obdelavi sporočila.",
   "mp.ui.backToMenu": "Nazaj v meni",

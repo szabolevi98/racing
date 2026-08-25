@@ -88,6 +88,43 @@ test('race controller relays state and still owns lap timing and ghosts', async 
   }
 });
 
+test('one accepted movement segment counts every checkpoint it crosses in order', async () => {
+  const room = makeRoom();
+  const sim = new RaceController(room, {
+    map: {
+      spawns: [{ x: 0, z: 0, heading: 0 }],
+      gates: {
+        start: { x1: 100, z1: -5, x2: 100, z2: 5 },
+        checkpoints: [
+          { x1: 10, z1: -5, x2: 10, z2: 5 },
+          { x1: 20, z1: -5, x2: 20, z2: 5 },
+        ],
+      },
+    },
+    broadcast: () => {},
+  });
+  await sim.start();
+  try {
+    const car = sim.cars.get('p1');
+    car.race.hasCrossedStart = true;
+    car.race.lapStart = 1_000;
+    car.race.prevX = 0;
+    car.race.prevZ = 0;
+    car.race.prevAt = 1_000;
+    car.state.p = [25, 0.8, 0];
+    sim.updateCarProgress(car, 1_250);
+
+    assert.equal(car.race.nextCheckpoint, 2);
+    assert.deepEqual([...car.race.passed], [0, 1]);
+    assert.equal(car.race.taintReason, TAINT.NONE);
+    assert.equal(car.race.splits.get(1), 1_100);
+    assert.equal(car.race.splits.get(2), 1_200);
+    assert.equal(car.respawn.x, 20, 'the latest crossed checkpoint becomes the reset point');
+  } finally {
+    sim.stop();
+  }
+});
+
 test('race controller quarantines invalid physics states and keeps the player racing', async () => {
   const room = makeRoom();
   const messages = [];
@@ -446,6 +483,37 @@ test('stale states sent while reset is in flight cannot invalidate the lap', asy
     ), true);
     assert.equal(car.race.taintReason, TAINT.NONE);
     assert.equal(messages.some((message) => message.kind === 'validation'), false);
+  } finally {
+    sim.stop();
+  }
+});
+
+test('a pending reset survives a long disconnect until the checkpoint pose is acknowledged', async () => {
+  const room = makeRoom();
+  room.state = ROOM_STATE.RACING;
+  const sim = new RaceController(room, {
+    map: { spawns: [{ x: 5, z: 6, heading: 0 }], gates: null },
+    broadcast: () => {},
+  });
+  await sim.start();
+  try {
+    const now = Date.now();
+    sim.receiveState('p1', wireState(0, now, 5, 6), { initial: true, receivedAt: now });
+    const car = sim.cars.get('p1');
+    car.race.hasCrossedStart = true;
+    car.respawn = { x: 100, z: 200, heading: 1 };
+    assert.equal(sim.resetCar('p1'), true);
+    assert.deepEqual(sim.pendingResetPose('p1'), { x: 100, z: 200, heading: 1 });
+
+    assert.equal(sim.receiveState(
+      'p1', wireState(1, now + 10_000, 6, 6), { receivedAt: now + 10_000 }
+    ), false, 'the pre-reset pose must not return after an arbitrary timeout');
+    assert.deepEqual(sim.pendingResetPose('p1'), { x: 100, z: 200, heading: 1 });
+
+    assert.equal(sim.receiveState(
+      'p1', wireState(2, now + 10_020, 100, 200), { receivedAt: now + 10_020 }
+    ), true);
+    assert.equal(sim.pendingResetPose('p1'), null);
   } finally {
     sim.stop();
   }

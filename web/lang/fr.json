@@ -181,6 +181,7 @@
   "server.hostOnlyStart": "Seul le propriétaire du salon peut lancer la course.",
   "server.unknownMessage": "Message inconnu : ",
   "server.raceStartFailed": "La course ne peut pas démarrer : ",
+  "server.raceLoadTimeout": "Le délai de chargement a expiré ; la course est partie sans toi.",
   "server.badJson": "Message mal formé (pas du JSON).",
   "server.serverError": "Erreur du serveur lors du traitement du message.",
   "mp.ui.backToMenu": "Retour au menu",

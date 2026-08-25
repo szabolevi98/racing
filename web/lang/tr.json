@@ -181,6 +181,7 @@
   "server.hostOnlyStart": "Yarışı yalnızca oda sahibi başlatabilir.",
   "server.unknownMessage": "Bilinmeyen mesaj: ",
   "server.raceStartFailed": "Yarış başlayamıyor: ",
+  "server.raceLoadTimeout": "Yükleme süresi doldu; yarış sensiz başladı.",
   "server.badJson": "Bozuk mesaj (JSON değil).",
   "server.serverError": "Mesaj işlenirken sunucu hatası.",
   "mp.ui.backToMenu": "Menüye dön",

@@ -181,6 +181,7 @@
   "server.hostOnlyStart": "レースを開始できるのはルームのオーナーだけです。",
   "server.unknownMessage": "不明なメッセージ: ",
   "server.raceStartFailed": "レースを開始できません: ",
+  "server.raceLoadTimeout": "読み込みがタイムアウトしたため、レースはあなた抜きで開始されました。",
   "server.badJson": "不正なメッセージ（JSON ではありません）。",
   "server.serverError": "メッセージ処理中のサーバーエラー。",
   "mp.ui.backToMenu": "メニューに戻る",

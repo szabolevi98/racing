@@ -181,6 +181,7 @@
   "server.hostOnlyStart": "Závod může odstartovat jen vlastník místnosti.",
   "server.unknownMessage": "Neznámá zpráva: ",
   "server.raceStartFailed": "Závod nemůže začít: ",
+  "server.raceLoadTimeout": "Čas na načtení vypršel; závod odstartoval bez tebe.",
   "server.badJson": "Poškozená zpráva (není to JSON).",
   "server.serverError": "Chyba serveru při zpracování zprávy.",
   "mp.ui.backToMenu": "Zpět do menu",

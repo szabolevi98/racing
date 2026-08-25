@@ -181,6 +181,7 @@
   "server.hostOnlyStart": "Запустити перегони може лише власник кімнати.",
   "server.unknownMessage": "Невідоме повідомлення: ",
   "server.raceStartFailed": "Перегони не можуть початися: ",
+  "server.raceLoadTimeout": "Час завантаження минув; перегони почалися без тебе.",
   "server.badJson": "Пошкоджене повідомлення (це не JSON).",
   "server.serverError": "Помилка сервера під час обробки повідомлення.",
   "mp.ui.backToMenu": "Назад до меню",

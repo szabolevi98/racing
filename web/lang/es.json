@@ -181,6 +181,7 @@
   "server.hostOnlyStart": "Solo el propietario de la sala puede dar la salida.",
   "server.unknownMessage": "Mensaje desconocido: ",
   "server.raceStartFailed": "La carrera no puede empezar: ",
+  "server.raceLoadTimeout": "Se agotó el tiempo de carga; la carrera empezó sin ti.",
   "server.badJson": "Mensaje mal formado (no es JSON).",
   "server.serverError": "Error del servidor al procesar el mensaje.",
   "mp.ui.backToMenu": "Volver al menú",

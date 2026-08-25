@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 
 import {
-  classifyPing, CLIENT_FRAME_STALL_THRESHOLD_MS, HIGH_PING_ALERT_MS,
-  isClientFrameStall, shouldWarnAboutPing, smoothPing,
+  classifyPing, HIGH_PING_ALERT_MS, shouldWarnAboutPing, smoothPing,
 } from '../shared/ping.js';
 
 test('ping quality uses the multiplayer HUD boundaries', () => {
@@ -38,9 +38,11 @@ test('ping recovery follows a lower clean sample much faster than an upward spik
   assert.equal(smoothPing(0, 37), 37);
 });
 
-test('a short client frame stall is not mistaken for network RTT', () => {
-  assert.equal(CLIENT_FRAME_STALL_THRESHOLD_MS, 50);
-  assert.equal(isClientFrameStall(49.9), false);
-  assert.equal(isClientFrameStall(50), true);
-  assert.equal(isClientFrameStall(180), true);
+test('low render FPS is not mistaken for a blocked network sample', () => {
+  const mp = fs.readFileSync(new URL('../web/mp.js', import.meta.url), 'utf8');
+  const main = fs.readFileSync(new URL('../web/main.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(mp, /isClientFrameStall|noteMainThreadFrameGap/);
+  assert.doesNotMatch(main, /noteFrameGap/);
+  assert.match(mp, /now - lastHeartbeatAt > STALL_THRESHOLD_MS/,
+    'the independent event-loop heartbeat still filters genuine blocking');
 });

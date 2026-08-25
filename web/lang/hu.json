@@ -181,6 +181,7 @@
   "server.hostOnlyStart": "Csak a szoba tulajdonosa indíthatja a versenyt.",
   "server.unknownMessage": "Ismeretlen üzenet: ",
   "server.raceStartFailed": "A verseny nem indítható: ",
+  "server.raceLoadTimeout": "Lejárt a betöltési idő; a verseny nélküled indult el.",
   "server.badJson": "Hibás üzenet (nem JSON).",
   "server.serverError": "Szerverhiba az üzenet feldolgozásakor.",
   "mp.ui.backToMenu": "Vissza a menübe",

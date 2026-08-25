@@ -181,6 +181,7 @@
   "server.hostOnlyStart": "Trku može da pokrene samo vlasnik sobe.",
   "server.unknownMessage": "Nepoznata poruka: ",
   "server.raceStartFailed": "Trka ne može da počne: ",
+  "server.raceLoadTimeout": "Vreme učitavanja je isteklo; trka je počela bez tebe.",
   "server.badJson": "Neispravna poruka (nije JSON).",
   "server.serverError": "Greška servera pri obradi poruke.",
   "mp.ui.backToMenu": "Nazad na meni",

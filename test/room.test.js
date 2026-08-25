@@ -88,3 +88,17 @@ test('Hot Lap counts down for 3 seconds while multiplayer keeps 5 seconds', () =
   assert.equal(COUNTDOWN_MS, 5_000);
   assert.equal(HOT_LAP_COUNTDOWN_MS, 3_000);
 });
+
+test('loading waits through the short reconnect grace instead of dropping the player immediately', () => {
+  const host = { id: 'host', ready: true, socket: { readyState: 1 } };
+  const other = { id: 'other', ready: false, socket: null, reconnectTimer: {} };
+  const room = new Room('RECONNECT', host, { mapId: 'map', laps: 3 });
+  room.add(host, 'car');
+  room.add(other, 'car');
+  host.ready = true;
+  other.ready = false;
+
+  assert.equal(room.allReady(), false);
+  other.ready = true;
+  assert.equal(room.allReady(), true);
+});

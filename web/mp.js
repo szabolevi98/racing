@@ -13,6 +13,7 @@ import {
   LOCAL_RENDER_DELAY_MAX_MS, LOCAL_RENDER_DELAY_MIN_MS,
   localRenderDelayTarget, remoteDetailPhase, remoteDetailUpdateInterval,
   remoteVisualCorrectionHalfLife, remoteVisualPredictionBlend, smootherLeadSeconds,
+  updateRemoteQualityBudget,
 } from '/shared/remoteVisual.js';
 import {
   advanceRenderClock, pushTransitSample, expireTransitSamples,
@@ -22,8 +23,9 @@ import {
 } from '/shared/renderClock.js';
 import { createPitState, hasCompletePitConfig, updatePitState } from '/shared/pit.js';
 import {
-  acceptsClockSample, isClientFrameStall, smoothPing, updateMinRtt,
+  acceptsClockSample, smoothPing, updateMinRtt,
 } from '/shared/ping.js';
+import { ERR } from '/shared/errorCodes.js';
 import { remoteExtrapolationTiming, remoteSnapshotSample } from '/shared/remoteSnapshot.js';
 import { t, hasKey, onLanguageChange, applyToDom } from './lang.js';
 import {
@@ -69,9 +71,9 @@ window.__mp = {
   get interpDelayMs() { return +interpDelayMs.toFixed(1); },
   get predDelayMs() { return +predDelayMs.toFixed(1); },
   get physSteps() { return physSteps; },
+  get remoteLowDetail() { return remoteQualityBudget.degraded; },
   get physicsTimerLatenessMs() { return +physicsTimerLatenessMs.toFixed(1); },
   get physicsTimerJitterMs() { return +physicsTimerJitterMs.toFixed(1); },
-  noteFrameGap: (elapsedMs) => noteMainThreadFrameGap(elapsedMs),
   takePipelineTimings: () => takePipelineTimings(),
   // A szerver legutóbbi ellenőrzött állapota a saját kocsinkról.
   get lastSelf() { return lastSnapshot?.cars?.find((c) => c.id === me.id) || null; },
@@ -101,6 +103,11 @@ let inputSeq = 0;
 let awaitingFirstSnapshot = false;
 let raceLoadGeneration = 0;
 let raceLoadActive = false;
+let raceLoadController = null;
+// Kilépés érkezhet addig, amíg az ellenfél GLB-je még töltődik. A mapból
+// ilyenkor még nincs mit eltávolítani, ezért külön megjegyezzük, hogy a későn
+// elkészült modell már nem tartozik az aktuális mezőnyhöz.
+const departedPlayerIds = new Set();
 // Elromlott-e már az aktuális kör a szerver szerint, és ha igen, MIÉRT: a
 // snapshot `ti` mezője a TAINT kódját küldi (0 = érvényes). A konkrét ok kell,
 // nem csak egy igen/nem — abból a játékos nem tudja, mit rontott el.
@@ -841,9 +848,9 @@ function sendPing() {
 // megnövelné a távoli autók interpolációs késleltetését.
 //
 // A figyelő egy sűrű időzítő: ha két ütés között sokkal több idő telt el, mint
-// kellett volna, akkor a főszál addig blokkolt. Emellett a renderhurok közvetlenül
-// jelenti az 50 ms fölötti képkockákat. A korábbi 200/400 ms-os figyelő a
-// játékélményt már súlyosan rontó 50–300 ms-os akadást hálózati RTT-nek számolta.
+// kellett volna, akkor a főszál addig blokkolt. Nem a RAF-kockák távolságából
+// döntünk: egy stabilan 20 FPS-es gépen az 50 ms teljesen szabályos ütemezés,
+// nem bizonyítja, hogy a JavaScript szál blokkolt.
 const STALL_TICK_MS = 50;
 const STALL_THRESHOLD_MS = 100;
 // A szerver által jelentett saját akadás, ami fölött a mintát eldobjuk. Bőven
@@ -853,10 +860,6 @@ const SERVER_BLOCK_IGNORE_MS = 50;
 let stallTimer = null;
 let lastHeartbeatAt = 0;
 let lastStallAt = 0;
-
-function noteMainThreadFrameGap(elapsedMs) {
-  if (isClientFrameStall(elapsedMs)) lastStallAt = performance.now();
-}
 
 function startStallWatch() {
   stopStallWatch();
@@ -1174,6 +1177,21 @@ function onMessage(m) {
       disableRemoteProxies();
       resetNetworkRaceState();
       resetPredState();
+      // A szerver a resume-válaszban explicit módon közli, van-e még nyitott
+      // reset tranzakció. Ha a RESET kérés nem jutott el hozzá, a helyi flaget
+      // biztonságosan feloldjuk; ha a CAR_RESET válasz veszett el, ugyanarra a
+      // szerver által birtokolt checkpoint-pózra állunk vissza.
+      resetPending = false;
+      if (m.pendingReset) {
+        const reset = G.resetMultiplayerCar(m.pendingReset);
+        netDiagnostics.record(
+          NET_DIAG_EVENT.CAR_RESET,
+          m.pendingReset.x,
+          m.pendingReset.z,
+          reset,
+        );
+        if (reset) resetPredState();
+      }
       if (Array.isArray(m.results) && m.results.length) {
         showResults(m.results);
       } else {
@@ -1276,7 +1294,7 @@ function onMessage(m) {
       beginRace(m).catch((err) => {
         // A játékos vagy a kapcsolat közben kilépett, és már másik életciklus
         // az aktuális. Az elkéső régi betöltés nem nyithatja vissza a lobbyt.
-        if (starting !== m) return;
+        if (err?.name === 'AbortError' || starting !== m) return;
         // A félbeszakadt betöltés is hagyhat kocsikat a jelenetben: az
         // addOtherCar játékosonként külön fut, tehát a hiba előtt sikeresen
         // betöltöttek MÁR bekerültek a scene-be.
@@ -1346,7 +1364,10 @@ function onMessage(m) {
       // A kilépés nem csak egy HUD-üzenet: a kocsiját is le kell venni a
       // pályáról. Ő nem kap több snapshotot, tehát az utolsó pozícióján
       // megfagyva ott maradna a verseny végéig.
-      if (m.kind === 'left') removeOtherCar(m.playerId);
+      if (m.kind === 'left') {
+        departedPlayerIds.add(m.playerId);
+        removeOtherCar(m.playerId);
+      }
       if (m.kind === 'validation' && m.playerId === me.id) {
         netDiagnostics.record(NET_DIAG_EVENT.VALIDATION, lapTainted, myLap, myCp);
         netDiagnostics.captureIncident(NET_DIAG_INCIDENT.SERVER_VALIDATION);
@@ -1378,6 +1399,17 @@ function onMessage(m) {
       if (m.kind === 'finished' && m.playerId === me.id) {
         finishedDriving = true;
         G.setMultiplayerControlsEnabled(false);
+      } else if (m.kind === 'finished') {
+        // Az esemény hamarabb érkezhet, mint a következő snapshot. Már itt
+        // levesszük az ütközőtestet, hogy a célvonalon álló autó egyetlen
+        // további fizikai lépésig se tudja eltalálni a mögötte érkezőt.
+        const finished = others.get(m.playerId);
+        if (finished) {
+          finished.finished = true;
+          finished.proxyActive = false;
+          finished.proxyPose = null;
+          G.setRemoteCarProxy(m.playerId, null);
+        }
       }
       if (m.kind !== 'validation' && m.kind !== 'lapRetry') {
         lastEvents.unshift(m);
@@ -1485,6 +1517,18 @@ function onMessage(m) {
 
     case S2C.ERROR:
       netDiagnostics.record(NET_DIAG_EVENT.SERVER_ERROR, G.appState === 'mp');
+      if (m.code === ERR.RACE_START_FAILED && starting) {
+        // A szerver visszaállította a szobát lobbyba. A régi beginRace nem
+        // futhat tovább a háttérben és nem küldhet SET_READY-t a lobbyra.
+        cancelRaceLoad();
+        clearOtherCars();
+        stopInputLoop();
+        awaitingFirstSnapshot = false;
+        starting = null;
+        G.detachMultiplayerFrame();
+        if (G.appState === 'mp') G.leaveMultiplayer();
+        openLobby();
+      }
       setErr(serverText(m));
       updateResultsActions();
       break;
@@ -1541,7 +1585,13 @@ function isHotLap() {
 }
 
 async function beginRace(info) {
+  raceLoadController?.abort();
+  const loadController = new AbortController();
+  raceLoadController = loadController;
+  const { signal } = loadController;
   const loadGeneration = ++raceLoadGeneration;
+  departedPlayerIds.clear();
+  remoteQualityBudget = { degraded: false, slowMs: 0, cleanMs: 0 };
   const myPlayer = info.players.find((player) => player.id === me.id);
   netDiagnostics.setContext({
     mode: info.mode,
@@ -1622,18 +1672,33 @@ async function beginRace(info) {
 
   const tasks = [];
   if (G.currentMapId !== info.mapId) {
-    tasks.push({ bytes: map.bytes, run: (onP) => G.setTrack(G.assetUrl(map), map.id, map.spawns, map.gates, onP, map.hotLapSpawn, map.pit) });
+    tasks.push({
+      bytes: map.bytes,
+      run: (onP) => G.setTrack(
+        G.assetUrl(map), map.id, map.spawns, map.gates, onP,
+        map.hotLapSpawn, map.pit, signal
+      ),
+    });
   }
   if (car) {
-    tasks.push({ bytes: car.bytes, run: (onP) => G.setCar(G.assetUrl(car), car.id, car.config, onP) });
+    tasks.push({
+      bytes: car.bytes,
+      run: (onP) => G.setCar(G.assetUrl(car), car.id, car.config, onP, signal),
+    });
   }
   otherPlayers.forEach((p) => {
     const otherCar = G.manifest.cars.find((c) => c.id === p.carId) || G.manifest.cars[0];
-    tasks.push({ bytes: otherCar?.remoteBytes ?? otherCar?.bytes, run: (onP) => addOtherCar(p, onP, loadGeneration) });
+    tasks.push({
+      bytes: otherCar?.remoteBytes ?? otherCar?.bytes,
+      run: (onP) => addOtherCar(p, onP, loadGeneration, signal),
+    });
   });
   if (ghostReplay && !reuseGhost) {
     const replayCar = G.manifest.cars.find((c) => c.id === ghostReplay.carId) || G.manifest.cars[0];
-    tasks.push({ bytes: replayCar?.remoteBytes ?? replayCar?.bytes, run: (onP) => addGhostCar(ghostReplay, onP, loadGeneration) });
+    tasks.push({
+      bytes: replayCar?.remoteBytes ?? replayCar?.bytes,
+      run: (onP) => addGhostCar(ghostReplay, onP, loadGeneration, signal),
+    });
   }
 
   G.showLoadingOverlay(true);
@@ -1642,14 +1707,14 @@ async function beginRace(info) {
   } finally {
     if (loadGeneration === raceLoadGeneration) G.hideLoadingOverlay();
   }
-  if (loadGeneration !== raceLoadGeneration) return;
+  if (signal.aborted || loadGeneration !== raceLoadGeneration) return;
   window.__mp.stage = 'kocsi-kesz';
   // strict: multiplayerben a pálya ütközési hálója KÖTELEZŐEN a bekészített
   // fájlból jön. Ha nem tölthető le, itt hibával elhasal — jobb, mint némán
   // rossz geometrián versenyezni (ettől
   // lebegett a kocsi a pálya fölött).
-  await G.prepareTrackPhysics({ strict: true });
-  if (loadGeneration !== raceLoadGeneration) return;
+  await G.prepareTrackPhysics({ strict: true, signal });
+  if (signal.aborted || loadGeneration !== raceLoadGeneration) return;
   window.__mp.stage = 'fizika-kesz';
 
   window.__mp.stage = 'tobbiek-kesz';
@@ -1670,6 +1735,7 @@ async function beginRace(info) {
   G.renderPitStopHud(localPitState, localPitStopIndex);
   G.enterMultiplayer(frame);
   raceLoadActive = false;
+  if (raceLoadController === loadController) raceLoadController = null;
   pingValidAfter = performance.now();
   window.__mp.stage = 'fut';
   netDiagnostics.record(
@@ -1739,6 +1805,7 @@ function clearOtherCars({ preserveGhost = false } = {}) {
   pitPrevPosition = null;
   G.setPitStopMarker(null, false);
   G.renderPitStopHud(localPitState, 0);
+  remoteQualityBudget = { degraded: false, slowMs: 0, cleanMs: 0 };
 }
 
 // Egyetlen játékos kocsijának leszedése — verseny KÖZBEN is, amikor kilép
@@ -1783,6 +1850,8 @@ function cleanupMultiplayerForMenu() {
 G.setMultiplayerCleanupHook(cleanupMultiplayerForMenu);
 
 function cancelRaceLoad() {
+  raceLoadController?.abort();
+  raceLoadController = null;
   raceLoadGeneration++;
   raceLoadActive = false;
   pingValidAfter = performance.now();
@@ -1791,9 +1860,9 @@ function cancelRaceLoad() {
   G.hideLoadingOverlay();
 }
 
-async function addOtherCar(p, onProgress, loadGeneration) {
+async function addOtherCar(p, onProgress, loadGeneration, signal) {
   const car = G.manifest.cars.find((c) => c.id === p.carId) || G.manifest.cars[0];
-  const group = await loadRemoteCarVisual(car, p.color, onProgress);
+  const group = await loadRemoteCarVisual(car, p.color, onProgress, false, signal);
   // Névtábla a kocsi fölött, a játékos színével keretezve — ugyanaz a szín,
   // ami a HUD-listán és a minitérképen is jelöli őt.
   const label = makeNameSprite(p.name, p.color);
@@ -1804,7 +1873,7 @@ async function addOtherCar(p, onProgress, loadGeneration) {
   // A modell letöltése közben megszakadhatott a kapcsolat vagy a játékos
   // visszaléphetett a menübe. A késve elkészült objektum ilyenkor nem kerülhet
   // vissza ghostként a jelenetbe.
-  if (loadGeneration !== raceLoadGeneration) {
+  if (signal?.aborted || loadGeneration !== raceLoadGeneration || departedPlayerIds.has(p.id)) {
     G.disposeObject3D(group);
     return;
   }
@@ -1822,10 +1891,71 @@ async function addOtherCar(p, onProgress, loadGeneration) {
   });
 }
 
-async function loadRemoteCarVisual(car, fallbackColor, onProgress, translucent = false) {
+function createRemoteLowDetailVisual(color, translucent) {
+  const root = new THREE.Group();
+  const groundY = -G.getCarGroundOffset();
+  const opacity = translucent ? 0.34 : 1;
+  const bodyMaterial = new THREE.MeshStandardMaterial({
+    color: color || '#ff4444',
+    roughness: 0.55,
+    metalness: 0.08,
+    transparent: translucent,
+    opacity,
+    depthWrite: true,
+  });
+  const bodyParts = [
+    // x, y, z, szélesség, magasság, hossz
+    [0, groundY + 0.48, 0, 1.45, 0.42, 2.8],
+    [0, groundY + 0.32, 1.65, 0.52, 0.22, 1.4],
+    [0, groundY + 0.19, 2.12, 1.95, 0.10, 0.48],
+    [0, groundY + 0.72, -1.75, 1.65, 0.16, 0.35],
+    [0, groundY + 0.72, -0.15, 0.62, 0.36, 0.78],
+  ];
+  const body = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(1, 1, 1), bodyMaterial, bodyParts.length
+  );
+  const dummy = new THREE.Object3D();
+  bodyParts.forEach(([x, y, z, sx, sy, sz], index) => {
+    dummy.position.set(x, y, z);
+    dummy.scale.set(sx, sy, sz);
+    dummy.updateMatrix();
+    body.setMatrixAt(index, dummy.matrix);
+  });
+  body.instanceMatrix.needsUpdate = true;
+  root.add(body);
+
+  const wheelMaterial = new THREE.MeshStandardMaterial({
+    color: translucent ? '#4e6775' : '#151515',
+    roughness: 0.9,
+    transparent: translucent,
+    opacity,
+    depthWrite: true,
+  });
+  const wheel = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), wheelMaterial, 4);
+  [[-0.84, 1.35], [0.84, 1.35], [-0.84, -1.28], [0.84, -1.28]]
+    .forEach(([x, z], index) => {
+      dummy.position.set(x, groundY + 0.27, z);
+      dummy.scale.set(0.32, 0.54, 0.68);
+      dummy.updateMatrix();
+      wheel.setMatrixAt(index, dummy.matrix);
+    });
+  wheel.instanceMatrix.needsUpdate = true;
+  root.add(wheel);
+  return root;
+}
+
+function setRemoteVisualQuality(group, lowDetail) {
+  const high = group.userData.highDetail;
+  const low = group.userData.lowDetail;
+  if (!high || !low) return;
+  high.visible = !lowDetail;
+  low.visible = lowDetail;
+}
+
+async function loadRemoteCarVisual(car, fallbackColor, onProgress, translucent = false, signal) {
   const group = new THREE.Group();
   try {
-    const gltf = await G.loadGLTF(G.assetUrl(car, true), onProgress);
+    const gltf = await G.loadGLTF(G.assetUrl(car, true), onProgress, signal);
     const model = gltf.scene;
     // Ugyanaz a normalizálás, mint a saját kocsinál: a hossz-tengely Z-re
     // forgatva, és a fizikai kasztni hosszára skálázva — enélkül a többiek
@@ -1872,11 +2002,16 @@ async function loadRemoteCarVisual(car, fallbackColor, onProgress, translucent =
         object.castShadow = false;
       });
     }
-    group.add(model);
+    const lowDetail = createRemoteLowDetailVisual(fallbackColor, translucent);
+    lowDetail.visible = false;
+    group.add(model, lowDetail);
+    group.userData.highDetail = model;
+    group.userData.lowDetail = lowDetail;
     // A saját autóval azonos geometriai felismerés: autónkénti kézi lista vagy
     // offset nélkül megtalálja és külön pivotokra fűzi a látható kerekeket.
     group.userData.wheelRig = G.createRemoteWheelRig(model, car.config?.wheelPattern, group);
-  } catch {
+  } catch (error) {
+    if (error?.name === 'AbortError' || signal?.aborted) throw error;
     // Ha a modell nem tölthető, egy doboz is jobb, mint egy láthatatlan
     // ellenfél, akinek nekimehetünk. A doboz a játékos színét kapja, hogy
     // ilyenkor is beazonosítható legyen.
@@ -1916,17 +2051,17 @@ async function warmGhostCarVisual(group) {
   }
 }
 
-async function addGhostCar(ghost, onProgress, loadGeneration) {
+async function addGhostCar(ghost, onProgress, loadGeneration, signal) {
   const car = G.manifest.cars.find((c) => c.id === ghost.carId) || G.manifest.cars[0];
-  const group = await loadRemoteCarVisual(car, '#75d7ff', onProgress, true);
-  if (loadGeneration !== raceLoadGeneration) {
+  const group = await loadRemoteCarVisual(car, '#75d7ff', onProgress, true, signal);
+  if (signal?.aborted || loadGeneration !== raceLoadGeneration) {
     G.disposeObject3D(group);
     return;
   }
   group.visible = false;
   G.scene.add(group);
   await warmGhostCarVisual(group);
-  if (loadGeneration !== raceLoadGeneration) {
+  if (signal?.aborted || loadGeneration !== raceLoadGeneration) {
     G.scene.remove(group);
     G.disposeObject3D(group);
     return;
@@ -2215,6 +2350,11 @@ function onSnapshot(m) {
       entry.lastLap = c.last ?? null;
       entry.lastLapInvalid = !!c.li;
       entry.finished = !!c.fin;
+      if (entry.finished) {
+        entry.proxyActive = false;
+        entry.proxyPose = null;
+        G.setRemoteCarProxy(c.id, null);
+      }
     }
     if (c.id === me.id) {
       selfDiagnosticCar = c;
@@ -2349,6 +2489,7 @@ const REMOTE_RENDER_MAX_RANGE = 700;
 const REMOTE_RENDER_MAX_RANGE_SQ = REMOTE_RENDER_MAX_RANGE * REMOTE_RENDER_MAX_RANGE;
 const REMOTE_AUDIO_MAX_RANGE = 125;
 let remoteDetailFrame = 0;
+let remoteQualityBudget = { degraded: false, slowMs: 0, cleanMs: 0 };
 
 function integrateRotation(q, w, dt) {
   const speed = Math.hypot(w?.[0] || 0, w?.[1] || 0, w?.[2] || 0);
@@ -2397,6 +2538,12 @@ function syncRemoteProxies(targetServerTime) {
   let hardResetCount = 0;
   let maxSequenceGap = 0;
   for (const [id, o] of others) {
+    if (o.finished) {
+      o.proxyActive = false;
+      o.proxyPose = null;
+      G.setRemoteCarProxy(id, null);
+      continue;
+    }
     const latest = o.buf[o.buf.length - 1];
     const state = remoteStateAt(o.buf, targetServerTime);
     const stateAgeMs = latest ? Math.max(0, now - latest.t) : Infinity;
@@ -2649,6 +2796,7 @@ function hideRemoteCar(o) {
 function frame(dt = 1 / 60) {
   window.__mp.frames++;
   remoteDetailFrame = (remoteDetailFrame + 1) % 240;
+  remoteQualityBudget = updateRemoteQualityBudget(remoteQualityBudget, dt * 1000);
   const nowServer = serverNow();
   // A távoli idővonal órája. Ugyanaz a mechanizmus, mint a saját kocsié, csak
   // tágabb tűréssel: itt a mélyítés biztonsági kérdés (üres puffer = megálló
@@ -2723,6 +2871,10 @@ function frame(dt = 1 / 60) {
     const labelDistSq = lx * lx + ly * ly + lz * lz;
     const cameraDistance = Math.sqrt(labelDistSq);
     const watched = o === watchedEntry;
+    // A nézett autó mindig teljes minőségű. A többi csak akkor vált a két
+    // draw callos könnyű F1-modellre, ha a teljes képkockaidő tartósan rossz;
+    // a fizikai proxy és a hálózati állapot ettől semmit nem változik.
+    setRemoteVisualQuality(o.group, remoteQualityBudget.degraded && !watched);
     const detailInterval = remoteDetailUpdateInterval(cameraDistance, watched);
     const detailDue = detailInterval === 1
       || (remoteDetailFrame + o.detailPhase) % detailInterval === 0;

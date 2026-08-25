@@ -234,11 +234,13 @@ export class Room {
     return this.countdownEndsAt;
   }
 
-  // Csak az ÉLŐ kapcsolatokat várjuk meg: egy félúton elhalt socket különben a
-  // teljes időkorlátot rászabná mindenki másra.
+  // A rövid reconnect-türelmi idő alatt a megszakadt játékost is megvárjuk.
+  // Ha nem tér vissza, a reconnect timer eltávolítja a szobából és újra
+  // meghívja a countdown-ellenőrzést; így legfeljebb 10 másodpercet várunk rá,
+  // de nem indul el azonnal nélküle egy pillanatnyi Wi-Fi szakadás miatt.
   allReady() {
     for (const p of this.players.values()) {
-      if (p.socket?.readyState === 1 && !p.ready) return false;
+      if (!p.ready) return false;
     }
     return true;
   }

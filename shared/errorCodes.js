@@ -34,6 +34,7 @@ export const ERR = Object.freeze({
   HOST_ONLY_START: 'hostOnlyStart',
   UNKNOWN_MESSAGE: 'unknownMessage',
   RACE_START_FAILED: 'raceStartFailed',
+  RACE_LOAD_TIMEOUT: 'raceLoadTimeout',
   BAD_JSON: 'badJson',
   SERVER_ERROR: 'serverError',
 });

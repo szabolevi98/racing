@@ -181,6 +181,7 @@
   "server.hostOnlyStart": "Preteky môže odštartovať len vlastník miestnosti.",
   "server.unknownMessage": "Neznáma správa: ",
   "server.raceStartFailed": "Preteky sa nemôžu začať: ",
+  "server.raceLoadTimeout": "Čas na načítanie vypršal; preteky sa začali bez teba.",
   "server.badJson": "Poškodená správa (nie je to JSON).",
   "server.serverError": "Chyba servera pri spracovaní správy.",
   "mp.ui.backToMenu": "Späť do menu",

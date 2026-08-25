@@ -56,7 +56,6 @@ const MAX_CLIENT_STATE_CLOCK_LEAD_MS = 500;
 const MIN_CLIENT_STATE_ADVANCE_MS = 1;
 const MAX_CLIENT_CLOCK_BACKSTEP_MS = 50;
 const RESET_ACK_RADIUS_METERS = 2;
-const RESET_ACK_TIMEOUT_MS = 5_000;
 const HOT_LAP_HISTORY_LIMIT = 64;
 const SERVER_WHEEL_PROBES = wheelProbes(WHEEL_POSITIONS);
 
@@ -286,15 +285,19 @@ export class RaceController {
         state.p[0] - car.pendingReset.x,
         state.p[2] - car.pendingReset.z
       );
-      if (distanceToTarget > RESET_ACK_RADIUS_METERS && eventTime <= car.pendingReset.expiresAt) {
+      if (distanceToTarget > RESET_ACK_RADIUS_METERS) {
         // Az R elküldése és a CAR_RESET válasz megérkezése között a kliens még
         // küldhetett egy régi pozíciót. Ezt nem tekintjük új teleportnak, és a
         // szerver resetelt állapotát sem írhatja vissza a pálya másik pontjára.
+        //
+        // Nincs időkorlát: ha a kapcsolat pont a CAR_RESET előtt szakad meg,
+        // a kliens csak újracsatlakozáskor kapja meg újra a célpontot. Egy
+        // lejáró tranzakció ilyenkor visszaengedné a régi, reset előtti pózt.
         car.lastSeq = Math.max(car.lastSeq, seq);
         return false;
       }
       car.pendingReset = null;
-      car.acceptTeleportOnce = distanceToTarget <= RESET_ACK_RADIUS_METERS;
+      car.acceptTeleportOnce = true;
     }
     const stateClock = clientStateTime(car, raw?.t, eventTime, { initial });
     const movementAt = stateClock.at;
@@ -420,9 +423,19 @@ export class RaceController {
     car.lastMovementAt = resetAt;
     car.movementSamples = [{ p: [...car.state.p], at: car.lastMovementAt }];
     car.acceptTeleportOnce = true;
-    car.pendingReset = { x, z, expiresAt: Date.now() + RESET_ACK_TIMEOUT_MS };
+    car.pendingReset = { x, z, heading };
     this.broadcast(S2C.CAR_RESET, { playerId, respawn: { x, z, heading } });
     return true;
+  }
+
+  // Rövid kapcsolatvesztéskor a SESSION_RESUMED ezzel tudja újraküldeni a
+  // még vissza nem igazolt resetet. A belső tranzakciót nem adjuk ki, csak a
+  // kliensnek szükséges kanonikus pózt.
+  pendingResetPose(playerId) {
+    const pending = this.cars.get(playerId)?.pendingReset;
+    return pending
+      ? { x: pending.x, z: pending.z, heading: pending.heading || 0 }
+      : null;
   }
 
   beginGhostRecording(car, now) {
@@ -505,9 +518,18 @@ export class RaceController {
     this.recordGhostFrame(car, now);
 
     if (r.hasCrossedStart) {
+      // Egy visszatartott STATE után ugyanaz a mozgásszakasz több, egymáshoz
+      // közeli kaput is átvághat. Az összes metszést időrendben dolgozzuk fel:
+      // a manifest sorrendje normál esetben ugyanaz, de egy ferde szakasznál
+      // csak a metszési idő garantálja, hogy a valódi haladási sorrendet
+      // kövessük. A korábbi `break` az első után eldobta a többit.
+      const crossings = [];
       for (let i = 0; i < checkpoints.length; i++) {
         const crossedAt = crossingTime(checkpoints[i], fromX, fromZ, x, z, fromAt, now);
-        if (crossedAt === null) continue;
+        if (crossedAt !== null) crossings.push({ i, crossedAt });
+      }
+      crossings.sort((a, b) => a.crossedAt - b.crossedAt || a.i - b.i);
+      for (const { i, crossedAt } of crossings) {
         r.passed.add(i);
         if (i === r.nextCheckpoint) {
           r.nextCheckpoint++;
@@ -523,7 +545,6 @@ export class RaceController {
         } else if (i > r.nextCheckpoint) {
           r.taintReason = TAINT.CHECKPOINT;
         }
-        break;
       }
     }
 

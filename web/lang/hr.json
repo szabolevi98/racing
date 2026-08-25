@@ -181,6 +181,7 @@
   "server.hostOnlyStart": "Utrku može pokrenuti samo vlasnik sobe.",
   "server.unknownMessage": "Nepoznata poruka: ",
   "server.raceStartFailed": "Utrka ne može početi: ",
+  "server.raceLoadTimeout": "Vrijeme učitavanja je isteklo; utrka je počela bez tebe.",
   "server.badJson": "Neispravna poruka (nije JSON).",
   "server.serverError": "Pogreška poslužitelja pri obradi poruke.",
   "mp.ui.backToMenu": "Natrag na izbornik",
