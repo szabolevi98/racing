@@ -20,8 +20,17 @@ test('menu shows single-player and timing together with multiplayer below', asyn
   assert.match(multiplayer, /btn\.textContent = t\('menu\.multiplayer'\)/);
   assert.equal(hu['mp.hotLap'], 'Időmérés');
   assert.equal(hu['menu.multiplayer'], 'Többjátékos');
+  assert.equal(hu['menu.gameMode'], 'Játékmód');
+  assert.match(
+    html,
+    /class="graphics-quality-field"[\s\S]*class="mode-section"[\s\S]*id="modeButtons"/,
+    'all settings come before the final game-mode action section',
+  );
   assert.match(css, /\.mode-buttons\s*\{[^}]*grid-template-columns:\s*repeat\(2,/s);
   assert.match(css, /\.btn-mp\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/s);
+  assert.match(css, /\.race-options-row\s*\{[^}]*margin-top:\s*var\(--menu-section-gap\)/s);
+  assert.match(css, /\.graphics-quality-field\s*\{[^}]*margin-top:\s*var\(--menu-section-gap\)/s);
+  assert.match(css, /\.mode-section\s*\{[^}]*margin-top:\s*var\(--menu-section-gap\)/s);
   assert.match(multiplayer, /data-i18n="mp\.ui\.startHotLap"/);
   assert.equal(hu['mp.ui.startHotLap'], 'Időmérés indítása');
   assert.equal(hu['mp.hotLapOver'], 'Időmérés vége');

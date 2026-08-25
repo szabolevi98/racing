@@ -27,6 +27,10 @@ import { gridSlotPose, hotLapStartPose } from '/shared/grid.js';
 import { gateRespawnPoint } from '/shared/gate.js';
 import { classifyPing, shouldWarnAboutPing } from '/shared/ping.js';
 import {
+  DEFAULT_GRAPHICS_QUALITY, graphicsProfile,
+  normalizeGraphicsQuality,
+} from '/shared/graphicsQuality.js';
+import {
   SUPPORTED_LANGUAGES, pickLanguage, loadLanguage, rememberLanguage,
   currentLanguage, t, applyToDom,
   onLanguageChange, notifyLanguageChange,
@@ -223,6 +227,7 @@ function clearServerValidationAlert() {
   serverValidationAlertTimer = null;
 }
 const lapCountSelect = document.getElementById('lapCountSelect');
+const graphicsQualityInputs = [...document.querySelectorAll('input[name="graphicsQuality"]')];
 const raceHudEl = document.getElementById('raceHud');
 const raceHudWrapEl = document.getElementById('raceHudWrap');
 const standingsEl = document.getElementById('standings');
@@ -290,6 +295,21 @@ scene.fog = new THREE.FogExp2(0x9aa5ab, NORMAL_FOG_DENSITY);
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 5000);
 
 const RENDER_POWER_PREFERENCE = 'high-performance';
+let graphicsQuality = DEFAULT_GRAPHICS_QUALITY;
+let renderScaleOverride = null;
+
+function activeRenderScale() {
+  return renderScaleOverride ?? graphicsProfile(graphicsQuality).renderScale;
+}
+
+function activeEffectivePixelRatio() {
+  const devicePixelRatio = Number(window.devicePixelRatio);
+  const safeDevicePixelRatio = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0
+    ? devicePixelRatio
+    : 1;
+  return Math.min(safeDevicePixelRatio, 1) * activeRenderScale();
+}
+
 const renderer = new THREE.WebGLRenderer({
   antialias: true,
   // Két grafikus vezérlős gépen a böngésző lehetőleg ne az energiatakarékos
@@ -297,7 +317,7 @@ const renderer = new THREE.WebGLRenderer({
   // is felülbírálhatja, egyetlen GPU-s gépen pedig nincs mellékhatása.
   powerPreference: RENDER_POWER_PREFERENCE,
 });
-renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setPixelRatio(activeEffectivePixelRatio());
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 // A HDRI környezeti megvilágítás tone mapping nélkül túlexponáltnak (túl
@@ -315,10 +335,16 @@ function updateClientRenderingDiagnostics() {
     ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)
     : gl.getParameter(gl.RENDERER);
   renderer.getDrawingBufferSize(drawingBufferSize);
+  const profile = graphicsProfile(graphicsQuality);
   netDiagnostics.setClientRendering({
     gpuRenderer,
     powerPreference: RENDER_POWER_PREFERENCE,
+    graphicsQuality,
     devicePixelRatio: window.devicePixelRatio,
+    effectivePixelRatio: activeEffectivePixelRatio(),
+    renderScale: activeRenderScale(),
+    shadowMapSize: profile.shadowMapSize,
+    shadowRange: profile.shadowRange,
     cssWidth: renderer.domElement.clientWidth || window.innerWidth,
     cssHeight: renderer.domElement.clientHeight || window.innerHeight,
     drawingBufferWidth: drawingBufferSize.x,
@@ -331,6 +357,7 @@ updateClientRenderingDiagnostics();
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
+  renderer.setPixelRatio(activeEffectivePixelRatio());
   renderer.setSize(window.innerWidth, window.innerHeight);
   updateClientRenderingDiagnostics();
 });
@@ -512,8 +539,38 @@ function shadowSettings() {
   };
 }
 
-// A nap fix, kis (±100 egységes) árnyék-frusztuma minden képkockán az autó
-// fölé/mellé tolódik — így bárhol jár a pályán, az árnyék-kamera mindig
+function applyGraphicsQuality(requestedQuality) {
+  graphicsQuality = normalizeGraphicsQuality(requestedQuality);
+  renderScaleOverride = null;
+  const profile = graphicsProfile(graphicsQuality);
+  renderer.setPixelRatio(activeEffectivePixelRatio());
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  setShadowSettings({
+    range: profile.shadowRange,
+    mapSize: profile.shadowMapSize,
+  });
+  updateClientRenderingDiagnostics();
+  return graphicsQuality;
+}
+
+function setDebugRenderScale(requestedScale) {
+  const renderScale = Number(requestedScale);
+  if (!Number.isFinite(renderScale) || renderScale < 0.1 || renderScale > 1) {
+    throw new RangeError('A render scale 0.1 és 1 közötti szám lehet.');
+  }
+  renderScaleOverride = renderScale;
+  renderer.setPixelRatio(activeEffectivePixelRatio());
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  updateClientRenderingDiagnostics();
+  return {
+    renderScale: activeRenderScale(),
+    effectivePixelRatio: activeEffectivePixelRatio(),
+    drawingBuffer: { width: renderer.domElement.width, height: renderer.domElement.height },
+  };
+}
+
+// A nap grafikai profil szerinti, az autó körüli árnyék-frusztuma minden
+// képkockán vele együtt mozog. Így bárhol jár a pályán, az árnyék-kamera mindig
 // körülötte marad (élesebb, mint egy egész pályát lefedő verzió lenne).
 const sunOffset = new THREE.Vector3(80, 150, 60);
 function updateSunTarget(targetPos) {
@@ -2604,14 +2661,17 @@ function updatePitOptionAvailability(entry) {
   const hasPitLane = hasCompletePitConfig(entry?.pit);
   const hasEnoughLaps = Number(lapCountSelect.value) > 1;
   const available = hasPitLane && hasEnoughLaps;
-  mandatoryPitStopHintEl.textContent = !hasPitLane
+  const hint = !hasPitLane
     ? t('pit.noPitLane')
     : !hasEnoughLaps
       ? t('pit.oneLapInactive')
       : t('menu.pitStopHint');
+  mandatoryPitStopHintEl.textContent = hint;
   if (!available) mandatoryPitStopCheckbox.checked = false;
   mandatoryPitStopCheckbox.disabled = !available;
-  mandatoryPitStopCheckbox.closest('label')?.classList.toggle('is-unavailable', !available);
+  const optionCard = mandatoryPitStopCheckbox.closest('.ghost-mode-option');
+  optionCard?.classList.toggle('is-unavailable', !available);
+  optionCard?.querySelector('.option-info')?.setAttribute('aria-label', hint);
 }
 
 function setPitStopMarker(stop, visible = true) {
@@ -4585,6 +4645,7 @@ const DEFAULT_ENV_ID = 'day_1';
 const LS_KEYS = {
   map: 'racing.lastMapId', car: 'racing.lastCarId', env: 'racing.lastEnvId',
   laps: 'racing.lastLapCount',
+  graphics: 'racing.graphicsQuality',
   camera: 'racing.lastCameraView', muted: 'racing.muted', volume: 'racing.volume',
 };
 
@@ -4809,6 +4870,13 @@ async function init() {
   mapSelect.value = initialMap.id;
   carSelect.value = initialCar.id;
   envSelect.value = initialEnv.id;
+  const initialGraphicsQuality = normalizeGraphicsQuality(
+    loadLastChoice('graphics', DEFAULT_GRAPHICS_QUALITY),
+  );
+  graphicsQualityInputs.forEach((input) => {
+    input.checked = input.value === initialGraphicsQuality;
+  });
+  applyGraphicsQuality(initialGraphicsQuality);
   // Csak akkor állítjuk vissza, ha a mentett érték tényleg szerepel a
   // listában — egy régi mentés (pl. időközben kivett körszám) különben üresen
   // hagyná a választót.
@@ -4881,6 +4949,14 @@ async function init() {
     saveLastChoice('laps', lapCountSelect.value);
     updatePitOptionAvailability(findEntry(manifest.maps, mapSelect.value));
   });
+  graphicsQualityInputs.forEach((input) => input.addEventListener('change', () => {
+    if (!input.checked) return;
+    const applied = applyGraphicsQuality(input.value);
+    graphicsQualityInputs.forEach((choice) => {
+      choice.checked = choice.value === applied;
+    });
+    saveLastChoice('graphics', applied);
+  }));
   envSelect.addEventListener('change', async () => {
     const entry = findEntry(manifest.skyboxes, envSelect.value);
     saveLastChoice('env', entry.id);
@@ -5641,6 +5717,17 @@ window.__game = {
 window.__debug = {
   RAPIER, THREE,
   chassisBody, chassisCollider, vehicle, world, carPivot, camera,
+  setRenderScale: setDebugRenderScale,
+  get graphics() {
+    return {
+      quality: graphicsQuality,
+      ...graphicsProfile(graphicsQuality),
+      renderScale: activeRenderScale(),
+      customRenderScale: renderScaleOverride !== null,
+      effectivePixelRatio: activeEffectivePixelRatio(),
+      drawingBuffer: { width: renderer.domElement.width, height: renderer.domElement.height },
+    };
+  },
   // Ezeket a setTrack újra értékül adja, ezért getterként kell kitenni —
   // egy egyszerű másolat elavulna pályaváltáskor.
   get currentSpawnPoints() { return currentSpawnPoints; },

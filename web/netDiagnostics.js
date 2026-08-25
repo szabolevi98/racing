@@ -163,7 +163,12 @@ export class NetDiagnosticsRecorder {
     this.clientRendering = Object.freeze({
       gpuRenderer: null,
       powerPreference: null,
+      graphicsQuality: null,
       devicePixelRatio: null,
+      effectivePixelRatio: null,
+      renderScale: null,
+      shadowMapSize: null,
+      shadowRange: null,
       cssWidth: null,
       cssHeight: null,
       drawingBufferWidth: null,
@@ -184,7 +189,12 @@ export class NetDiagnosticsRecorder {
   setClientRendering({
     gpuRenderer = null,
     powerPreference = null,
+    graphicsQuality = null,
     devicePixelRatio = null,
+    effectivePixelRatio = null,
+    renderScale = null,
+    shadowMapSize = null,
+    shadowRange = null,
     cssWidth = null,
     cssHeight = null,
     drawingBufferWidth = null,
@@ -198,7 +208,12 @@ export class NetDiagnosticsRecorder {
     this.clientRendering = Object.freeze({
       gpuRenderer: safeRuntimeText(gpuRenderer),
       powerPreference: safeRuntimeText(powerPreference),
+      graphicsQuality: safeRuntimeText(graphicsQuality),
       devicePixelRatio: finiteOrNull(devicePixelRatio),
+      effectivePixelRatio: finiteOrNull(effectivePixelRatio),
+      renderScale: finiteOrNull(renderScale),
+      shadowMapSize: finiteOrNull(shadowMapSize),
+      shadowRange: finiteOrNull(shadowRange),
       cssWidth: finiteOrNull(cssWidth),
       cssHeight: finiteOrNull(cssHeight),
       drawingBufferWidth: finiteOrNull(drawingBufferWidth),
@@ -306,7 +321,7 @@ export class NetDiagnosticsRecorder {
     const fields = {};
     for (const [, [name, names]] of Object.entries(EVENT_SCHEMA)) fields[name] = ['relativeMs', ...names];
     return {
-      schemaVersion: 6,
+      schemaVersion: 7,
       generatedAt: new Date(this.wallNow()).toISOString(),
       windowMs: this.windowMs,
       privacy: 'No player names, room codes, authentication tokens or message text are recorded.',

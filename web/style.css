@@ -158,6 +158,7 @@ kbd.k {
    hosszú viszont egyszerűen felülről indul és végiggörgethető. */
 .menu-inner {
   min-height: 100%; display: flex; flex-direction: column; justify-content: center;
+  --menu-section-gap: 16px;
   /* A nyelvválasztó horgonya: a sarokba kikerülve nem foglal sort. */
   position: relative;
 }
@@ -338,15 +339,75 @@ kbd.k {
   grid-column: 1 / -1;
 }
 .ghost-mode-option {
-  display: flex; align-items: flex-start; gap: 9px; margin-top: 10px;
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center; gap: 9px; min-height: 42px; margin-top: 10px;
   padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--r-sm);
-  color: var(--muted); background: rgba(255, 255, 255, .025); cursor: pointer;
+  color: var(--muted); background: rgba(255, 255, 255, .025);
 }
-.ghost-mode-option input { margin-top: 2px; accent-color: var(--accent); cursor: pointer; }
-.ghost-mode-option span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ghost-mode-option label {
+  display: flex; align-items: center; gap: 9px; min-width: 0; cursor: pointer;
+}
+.ghost-mode-option input { margin: 0; accent-color: var(--accent); cursor: pointer; }
 .ghost-mode-option strong { color: var(--text); font-size: 12px; font-weight: 700; }
-.ghost-mode-option small { font-size: 10px; line-height: 1.3; }
-.ghost-mode-option.is-unavailable small { color: var(--warn); }
+.ghost-mode-option.is-unavailable label { cursor: not-allowed; }
+.option-info {
+  width: 20px; height: 20px; padding: 0; border: 1px solid var(--line-strong);
+  border-radius: 50%; color: var(--muted); background: rgba(255, 255, 255, .04);
+  font-size: 11px; font-weight: 800; line-height: 18px; text-align: center; cursor: help;
+}
+.option-info:hover, .option-info:focus-visible {
+  color: var(--text); border-color: var(--accent); outline: none;
+}
+.option-tooltip {
+  position: absolute; bottom: calc(100% + 7px); z-index: 3;
+  width: max-content; max-width: min(280px, calc(200% + 8px));
+  padding: 7px 9px; border: 1px solid var(--line-strong); border-radius: 7px;
+  color: var(--text); background: #171c27; box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
+  font-size: 10px; font-weight: 500; line-height: 1.35;
+  visibility: hidden; opacity: 0; pointer-events: none;
+  transform: translateY(3px); transition: opacity .12s ease, transform .12s ease;
+}
+.race-options-row > :first-child .option-tooltip { left: 0; }
+.race-options-row > :last-child .option-tooltip { right: 0; }
+.option-info:hover + .option-tooltip,
+.option-info:focus-visible + .option-tooltip {
+  visibility: visible; opacity: 1; transform: translateY(0);
+}
+.race-options-row {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;
+  margin-top: var(--menu-section-gap);
+}
+.race-options-row .ghost-mode-option { height: 100%; margin-top: 0; }
+.graphics-quality-field {
+  margin-top: var(--menu-section-gap);
+}
+.graphics-quality-title { display: block; margin-bottom: 0.35rem; }
+.graphics-quality-options {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px;
+}
+.graphics-quality-option { position: relative; margin: 0; cursor: pointer; }
+.graphics-quality-option input {
+  position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none;
+}
+.graphics-quality-option span {
+  display: flex; align-items: center; justify-content: center; min-height: 38px;
+  padding: 7px 9px; border: 1px solid var(--line); border-radius: var(--r-sm);
+  color: var(--muted); background: rgba(255, 255, 255, .025);
+  font-size: 12px; font-weight: 700; transition: color .12s ease, border-color .12s ease,
+    background-color .12s ease, transform .05s ease;
+}
+.graphics-quality-option:hover span { color: var(--text); border-color: var(--line-strong); }
+.graphics-quality-option input:checked + span {
+  color: #fff; border-color: rgba(77, 141, 255, .72); background: rgba(77, 141, 255, .28);
+}
+.graphics-quality-option input:focus-visible + span {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.graphics-quality-option:active span { transform: translateY(1px); }
+.mode-section {
+  margin-top: var(--menu-section-gap); padding-top: 12px; border-top: 1px solid var(--line);
+}
+.mode-section-title { margin-bottom: 7px; }
 
 /* Alacsony ablak (fekvő telefon, ~375 px magas).
  *
@@ -362,7 +423,7 @@ kbd.k {
  */
 @media (max-height: 640px) {
   #menu { width: min(360px, 46vw); }
-  .menu-inner { padding: 0.9rem 1rem !important; }
+  .menu-inner { --menu-section-gap: 0.4rem; padding: 0.9rem 1rem !important; }
   #menu h1 { font-size: 1.35rem; margin-bottom: 0; }
   .menu-sub { font-size: 9px; letter-spacing: 0.14em; margin-bottom: 0.55rem; }
   #menu .form-label { margin-bottom: 0.15rem; font-size: 9px; }
@@ -377,18 +438,25 @@ kbd.k {
   }
   #menu .mb-3 { margin-bottom: 0.45rem !important; }
   #menu .row.g-3 { --bs-gutter-y: 0.45rem; }
-  #menu .row.mb-4 { margin-bottom: 0.5rem !important; }
   .btn-race { padding: 0.45rem 0.8rem; font-size: 0.88rem; border-radius: 8px; }
   #menuStatus { margin-top: 0.35rem !important; font-size: 10px; }
   .track-alert { margin-bottom: 0.45rem; padding: 6px 8px; font-size: 9px; }
   .ghost-mode-option { margin-top: 0.4rem; padding: 5px 8px; gap: 6px; }
+  .ghost-mode-option label { gap: 6px; }
   .ghost-mode-option strong { font-size: 10px; }
-  .ghost-mode-option small { font-size: 8px; }
+  .option-info { width: 17px; height: 17px; font-size: 9px; line-height: 15px; }
+  .race-options-row { gap: 6px; }
+  .race-options-row .ghost-mode-option { margin-top: 0; }
+  .graphics-quality-title { margin-bottom: 0.15rem; }
+  .graphics-quality-options { gap: 5px; }
+  .graphics-quality-option span { min-height: 30px; padding: 4px 6px; font-size: 10px; }
+  .mode-section { padding-top: 0.45rem; }
+  .mode-section-title { margin-bottom: 0.25rem; }
 
   /* Kétoszlopos elrendezés. A .menu-inner eddig oszlop-flex volt; ráccsá
      alakítva a gyerekek MARKUP-VÁLTOZÁS NÉLKÜL kerülnek két hasábba, tehát
      az asztali nézet érintetlen marad. A címsor, a körök/környezet sora és a
-     ghost mód a teljes szélességet kapja, a két nagy legördülő pedig
+     versenyopciók a teljes szélességet kapják, a két nagy legördülő pedig
      egymás mellé kerül. A módgombok a saját kétoszlopos rácsukat tartják. */
   .menu-inner {
     display: grid; grid-template-columns: 1fr 1fr;
@@ -398,8 +466,9 @@ kbd.k {
   .menu-inner > .menu-sub,
   .menu-inner > .menu-primary-fields,
   .menu-inner > .row,
-  .menu-inner > .mode-buttons,
-  .menu-inner > .ghost-mode-option,
+  .menu-inner > .race-options-row,
+  .menu-inner > .graphics-quality-field,
+  .menu-inner > .mode-section,
   .menu-inner > #menuStatus { grid-column: 1 / -1; }
   .mode-buttons { gap: 6px; }
   .mode-buttons .btn-race { padding-inline: 0.3rem; font-size: 0.78rem; }
@@ -711,6 +780,7 @@ kbd.k {
 
 @media (hover: none) and (pointer: coarse), (max-width: 900px) {
   .ghost-mode-option { gap: 7px; margin-top: 7px; padding: 6px 8px; }
+  .race-options-row .ghost-mode-option { margin-top: 0; }
   .ghost-mode-option strong { font-size: 10px; }
   .ghost-mode-option small { font-size: 8px; }
   #touchControls { display: block; }

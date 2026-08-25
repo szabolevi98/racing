@@ -99,7 +99,7 @@ test('pipeline diagnostics separates proxy, physics and rendering work', () => {
   recorder.record(NET_DIAG_EVENT.PIPELINE_TIMING, 0.2, 0.5, 1.1, 2.4, 0.8, 2.1, 3.2, 8.4);
   recorder.record(NET_DIAG_EVENT.RENDER_LOAD, 140, 250_000);
   const report = recorder.buildReport();
-  assert.equal(report.schemaVersion, 6);
+  assert.equal(report.schemaVersion, 7);
   assert.deepEqual(report.eventFields.pipeline_timing, [
     'relativeMs', 'proxySyncAvgMs', 'proxySyncMaxMs', 'physicsAvgMs', 'physicsMaxMs',
     'multiplayerFrameAvgMs', 'multiplayerFrameMaxMs', 'renderCpuAvgMs', 'renderCpuMaxMs',
@@ -115,7 +115,12 @@ test('rendering diagnostics identify the GPU and actual drawing buffer without u
   recorder.setClientRendering({
     gpuRenderer: 'ANGLE (Intel UHD Graphics 630)',
     powerPreference: 'high-performance',
+    graphicsQuality: 'medium',
     devicePixelRatio: 1.25,
+    effectivePixelRatio: 0.8,
+    renderScale: 0.8,
+    shadowMapSize: 2048,
+    shadowRange: 100,
     cssWidth: 1920,
     cssHeight: 1080,
     drawingBufferWidth: 2400,
@@ -125,7 +130,12 @@ test('rendering diagnostics identify the GPU and actual drawing buffer without u
   assert.deepEqual(report.clientRendering, {
     gpuRenderer: 'ANGLE (Intel UHD Graphics 630)',
     powerPreference: 'high-performance',
+    graphicsQuality: 'medium',
     devicePixelRatio: 1.25,
+    effectivePixelRatio: 0.8,
+    renderScale: 0.8,
+    shadowMapSize: 2048,
+    shadowRange: 100,
     cssWidth: 1920,
     cssHeight: 1080,
     drawingBufferWidth: 2400,

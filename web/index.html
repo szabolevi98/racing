@@ -52,7 +52,7 @@
     <div class="car-physics-hint" data-i18n="menu.carPhysicsHint">Az autók ugyanazt az F1-es fizikát használják.</div>
   </div>
 
-  <div class="row g-3 mb-4">
+  <div class="row g-3 mb-0">
     <div class="col-7">
       <label for="envSelect" class="form-label lbl" data-i18n="menu.environment">Környezet</label>
       <select id="envSelect" class="form-select" disabled></select>
@@ -74,17 +74,49 @@
     </div>
   </div>
 
-  <div id="modeButtons" class="mode-buttons">
-    <button id="startBtn" class="btn-race btn-solo" data-i18n="menu.solo" disabled>Egyjátékos</button>
+  <div class="race-options-row">
+    <div class="ghost-mode-option">
+      <label for="ghostModeCheckbox">
+        <input id="ghostModeCheckbox" type="checkbox">
+        <strong data-i18n="menu.ghostMode">Ghost mód</strong>
+      </label>
+      <button type="button" class="option-info" aria-describedby="ghostModeHint"
+              data-i18n-aria-label="menu.ghostModeHint" aria-label="Többjátékos módban az autók nem ütköznek egymással.">i</button>
+      <small id="ghostModeHint" class="option-tooltip" role="tooltip" data-i18n="menu.ghostModeHint">Többjátékos módban az autók nem ütköznek egymással.</small>
+    </div>
+    <div class="ghost-mode-option">
+      <label for="mandatoryPitStopCheckbox">
+        <input id="mandatoryPitStopCheckbox" type="checkbox">
+        <strong data-i18n="menu.pitStop">Kerékcsere</strong>
+      </label>
+      <button type="button" class="option-info" aria-describedby="mandatoryPitStopHint"
+              aria-label="Kötelező kiállás egy- és többjátékos módban.">i</button>
+      <small id="mandatoryPitStopHint" class="option-tooltip" role="tooltip">Kötelező kiállás egy- és többjátékos módban.</small>
+    </div>
   </div>
-  <label class="ghost-mode-option" for="ghostModeCheckbox">
-    <input id="ghostModeCheckbox" type="checkbox">
-    <span><strong data-i18n="menu.ghostMode">Ghost mód</strong><small data-i18n="menu.ghostModeHint">Többjátékos módban az autók nem ütköznek egymással.</small></span>
-  </label>
-  <label class="ghost-mode-option" for="mandatoryPitStopCheckbox">
-    <input id="mandatoryPitStopCheckbox" type="checkbox">
-    <span><strong data-i18n="menu.pitStop">Kötelező kerékcsere</strong><small id="mandatoryPitStopHint">Kötelező kiállás egy- és többjátékos módban.</small></span>
-  </label>
+  <div class="graphics-quality-field">
+    <span id="graphicsQualityLabel" class="lbl graphics-quality-title" data-i18n="menu.graphics">Grafika</span>
+    <div class="graphics-quality-options" role="radiogroup" aria-labelledby="graphicsQualityLabel">
+      <label class="graphics-quality-option">
+        <input type="radio" name="graphicsQuality" value="low">
+        <span data-i18n="graphics.low">Alacsony</span>
+      </label>
+      <label class="graphics-quality-option">
+        <input type="radio" name="graphicsQuality" value="medium">
+        <span data-i18n="graphics.medium">Közepes</span>
+      </label>
+      <label class="graphics-quality-option">
+        <input type="radio" name="graphicsQuality" value="high" checked>
+        <span data-i18n="graphics.high">Magas</span>
+      </label>
+    </div>
+  </div>
+  <div class="mode-section">
+    <div class="lbl mode-section-title" data-i18n="menu.gameMode">Játékmód</div>
+    <div id="modeButtons" class="mode-buttons">
+      <button id="startBtn" class="btn-race btn-solo" data-i18n="menu.solo" disabled>Egyjátékos</button>
+    </div>
+  </div>
   <div id="menuStatus" class="text-center mt-3">
     <div id="menuStatusText" role="status" aria-live="polite"></div>
     <a id="menuCopyright" href="https://github.com/szabolevi98" target="_blank"
