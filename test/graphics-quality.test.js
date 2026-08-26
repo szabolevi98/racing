@@ -12,14 +12,24 @@ const html = readFileSync(new URL('../web/index.html', import.meta.url), 'utf8')
 
 test('graphics presets use the agreed render scales and proportional shadow profiles', () => {
   assert.deepEqual(GRAPHICS_PROFILES, {
-    low: { renderScale: 0.6, shadowMapSize: 1024, shadowRange: 50 },
-    medium: { renderScale: 0.8, shadowMapSize: 2048, shadowRange: 100 },
-    high: { renderScale: 1, shadowMapSize: 4096, shadowRange: 200 },
+    low: {
+      renderScale: 0.6, shadowMapSize: 1024, shadowRange: 50, environmentCubeSize: 256,
+    },
+    medium: {
+      renderScale: 0.8, shadowMapSize: 2048, shadowRange: 100, environmentCubeSize: 512,
+    },
+    high: {
+      renderScale: 1, shadowMapSize: 4096, shadowRange: 200, environmentCubeSize: 1024,
+    },
   });
   for (const profile of Object.values(GRAPHICS_PROFILES)) {
     assert.equal((profile.shadowRange * 2) / profile.shadowMapSize, 400 / 4096,
       'all profiles keep the same nearby shadow texel density');
   }
+  assert.deepEqual(
+    Object.values(GRAPHICS_PROFILES).map((profile) => profile.environmentCubeSize),
+    [256, 512, 1024],
+  );
 });
 
 test('render pixel ratio never exceeds one and scales down from the capped value', () => {
@@ -52,6 +62,10 @@ test('main menu applies and remembers graphics quality immediately', () => {
   assert.match(main, /loadLastChoice\('graphics', DEFAULT_GRAPHICS_QUALITY\)/);
   assert.match(main, /graphicsQualityInputs\.forEach\(\(input\) => input\.addEventListener\('change'/);
   assert.match(main, /saveLastChoice\('graphics', applied\)/);
+  assert.match(main, /new THREE\.WebGLCubeRenderTarget\(targetCubeSize/);
+  assert.match(main, /pmremGenerator\.fromCubemap\(reducedCube\.texture\)/);
+  assert.match(main, /currentEnvironmentCubeSize !== environmentCubeSize/,
+    'changing graphics quality rebuilds the active skybox at the selected runtime size');
 });
 
 test('debug console can temporarily override the render scale', () => {

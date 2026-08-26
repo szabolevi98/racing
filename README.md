@@ -233,6 +233,12 @@ mérőszámait is.
 A riport nem tartalmaz játékosnevet, szobakódot, belépési tokent vagy szerveres
 üzenetszöveget; fájl- és JSON-készítés csak az `F9` megnyomásakor történik.
 
+A grafikai profil a renderfelbontás és az árnyék mellett az egyetlen eredeti
+4K HDR fájlból futásidőben létrehozott környezeti térkép méretét is szabályozza:
+alacsony/közepes/magas fokozaton 256/512/1024 pixeles cubemap-oldalak készülnek.
+A teljes HDR-t csak a betöltés és az egyszeri GPU-s átméretezés idejére tartjuk
+meg; külön skyboxfájlok és tartós 4K környezeti textúra nem szükségesek.
+
 ### Későbbi helyi fizikai munka
 
 A helyi fizikai ciklus nagyobb átalakítása és a saját autó rövid vizuális

@@ -362,7 +362,10 @@ window.addEventListener('resize', () => {
 // ---------- HDRI skybox (háttér + környezeti fény/tükröződés) ----------
 const pmremGenerator = new THREE.PMREMGenerator(renderer);
 pmremGenerator.compileEquirectangularShader();
+pmremGenerator.compileCubemapShader();
 let currentEnvMap = null;
+let currentSkyUrl = null;
+let currentEnvironmentCubeSize = null;
 
 // A jelenlegi fénybeállítások (sun 3.85 stb.) a day_1 HDRI-hez lettek
 // behangolva — ennek a mért átlagos fényereje a viszonyítási alap. A többi
@@ -425,16 +428,46 @@ function applyEnvLighting(analysis) {
   scene.environmentIntensity = isNight ? 0.3 : 0.5;
 }
 
+// A HDR-forrásból a grafikai profilnak megfelelő méretű cubemap készül a GPU-n.
+// Így nem kell minden égboltból három fájl, de az alacsonyabb profil a 4K HDR
+// dekódolása után már csak a jóval kisebb környezeti térképet tartja memóriában.
+function createEnvironmentMap(hdrTexture, targetCubeSize) {
+  const sourceCubeSize = THREE.MathUtils.floorPowerOfTwo(hdrTexture.image.width / 4);
+  if (targetCubeSize >= sourceCubeSize) {
+    return pmremGenerator.fromEquirectangular(hdrTexture).texture;
+  }
+
+  const reducedCube = new THREE.WebGLCubeRenderTarget(targetCubeSize, {
+    type: hdrTexture.type,
+    format: THREE.RGBAFormat,
+    colorSpace: hdrTexture.colorSpace,
+    minFilter: THREE.LinearFilter,
+    magFilter: THREE.LinearFilter,
+    generateMipmaps: false,
+    depthBuffer: false,
+    stencilBuffer: false,
+  });
+  try {
+    reducedCube.fromEquirectangularTexture(renderer, hdrTexture);
+    return pmremGenerator.fromCubemap(reducedCube.texture).texture;
+  } finally {
+    reducedCube.dispose();
+  }
+}
+
 function setSkybox(skyUrl, onProgress) {
+  const environmentCubeSize = graphicsProfile(graphicsQuality).environmentCubeSize;
   return new Promise((resolve, reject) => {
     new RGBELoader().load(
       skyUrl,
       (hdrTexture) => {
         const analysis = analyzeEnvTexture(hdrTexture);
-        const newEnvMap = pmremGenerator.fromEquirectangular(hdrTexture).texture;
+        const newEnvMap = createEnvironmentMap(hdrTexture, environmentCubeSize);
         hdrTexture.dispose();
         if (currentEnvMap) currentEnvMap.dispose();
         currentEnvMap = newEnvMap;
+        currentSkyUrl = skyUrl;
+        currentEnvironmentCubeSize = environmentCubeSize;
         scene.background = newEnvMap;
         scene.environment = newEnvMap;
         applyEnvLighting(analysis);
@@ -4946,13 +4979,23 @@ async function init() {
     saveLastChoice('laps', lapCountSelect.value);
     updatePitOptionAvailability(findEntry(manifest.maps, mapSelect.value));
   });
-  graphicsQualityInputs.forEach((input) => input.addEventListener('change', () => {
+  graphicsQualityInputs.forEach((input) => input.addEventListener('change', async () => {
     if (!input.checked) return;
     const applied = applyGraphicsQuality(input.value);
     graphicsQualityInputs.forEach((choice) => {
       choice.checked = choice.value === applied;
     });
     saveLastChoice('graphics', applied);
+    const environmentCubeSize = graphicsProfile(applied).environmentCubeSize;
+    if (currentSkyUrl && currentEnvironmentCubeSize !== environmentCubeSize) {
+      const entry = findEntry(manifest.skyboxes, envSelect.value);
+      showLoadingOverlay(true);
+      try {
+        await runLoadTasks([{ bytes: entry.bytes, run: (onP) => setSkybox(assetUrl(entry), onP) }]);
+      } finally {
+        hideLoadingOverlay();
+      }
+    }
   }));
   envSelect.addEventListener('change', async () => {
     const entry = findEntry(manifest.skyboxes, envSelect.value);
@@ -5711,6 +5754,7 @@ window.__debug = {
       renderScale: activeRenderScale(),
       customRenderScale: renderScaleOverride !== null,
       effectivePixelRatio: activeEffectivePixelRatio(),
+      activeEnvironmentCubeSize: currentEnvironmentCubeSize,
       drawingBuffer: { width: renderer.domElement.width, height: renderer.domElement.height },
     };
   },

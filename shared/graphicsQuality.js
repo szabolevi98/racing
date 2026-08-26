@@ -1,7 +1,13 @@
 export const GRAPHICS_PROFILES = Object.freeze({
-  low: Object.freeze({ renderScale: 0.6, shadowMapSize: 1024, shadowRange: 50 }),
-  medium: Object.freeze({ renderScale: 0.8, shadowMapSize: 2048, shadowRange: 100 }),
-  high: Object.freeze({ renderScale: 1, shadowMapSize: 4096, shadowRange: 200 }),
+  low: Object.freeze({
+    renderScale: 0.6, shadowMapSize: 1024, shadowRange: 50, environmentCubeSize: 256,
+  }),
+  medium: Object.freeze({
+    renderScale: 0.8, shadowMapSize: 2048, shadowRange: 100, environmentCubeSize: 512,
+  }),
+  high: Object.freeze({
+    renderScale: 1, shadowMapSize: 4096, shadowRange: 200, environmentCubeSize: 1024,
+  }),
 });
 
 export const DEFAULT_GRAPHICS_QUALITY = 'high';
