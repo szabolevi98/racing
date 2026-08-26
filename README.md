@@ -173,11 +173,8 @@ a kerékanimáció, a hang és a frissítési gyakoriság távolságfüggő; a n
 mindig kivétel a ritkítás alól. A részletes ellenfélmodellek a töltőképernyő
 alatt tényleges GPU-draw-val melegszenek elő. A kiválasztott, optimalizált
 autóskint rossz képkockaidőnél sem cseréljük le; egyszerű dobozmodell csak akkor
-jelenik meg, ha a valódi modell betöltése hibát jelez. A kerékpivotok leválasztása
-után az együtt mozgó, azonos anyagú, kompatibilis merev mesh-ek betöltéskor egy
-geometriába kerülnek. Ez a kinézetet és a mozgó kerekeket változatlanul hagyja,
-de a sok autó által okozott draw call-terhelést jelentősen csökkenti. A helyi
-főszálakadás nem kerülhet sem a ping-, sem a snapshot-jitter
+jelenik meg, ha a valódi modell betöltése hibát jelez. A helyi főszálakadás nem
+kerülhet sem a ping-, sem a snapshot-jitter
 becslésébe, a renderórák pedig hosszú képkocka után a megengedett puffermélységre
 állnak vissza ahelyett, hogy másodpercekig vagy percekig késleltetnék az autók képét.
 
@@ -256,9 +253,9 @@ Az F9 schema 10 riportjai megmutatták, hogy gyengébb integrált GPU-n a képko
 még elkészültek, miközben a korábbi külön `setTimeout`-os fizikai hurok 80–125
 ms-ig nem kapott futási lehetőséget. Ezért a fix 60 Hz-es lépések most a
 képkockához igazított ütemezőből futnak. Ettől a Rapier számítási költsége nem
-tűnik el; a terhelést a látható autók merev mesh-einek kötegelése csökkenti, az
-új ütemezés pedig megakadályozza, hogy a renderelés mellett külön a saját autó
-állapotfrissítése éhezzen ki.
+tűnik el és a modellek rajzolási költsége sem csökken; az új ütemezés azt
+akadályozza meg, hogy a renderelés mellett külön a saját autó állapotfrissítése
+éhezzen ki.
 
 Az F9-riport továbbra is külön méri a fizikai lépések idejét és késését, a saját
 megjelenítési puffer kifogyását, valamint a kamera lemaradását. Saját autós

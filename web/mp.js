@@ -24,7 +24,6 @@ import {
   LOCAL_CLOCK_RATE_MIN, LOCAL_CLOCK_RATE_MAX,
   REMOTE_CLOCK_RATE_MIN, REMOTE_CLOCK_RATE_MAX,
 } from '/shared/renderClock.js';
-import { batchCarVisual } from './carVisualBatch.js';
 import { createPitState, hasCompletePitConfig, updatePitState } from '/shared/pit.js';
 import {
   acceptsClockSample, smoothPing, updateMinRtt,
@@ -2017,10 +2016,6 @@ async function loadRemoteCarVisual(car, fallbackColor, onProgress, translucent =
     // A saját autóval azonos geometriai felismerés: autónkénti kézi lista vagy
     // offset nélkül megtalálja és külön pivotokra fűzi a látható kerekeket.
     group.userData.wheelRig = G.createRemoteWheelRig(model, car.config?.wheelPattern, group);
-    group.userData.batchStats = batchCarVisual(
-      group,
-      [model, ...group.userData.wheelRig.pivots],
-    );
   } catch (error) {
     if (error?.name === 'AbortError' || signal?.aborted) throw error;
     // Ha a modell nem tölthető, egy doboz is jobb, mint egy láthatatlan

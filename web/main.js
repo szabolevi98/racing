@@ -45,7 +45,6 @@ import {
   observeAngularMotion, observeVisualMotion,
   resetAngularMotionTracker, resetVisualMotionTracker,
 } from '/shared/visualMotion.js';
-import { batchCarVisual } from './carVisualBatch.js';
 import {
   ZONE_ASPHALT, ZONE_OFFTRACK, ZONE_WALL, decodeZoneCodes, decodeSmoothingMask,
   sampleZone, sampleSmoothing,
@@ -1904,7 +1903,6 @@ function buildWheelPivots(carRoot, wheelPattern) {
   const rig = createWheelPivots(carRoot, wheelPattern, carPivot);
   wheelPivots = rig.pivots;
   wheelSources = rig.sources;
-  return rig;
 }
 
 // Egy objektum legalsó pontja a SAJÁT koordinátarendszerében. Nem a
@@ -2015,8 +2013,7 @@ async function setCar(carUrl, carId, config, onProgress, signal) {
   carPivot.add(carRoot);
   currentCarModel = carRoot;
   applyCarModelHeight();
-  const wheelRig = buildWheelPivots(carRoot, config && config.wheelPattern);
-  carRoot.userData.batchStats = batchCarVisual(carPivot, [carRoot, ...wheelRig.pivots]);
+  buildWheelPivots(carRoot, config && config.wheelPattern);
   carLoaded = true;
   setMenuStatus('');
 }
@@ -5642,7 +5639,6 @@ window.__game = {
   get currentGates() { return currentGates; },
   get currentPitConfig() { return currentPitConfig; },
   get carLoaded() { return carLoaded; },
-  get carBatchStats() { return currentCarModel?.userData.batchStats || null; },
   keys,
   getDriveAxes,
   assetUrl, setCar, setTrack, prepareTrackPhysics, loadGLTF, centerCarModelOnWheels,
