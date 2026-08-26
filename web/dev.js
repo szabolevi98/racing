@@ -2754,6 +2754,11 @@ function cutterPickAt(clientX, clientY) {
   cutterPickEl.innerHTML = `<strong>${faces.length}</strong> háromszög · méret <strong>${meret}</strong> m`
     + `<br><span class="text-secondary">a háló ${resz}%-a · középpont `
     + `${vilag.x.toFixed(1)}, ${vilag.y.toFixed(1)}, ${vilag.z.toFixed(1)}</span>`
+    // A KATTINTÁS pontja külön: egy nagy hálónál a középpont több száz méterre
+    // lehet attól, amit épp nézel, márpedig egy hibás pályarészt ezzel a
+    // koordinátával lehet visszakeresni a mérésekben.
+    + `<br><span class="text-secondary">kattintás: <strong>`
+    + `${hit.point.x.toFixed(1)}, ${hit.point.y.toFixed(1)}, ${hit.point.z.toFixed(1)}</strong></span>`
     + `<br>anyag: <strong class="text-info">${anyag || '(névtelen)'}</strong>`;
   // Menthető-e egyáltalán? A GLB-hez tartozó megfeleltetés hiánya csak a
   // mentésnél derülne ki, több perc munka után — inkább szóljunk azonnal.
