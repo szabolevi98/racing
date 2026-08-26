@@ -31,6 +31,7 @@ export const NET_DIAG_EVENT = Object.freeze({
   RENDER_LOAD: 18,
   SNAPSHOT_QUEUE: 19,
   LOCAL_PLAYBACK: 20,
+  VISUAL_MOTION: 21,
 });
 
 export const NET_DIAG_INCIDENT = Object.freeze({
@@ -111,6 +112,11 @@ const EVENT_SCHEMA = Object.freeze({
   [NET_DIAG_EVENT.LOCAL_PLAYBACK]: ['local_playback', [
     'bufferStarvedMaxMs', 'bufferHeadroomMs', 'inputTickGapMaxMs',
     'cameraFollowErrorMaxM', 'cameraSnapCount', 'predictionBufferSamples',
+  ]],
+  [NET_DIAG_EVENT.VISUAL_MOTION]: ['visual_motion', [
+    'cameraJerkMaxM', 'cameraRelativeJerkMaxM', 'ownCarJerkMaxM',
+    'nearestRemoteDistanceM', 'nearestRemotePredictionBlend',
+    'nearRemoteTimelineShiftMaxM', 'nearRemoteJerkMaxM', 'cameraStepMaxM',
   ]],
 });
 
@@ -321,7 +327,7 @@ export class NetDiagnosticsRecorder {
     const fields = {};
     for (const [, [name, names]] of Object.entries(EVENT_SCHEMA)) fields[name] = ['relativeMs', ...names];
     return {
-      schemaVersion: 8,
+      schemaVersion: 9,
       generatedAt: new Date(this.wallNow()).toISOString(),
       windowMs: this.windowMs,
       privacy: 'No player names, room codes, authentication tokens or message text are recorded.',

@@ -41,6 +41,9 @@ import {
   NET_DIAG_EVENT, NET_DIAG_INCIDENT, netDiagnostics,
 } from './netDiagnostics.js';
 import {
+  createVisualMotionTracker, observeVisualMotion, resetVisualMotionTracker,
+} from '/shared/visualMotion.js';
+import {
   ZONE_ASPHALT, ZONE_OFFTRACK, ZONE_WALL, decodeZoneCodes, decodeSmoothingMask,
   sampleZone, sampleSmoothing,
   wallProbes, wheelProbes,
@@ -3907,6 +3910,81 @@ let cameraStallSnapPending = false;
 let cameraFollowErrorMaxM = 0;
 let cameraStallSnapCount = 0;
 const CAMERA_STALL_SNAP_MS = 150;
+const cameraVisualMotion = createVisualMotionTracker();
+const cameraRelativeVisualMotion = createVisualMotionTracker();
+const ownCarVisualMotion = createVisualMotionTracker();
+let cameraVisualJerkMaxM = 0;
+let cameraRelativeVisualJerkMaxM = 0;
+let ownCarVisualJerkMaxM = 0;
+let cameraVisualStepMaxM = 0;
+let localVisualMotionSeen = false;
+
+function resetLocalVisualMotionTracking(resetSample = false) {
+  resetVisualMotionTracker(cameraVisualMotion);
+  resetVisualMotionTracker(cameraRelativeVisualMotion);
+  resetVisualMotionTracker(ownCarVisualMotion);
+  if (!resetSample) return;
+  cameraVisualJerkMaxM = 0;
+  cameraRelativeVisualJerkMaxM = 0;
+  ownCarVisualJerkMaxM = 0;
+  cameraVisualStepMaxM = 0;
+  localVisualMotionSeen = false;
+}
+
+function observeLocalVisualMotion(atMs) {
+  // Nézői módban a kamera már nem a saját autót követi. A kétféle helyzetet
+  // nem keverjük egy mérőszámba; a jelentett értékek vezetés közbeniek.
+  if (spectateTarget) {
+    resetLocalVisualMotionTracking();
+    return;
+  }
+  const p = carPivot.position;
+  const cameraValid = observeVisualMotion(
+    cameraVisualMotion, camera.position.x, camera.position.y, camera.position.z, atMs,
+  );
+  const relativeValid = observeVisualMotion(
+    cameraRelativeVisualMotion,
+    camera.position.x - p.x,
+    camera.position.y - p.y,
+    camera.position.z - p.z,
+    atMs,
+    100,
+    15,
+  );
+  const carValid = observeVisualMotion(ownCarVisualMotion, p.x, p.y, p.z, atMs);
+  if (cameraValid) {
+    cameraVisualJerkMaxM = Math.max(cameraVisualJerkMaxM, cameraVisualMotion.residualM);
+    cameraVisualStepMaxM = Math.max(cameraVisualStepMaxM, cameraVisualMotion.stepM);
+    localVisualMotionSeen = true;
+  }
+  if (relativeValid) {
+    cameraRelativeVisualJerkMaxM = Math.max(
+      cameraRelativeVisualJerkMaxM,
+      cameraRelativeVisualMotion.residualM,
+    );
+    localVisualMotionSeen = true;
+  }
+  if (carValid) {
+    ownCarVisualJerkMaxM = Math.max(ownCarVisualJerkMaxM, ownCarVisualMotion.residualM);
+    localVisualMotionSeen = true;
+  }
+}
+
+function takeLocalVisualMotionDiagnostics() {
+  const missing = Number.NaN;
+  const sample = {
+    cameraJerkMaxM: localVisualMotionSeen ? cameraVisualJerkMaxM : missing,
+    cameraRelativeJerkMaxM: localVisualMotionSeen ? cameraRelativeVisualJerkMaxM : missing,
+    ownCarJerkMaxM: localVisualMotionSeen ? ownCarVisualJerkMaxM : missing,
+    cameraStepMaxM: localVisualMotionSeen ? cameraVisualStepMaxM : missing,
+  };
+  cameraVisualJerkMaxM = 0;
+  cameraRelativeVisualJerkMaxM = 0;
+  ownCarVisualJerkMaxM = 0;
+  cameraVisualStepMaxM = 0;
+  localVisualMotionSeen = false;
+  return sample;
+}
 
 function requestCameraSnapAfterFrameStall() {
   cameraSnapPending = true;
@@ -3917,6 +3995,9 @@ function consumeCameraSnap() {
   cameraSnapPending = false;
   if (cameraStallSnapPending) cameraStallSnapCount++;
   cameraStallSnapPending = false;
+  // A szándékos helyreigazítás ne jelenjen meg kamera-rángásként. A már
+  // összegyűjtött negyedmásodperces maximumokat megtartjuk.
+  resetLocalVisualMotionTracking();
 }
 
 function takeCameraPlaybackDiagnostics() {
@@ -5063,10 +5144,12 @@ let netPipelineRenderTrianglesTotal = 0;
 
 function sampleNetPerformance(nowMs, rawFrameMs) {
   if (appState !== 'mp') {
+    if (netPerfActive) window.__mp?.takeVisualMotionDiagnostics?.();
     netPerfActive = false;
     cameraFollowErrorMaxM = 0;
     cameraStallSnapCount = 0;
     cameraStallSnapPending = false;
+    resetLocalVisualMotionTracking(true);
     return;
   }
   const mp = window.__mp;
@@ -5078,6 +5161,8 @@ function sampleNetPerformance(nowMs, rawFrameMs) {
     netPerfFrameMaxMs = 0;
     netPerfLastPhysicsSteps = mp?.physSteps ?? 0;
     mp?.takeLocalPlaybackDiagnostics?.();
+    mp?.takeVisualMotionDiagnostics?.();
+    resetLocalVisualMotionTracking(true);
     cameraFollowErrorMaxM = 0;
     cameraStallSnapCount = 0;
     return;
@@ -5110,6 +5195,19 @@ function sampleNetPerformance(nowMs, rawFrameMs) {
     cameraPlayback.followErrorMaxM,
     cameraPlayback.stallSnapCount,
     localPlayback.predictionBufferSamples,
+  );
+  const localVisual = takeLocalVisualMotionDiagnostics();
+  const remoteVisual = mp?.takeVisualMotionDiagnostics?.() || {};
+  netDiagnostics.record(
+    NET_DIAG_EVENT.VISUAL_MOTION,
+    localVisual.cameraJerkMaxM,
+    localVisual.cameraRelativeJerkMaxM,
+    localVisual.ownCarJerkMaxM,
+    remoteVisual.nearestDistanceM,
+    remoteVisual.nearestPredictionBlend,
+    remoteVisual.nearTimelineShiftMaxM,
+    remoteVisual.nearJerkMaxM,
+    localVisual.cameraStepMaxM,
   );
   // Csak fókuszban lévő játéknál tekintjük automatikus incidensnek. Egy
   // háttérfülről való visszatérés hosszú képkockája önmagában nem netcode-hiba.
@@ -5461,6 +5559,7 @@ function stepMultiplayerFrame(dt) {
   updateSunTarget(carPivot.position);
   updateWheelVisuals(dt);
   updateChaseCamera(dt);
+  observeLocalVisualMotion(performance.now());
   camera.getWorldDirection(audioListenerForward);
   audioListenerUp.set(0, 1, 0).applyQuaternion(camera.quaternion);
   updateAudioListener(camera.position, audioListenerForward, audioListenerUp, chassisBody.linvel());

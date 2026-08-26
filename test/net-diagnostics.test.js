@@ -89,9 +89,9 @@ test('default live recorder stays below 200 KiB and has enough room for 30 secon
   const recorder = new NetDiagnosticsRecorder();
   assert.equal(recorder.capacity, NET_DIAG_CAPACITY);
   assert.ok(recorder.memoryBytes() < 200 * 1024);
-  // 60 Hz állapot + 20 Hz snapshot + 20 Hz snapshot-sor + három 4 Hz-es
+  // 60 Hz állapot + 20 Hz snapshot + 20 Hz snapshot-sor + négy 4 Hz-es
   // teljesítménysor + 1 Hz ping.
-  assert.ok(recorder.capacity > 30 * (60 + 20 + 20 + 4 + 4 + 4 + 1));
+  assert.ok(recorder.capacity > 30 * (60 + 20 + 20 + 4 + 4 + 4 + 4 + 1));
 });
 
 test('pipeline diagnostics separates contact, physics and rendering work', () => {
@@ -99,7 +99,7 @@ test('pipeline diagnostics separates contact, physics and rendering work', () =>
   recorder.record(NET_DIAG_EVENT.PIPELINE_TIMING, 0.2, 0.5, 1.1, 2.4, 0.8, 2.1, 3.2, 8.4);
   recorder.record(NET_DIAG_EVENT.RENDER_LOAD, 140, 250_000);
   const report = recorder.buildReport();
-  assert.equal(report.schemaVersion, 8);
+  assert.equal(report.schemaVersion, 9);
   assert.deepEqual(report.eventFields.pipeline_timing, [
     'relativeMs', 'contactSyncAvgMs', 'contactSyncMaxMs', 'physicsAvgMs', 'physicsMaxMs',
     'multiplayerFrameAvgMs', 'multiplayerFrameMaxMs', 'renderCpuAvgMs', 'renderCpuMaxMs',
@@ -108,6 +108,20 @@ test('pipeline diagnostics separates contact, physics and rendering work', () =>
   assert.equal(report.current.events[0][1], 'pipeline_timing');
   assert.deepEqual(report.current.events[0].slice(2), [0.2, 0.5, 1.1, 2.4, 0.8, 2.1, 3.2, 8.4]);
   assert.deepEqual(report.current.events[1].slice(1), ['render_load', 140, 250_000]);
+});
+
+test('visual diagnostics separate local camera motion from nearby remote timelines', () => {
+  const recorder = new NetDiagnosticsRecorder({ now: () => 100, wallNow: () => 1 });
+  recorder.record(NET_DIAG_EVENT.VISUAL_MOTION, 0.1, 0.08, 0.02, 12, 1, 9.5, 0.7, 1.8);
+  const report = recorder.buildReport();
+  assert.deepEqual(report.eventFields.visual_motion, [
+    'relativeMs', 'cameraJerkMaxM', 'cameraRelativeJerkMaxM', 'ownCarJerkMaxM',
+    'nearestRemoteDistanceM', 'nearestRemotePredictionBlend',
+    'nearRemoteTimelineShiftMaxM', 'nearRemoteJerkMaxM', 'cameraStepMaxM',
+  ]);
+  assert.deepEqual(report.current.events[0].slice(1), [
+    'visual_motion', 0.1, 0.08, 0.02, 12, 1, 9.5, 0.7, 1.8,
+  ]);
 });
 
 test('contact diagnostics expose swept hits without the removed proxy vocabulary', () => {
@@ -186,5 +200,8 @@ test('F9 downloads diagnostics without adding a permanent HUD control', () => {
   assert.match(main, /renderer\.info\.render\.triangles/);
   assert.match(main, /powerPreference: RENDER_POWER_PREFERENCE/);
   assert.match(main, /NET_DIAG_EVENT\.LOCAL_PLAYBACK/);
+  assert.match(main, /NET_DIAG_EVENT\.VISUAL_MOTION/);
+  assert.match(multiplayer, /takeVisualMotionDiagnostics/);
+  assert.match(multiplayer, /nearRemoteTimelineShiftMaxM/);
   assert.match(main, /requestCameraSnapAfterFrameStall/);
 });

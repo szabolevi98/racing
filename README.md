@@ -229,7 +229,9 @@ Az `F9` egy JSON-riportba tölti le ezeket és a legutóbbi automatikusan megőr
 pingtüske-, főszálakadás-, kapcsolatvesztés- vagy szervervalidációs pillanatokat.
 A riport megadja a tényleges GPU-t, pixelarányt és rajzolási felbontást, valamint
 a feltorlódott snapshotok, a helyi fizikai puffer és a kamera helyreállításának
-mérőszámait is.
+mérőszámait is. Külön `visual_motion` sor választja szét a saját autó, a kamera,
+a kamera–autó relatív mozgása és a 80 méteren belüli ellenfelek képi rángását;
+utóbbiaknál az alkalmazott közelségi keverést és idővonal-eltolást is rögzíti.
 A riport nem tartalmaz játékosnevet, szobakódot, belépési tokent vagy szerveres
 üzenetszöveget; fájl- és JSON-készítés csak az `F9` megnyomásakor történik.
 

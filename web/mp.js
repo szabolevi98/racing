@@ -12,6 +12,7 @@ import { raceClockTimes } from '/shared/raceClock.js';
 import { ghostCheckpointSplits } from '/shared/gate.js';
 import {
   LOCAL_RENDER_DELAY_MAX_MS, LOCAL_RENDER_DELAY_MIN_MS,
+  REMOTE_VISUAL_PREDICT_FAR,
   localRenderDelayTarget, remoteDetailPhase, remoteDetailUpdateInterval,
   remoteVisualCorrectionHalfLife,
   remoteVisualPredictionBlend, smootherLeadSeconds,
@@ -29,6 +30,9 @@ import {
 import { ERR } from '/shared/errorCodes.js';
 import { remoteExtrapolationTiming, remoteSnapshotSample } from '/shared/remoteSnapshot.js';
 import { carContactStateIsFresh } from '/shared/carContact.js';
+import {
+  createVisualMotionTracker, observeVisualMotion, resetVisualMotionTracker,
+} from '/shared/visualMotion.js';
 import { t, hasKey, onLanguageChange, applyToDom } from './lang.js';
 import {
   NET_DIAG_CONNECTION, NET_DIAG_EVENT, NET_DIAG_INCIDENT, NET_DIAG_RACE_STAGE,
@@ -78,6 +82,7 @@ window.__mp = {
   get physicsTimerJitterMs() { return +physicsTimerJitterMs.toFixed(1); },
   takePipelineTimings: () => takePipelineTimings(),
   takeLocalPlaybackDiagnostics: () => takeLocalPlaybackDiagnostics(),
+  takeVisualMotionDiagnostics: () => takeVisualMotionDiagnostics(),
   // A szerver legutóbbi ellenőrzött állapota a saját kocsinkról.
   get lastSelf() { return lastSnapshot?.cars?.find((c) => c.id === me.id) || null; },
   // A helyi fizika és a kirajzolási interpoláció pozíciója diagnosztikához.
@@ -98,6 +103,50 @@ let starting = null;
 let pendingHotLap = null;
 // A távoli autók modelljei: playerId -> { group, buf: [állapotok] }
 const others = new Map();
+let nearestRemoteVisualDistanceM = Infinity;
+let nearestRemotePredictionBlend = Number.NaN;
+let nearRemoteTimelineShiftMaxM = 0;
+let nearRemoteVisualJerkMaxM = 0;
+let nearRemoteSeen = false;
+let nearRemoteMotionSeen = false;
+
+function takeVisualMotionDiagnostics() {
+  const sample = {
+    nearestDistanceM: Number.isFinite(nearestRemoteVisualDistanceM)
+      ? nearestRemoteVisualDistanceM
+      : Number.NaN,
+    nearestPredictionBlend: nearestRemotePredictionBlend,
+    nearTimelineShiftMaxM: nearRemoteSeen ? nearRemoteTimelineShiftMaxM : Number.NaN,
+    nearJerkMaxM: nearRemoteMotionSeen ? nearRemoteVisualJerkMaxM : Number.NaN,
+  };
+  nearestRemoteVisualDistanceM = Infinity;
+  nearestRemotePredictionBlend = Number.NaN;
+  nearRemoteTimelineShiftMaxM = 0;
+  nearRemoteVisualJerkMaxM = 0;
+  nearRemoteSeen = false;
+  nearRemoteMotionSeen = false;
+  return sample;
+}
+
+function observeRemoteVisualMotion(o, nowMs, distanceM, predictionBlend, timelineShiftM) {
+  if (distanceM < nearestRemoteVisualDistanceM) {
+    nearestRemoteVisualDistanceM = distanceM;
+    nearestRemotePredictionBlend = predictionBlend;
+  }
+  const motionValid = observeVisualMotion(
+    o.visualMotion,
+    o.group.position.x,
+    o.group.position.y,
+    o.group.position.z,
+    nowMs,
+  );
+  if (distanceM > REMOTE_VISUAL_PREDICT_FAR) return;
+  nearRemoteSeen = true;
+  nearRemoteTimelineShiftMaxM = Math.max(nearRemoteTimelineShiftMaxM, timelineShiftM);
+  if (!motionValid) return;
+  nearRemoteMotionSeen = true;
+  nearRemoteVisualJerkMaxM = Math.max(nearRemoteVisualJerkMaxM, o.visualMotion.residualM);
+}
 // A kiválasztott ranglistakör áttetsző visszajátszása. Nem kerül fizikai
 // kontaktlistába, ezért nem tud ütközni.
 let ghostCar = null;
@@ -1910,6 +1959,7 @@ async function addOtherCar(p, onProgress, loadGeneration, signal) {
     engineAudio: G.createRemoteEngine(), buf: [], color: p.color, name: p.name, lap: 0, cp: 0,
     rank: 0, gap: null, bestLap: null, lastLap: null, lastLapInvalid: false, finished: false,
     detailPhase: remoteDetailPhase(p.id), audioDt: 0, visualSteerAngle: 0,
+    visualMotion: createVisualMotionTracker(),
     contactActive: false,
   });
 }
@@ -2939,6 +2989,7 @@ function hideRemoteCar(o) {
   o.group.visible = false;
   o.label.visible = false;
   o.renderReady = false;
+  resetVisualMotionTracker(o.visualMotion);
 }
 
 // Minden képkockán fut (a main.js animate-jéből).
@@ -3072,7 +3123,8 @@ function frame(dt = 1 / 60) {
     // Korábban 60 méternél egyetlen képkocka alatt váltottunk a stabil,
     // pufferelt állapotról a jelenre extrapoláltra. Nagy pingnél ez többméteres
     // idővonal-ugrás lehetett. Most a távolság függvényében fokozatos az átmenet.
-    const predictionBlend = remoteVisualPredictionBlend(Math.sqrt(distSq));
+    const remoteDistance = Math.sqrt(distSq);
+    const predictionBlend = remoteVisualPredictionBlend(remoteDistance);
     // A távoli autó képe kizárólag a hálózati idővonalat követi. A helyi
     // kontaktmegoldó csak a saját autónkat módosítja, ezért nincs külön,
     // falba tolható vizuális/fizikai proxypóz, amit ide keverni kellene.
@@ -3080,6 +3132,7 @@ function frame(dt = 1 / 60) {
     if (!s) continue;
     const firstRenderedFrame = !o.renderReady;
     if (firstRenderedFrame) {
+      resetVisualMotionTracker(o.visualMotion);
       o.group.position.set(s.p[0], s.p[1], s.p[2]);
       o.group.quaternion.set(s.q[0], s.q[1], s.q[2], s.q[3]);
       o.renderReady = true;
@@ -3107,6 +3160,12 @@ function frame(dt = 1 / 60) {
       const qr = slerp(q0, integrateRotation(s.q, s.w || [0, 0, 0], lead), alpha);
       o.group.quaternion.set(qr[0], qr[1], qr[2], qr[3]);
     }
+    const timelineShiftM = Math.hypot(
+      s.p[0] - delayedState.p[0],
+      s.p[1] - delayedState.p[1],
+      s.p[2] - delayedState.p[2],
+    );
+    observeRemoteVisualMotion(o, nowLocal, remoteDistance, predictionBlend, timelineShiftM);
     const targetSteer = s.st ?? 0;
     o.visualSteerAngle = firstRenderedFrame
       ? targetSteer
