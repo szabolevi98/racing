@@ -797,9 +797,9 @@ function clearRemoteCarContacts() {
 }
 
 // Milyen mélyen van a talaj a kasztni KÖZEPE alatt, ha az autó nyugalomban áll?
-// A látható modellt ehhez igazítjuk, nem a kasztni-doboz aljához: a kerék a
+// A látható modellt ehhez igazítjuk, nem a kasztni ütközőjének aljához: a kerék a
 // kasztni alja alá lóg (rácsatlakozás + rugóhossz + keréksugár), ezért a
-// doboz aljához igazított modell a levegőben lóg.
+// kasztni aljához igazított modell a levegőben lóg.
 //
 // A nyugalmi rugóhosszt nem számoljuk ki képletből (a Bullet-féle rugóerő
 // pontos alakja motor-belső), hanem MÉRJÜK — de nem élő képkockán várunk rá,

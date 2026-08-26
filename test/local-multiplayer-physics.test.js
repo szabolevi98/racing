@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import RAPIER from '@dimforge/rapier3d-compat';
 import {
-  GRAVITY, CHASSIS_SIZE, CHASSIS_MASS, buildVehicle,
+  GRAVITY, CHASSIS_SIZE, CHASSIS_CORNER_RADIUS, CHASSIS_MASS, buildVehicle,
   FLOOR_COLLIDER_GROUPS, WALL_COLLIDER_GROUPS,
   CAR_COLLIDER_GROUPS, GHOST_CAR_COLLIDER_GROUPS, CAR_WALL_QUERY_GROUPS,
   WHEEL_RAY_FILTER_GROUPS, TRACK_FRICTION, WALL_FRICTION,
@@ -60,6 +60,31 @@ test('the suspension ray sees the floor through the canonical car filter', () =>
     const hit = world.castRay(ray, 10, true, undefined, WHEEL_RAY_FILTER_GROUPS);
     assert.equal(hit?.collider?.handle, floor.handle);
     assert.notEqual(hit?.collider?.handle, other.collider.handle);
+  } finally {
+    world.free();
+  }
+});
+
+test('the chassis rounds only its top-view corners and keeps its outer dimensions', () => {
+  const world = new RAPIER.World({ x: 0, y: 0, z: 0 });
+  try {
+    const car = buildVehicle(RAPIER, world);
+    assert.equal(CHASSIS_CORNER_RADIUS, 0.15);
+    assert.equal(car.collider.shape.type, RAPIER.ShapeType.ConvexPolyhedron);
+
+    const points = car.collider.shape.vertices;
+    const xs = [], ys = [], zs = [];
+    for (let i = 0; i < points.length; i += 3) {
+      xs.push(points[i]);
+      ys.push(points[i + 1]);
+      zs.push(points[i + 2]);
+    }
+    const bounds = (values) => [Math.min(...values), Math.max(...values)];
+    assert.deepEqual(bounds(xs).map((v) => +v.toFixed(6)), [-CHASSIS_SIZE.x, CHASSIS_SIZE.x]);
+    assert.deepEqual(bounds(ys).map((v) => +v.toFixed(6)), [-CHASSIS_SIZE.y, CHASSIS_SIZE.y]);
+    assert.deepEqual(bounds(zs).map((v) => +v.toFixed(6)), [-CHASSIS_SIZE.z, CHASSIS_SIZE.z]);
+    assert.ok(ys.every((y) => Math.abs(Math.abs(y) - CHASSIS_SIZE.y) < 1e-6));
+    assert.equal(car.body.mass(), CHASSIS_MASS);
   } finally {
     world.free();
   }

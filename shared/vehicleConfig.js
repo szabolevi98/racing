@@ -36,7 +36,7 @@ export const GRAVITY = { x: 0, y: -9.81, z: 0 };
 // A kerék-sugár (updateVehicle raycast) csak a talajt "látja" — a felfüggesztés
 // magasságát méri, sosem oldalra. Ha a falat is látná, a majdnem-vízszintes
 // fal-tetőkbe/párkányokba akadna bele a felfüggesztés-számítás. A kasztni
-// dobozának normál ütközője viszont a talajjal, fallal és másik autóval is
+// normál ütközője viszont a talajjal, fallal és másik autóval is
 // ütközik, így a fal ellen fizikailag megáll, a kerék-sugár pedig zavartalanul
 // a talajt méri alatta.
 //
@@ -77,10 +77,41 @@ export const WALL_FRICTION = 0.2;
 
 // Fél-méretek: szélesség/2, magasság/2, hossz/2.
 export const CHASSIS_SIZE = { x: 1.0, y: 0.4, z: 2.2 };
+// Csak a kasztni felülnézeti sarkait kerekítjük. A felső és alsó lap sík
+// marad, ezért a hasmagasságot és a rázóköves kontaktot nem változtatja meg.
+export const CHASSIS_CORNER_RADIUS = 0.15;
+const CHASSIS_CORNER_SEGMENTS = 4;
 // Egyetlen közös fizikai F1-autó minden vizuális skin alatt. A 600 kg a
 // klasszikus F1 minimumtömeg nagyságrendje; az összes motor-, fék-, futómű- és
 // aeroérték ehhez a tömeghez van együtt hangolva.
 export const CHASSIS_MASS = 600;
+
+function chassisColliderVertices() {
+  const { x: halfWidth, y: halfHeight, z: halfLength } = CHASSIS_SIZE;
+  const radius = CHASSIS_CORNER_RADIUS;
+  const coreX = halfWidth - radius;
+  const coreZ = halfLength - radius;
+  const vertices = [];
+  for (const y of [-halfHeight, halfHeight]) {
+    for (const signX of [-1, 1]) {
+      for (const signZ of [-1, 1]) {
+        const centerX = signX * coreX;
+        const centerZ = signZ * coreZ;
+        for (let segment = 0; segment <= CHASSIS_CORNER_SEGMENTS; segment++) {
+          const angle = segment * Math.PI / (2 * CHASSIS_CORNER_SEGMENTS);
+          vertices.push(
+            centerX + signX * radius * Math.cos(angle),
+            y,
+            centerZ + signZ * radius * Math.sin(angle),
+          );
+        }
+      }
+    }
+  }
+  return new Float32Array(vertices);
+}
+
+const CHASSIS_COLLIDER_VERTICES = chassisColliderVertices();
 
 // Ez alatt a sebesség (m/s) alatt számít az S/le nyíl VALÓDI hátramenetnek —
 // fölötte fékezésnek. Sok versenyjátékban megszokott: az "S" gomb előre
@@ -119,7 +150,7 @@ export function forwardSpeed(qx, qy, qz, qw, vx, vy, vz) {
   return vx * fx + vy * fy + vz * fz;
 }
 
-// A tömegközéppont alapból a doboz közepén ülne, ami a talaj fölött 0.85 —
+// A tömegközéppont alapból az ütközőtest közepén ülne, ami a talaj fölött 0.85 —
 // egy 4.4 hosszú kocsihoz képest irreálisan magas, és fékezéskor előrebuktatta
 // az autót. Egy versenyautó súlypontja nagyjából a keréktengely magasságában van.
 //
@@ -313,12 +344,14 @@ export function buildVehicle(
       .setLinearDamping(LINEAR_DAMPING)
       .setAngularDamping(ANGULAR_DAMPING)
       // A pálya ütközője háromszögháló, aminek nincs vastagsága: gyors esésnél
-      // a kasztni doboza egyetlen lépés alatt átugorhatná a felületet.
+      // a kasztni ütközője egyetlen lépés alatt átugorhatná a felületet.
       .setCcdEnabled(true)
   );
 
+  const chassisDesc = RAPIER.ColliderDesc.convexHull(CHASSIS_COLLIDER_VERTICES);
+  if (!chassisDesc) throw new Error('A kasztni lekerekített ütközőteste nem építhető fel.');
   const collider = world.createCollider(
-    RAPIER.ColliderDesc.cuboid(CHASSIS_SIZE.x, CHASSIS_SIZE.y, CHASSIS_SIZE.z)
+    chassisDesc
       .setMass(CHASSIS_MASS)
       .setCollisionGroups(collideWithCars ? CAR_COLLIDER_GROUPS : GHOST_CAR_COLLIDER_GROUPS),
     body
