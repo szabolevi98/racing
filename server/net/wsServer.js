@@ -188,8 +188,9 @@ function holdDisconnectedRacePlayer(player) {
     players.delete(player.id);
   }, RECONNECT_GRACE_MS);
   // A többiek azonnal látják, hogy a kapcsolat eltűnt. A RaceControllerben
-  // maradó utolsó állapot saját időbélyege nem frissül, így a kliensek 750 ms
-  // után kikapcsolják a fizikai proxyt, miközben a session még visszatérhet.
+  // maradó utolsó állapot saját időbélyege nem frissül, így a kliensek előbb
+  // megszüntetik a kontaktjogát, majd 750 ms után elrejtik a modellt, miközben
+  // a session még visszatérhet.
   pushRoomState(room);
   maybeBeginCountdown(room);
   return true;
@@ -604,7 +605,7 @@ function maybeBeginCountdown(room, timedOut = false) {
       room.remove(player.id);
       // A bent maradó kliensek már betöltötték ennek a játékosnak a modelljét.
       // A roomState önmagában a HUD-ot frissíti; a `left` esemény szedi le a
-      // scene-ből, GPU-memóriából és a fizikai proxyk közül is az árva autót.
+      // scene-ből, a GPU-memóriából és a kontakt-nyilvántartásból az árva autót.
       broadcastRoom(room, S2C.RACE_EVENT, {
         kind: 'left', playerId: player.id, name: player.name,
       });

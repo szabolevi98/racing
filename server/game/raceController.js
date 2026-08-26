@@ -322,9 +322,10 @@ export class RaceController {
     }
 
     // A hibás állapot nemcsak a köridő szempontjából veszélyes: a fogadó
-    // kliensek dinamikus ütköző proxyt építenek belőle. Ezért nem relézzük és
-    // nem engedjük kaput keresztezni sem. A sorszámot viszont elfogyasztjuk,
-    // hogy ugyanazt a csomagot ne lehessen újrajátszani.
+    // kliensek ezt a pózt használják a távoli autó megjelenítéséhez és a saját
+    // autójukkal való kontakt számításához. Ezért nem relézzük és nem engedjük
+    // kaput keresztezni sem. A sorszámot viszont elfogyasztjuk, hogy ugyanazt
+    // a csomagot ne lehessen újrajátszani.
     if (validationFailed) {
       car.lastSeq = Math.max(car.lastSeq, seq);
       if (car.race.hasCrossedStart) this.flagServerValidation(car);
@@ -700,7 +701,7 @@ export class RaceController {
         seq: car.lastAcceptedSeq,
         // Az állapot SAJÁT időpontja, nem a snapshot összeállításának ideje.
         // Változatlan autóállapot változatlan `at`-tal ismétlődik, így a kliens
-        // felismeri a stale állapotot és az ütköző proxy időkorlátja is működik.
+        // felismeri a stale pózt és időben megszünteti annak kontaktjogát.
         at: Math.round(car.lastMovementAt),
         ti: car.race.taintReason,
         lap: car.race.lap,
