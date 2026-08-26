@@ -196,7 +196,7 @@ test('race controller quarantines invalid physics states and keeps the player ra
 
     assert.equal(sim.receiveState(
       'p1', wireState(2, 1200, 2, 0, { v: [160, 0, 0] }), { receivedAt: 1200 }
-    ), false, 'a suspicious pose must not become a remote collision proxy');
+    ), false, 'a suspicious pose must not become an active remote contact');
     assert.equal(sim.cars.get('p1').state.p[0], 1, 'the last safe state remains authoritative');
     assert.equal(sim.cars.get('p1').lastAcceptedSeq, 1);
     assert.equal(sim.receiveState('p1', wireState(3, 1300, 3), { receivedAt: 1300 }), true,

@@ -25,8 +25,8 @@ export const NET_DIAG_EVENT = Object.freeze({
   LAP: 12,
   SERVER_ERROR: 13,
   MANUAL_EXPORT: 14,
-  PROXY_SYNC: 15,
-  PROXY_CONTACT: 16,
+  CONTACT_SYNC: 15,
+  CAR_CONTACT: 16,
   PIPELINE_TIMING: 17,
   RENDER_LOAD: 18,
   SNAPSHOT_QUEUE: 19,
@@ -38,7 +38,6 @@ export const NET_DIAG_INCIDENT = Object.freeze({
   FRAME_STALL: 'frame_stall',
   CONNECTION_LOST: 'connection_lost',
   SERVER_VALIDATION: 'server_validation',
-  PROXY_CORRECTION: 'proxy_correction',
 });
 
 export const NET_DIAG_CONNECTION = Object.freeze({
@@ -93,15 +92,16 @@ const EVENT_SCHEMA = Object.freeze({
   [NET_DIAG_EVENT.LAP]: ['lap', ['lap', 'timeMs', 'invalid', 'taintCode']],
   [NET_DIAG_EVENT.SERVER_ERROR]: ['server_error', ['duringRace']],
   [NET_DIAG_EVENT.MANUAL_EXPORT]: ['manual_export', []],
-  [NET_DIAG_EVENT.PROXY_SYNC]: ['proxy_sync', [
-    'remoteCount', 'activeProxyCount', 'staleProxyCount', 'maxStateAgeMs',
-    'maxCorrectionM', 'clampedCount', 'hardResetCount', 'maxSequenceGap',
+  [NET_DIAG_EVENT.CONTACT_SYNC]: ['contact_sync', [
+    'remoteCount', 'activeContactCount', 'staleContactCount', 'maxStateAgeMs',
+    'maxStateStepM', 'maxSequenceGap',
   ]],
-  [NET_DIAG_EVENT.PROXY_CONTACT]: ['proxy_contact', [
-    'proxyCount', 'manifoldCount', 'maxImpulse', 'totalImpulse', 'maxPenetrationM',
+  [NET_DIAG_EVENT.CAR_CONTACT]: ['car_contact', [
+    'contactCount', 'sweptCount', 'maxClosingSpeedMps', 'totalDeltaSpeedMps',
+    'maxCorrectionM',
   ]],
   [NET_DIAG_EVENT.PIPELINE_TIMING]: ['pipeline_timing', [
-    'proxySyncAvgMs', 'proxySyncMaxMs', 'physicsAvgMs', 'physicsMaxMs',
+    'contactSyncAvgMs', 'contactSyncMaxMs', 'physicsAvgMs', 'physicsMaxMs',
     'multiplayerFrameAvgMs', 'multiplayerFrameMaxMs', 'renderCpuAvgMs', 'renderCpuMaxMs',
   ]],
   [NET_DIAG_EVENT.RENDER_LOAD]: ['render_load', ['renderCalls', 'renderTriangles']],
@@ -321,7 +321,7 @@ export class NetDiagnosticsRecorder {
     const fields = {};
     for (const [, [name, names]] of Object.entries(EVENT_SCHEMA)) fields[name] = ['relativeMs', ...names];
     return {
-      schemaVersion: 7,
+      schemaVersion: 8,
       generatedAt: new Date(this.wallNow()).toISOString(),
       windowMs: this.windowMs,
       privacy: 'No player names, room codes, authentication tokens or message text are recorded.',

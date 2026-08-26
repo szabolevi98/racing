@@ -94,7 +94,7 @@ test('a snapshot preserves each car state time until a new safe state is accepte
     }, { receivedAt: 1_250 }), false);
     controller.sendSnapshot(1_300);
     assert.equal(carOf(lastSnapshot(sent), 'p0').at, 1_000,
-      'a karanténba tett póz nem frissítheti a proxy életkorát');
+      'a karanténba tett póz nem frissítheti a kontakt életkorát');
     assert.equal(carOf(lastSnapshot(sent), 'p0').seq, 1);
 
     assert.equal(controller.receiveState('p0', {

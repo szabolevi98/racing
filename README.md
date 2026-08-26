@@ -173,6 +173,13 @@ skint. A helyi főszálakadás nem kerülhet sem a ping-, sem a snapshot-jitter
 becslésébe, a renderórák pedig hosszú képkocka után a megengedett puffermélységre
 állnak vissza ahelyett, hogy másodpercekig vagy percekig késleltetnék az autók képét.
 
+Az autó–autó ütközés nem mozgatható távoli Rapier-testekkel készül. Minden kliens
+csak a saját autóját oldja fel a távoli, hálózati pózokból képzett közös F1-es
+kapszula-hitboxok ellen. A söpört vizsgálat nagy sebességnél is kizárja az
+áthaladást, a kontakt csak vízszintes sebességet és yaw-t módosíthat, a helyzet-
+korrekciót pedig a valódi pályafal ellen külön alaklekérdezés korlátozza. Így a
+távoli autó nem tolható falba, majd rántódhat vissza a következő snapshottal.
+
 A szerver mozgásellenőrzése nem rúgja ki a játékost: valódi szabálytalanságnál az
 aktuális kört érvényteleníti. A küszöbök számolnak a nagy sebességű pályákkal,
 csomagtorlódással, pillanatnyi pingtüskékkel és a szabályos visszahelyezéssel.

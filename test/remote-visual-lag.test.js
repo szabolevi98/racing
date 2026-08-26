@@ -1,6 +1,6 @@
 // A látható távoli autó és a saját ütközőteste közti rendszeres eltolódás.
 //
-// A fizikai proxy simítatlanul kerül a becsült helyre, a látható modell viszont
+// A fizikai kontakt a friss becslést használja, a látható modell viszont
 // exponenciálisan kúszik oda. Egy ilyen szűrő egyenletes sebességű célt sosem
 // ér utol — állandósult állapotban `v * dt * (1-alpha)/alpha`-val marad mögötte.
 // Ez az, ami miatt állva, hátulról nekünk jövő autónál a lökés hamarabb jött,
@@ -83,6 +83,6 @@ test('a kliens a sebességgel ELŐRE tolt célra simít, és a forgásra is', as
   assert.match(mp, /const lead = smootherLeadSeconds\(alpha, dt\);/);
   assert.match(mp, /const tx = s\.p\[0\] \+ \(v\[0\] \|\| 0\) \* lead;/);
   assert.match(mp, /integrateRotation\(s\.q, s\.w \|\| \[0, 0, 0\], lead\)/);
-  assert.match(mp, /const nearState = remoteCollisionVisualState\(currentState, o\.proxyPose\)[\s\S]{0,240}blendRemoteStates\(delayedState, nearState, predictionBlend\)/,
-    'kontaktközelben egyetlen keveréssel kövesse a korlátozott fizikai proxyt');
+  assert.match(mp, /blendRemoteStates\(delayedState, currentState, predictionBlend\)/,
+    'kontaktközelben egyetlen keveréssel kövesse a friss hálózati állapotot');
 });

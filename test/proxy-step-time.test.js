@@ -1,21 +1,21 @@
 // A behozó (catch-up) fizikai lépések ne ugyanarra az időpontra tegyék a
-// távoli autók proxyját.
+// távoli autók kontaktpózát.
 //
 // ChatGPT 5.6 talalata a renderóra-refaktor átnézésekor. Az ütemező egyetlen
 // hívásban legfeljebb három lépést futtat egymás után, mindegyiket a SAJÁT
-// ütemezett idejével (`next += TICK_MS`). A proxy időpontja viszont
+// ütemezett idejével (`next += TICK_MS`). A kontaktpóz időpontja viszont
 // `serverNow()` volt — a falióra —, ami három egymás utáni lépésben
 // gyakorlatilag ugyanaz. Így a saját autónk három ticknyit haladt, a
-// többiek proxyja meg állt; kontaktban ez háromszorozza a benyomódást.
+// többiek kontaktpóza meg állt; kontaktban ez háromszorozná a benyomódást.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 
 const mp = await fs.readFile(new URL('../web/mp.js', import.meta.url), 'utf8');
 
-test('a proxy időpontja a lépés ütemezett idejéből jön, nem a faliórából', () => {
+test('a kontaktpóz időpontja a lépés ütemezett idejéből jön, nem a faliórából', () => {
   assert.match(mp, /at: serverTimeFor\(scheduledAt\)/,
-    'a proxy-időnek a lépés saját idejét kell kapnia');
+    'a kontaktidőnek a lépés saját idejét kell kapnia');
   assert.doesNotMatch(mp, /\n {4}at: serverNow\(\),/,
     'a nyers serverNow() nem maradhat a bemenet időbélyegében');
 });

@@ -94,20 +94,37 @@ test('default live recorder stays below 200 KiB and has enough room for 30 secon
   assert.ok(recorder.capacity > 30 * (60 + 20 + 20 + 4 + 4 + 4 + 1));
 });
 
-test('pipeline diagnostics separates proxy, physics and rendering work', () => {
+test('pipeline diagnostics separates contact, physics and rendering work', () => {
   const recorder = new NetDiagnosticsRecorder({ now: () => 100, wallNow: () => 1 });
   recorder.record(NET_DIAG_EVENT.PIPELINE_TIMING, 0.2, 0.5, 1.1, 2.4, 0.8, 2.1, 3.2, 8.4);
   recorder.record(NET_DIAG_EVENT.RENDER_LOAD, 140, 250_000);
   const report = recorder.buildReport();
-  assert.equal(report.schemaVersion, 7);
+  assert.equal(report.schemaVersion, 8);
   assert.deepEqual(report.eventFields.pipeline_timing, [
-    'relativeMs', 'proxySyncAvgMs', 'proxySyncMaxMs', 'physicsAvgMs', 'physicsMaxMs',
+    'relativeMs', 'contactSyncAvgMs', 'contactSyncMaxMs', 'physicsAvgMs', 'physicsMaxMs',
     'multiplayerFrameAvgMs', 'multiplayerFrameMaxMs', 'renderCpuAvgMs', 'renderCpuMaxMs',
   ]);
   assert.deepEqual(report.eventFields.render_load, ['relativeMs', 'renderCalls', 'renderTriangles']);
   assert.equal(report.current.events[0][1], 'pipeline_timing');
   assert.deepEqual(report.current.events[0].slice(2), [0.2, 0.5, 1.1, 2.4, 0.8, 2.1, 3.2, 8.4]);
   assert.deepEqual(report.current.events[1].slice(1), ['render_load', 140, 250_000]);
+});
+
+test('contact diagnostics expose swept hits without the removed proxy vocabulary', () => {
+  const recorder = new NetDiagnosticsRecorder({ now: () => 100, wallNow: () => 1 });
+  recorder.record(NET_DIAG_EVENT.CONTACT_SYNC, 3, 2, 1, 280, 0.7, 2);
+  recorder.record(NET_DIAG_EVENT.CAR_CONTACT, 1, 1, 83.3, 90, 1.4);
+  const report = recorder.buildReport();
+  assert.deepEqual(report.eventFields.contact_sync, [
+    'relativeMs', 'remoteCount', 'activeContactCount', 'staleContactCount',
+    'maxStateAgeMs', 'maxStateStepM', 'maxSequenceGap',
+  ]);
+  assert.deepEqual(report.eventFields.car_contact, [
+    'relativeMs', 'contactCount', 'sweptCount', 'maxClosingSpeedMps',
+    'totalDeltaSpeedMps', 'maxCorrectionM',
+  ]);
+  assert.deepEqual(report.current.events[0].slice(1), ['contact_sync', 3, 2, 1, 280, 0.7, 2]);
+  assert.deepEqual(report.current.events[1].slice(1), ['car_contact', 1, 1, 83.3, 90, 1.4]);
 });
 
 test('rendering diagnostics identify the GPU and actual drawing buffer without user data', () => {

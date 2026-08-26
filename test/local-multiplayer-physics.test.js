@@ -1,20 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import RAPIER from '@dimforge/rapier3d-compat';
 import {
-  GRAVITY, CHASSIS_SIZE, buildVehicle, applyChassisMassProperties,
-  applyVehicleStepForces,
-  FLOOR_COLLIDER_GROUPS, CAR_COLLIDER_GROUPS, GHOST_CAR_COLLIDER_GROUPS,
-  CAR_PROXY_COLLIDER_GROUPS, WHEEL_RAY_FILTER_GROUPS,
+  GRAVITY, buildVehicle,
+  FLOOR_COLLIDER_GROUPS, WALL_COLLIDER_GROUPS,
+  CAR_COLLIDER_GROUPS, GHOST_CAR_COLLIDER_GROUPS, CAR_WALL_QUERY_GROUPS,
+  WHEEL_RAY_FILTER_GROUPS,
 } from '../shared/vehicleConfig.js';
-import {
-  PROXY_CONTACT_HOLD_STEPS, PROXY_IMPACT_RECOVERY_STEPS,
-  limitProxyImpactMotion, planContactSafeProxyMotion,
-} from '../shared/proxyCorrection.js';
+
+const main = fs.readFileSync(new URL('../web/main.js', import.meta.url), 'utf8');
+const mp = fs.readFileSync(new URL('../web/mp.js', import.meta.url), 'utf8');
 
 await RAPIER.init();
 
-test('the suspension ray sees the floor, not another car proxy', () => {
+test('the suspension ray sees the floor through the canonical car filter', () => {
   const world = new RAPIER.World(GRAVITY);
   try {
     const floorBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
@@ -24,162 +24,70 @@ test('the suspension ray sees the floor, not another car proxy', () => {
         .setCollisionGroups(FLOOR_COLLIDER_GROUPS),
       floorBody
     );
-    const proxyBody = world.createRigidBody(
-      RAPIER.RigidBodyDesc.dynamic().setTranslation(0, 1, 0).setGravityScale(0)
-    );
-    const proxy = world.createCollider(
-      RAPIER.ColliderDesc.cuboid(CHASSIS_SIZE.x, CHASSIS_SIZE.y, CHASSIS_SIZE.z)
-        .setCollisionGroups(CAR_PROXY_COLLIDER_GROUPS),
-      proxyBody
-    );
-    applyChassisMassProperties(proxy, proxyBody);
+    const other = buildVehicle(RAPIER, world, { x: 0, y: 1, z: 0 });
     world.step();
 
     const ray = new RAPIER.Ray({ x: 0, y: 3, z: 0 }, { x: 0, y: -1, z: 0 });
     const hit = world.castRay(ray, 10, true, undefined, WHEEL_RAY_FILTER_GROUPS);
     assert.equal(hit?.collider?.handle, floor.handle);
+    assert.notEqual(hit?.collider?.handle, other.collider.handle);
   } finally {
     world.free();
   }
 });
 
-test('a nearby dynamic proxy can physically push the local car', () => {
-  const world = new RAPIER.World(GRAVITY);
-  world.timestep = 1 / 60;
+test('multiplayer has no movable remote rigid body or Rapier proxy correction path', () => {
+  assert.match(main, /const remoteCarContacts = new Map\(\)/);
+  assert.match(main, /resolveCarContact\(/);
+  assert.doesNotMatch(main, /remoteCarProxies/);
+  assert.doesNotMatch(main, /world\.contactPair\(chassisCollider/);
+  assert.doesNotMatch(main, /setRemoteCarContact[\s\S]{0,2000}RigidBodyDesc\.dynamic/);
+  assert.doesNotMatch(mp, /setRemoteCarProxy|proxyPose|proxyActive/);
+});
+
+test('custom car contact changes only horizontal position, speed and yaw', () => {
+  assert.match(main,
+    /x: wallSafe\.position\.x,[\s\S]{0,80}y: position\.y,[\s\S]{0,80}z: wallSafe\.position\.z/);
+  assert.match(main,
+    /setLinvel\(\{ x: ownVelocity\.x, y: velocity\.y, z: ownVelocity\.z \}, true\)/);
+  assert.match(main,
+    /setAngvel\(\{[\s\S]{0,120}x: angularVelocity\.x,[\s\S]{0,120}y: yawRate,[\s\S]{0,120}z: angularVelocity\.z/);
+});
+
+test('contact separation is shape-cast against the real track wall', () => {
+  const world = new RAPIER.World({ x: 0, y: 0, z: 0 });
   try {
-    const floorBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
-    world.createCollider(
-      RAPIER.ColliderDesc.cuboid(20, 0.1, 20)
-        .setTranslation(0, -0.1, 0)
-        .setCollisionGroups(FLOOR_COLLIDER_GROUPS),
-      floorBody
-    );
     const own = buildVehicle(RAPIER, world, { x: 0, y: 1, z: 0 });
-    const proxyBody = world.createRigidBody(
-      RAPIER.RigidBodyDesc.dynamic()
-        .setTranslation(0, 1, 4)
-        .setGravityScale(0)
-        .setCanSleep(false)
-        .setCcdEnabled(true)
+    const wallBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+    const wall = world.createCollider(
+      RAPIER.ColliderDesc.cuboid(0.1, 3, 10)
+        .setTranslation(2.5, 1, 0)
+        .setCollisionGroups(WALL_COLLIDER_GROUPS),
+      wallBody,
     );
-    const proxy = world.createCollider(
-      RAPIER.ColliderDesc.cuboid(CHASSIS_SIZE.x, CHASSIS_SIZE.y, CHASSIS_SIZE.z)
-        .setCollisionGroups(CAR_PROXY_COLLIDER_GROUPS),
-      proxyBody
-    );
-    applyChassisMassProperties(proxy, proxyBody);
     world.step();
-
-    const before = own.body.translation();
-    for (let i = 0; i < 30; i++) {
-      proxyBody.setTranslation({ x: 0, y: 1, z: 4 - i * 0.2 }, true);
-      proxyBody.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
-      proxyBody.setLinvel({ x: 0, y: 0, z: -12 }, true);
-      proxyBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
-      own.vehicle.updateVehicle(world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
-      world.step();
-    }
-    const after = own.body.translation();
-    assert.ok(Math.hypot(after.x - before.x, after.z - before.z) > 0.5);
-    assert.ok(after.y < 1.5, 'the proxy must not launch the car vertically');
+    const hit = world.castShape(
+      own.body.translation(),
+      own.body.rotation(),
+      { x: 3, y: 0, z: 0 },
+      own.collider.shape,
+      0.02,
+      1,
+      false,
+      undefined,
+      CAR_WALL_QUERY_GROUPS,
+      own.collider,
+      own.body,
+    );
+    assert.equal(hit?.collider?.handle, wall.handle);
+    assert.ok(hit.time_of_impact > 0 && hit.time_of_impact < 1);
+    assert.match(main, /world\.castShape\([\s\S]{0,500}CAR_WALL_QUERY_GROUPS/);
   } finally {
     world.free();
   }
 });
 
-test('a 300 km/h rear impact stays a hard collision without launching the car off the track', () => {
-  const world = new RAPIER.World(GRAVITY);
-  world.timestep = 1 / 60;
-  try {
-    const floorBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
-    world.createCollider(
-      RAPIER.ColliderDesc.cuboid(200, 0.1, 200)
-        .setTranslation(0, -0.1, 0)
-        .setCollisionGroups(FLOOR_COLLIDER_GROUPS),
-      floorBody
-    );
-    const own = buildVehicle(RAPIER, world, { x: 0, y: 0.85, z: 0 });
-    const proxyBody = world.createRigidBody(
-      RAPIER.RigidBodyDesc.dynamic()
-        .setTranslation(0, 0.85, -12)
-        .setGravityScale(0)
-        .setCanSleep(false)
-        .setCcdEnabled(true)
-    );
-    const proxy = world.createCollider(
-      RAPIER.ColliderDesc.cuboid(CHASSIS_SIZE.x, CHASSIS_SIZE.y, CHASSIS_SIZE.z)
-        .setCollisionGroups(CAR_PROXY_COLLIDER_GROUPS),
-      proxyBody
-    );
-    applyChassisMassProperties(proxy, proxyBody);
-
-    const speed = 300 / 3.6;
-    const rotation = { x: 0, y: 0, z: 0, w: 1 };
-    const target = { x: 0, y: 0.85, z: -12 };
-    let contactHoldSteps = 0;
-    let recoveringFromContact = false;
-    let impactRecoverySteps = 0;
-    let contactSteps = 0;
-    let maxHeight = own.body.translation().y;
-    let maxTiltDegrees = 0;
-
-    for (let step = 0; step < 180; step++) {
-      target.z += speed * world.timestep;
-      const motion = planContactSafeProxyMotion(
-        proxyBody.translation(), proxyBody.rotation(), target, rotation,
-        contactHoldSteps,
-        recoveringFromContact,
-      );
-      contactHoldSteps = motion.remainingContactHoldSteps;
-      recoveringFromContact = motion.recoveringFromContact;
-      proxy.setEnabled(!motion.suppressCollider);
-      if (motion.applyNetworkMotion) {
-        proxyBody.setTranslation(motion.position, true);
-        proxyBody.setRotation(motion.rotation, true);
-        proxyBody.setLinvel({ x: 0, y: 0, z: speed }, true);
-        proxyBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
-      }
-
-      own.vehicle.updateVehicle(world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
-      applyVehicleStepForces(own.vehicle, own.body, world.timestep);
-      const velocityBeforeContacts = own.body.linvel();
-      world.step();
-
-      let touching = false;
-      world.contactPair(own.collider, proxy, () => { touching = true; });
-      if (touching) {
-        contactSteps++;
-        contactHoldSteps = PROXY_CONTACT_HOLD_STEPS;
-        recoveringFromContact = true;
-        impactRecoverySteps = PROXY_IMPACT_RECOVERY_STEPS;
-      }
-      if (impactRecoverySteps > 0) {
-        const limited = limitProxyImpactMotion(
-          velocityBeforeContacts,
-          own.body.linvel(),
-          own.body.angvel(),
-        );
-        own.body.setLinvel(limited.velocity, true);
-        own.body.setAngvel(limited.angularVelocity, true);
-        impactRecoverySteps--;
-      }
-
-      const position = own.body.translation();
-      const q = own.body.rotation();
-      const upY = Math.max(-1, Math.min(1, 1 - 2 * (q.x * q.x + q.z * q.z)));
-      maxHeight = Math.max(maxHeight, position.y);
-      maxTiltDegrees = Math.max(maxTiltDegrees, Math.acos(upY) * 180 / Math.PI);
-    }
-
-    assert.ok(contactSteps > 0, 'the high-speed cars must actually collide');
-    assert.ok(maxHeight < 2.5, `the impact launched the chassis to ${maxHeight.toFixed(2)} m`);
-    assert.ok(maxTiltDegrees < 45, `the impact tilted the chassis by ${maxTiltDegrees.toFixed(1)} degrees`);
-  } finally {
-    world.free();
-  }
-});
-
-test('ghost vehicles keep track collision groups but cannot contact each other', () => {
+test('normal and ghost cars share one chassis while ghost mode disables car contact', () => {
   const normalWorld = new RAPIER.World({ x: 0, y: 0, z: 0 });
   const ghostWorld = new RAPIER.World({ x: 0, y: 0, z: 0 });
   try {
@@ -203,6 +111,7 @@ test('ghost vehicles keep track collision groups but cannot contact each other',
     assert.equal(ghostA.collider.collisionGroups(), GHOST_CAR_COLLIDER_GROUPS);
     assert.equal(normalContact, true);
     assert.equal(ghostContact, false);
+    assert.match(mp, /if \(starting\?\.ghostMode === true \|\| room\?\.ghostMode === true\) return;/);
   } finally {
     normalWorld.free();
     ghostWorld.free();

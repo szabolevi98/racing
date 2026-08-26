@@ -55,60 +55,6 @@ export function remoteVisualPredictionBlend(distanceMeters) {
   return linear * linear * (3 - 2 * linear);
 }
 
-function normalizedQuaternion(q) {
-  const finite = (value, fallback) => {
-    const number = Number(value);
-    return Number.isFinite(number) ? number : fallback;
-  };
-  const result = [
-    finite(q?.[0], 0), finite(q?.[1], 0),
-    finite(q?.[2], 0), finite(q?.[3], 1),
-  ];
-  const length = Math.hypot(...result) || 1;
-  return result.map((value) => value / length);
-}
-
-function quaternionYaw(q) {
-  const [x, y, z, w] = normalizedQuaternion(q);
-  return Math.atan2(2 * (x * z + w * y), 1 - 2 * (x * x + y * y));
-}
-
-function wrapAngle(angle) {
-  return Math.atan2(Math.sin(angle), Math.cos(angle));
-}
-
-function applyWorldYaw(q, yaw) {
-  const [x, y, z, w] = normalizedQuaternion(q);
-  const half = yaw / 2;
-  const s = Math.sin(half);
-  const c = Math.cos(half);
-  const result = [
-    c * x + s * z,
-    c * y + s * w,
-    c * z - s * x,
-    c * w - s * y,
-  ];
-  return normalizedQuaternion(result);
-}
-
-// Kontaktban a helyi Rapier-proxy adja az azonnali vízszintes reakciót, de a
-// proxy szándékosan nem ütközik a pályával. Emiatt lefelé is kitérhet vagy
-// megdőlhet egy olyan kliensen, ahol a valódi távoli autó közben szabályosan
-// az aszfalton marad. A képhez ezért csak az X/Z eltolást és a proxy yaw
-// változását vesszük át; a magasság és a pitch/roll a hálózatról érkező,
-// talajfizikával számolt autóé marad.
-export function remoteCollisionVisualState(networkState, proxyPose) {
-  if (!networkState || !proxyPose?.p || !proxyPose?.q) return networkState;
-  const yawDelta = wrapAngle(
-    quaternionYaw(proxyPose.q) - quaternionYaw(networkState.q)
-  );
-  return {
-    ...networkState,
-    p: [proxyPose.p[0], networkState.p[1], proxyPose.p[2]],
-    q: applyWorldYaw(networkState.q, yawDelta),
-  };
-}
-
 // Mennyivel a cél ELÉ kell célozni, hogy a simítónak ne maradjon rendszeres
 // lemaradása.
 //

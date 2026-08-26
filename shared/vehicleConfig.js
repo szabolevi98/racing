@@ -46,7 +46,6 @@ export const GRAVITY = { x: 0, y: -9.81, z: 0 };
 export const COLLISION_GROUP_FLOOR = 0x0001;
 export const COLLISION_GROUP_WALL = 0x0002;
 export const COLLISION_GROUP_CAR = 0x0004;
-export const COLLISION_GROUP_CAR_PROXY = 0x0008;
 const GROUPS_ALL_MASK = 0xffff;
 export const FLOOR_COLLIDER_GROUPS = (COLLISION_GROUP_FLOOR << 16) | GROUPS_ALL_MASK;
 export const WALL_COLLIDER_GROUPS = (COLLISION_GROUP_WALL << 16) | GROUPS_ALL_MASK;
@@ -55,17 +54,17 @@ export const WALL_COLLIDER_GROUPS = (COLLISION_GROUP_WALL << 16) | GROUPS_ALL_MA
 // találhatta el. Ez főleg szoros csatában adott kiszámíthatatlan rugóerőket.
 export const CAR_COLLIDER_GROUPS =
   (COLLISION_GROUP_CAR << 16) |
-  (COLLISION_GROUP_FLOOR | COLLISION_GROUP_WALL | COLLISION_GROUP_CAR | COLLISION_GROUP_CAR_PROXY);
+  (COLLISION_GROUP_FLOOR | COLLISION_GROUP_WALL | COLLISION_GROUP_CAR);
 // Ghost módban a kasztni ugyanúgy a CAR csoport tagja marad (a keréksugarak és
-// a pálya szűrői így változatlanok), de a saját maszkjából hiányzik a CAR és a
-// CAR_PROXY. Emiatt a talaj/fal továbbra is fizikai akadály, másik autó nem.
+// a pálya szűrői így változatlanok), de a saját maszkjából hiányzik a CAR.
+// Emiatt a talaj/fal továbbra is fizikai akadály, másik autó nem.
 export const GHOST_CAR_COLLIDER_GROUPS =
   (COLLISION_GROUP_CAR << 16) | (COLLISION_GROUP_FLOOR | COLLISION_GROUP_WALL);
-// A távoli autó helyi proxyja csak a saját valódi kasztnival ütközik.
-// Így nem akad bele a talajba/falba, és a proxyk sem lökdösik egymást egy
-// olyan kliensen, amely csak a saját autó fizikáját számolja.
-export const CAR_PROXY_COLLIDER_GROUPS =
-  (COLLISION_GROUP_CAR_PROXY << 16) | COLLISION_GROUP_CAR;
+// Kizárólag a valódi falgeometriára szűrt alaklekérdezés. A saját kontakt-
+// feloldás ezt használja, mielőtt vízszintesen odébb tenné a kasztnit: így egy
+// másik autó sem tolhatja át a pálya falán. A talaj szándékosan kimarad.
+export const CAR_WALL_QUERY_GROUPS =
+  (COLLISION_GROUP_CAR << 16) | COLLISION_GROUP_WALL;
 // A kerék-sugár lekérdezés tagsága = autó, szűrője = csak talaj. A Rapier
 // mindkét collider tagságát és szűrőjét ellenőrzi, ezért a fal és a többi
 // autó kasztnija biztosan kimarad a felfüggesztés talajkereséséből.
@@ -134,9 +133,9 @@ export function forwardSpeed(qx, qy, qz, qw, vx, vy, vz) {
 // A 600 kg-os profil 65/55-ös féke mérve ~2.8–3.1 G, tehát ez most bőven tartalék.
 export const COM_DROP = 0.55;
 
-// A helyi távoli-autó proxy ugyanilyen tömeg/inercia-adatokat kap. Ha csak a
-// tömeg egyezne, egy oldalirányú koccanásra máshogy fordulna el, mint a
-// szerver valódi autója, és a következő snapshot ezt láthatóan korrigálná.
+// A közös kasztni tömege és tehetetlensége. Ugyanez a buildVehicle építi a
+// singleplayer és multiplayer saját autóját; a távoli autók többé nem kapnak
+// külön, helyben ellökhető fizikai testet.
 export function applyChassisMassProperties(collider, body) {
   const m = CHASSIS_MASS;
   const w = CHASSIS_SIZE.x * 2, h = CHASSIS_SIZE.y * 2, d = CHASSIS_SIZE.z * 2;

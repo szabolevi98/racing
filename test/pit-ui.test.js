@@ -50,10 +50,10 @@ test('reset waits for the first start crossing and pauses state packets in fligh
   assert.match(mp, /const shouldSend = !raceEnded && !resetPending/);
 });
 
-test('a remote reset clears its old interpolation path and collision proxy', () => {
+test('a remote reset clears its old interpolation path and collision contact', () => {
   assert.match(mp, /other\.buf\.length = 0;/);
-  assert.match(mp, /other\.proxyActive = false;/);
-  assert.match(mp, /G\.setRemoteCarProxy\(m\.playerId, null\);/);
+  assert.match(mp, /other\.contactActive = false;/);
+  assert.match(mp, /G\.setRemoteCarContact\(m\.playerId, null\);/);
 });
 
 test('driving alerts share one dynamic stacking container', () => {

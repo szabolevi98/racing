@@ -168,7 +168,7 @@ export const HOT_LAP_COUNTDOWN_MS = 3000;
 export const RACE_LOAD_TIMEOUT_MS = 60000;
 
 // Futam közbeni hálózati szakadásnál ennyi ideig tartjuk meg az autót és a
-// játékosazonosítót. A stale állapot fizikai proxyja már 750 ms után eltűnik,
+// játékosazonosítót. A stale állapot fizikai kontaktja már 300 ms után eltűnik,
 // tehát a türelmi idő nem hagy láthatatlan falat a pályán.
 export const RECONNECT_GRACE_MS = 10_000;
 
