@@ -3,16 +3,45 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import RAPIER from '@dimforge/rapier3d-compat';
 import {
-  GRAVITY, buildVehicle,
+  GRAVITY, CHASSIS_SIZE, CHASSIS_MASS, buildVehicle,
   FLOOR_COLLIDER_GROUPS, WALL_COLLIDER_GROUPS,
   CAR_COLLIDER_GROUPS, GHOST_CAR_COLLIDER_GROUPS, CAR_WALL_QUERY_GROUPS,
-  WHEEL_RAY_FILTER_GROUPS,
+  WHEEL_RAY_FILTER_GROUPS, TRACK_FRICTION, WALL_FRICTION,
 } from '../shared/vehicleConfig.js';
 
 const main = fs.readFileSync(new URL('../web/main.js', import.meta.url), 'utf8');
 const mp = fs.readFileSync(new URL('../web/mp.js', import.meta.url), 'utf8');
 
 await RAPIER.init();
+
+function simulateWallBrush(wallFriction, combineRule) {
+  const world = new RAPIER.World({ x: 0, y: 0, z: 0 });
+  world.timestep = 1 / 60;
+  try {
+    const wallBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+    world.createCollider(
+      RAPIER.ColliderDesc.cuboid(0.1, 3, 100)
+        .setTranslation(CHASSIS_SIZE.x + 0.1, 0, 0)
+        .setFriction(wallFriction)
+        .setFrictionCombineRule(combineRule)
+        .setRestitution(0),
+      wallBody,
+    );
+    const carBody = world.createRigidBody(
+      RAPIER.RigidBodyDesc.dynamic().setTranslation(0, 0, 0).setCcdEnabled(true),
+    );
+    world.createCollider(
+      RAPIER.ColliderDesc.cuboid(CHASSIS_SIZE.x, CHASSIS_SIZE.y, CHASSIS_SIZE.z)
+        .setMass(CHASSIS_MASS),
+      carBody,
+    );
+    carBody.setLinvel({ x: 5, y: 0, z: 80 }, true);
+    for (let i = 0; i < 30; i++) world.step();
+    return carBody.linvel().z;
+  } finally {
+    world.free();
+  }
+}
 
 test('the suspension ray sees the floor through the canonical car filter', () => {
   const world = new RAPIER.World(GRAVITY);
@@ -34,6 +63,21 @@ test('the suspension ray sees the floor through the canonical car filter', () =>
   } finally {
     world.free();
   }
+});
+
+test('track walls slide on a light brush without weakening tyre grip', () => {
+  assert.equal(TRACK_FRICTION, 1.0);
+  assert.equal(WALL_FRICTION, 0.2);
+  assert.match(main,
+    /trimesh\(wall\.positions, wall\.indices\)[\s\S]{0,200}\.setFriction\(WALL_FRICTION\)[\s\S]{0,200}\.setFrictionCombineRule\(RAPIER\.CoefficientCombineRule\.Min\)[\s\S]{0,120}\.setRestitution\(0\)/,
+  );
+  assert.match(main,
+    /trimesh\(floor\.positions, floor\.indices\)[\s\S]{0,160}\.setFriction\(TRACK_FRICTION\)/,
+  );
+
+  const oldWallSpeed = simulateWallBrush(1.0, RAPIER.CoefficientCombineRule.Average);
+  const newWallSpeed = simulateWallBrush(WALL_FRICTION, RAPIER.CoefficientCombineRule.Min);
+  assert.ok(newWallSpeed > oldWallSpeed + 2, `${newWallSpeed} vs old ${oldWallSpeed} m/s`);
 });
 
 test('multiplayer has no movable remote rigid body or Rapier proxy correction path', () => {

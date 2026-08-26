@@ -70,9 +70,10 @@ export const CAR_WALL_QUERY_GROUPS =
 // autó kasztnija biztosan kimarad a felfüggesztés talajkereséséből.
 export const WHEEL_RAY_FILTER_GROUPS = (COLLISION_GROUP_CAR << 16) | COLLISION_GROUP_FLOOR;
 
-// A háromszögháló anyaga mindkét oldalon ugyanaz legyen. Korábban a kliens
-// explicit 1.0-t állított, a szerver viszont a Rapier alapértékén maradt.
+// A talajnak nagy tapadás kell a gumikhoz. A fal szándékosan csúszósabb:
+// egy enyhe oldalérintés így nem fékezi le hirtelen az autót.
 export const TRACK_FRICTION = 1.0;
+export const WALL_FRICTION = 0.2;
 
 // Fél-méretek: szélesség/2, magasság/2, hossz/2.
 export const CHASSIS_SIZE = { x: 1.0, y: 0.4, z: 2.2 };

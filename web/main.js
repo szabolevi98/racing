@@ -8,7 +8,7 @@ import {
   STEER_VISUAL_SPEED, buildVehicle, applyControls, applyVehicleStepForces,
   resetLiveVehicleTunables,
   FLOOR_COLLIDER_GROUPS, WALL_COLLIDER_GROUPS, WHEEL_RAY_FILTER_GROUPS,
-  CAR_WALL_QUERY_GROUPS, TRACK_FRICTION,
+  CAR_WALL_QUERY_GROUPS, TRACK_FRICTION, WALL_FRICTION,
   forwardSpeed, REVERSE_BRAKE_THRESHOLD, applySpeedCap, settleFinishedBody,
 } from '/shared/vehicleConfig.js';
 import { TAINT, requiredCheckpoints } from '/shared/protocol.js';
@@ -2622,7 +2622,9 @@ function applyTrackCollider(floor, wall) {
   if (wall && wall.indices.length > 0) {
     world.createCollider(
       RAPIER.ColliderDesc.trimesh(wall.positions, wall.indices)
-        .setFriction(TRACK_FRICTION)
+        .setFriction(WALL_FRICTION)
+        .setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min)
+        .setRestitution(0)
         .setCollisionGroups(WALL_COLLIDER_GROUPS),
       trackColliderBody
     );
