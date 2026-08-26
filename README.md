@@ -167,9 +167,10 @@ boxkiállást, eredményeket és szellemeket, majd 20 Hz-es snapshotokat tovább
 A távoli autók késleltetett, adaptív interpolációval jelennek meg. A korrekció,
 a kerékanimáció, a hang és a frissítési gyakoriság távolságfüggő; a nézett autó
 mindig kivétel a ritkítás alól. A részletes ellenfélmodellek a töltőképernyő
-alatt tényleges GPU-draw-val melegszenek elő. A könnyű F1-modell csak tartósan
-rossz képkockaidőnél kapcsol be, egyetlen renderakadás nem cseréli le a kiválasztott
-skint. A helyi főszálakadás nem kerülhet sem a ping-, sem a snapshot-jitter
+alatt tényleges GPU-draw-val melegszenek elő. A kiválasztott, optimalizált
+autóskint rossz képkockaidőnél sem cseréljük le; egyszerű dobozmodell csak akkor
+jelenik meg, ha a valódi modell betöltése hibát jelez. A helyi főszálakadás nem
+kerülhet sem a ping-, sem a snapshot-jitter
 becslésébe, a renderórák pedig hosszú képkocka után a megengedett puffermélységre
 állnak vissza ahelyett, hogy másodpercekig vagy percekig késleltetnék az autók képét.
 
@@ -217,7 +218,6 @@ __mp.pingMs
 __mp.jitterMs
 __mp.interpDelayMs
 __mp.predDelayMs
-__mp.remoteLowDetail
 __mp.snapshotTransitDropped
 __mp.rawPos
 __mp.interpPos

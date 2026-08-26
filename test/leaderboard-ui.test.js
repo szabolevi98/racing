@@ -21,8 +21,8 @@ test('leaderboard stays informational while Hot Lap uses a separate ghost picker
     multiplayer,
     /await G\.runLoadTasks\(tasks\);[\s\S]*await warmCarVisuals\(visualsToWarm\)/,
   );
-  assert.match(multiplayer, /for \(const lowDetail of \[false, true\]\)/);
-  assert.match(multiplayer, /setRemoteVisualQuality\(group, lowDetail\)/);
+  assert.doesNotMatch(multiplayer, /for \(const lowDetail of \[false, true\]\)/);
+  assert.doesNotMatch(multiplayer, /setRemoteVisualQuality/);
   assert.doesNotMatch(multiplayer, /G\.scene\.add\(group\);\s*await warmCarVisuals\(group\)/);
   assert.match(multiplayer, /clearOtherCars\(\{ preserveGhost: reuseGhost \}\)/);
   assert.match(multiplayer, /if \(ghostReplay && !reuseGhost\)/);

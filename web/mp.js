@@ -15,7 +15,6 @@ import {
   localRenderDelayTarget, remoteDetailPhase, remoteDetailUpdateInterval,
   remoteVisualCorrectionHalfLife,
   remoteVisualPredictionBlend, smootherLeadSeconds,
-  updateRemoteQualityBudget,
 } from '/shared/remoteVisual.js';
 import {
   advanceRenderClock, pushTransitSample, expireTransitSamples,
@@ -75,7 +74,6 @@ window.__mp = {
   get interpDelayMs() { return +interpDelayMs.toFixed(1); },
   get predDelayMs() { return +predDelayMs.toFixed(1); },
   get physSteps() { return physSteps; },
-  get remoteLowDetail() { return remoteQualityBudget.degraded; },
   get physicsTimerLatenessMs() { return +physicsTimerLatenessMs.toFixed(1); },
   get physicsTimerJitterMs() { return +physicsTimerJitterMs.toFixed(1); },
   takePipelineTimings: () => takePipelineTimings(),
@@ -1608,7 +1606,6 @@ async function beginRace(info) {
   const { signal } = loadController;
   const loadGeneration = ++raceLoadGeneration;
   departedPlayerIds.clear();
-  remoteQualityBudget = { degraded: false, slowMs: 0, cleanMs: 0 };
   const myPlayer = info.players.find((player) => player.id === me.id);
   netDiagnostics.setContext({
     mode: info.mode,
@@ -1832,7 +1829,6 @@ function clearOtherCars({ preserveGhost = false } = {}) {
   pitPrevPosition = null;
   G.setPitStopMarker(null, false);
   G.renderPitStopHud(localPitState, 0);
-  remoteQualityBudget = { degraded: false, slowMs: 0, cleanMs: 0 };
 }
 
 // Egyetlen játékos kocsijának leszedése — verseny KÖZBEN is, amikor kilép
@@ -1918,67 +1914,6 @@ async function addOtherCar(p, onProgress, loadGeneration, signal) {
   });
 }
 
-function createRemoteLowDetailVisual(color, translucent) {
-  const root = new THREE.Group();
-  const groundY = -G.getCarGroundOffset();
-  const opacity = translucent ? 0.34 : 1;
-  const bodyMaterial = new THREE.MeshStandardMaterial({
-    color: color || '#ff4444',
-    roughness: 0.55,
-    metalness: 0.08,
-    transparent: translucent,
-    opacity,
-    depthWrite: true,
-  });
-  const bodyParts = [
-    // x, y, z, szélesség, magasság, hossz
-    [0, groundY + 0.48, 0, 1.45, 0.42, 2.8],
-    [0, groundY + 0.32, 1.65, 0.52, 0.22, 1.4],
-    [0, groundY + 0.19, 2.12, 1.95, 0.10, 0.48],
-    [0, groundY + 0.72, -1.75, 1.65, 0.16, 0.35],
-    [0, groundY + 0.72, -0.15, 0.62, 0.36, 0.78],
-  ];
-  const body = new THREE.InstancedMesh(
-    new THREE.BoxGeometry(1, 1, 1), bodyMaterial, bodyParts.length
-  );
-  const dummy = new THREE.Object3D();
-  bodyParts.forEach(([x, y, z, sx, sy, sz], index) => {
-    dummy.position.set(x, y, z);
-    dummy.scale.set(sx, sy, sz);
-    dummy.updateMatrix();
-    body.setMatrixAt(index, dummy.matrix);
-  });
-  body.instanceMatrix.needsUpdate = true;
-  root.add(body);
-
-  const wheelMaterial = new THREE.MeshStandardMaterial({
-    color: translucent ? '#4e6775' : '#151515',
-    roughness: 0.9,
-    transparent: translucent,
-    opacity,
-    depthWrite: true,
-  });
-  const wheel = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), wheelMaterial, 4);
-  [[-0.84, 1.35], [0.84, 1.35], [-0.84, -1.28], [0.84, -1.28]]
-    .forEach(([x, z], index) => {
-      dummy.position.set(x, groundY + 0.27, z);
-      dummy.scale.set(0.32, 0.54, 0.68);
-      dummy.updateMatrix();
-      wheel.setMatrixAt(index, dummy.matrix);
-    });
-  wheel.instanceMatrix.needsUpdate = true;
-  root.add(wheel);
-  return root;
-}
-
-function setRemoteVisualQuality(group, lowDetail) {
-  const high = group.userData.highDetail;
-  const low = group.userData.lowDetail;
-  if (!high || !low) return;
-  high.visible = !lowDetail;
-  low.visible = lowDetail;
-}
-
 async function loadRemoteCarVisual(car, fallbackColor, onProgress, translucent = false, signal) {
   const group = new THREE.Group();
   try {
@@ -2029,11 +1964,7 @@ async function loadRemoteCarVisual(car, fallbackColor, onProgress, translucent =
         object.castShadow = false;
       });
     }
-    const lowDetail = createRemoteLowDetailVisual(fallbackColor, translucent);
-    lowDetail.visible = false;
-    group.add(model, lowDetail);
-    group.userData.highDetail = model;
-    group.userData.lowDetail = lowDetail;
+    group.add(model);
     // A saját autóval azonos geometriai felismerés: autónkénti kézi lista vagy
     // offset nélkül megtalálja és külön pivotokra fűzi a látható kerekeket.
     group.userData.wheelRig = G.createRemoteWheelRig(model, car.config?.wheelPattern, group);
@@ -2063,7 +1994,7 @@ async function warmCarVisuals(groups) {
   // 640, majd 247/226/144 ms-os rendermegállás jelent meg.
   //
   // Külön jelenetben, tényleges 256x256-os célra, két oldalról rajzoljuk ki a
-  // normál ÉS a könnyű modellt. A finish() szándékosan blokkol — de még a
+  // valódi ellenfélmodellt. A finish() szándékosan blokkol — de még a
   // loading overlay alatt —, így ez a költség nem verseny közben jelentkezik.
   const textures = new Set();
   visuals.forEach((group) => {
@@ -2111,8 +2042,6 @@ async function warmCarVisuals(groups) {
   const visualStates = visuals.map((group) => ({
     group,
     groupVisible: group.visible,
-    highVisible: group.userData.highDetail?.visible,
-    lowVisible: group.userData.lowDetail?.visible,
     parent: group.parent,
     parentIndex: group.parent?.children.indexOf(group) ?? -1,
     position: group.position.clone(),
@@ -2145,22 +2074,18 @@ async function warmCarVisuals(groups) {
     renderer.shadowMap.needsUpdate = false;
     for (const group of visuals) {
       group.visible = true;
-      for (const lowDetail of [false, true]) {
-        group.visible = true;
-        setRemoteVisualQuality(group, lowDetail);
-        if (typeof renderer.compileAsync === 'function') {
-          await renderer.compileAsync(warmScene, warmCamera);
-        } else {
-          renderer.compile(warmScene, warmCamera);
-        }
-        for (const z of [8, -8]) {
-          warmCamera.position.set(0, 2.2, z);
-          warmCamera.lookAt(0, 0.5, 0);
-          renderer.setRenderTarget(warmTarget);
-          renderer.clear();
-          renderer.render(warmScene, warmCamera);
-          renderer.setRenderTarget(previousTarget, previousCubeFace, previousMipmapLevel);
-        }
+      if (typeof renderer.compileAsync === 'function') {
+        await renderer.compileAsync(warmScene, warmCamera);
+      } else {
+        renderer.compile(warmScene, warmCamera);
+      }
+      for (const z of [8, -8]) {
+        warmCamera.position.set(0, 2.2, z);
+        warmCamera.lookAt(0, 0.5, 0);
+        renderer.setRenderTarget(warmTarget);
+        renderer.clear();
+        renderer.render(warmScene, warmCamera);
+        renderer.setRenderTarget(previousTarget, previousCubeFace, previousMipmapLevel);
       }
       group.visible = false;
     }
@@ -2173,8 +2098,7 @@ async function warmCarVisuals(groups) {
     renderer.shadowMap.autoUpdate = previousShadowAutoUpdate;
     renderer.shadowMap.needsUpdate = previousShadowNeedsUpdate;
     visualStates.forEach(({
-      group, groupVisible, highVisible, lowVisible,
-      parent, parentIndex, position, quaternion, scale,
+      group, groupVisible, parent, parentIndex, position, quaternion, scale,
     }) => {
       (parent || G.scene).add(group);
       if (parent && parentIndex >= 0) {
@@ -2186,8 +2110,6 @@ async function warmCarVisuals(groups) {
       group.quaternion.copy(quaternion);
       group.scale.copy(scale);
       group.visible = groupVisible;
-      if (group.userData.highDetail) group.userData.highDetail.visible = highVisible;
-      if (group.userData.lowDetail) group.userData.lowDetail.visible = lowVisible;
       group.updateMatrixWorld(true);
     });
     frustumStates.forEach(([object, frustumCulled]) => {
@@ -2733,7 +2655,6 @@ const REMOTE_RENDER_MAX_RANGE = 700;
 const REMOTE_RENDER_MAX_RANGE_SQ = REMOTE_RENDER_MAX_RANGE * REMOTE_RENDER_MAX_RANGE;
 const REMOTE_AUDIO_MAX_RANGE = 125;
 let remoteDetailFrame = 0;
-let remoteQualityBudget = { degraded: false, slowMs: 0, cleanMs: 0 };
 
 function integrateRotation(q, w, dt) {
   const speed = Math.hypot(w?.[0] || 0, w?.[1] || 0, w?.[2] || 0);
@@ -3021,7 +2942,7 @@ function hideRemoteCar(o) {
 }
 
 // Minden képkockán fut (a main.js animate-jéből).
-function frame(dt = 1 / 60, rawFrameMs = dt * 1000) {
+function frame(dt = 1 / 60) {
   window.__mp.frames++;
   // A böngésző egy hosszú render/főszál-akadás után több WebSocket message
   // callbacket is lefuttathat a következő kép előtt. Ezekből itt pontosan egy,
@@ -3029,7 +2950,6 @@ function frame(dt = 1 / 60, rawFrameMs = dt * 1000) {
   // továbbra is mind, érkezési sorrendben dolgozza fel.
   flushPendingSnapshot(1);
   remoteDetailFrame = (remoteDetailFrame + 1) % 240;
-  remoteQualityBudget = updateRemoteQualityBudget(remoteQualityBudget, rawFrameMs);
   const nowServer = serverNow();
   // A távoli idővonal órája. Ugyanaz a mechanizmus, mint a saját kocsié, csak
   // tágabb tűréssel: itt a mélyítés biztonsági kérdés (üres puffer = megálló
@@ -3104,10 +3024,6 @@ function frame(dt = 1 / 60, rawFrameMs = dt * 1000) {
     const labelDistSq = lx * lx + ly * ly + lz * lz;
     const cameraDistance = Math.sqrt(labelDistSq);
     const watched = o === watchedEntry;
-    // A nézett autó mindig teljes minőségű. A többi csak akkor vált a két
-    // draw callos könnyű F1-modellre, ha a teljes képkockaidő tartósan rossz;
-    // a fizikai kontakt és a hálózati állapot ettől semmit nem változik.
-    setRemoteVisualQuality(o.group, remoteQualityBudget.degraded && !watched);
     const detailInterval = remoteDetailUpdateInterval(cameraDistance, watched);
     const detailDue = detailInterval === 1
       || (remoteDetailFrame + o.detailPhase) % detailInterval === 0;

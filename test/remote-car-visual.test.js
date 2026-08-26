@@ -6,7 +6,6 @@ import {
   localRenderDelayTarget, remoteDetailPhase, remoteDetailUpdateInterval,
   REMOTE_DETAIL_BUCKETS,
   remoteVisualCorrectionHalfLife, remoteVisualPredictionBlend,
-  updateRemoteQualityBudget,
 } from '../shared/remoteVisual.js';
 import {
   advanceRenderClock, LOCAL_CLOCK_RATE_MIN, LOCAL_CLOCK_RATE_MAX,
@@ -104,22 +103,15 @@ test('remote detail throttling always keeps the spectated car at full rate', () 
   assert.match(mp, /if \(!watched && labelDistSq > REMOTE_RENDER_MAX_RANGE_SQ\)/);
 });
 
-test('heavy remote models fall back only after sustained load, then recover with hysteresis', () => {
-  let state = { degraded: false, slowMs: 0, cleanMs: 0 };
-  state = updateRemoteQualityBudget(state, 100);
-  assert.equal(state.degraded, false, 'a merely slow frame does not flap quality');
-  state = updateRemoteQualityBudget(state, 250);
-  assert.equal(state.degraded, false, 'one real stall must not replace the selected car skin');
-  for (let i = 0; i < 30; i++) state = updateRemoteQualityBudget(state, 50);
-  assert.equal(state.degraded, true, 'sustained 20 FPS enables the lightweight visual');
-  for (let i = 0; i < 300; i++) state = updateRemoteQualityBudget(state, 16);
-  assert.equal(state.degraded, true, 'short recovery cannot make quality flap');
-  for (let i = 0; i < 220; i++) state = updateRemoteQualityBudget(state, 16);
-  assert.equal(state.degraded, false, 'long stable rendering restores the detailed skins');
-
-  assert.match(mp, /createRemoteLowDetailVisual/);
-  assert.match(mp, /remoteQualityBudget\.degraded && !watched/,
-    'the spectated car must stay detailed even during fallback');
+test('remote cars keep their selected skin regardless of frame time', () => {
+  assert.doesNotMatch(mp, /createRemoteLowDetailVisual/);
+  assert.doesNotMatch(mp, /setRemoteVisualQuality/);
+  assert.doesNotMatch(mp, /remoteQualityBudget|remoteLowDetail/);
+  assert.doesNotMatch(mp, /updateRemoteQualityBudget/);
+  assert.match(mp, /group\.add\(model\)/,
+    'the optimized real car model is the only normal multiplayer visual');
+  assert.match(mp, /new THREE\.BoxGeometry\(2, 0\.8, 4\.4\)/,
+    'a plain box remains only as the load-error fallback');
 });
 
 test('finished remote cars never keep an active physical contact', () => {
@@ -182,14 +174,13 @@ test('Hot Lap ghost uses smooth single-pass transparency with depth writing', ()
 });
 
 test('multiplayer frame keeps elapsed time for remote car smoothing and throttled audio', () => {
-  assert.match(mp, /function frame\(dt = 1 \/ 60, rawFrameMs = dt \* 1000\)/);
-  assert.match(mp, /updateRemoteQualityBudget\(remoteQualityBudget, rawFrameMs\)/);
+  assert.match(mp, /function frame\(dt = 1 \/ 60\)/);
   assert.match(mp, /remoteVisualCorrectionHalfLife\(interpDelayMs, predictionBlend\)/);
   assert.match(mp, /Math\.pow\(0\.5, dt \/ halfLife\)/);
   assert.match(mp, /o\.audioDt = Math\.min\(0\.5, \(o\.audioDt \|\| 0\) \+ dt\)/);
   assert.match(mp, /G\.updateRemoteEngine\([\s\S]*?\}, o\.audioDt\);/);
-  assert.match(main, /function stepMultiplayerFrame\(dt, rawFrameMs = dt \* 1000\) \{\s*mpFrameHook\?\.\(dt, rawFrameMs\);/);
-  assert.match(main, /stepMultiplayerFrame\(dt, rawDt \* 1000\)/);
+  assert.match(main, /function stepMultiplayerFrame\(dt\) \{\s*mpFrameHook\?\.\(dt\);/);
+  assert.match(main, /stepMultiplayerFrame\(dt\)/);
 });
 
 test('remote visuals blend gradually toward prediction without changing the 20 Hz snapshot rate', () => {
