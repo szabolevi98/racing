@@ -99,7 +99,7 @@ test('pipeline diagnostics separates contact, physics and rendering work', () =>
   recorder.record(NET_DIAG_EVENT.PIPELINE_TIMING, 0.2, 0.5, 1.1, 2.4, 0.8, 2.1, 3.2, 8.4);
   recorder.record(NET_DIAG_EVENT.RENDER_LOAD, 140, 250_000);
   const report = recorder.buildReport();
-  assert.equal(report.schemaVersion, 9);
+  assert.equal(report.schemaVersion, 10);
   assert.deepEqual(report.eventFields.pipeline_timing, [
     'relativeMs', 'contactSyncAvgMs', 'contactSyncMaxMs', 'physicsAvgMs', 'physicsMaxMs',
     'multiplayerFrameAvgMs', 'multiplayerFrameMaxMs', 'renderCpuAvgMs', 'renderCpuMaxMs',
@@ -112,15 +112,15 @@ test('pipeline diagnostics separates contact, physics and rendering work', () =>
 
 test('visual diagnostics separate local camera motion from nearby remote timelines', () => {
   const recorder = new NetDiagnosticsRecorder({ now: () => 100, wallNow: () => 1 });
-  recorder.record(NET_DIAG_EVENT.VISUAL_MOTION, 0.1, 0.08, 0.02, 12, 1, 9.5, 0.7, 1.8);
+  recorder.record(NET_DIAG_EVENT.VISUAL_MOTION, 0.1, 0.08, 0.02, 1.5, 12, 9.5, 0.7, 1.8);
   const report = recorder.buildReport();
   assert.deepEqual(report.eventFields.visual_motion, [
     'relativeMs', 'cameraJerkMaxM', 'cameraRelativeJerkMaxM', 'ownCarJerkMaxM',
-    'nearestRemoteDistanceM', 'nearestRemotePredictionBlend',
+    'cameraAngularJerkMaxDeg', 'nearestRemoteDistanceM',
     'nearRemoteTimelineShiftMaxM', 'nearRemoteJerkMaxM', 'cameraStepMaxM',
   ]);
   assert.deepEqual(report.current.events[0].slice(1), [
-    'visual_motion', 0.1, 0.08, 0.02, 12, 1, 9.5, 0.7, 1.8,
+    'visual_motion', 0.1, 0.08, 0.02, 1.5, 12, 9.5, 0.7, 1.8,
   ]);
 });
 

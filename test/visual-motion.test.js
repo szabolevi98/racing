@@ -2,8 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  createVisualMotionTracker, observeVisualMotion, resetVisualMotionTracker,
+  createAngularMotionTracker, createVisualMotionTracker,
+  observeAngularMotion, observeVisualMotion,
+  resetAngularMotionTracker, resetVisualMotionTracker,
 } from '../shared/visualMotion.js';
+
+const yawQuaternion = (angle) => [0, Math.sin(angle / 2), 0, Math.cos(angle / 2)];
 
 test('visual motion residual ignores constant velocity at uneven frame times', () => {
   const tracker = createVisualMotionTracker();
@@ -44,4 +48,23 @@ test('invalid input and explicit reset clear visual tracker continuity', () => {
   resetVisualMotionTracker(tracker);
   assert.equal(tracker.samples, 0);
   assert.equal(tracker.residualM, 0);
+});
+
+test('angular residual ignores constant camera rotation at uneven frame times', () => {
+  const tracker = createAngularMotionTracker();
+  assert.equal(observeAngularMotion(tracker, ...yawQuaternion(0), 0), false);
+  assert.equal(observeAngularMotion(tracker, ...yawQuaternion(0.02), 20), false);
+  assert.equal(observeAngularMotion(tracker, ...yawQuaternion(0.055), 55), true);
+  assert.ok(tracker.residualRad < 1e-9);
+});
+
+test('angular residual reports a sudden camera direction correction', () => {
+  const tracker = createAngularMotionTracker();
+  observeAngularMotion(tracker, ...yawQuaternion(0), 0);
+  observeAngularMotion(tracker, ...yawQuaternion(0.02), 20);
+  observeAngularMotion(tracker, ...yawQuaternion(0.04), 40);
+  assert.equal(observeAngularMotion(tracker, ...yawQuaternion(0.16), 60), true);
+  assert.ok(Math.abs(tracker.residualRad - 0.1) < 1e-9);
+  resetAngularMotionTracker(tracker);
+  assert.equal(tracker.samples, 0);
 });

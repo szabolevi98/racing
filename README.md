@@ -230,8 +230,10 @@ pingtüske-, főszálakadás-, kapcsolatvesztés- vagy szervervalidációs pilla
 A riport megadja a tényleges GPU-t, pixelarányt és rajzolási felbontást, valamint
 a feltorlódott snapshotok, a helyi fizikai puffer és a kamera helyreállításának
 mérőszámait is. Külön `visual_motion` sor választja szét a saját autó, a kamera,
-a kamera–autó relatív mozgása és a 80 méteren belüli ellenfelek képi rángását;
-utóbbiaknál az alkalmazott közelségi keverést és idővonal-eltolást is rögzíti.
+a kamera–autó relatív mozgása, a kamera szögelfordulása és a 80 méteren belüli
+ellenfelek képi rángását. A távoli autók ugyanazt a kirajzolt időpillanatot
+követik, mint a saját; a riport a korábbi stabil hálózati idővonalhoz képesti
+eltolást is rögzíti.
 A riport nem tartalmaz játékosnevet, szobakódot, belépési tokent vagy szerveres
 üzenetszöveget; fájl- és JSON-készítés csak az `F9` megnyomásakor történik.
 

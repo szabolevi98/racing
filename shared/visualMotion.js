@@ -21,10 +21,32 @@ export function createVisualMotionTracker() {
   };
 }
 
+export function createAngularMotionTracker() {
+  return {
+    samples: 0,
+    qx: 0,
+    qy: 0,
+    qz: 0,
+    qw: 1,
+    wx: 0,
+    wy: 0,
+    wz: 0,
+    atMs: 0,
+    stepRad: 0,
+    residualRad: 0,
+  };
+}
+
 export function resetVisualMotionTracker(tracker) {
   tracker.samples = 0;
   tracker.stepM = 0;
   tracker.residualM = 0;
+}
+
+export function resetAngularMotionTracker(tracker) {
+  tracker.samples = 0;
+  tracker.stepRad = 0;
+  tracker.residualRad = 0;
 }
 
 function startTracker(tracker, x, y, z, atMs) {
@@ -87,6 +109,94 @@ export function observeVisualMotion(
   tracker.x = x;
   tracker.y = y;
   tracker.z = z;
+  tracker.atMs = atMs;
+
+  const valid = tracker.samples >= 2;
+  tracker.samples = 2;
+  return valid;
+}
+
+function startAngularTracker(tracker, qx, qy, qz, qw, atMs) {
+  tracker.samples = 1;
+  tracker.qx = qx;
+  tracker.qy = qy;
+  tracker.qz = qz;
+  tracker.qw = qw;
+  tracker.wx = 0;
+  tracker.wy = 0;
+  tracker.wz = 0;
+  tracker.atMs = atMs;
+  tracker.stepRad = 0;
+  tracker.residualRad = 0;
+}
+
+// A kamera forgásának megfelelő párja. Az egymást követő kvaterniókból
+// világkoordinátás szögsebességet számol, majd annak képkockák közti változását
+// méri. Az egyenletes fordulás így nem rángás, a hirtelen iránykorrekció igen.
+export function observeAngularMotion(
+  tracker,
+  qx,
+  qy,
+  qz,
+  qw,
+  atMs,
+  maxGapMs = 100,
+  maxStepRad = Math.PI / 2,
+) {
+  if (!Number.isFinite(qx) || !Number.isFinite(qy) || !Number.isFinite(qz)
+    || !Number.isFinite(qw) || !Number.isFinite(atMs)) {
+    resetAngularMotionTracker(tracker);
+    return false;
+  }
+  const magnitude = Math.hypot(qx, qy, qz, qw);
+  if (!(magnitude > 1e-9)) {
+    resetAngularMotionTracker(tracker);
+    return false;
+  }
+  qx /= magnitude;
+  qy /= magnitude;
+  qz /= magnitude;
+  qw /= magnitude;
+  if (tracker.samples === 0) {
+    startAngularTracker(tracker, qx, qy, qz, qw, atMs);
+    return false;
+  }
+
+  const dtMs = atMs - tracker.atMs;
+  // Világkoordinátás delta: current * inverse(previous).
+  let dx = -qw * tracker.qx + qx * tracker.qw - qy * tracker.qz + qz * tracker.qy;
+  let dy = -qw * tracker.qy + qx * tracker.qz + qy * tracker.qw - qz * tracker.qx;
+  let dz = -qw * tracker.qz - qx * tracker.qy + qy * tracker.qx + qz * tracker.qw;
+  let dw = qw * tracker.qw + qx * tracker.qx + qy * tracker.qy + qz * tracker.qz;
+  if (dw < 0) {
+    dx = -dx;
+    dy = -dy;
+    dz = -dz;
+    dw = -dw;
+  }
+  const sinHalf = Math.hypot(dx, dy, dz);
+  const stepRad = 2 * Math.atan2(sinHalf, Math.max(0, dw));
+  if (dtMs < 1 || dtMs > maxGapMs || stepRad > maxStepRad) {
+    startAngularTracker(tracker, qx, qy, qz, qw, atMs);
+    return false;
+  }
+
+  const dt = dtMs / 1000;
+  const scale = sinHalf > 1e-9 ? stepRad / (sinHalf * dt) : 0;
+  const wx = dx * scale;
+  const wy = dy * scale;
+  const wz = dz * scale;
+  tracker.stepRad = stepRad;
+  tracker.residualRad = tracker.samples >= 2
+    ? Math.hypot(wx - tracker.wx, wy - tracker.wy, wz - tracker.wz) * dt
+    : 0;
+  tracker.wx = wx;
+  tracker.wy = wy;
+  tracker.wz = wz;
+  tracker.qx = qx;
+  tracker.qy = qy;
+  tracker.qz = qz;
+  tracker.qw = qw;
   tracker.atMs = atMs;
 
   const valid = tracker.samples >= 2;

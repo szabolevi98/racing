@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
   LOCAL_RENDER_DELAY_MAX_MS, LOCAL_RENDER_DELAY_MIN_MS,
+  alignedRemoteRenderTime,
   localRenderDelayTarget, remoteDetailPhase, remoteDetailUpdateInterval,
   REMOTE_DETAIL_BUCKETS,
-  remoteVisualCorrectionHalfLife, remoteVisualPredictionBlend,
+  remoteVisualCorrectionHalfLife, remoteVisualNearFactor,
 } from '../shared/remoteVisual.js';
 import {
   advanceRenderClock, LOCAL_CLOCK_RATE_MIN, LOCAL_CLOCK_RATE_MAX,
@@ -175,7 +176,7 @@ test('Hot Lap ghost uses smooth single-pass transparency with depth writing', ()
 
 test('multiplayer frame keeps elapsed time for remote car smoothing and throttled audio', () => {
   assert.match(mp, /function frame\(dt = 1 \/ 60\)/);
-  assert.match(mp, /remoteVisualCorrectionHalfLife\(interpDelayMs, predictionBlend\)/);
+  assert.match(mp, /remoteVisualCorrectionHalfLife\(interpDelayMs, nearFactor\)/);
   assert.match(mp, /Math\.pow\(0\.5, dt \/ halfLife\)/);
   assert.match(mp, /o\.audioDt = Math\.min\(0\.5, \(o\.audioDt \|\| 0\) \+ dt\)/);
   assert.match(mp, /G\.updateRemoteEngine\([\s\S]*?\}, o\.audioDt\);/);
@@ -183,14 +184,20 @@ test('multiplayer frame keeps elapsed time for remote car smoothing and throttle
   assert.match(main, /stepMultiplayerFrame\(dt\)/);
 });
 
-test('remote visuals blend gradually toward prediction without changing the 20 Hz snapshot rate', () => {
-  assert.equal(remoteVisualPredictionBlend(80), 0);
-  assert.equal(remoteVisualPredictionBlend(20), 1);
-  assert.ok(remoteVisualPredictionBlend(60) > 0);
-  assert.ok(remoteVisualPredictionBlend(60) < remoteVisualPredictionBlend(40));
-  assert.match(mp, /blendRemoteStates\(delayedState, currentState, predictionBlend\)/);
-  assert.equal((mp.match(/blendRemoteStates\(delayedState,/g) || []).length, 1,
-    'a késleltetett állapot csak egyszer keveredhet a közeli cél felé');
+test('remote visuals share the local car timeline without changing the 20 Hz snapshot rate', () => {
+  assert.equal(remoteVisualNearFactor(80), 0);
+  assert.equal(remoteVisualNearFactor(20), 1);
+  assert.ok(remoteVisualNearFactor(60) > 0);
+  assert.ok(remoteVisualNearFactor(60) < remoteVisualNearFactor(40));
+  assert.equal(alignedRemoteRenderTime(10_000, 5_000, 4_930, 100), 9_930);
+  assert.equal(alignedRemoteRenderTime(10_000, 5_000, Number.NaN, 80), 9_920);
+  assert.match(mp, /const state = interpolatedPhys\(nowLocal\)/);
+  assert.match(mp, /predSampleAt = nearest\.t/,
+    'pufferéhezéskor a ténylegesen kirajzolt utolsó minta legyen a közös idő');
+  assert.match(mp, /const localRenderTime = alignedRemoteRenderTime\([\s\S]*?predSampleAt,[\s\S]*?predDelayMs/);
+  assert.match(mp, /const s = remoteStateAt\(o\.buf, localRenderTime\)/);
+  assert.doesNotMatch(mp, /blendRemoteStates/,
+    'a távolság nem keverhet két külön időpillanatú pozíciót');
   assert.doesNotMatch(mp, /proxyPose/,
     'a távoli kép nem követhet helyben eltolt fizikai pózt');
   assert.doesNotMatch(mp, /const s = near \? currentState : delayedState/);

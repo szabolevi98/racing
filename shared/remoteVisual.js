@@ -1,6 +1,7 @@
-// A távoli autó képe nem ugyanazt az idővonalat használja minden távolságon.
-// Távolról a stabil, pufferelt múlt a fontos; ütközési közelségben fokozatosan
-// a jelenre extrapolált állapot felé közelítünk.
+// A távoli autó ugyanazt az időpillanatot mutatja, mint a saját kirajzolt
+// autónk. A távolság csak a hálózati korrekció simítását befolyásolja: magát
+// az idővonalat nem húzhatja előre-hátra, mert az nagy sebességnél többméteres
+// mesterséges gyorsulást okozna egy előzés közben.
 import { TICK_MS } from './protocol.js';
 
 export const REMOTE_VISUAL_PREDICT_NEAR = 20;
@@ -16,7 +17,7 @@ export const LOCAL_RENDER_DELAY_MAX_MS = TICK_MS * 6;
 
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 
-export function remoteVisualPredictionBlend(distanceMeters) {
+export function remoteVisualNearFactor(distanceMeters) {
   const linear = clamp01(
     (REMOTE_VISUAL_PREDICT_FAR - distanceMeters)
       / (REMOTE_VISUAL_PREDICT_FAR - REMOTE_VISUAL_PREDICT_NEAR)
@@ -26,14 +27,33 @@ export function remoteVisualPredictionBlend(distanceMeters) {
   return linear * linear * (3 - 2 * linear);
 }
 
+// A saját renderóra performance.now()-alapú időpontját ugyanarra a szerverórára
+// fordítja, amelyen a távoli állapotminták vannak. Az eltérés időtartam, ezért
+// a kliens faliórájának beállítása nem számít.
+export function alignedRemoteRenderTime(
+  serverNowMs,
+  localNowMs,
+  localRenderAtMs,
+  fallbackDelayMs = LOCAL_RENDER_DELAY_MIN_MS,
+) {
+  const server = Number(serverNowMs);
+  const localNow = Number(localNowMs);
+  const localAt = Number(localRenderAtMs);
+  if (Number.isFinite(server) && Number.isFinite(localNow) && Number.isFinite(localAt)) {
+    return server + (localAt - localNow);
+  }
+  const delay = Math.max(0, Number(fallbackDelayMs) || 0);
+  return Number.isFinite(server) ? server - delay : 0;
+}
+
 // Mennyivel a cél ELÉ kell célozni, hogy a simítónak ne maradjon rendszeres
 // lemaradása.
 //
 // Egy exponenciális simító (`x += (cél - x) * alpha`) egyenletes sebességgel
 // mozgó célt SOSEM ér utol: állandósult állapotban pontosan
-// `v * dt * (1-alpha)/alpha`-val marad mögötte. A látható távoli autó eddig
-// ezért csúszott el a saját ütközőtestétől, amit viszont simítatlanul teszünk
-// a helyére — a kettő közti rés a másik autó SEBESSÉGÉVEL arányos.
+// `v * dt * (1-alpha)/alpha`-val marad mögötte. A látható távoli autó ezért
+// csúszna el a közös kirajzolási időpontra vett céljától, a rés pedig a másik
+// autó SEBESSÉGÉVEL arányos.
 //
 // Mérve (2026-08-20): állva, ha hátulról 200 km/h-val nekünk jönnek, a látható
 // kocsi 4,65 méterrel — egy teljes kocsihossznyival — a saját ütközőteste
@@ -54,9 +74,9 @@ export function smootherLeadSeconds(alpha, dt) {
   return dt * (1 - alpha) / alpha;
 }
 
-export function remoteVisualCorrectionHalfLife(interpDelayMs, predictionBlend) {
+export function remoteVisualCorrectionHalfLife(interpDelayMs, nearFactor) {
   const networkStress = clamp01((interpDelayMs - 100) / 200);
-  const near = clamp01(predictionBlend);
+  const near = clamp01(nearFactor);
   // Jó hálózaton gyors marad a követés. Nagy késésnél hosszabb lecsengés rejti
   // el az extrapoláció minden új snapshotnál érkező apró korrekcióját.
   return 0.035 + networkStress * 0.085 + near * 0.025;

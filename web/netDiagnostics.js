@@ -115,7 +115,7 @@ const EVENT_SCHEMA = Object.freeze({
   ]],
   [NET_DIAG_EVENT.VISUAL_MOTION]: ['visual_motion', [
     'cameraJerkMaxM', 'cameraRelativeJerkMaxM', 'ownCarJerkMaxM',
-    'nearestRemoteDistanceM', 'nearestRemotePredictionBlend',
+    'cameraAngularJerkMaxDeg', 'nearestRemoteDistanceM',
     'nearRemoteTimelineShiftMaxM', 'nearRemoteJerkMaxM', 'cameraStepMaxM',
   ]],
 });
@@ -327,7 +327,7 @@ export class NetDiagnosticsRecorder {
     const fields = {};
     for (const [, [name, names]] of Object.entries(EVENT_SCHEMA)) fields[name] = ['relativeMs', ...names];
     return {
-      schemaVersion: 9,
+      schemaVersion: 10,
       generatedAt: new Date(this.wallNow()).toISOString(),
       windowMs: this.windowMs,
       privacy: 'No player names, room codes, authentication tokens or message text are recorded.',

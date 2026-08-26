@@ -83,6 +83,8 @@ test('a kliens a sebességgel ELŐRE tolt célra simít, és a forgásra is', as
   assert.match(mp, /const lead = smootherLeadSeconds\(alpha, dt\);/);
   assert.match(mp, /const tx = s\.p\[0\] \+ \(v\[0\] \|\| 0\) \* lead;/);
   assert.match(mp, /integrateRotation\(s\.q, s\.w \|\| \[0, 0, 0\], lead\)/);
-  assert.match(mp, /blendRemoteStates\(delayedState, currentState, predictionBlend\)/,
-    'kontaktközelben egyetlen keveréssel kövesse a friss hálózati állapotot');
+  assert.match(mp, /const s = remoteStateAt\(o\.buf, localRenderTime\)/,
+    'a távoli kép ugyanazt a kirajzolt időpontot kövesse, mint a saját autó');
+  assert.doesNotMatch(mp, /blendRemoteStates/,
+    'a távolság nem húzhatja előre-hátra a távoli autó idővonalát');
 });

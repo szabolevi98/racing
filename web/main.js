@@ -41,7 +41,9 @@ import {
   NET_DIAG_EVENT, NET_DIAG_INCIDENT, netDiagnostics,
 } from './netDiagnostics.js';
 import {
-  createVisualMotionTracker, observeVisualMotion, resetVisualMotionTracker,
+  createAngularMotionTracker, createVisualMotionTracker,
+  observeAngularMotion, observeVisualMotion,
+  resetAngularMotionTracker, resetVisualMotionTracker,
 } from '/shared/visualMotion.js';
 import {
   ZONE_ASPHALT, ZONE_OFFTRACK, ZONE_WALL, decodeZoneCodes, decodeSmoothingMask,
@@ -3895,6 +3897,13 @@ const CAMERA_VIEWS = [
 ];
 let cameraViewIndex = 0;
 const chaseTarget = new THREE.Vector3();
+const chaseYawEuler = new THREE.Euler();
+const chaseYawQuat = new THREE.Quaternion();
+const chaseOrbitEuler = new THREE.Euler();
+const chaseOrbitQuat = new THREE.Quaternion();
+const chaseDesiredOffset = new THREE.Vector3();
+const chaseDesiredPosition = new THREE.Vector3();
+const chaseForward = new THREE.Vector3();
 const audioListenerForward = new THREE.Vector3();
 const audioListenerUp = new THREE.Vector3();
 
@@ -3913,22 +3922,28 @@ const CAMERA_STALL_SNAP_MS = 150;
 const cameraVisualMotion = createVisualMotionTracker();
 const cameraRelativeVisualMotion = createVisualMotionTracker();
 const ownCarVisualMotion = createVisualMotionTracker();
+const cameraAngularMotion = createAngularMotionTracker();
 let cameraVisualJerkMaxM = 0;
 let cameraRelativeVisualJerkMaxM = 0;
 let ownCarVisualJerkMaxM = 0;
+let cameraAngularJerkMaxRad = 0;
 let cameraVisualStepMaxM = 0;
 let localVisualMotionSeen = false;
+let cameraAngularMotionSeen = false;
 
 function resetLocalVisualMotionTracking(resetSample = false) {
   resetVisualMotionTracker(cameraVisualMotion);
   resetVisualMotionTracker(cameraRelativeVisualMotion);
   resetVisualMotionTracker(ownCarVisualMotion);
+  resetAngularMotionTracker(cameraAngularMotion);
   if (!resetSample) return;
   cameraVisualJerkMaxM = 0;
   cameraRelativeVisualJerkMaxM = 0;
   ownCarVisualJerkMaxM = 0;
+  cameraAngularJerkMaxRad = 0;
   cameraVisualStepMaxM = 0;
   localVisualMotionSeen = false;
+  cameraAngularMotionSeen = false;
 }
 
 function observeLocalVisualMotion(atMs) {
@@ -3952,6 +3967,10 @@ function observeLocalVisualMotion(atMs) {
     15,
   );
   const carValid = observeVisualMotion(ownCarVisualMotion, p.x, p.y, p.z, atMs);
+  const cq = camera.quaternion;
+  const cameraAngularValid = observeAngularMotion(
+    cameraAngularMotion, cq.x, cq.y, cq.z, cq.w, atMs,
+  );
   if (cameraValid) {
     cameraVisualJerkMaxM = Math.max(cameraVisualJerkMaxM, cameraVisualMotion.residualM);
     cameraVisualStepMaxM = Math.max(cameraVisualStepMaxM, cameraVisualMotion.stepM);
@@ -3968,6 +3987,13 @@ function observeLocalVisualMotion(atMs) {
     ownCarVisualJerkMaxM = Math.max(ownCarVisualJerkMaxM, ownCarVisualMotion.residualM);
     localVisualMotionSeen = true;
   }
+  if (cameraAngularValid) {
+    cameraAngularJerkMaxRad = Math.max(
+      cameraAngularJerkMaxRad,
+      cameraAngularMotion.residualRad,
+    );
+    cameraAngularMotionSeen = true;
+  }
 }
 
 function takeLocalVisualMotionDiagnostics() {
@@ -3976,13 +4002,18 @@ function takeLocalVisualMotionDiagnostics() {
     cameraJerkMaxM: localVisualMotionSeen ? cameraVisualJerkMaxM : missing,
     cameraRelativeJerkMaxM: localVisualMotionSeen ? cameraRelativeVisualJerkMaxM : missing,
     ownCarJerkMaxM: localVisualMotionSeen ? ownCarVisualJerkMaxM : missing,
+    cameraAngularJerkMaxDeg: cameraAngularMotionSeen
+      ? THREE.MathUtils.radToDeg(cameraAngularJerkMaxRad)
+      : missing,
     cameraStepMaxM: localVisualMotionSeen ? cameraVisualStepMaxM : missing,
   };
   cameraVisualJerkMaxM = 0;
   cameraRelativeVisualJerkMaxM = 0;
   ownCarVisualJerkMaxM = 0;
+  cameraAngularJerkMaxRad = 0;
   cameraVisualStepMaxM = 0;
   localVisualMotionSeen = false;
+  cameraAngularMotionSeen = false;
   return sample;
 }
 
@@ -4123,15 +4154,16 @@ function updateChaseCamera(dt = 1 / 60) {
   // bukást (pl. borulás közben) szándékosan figyelmen kívül hagyjuk. Enélkül
   // borulásnál a "fel" és "hátra" irány a kocsival együtt fejre áll, és a
   // kamera a föld ALÁ kerülne, onnan nézve felfelé.
-  const yawOnly = new THREE.Euler().setFromQuaternion(q, 'YXZ').y;
-  const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yawOnly);
+  const yawOnly = chaseYawEuler.setFromQuaternion(q, 'YXZ').y;
+  chaseYawQuat.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, yawOnly);
 
   // A jobb-klikkes körbenézés extra forgatása a kocsi irányához képest.
-  const orbitQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(orbitPitch, orbitYaw, 0, 'YXZ'));
-  yawQuat.multiply(orbitQuat);
+  chaseOrbitEuler.set(orbitPitch, orbitYaw, 0, 'YXZ');
+  chaseOrbitQuat.setFromEuler(chaseOrbitEuler);
+  chaseYawQuat.multiply(chaseOrbitQuat);
 
-  const desiredOffset = view.offset.clone().applyQuaternion(yawQuat);
-  const desiredPos = new THREE.Vector3(chassisPos.x, chassisPos.y, chassisPos.z).add(desiredOffset);
+  chaseDesiredOffset.copy(view.offset).applyQuaternion(chaseYawQuat);
+  const desiredPos = chaseDesiredPosition.copy(chassisPos).add(chaseDesiredOffset);
 
   if (view.fpv) {
     // A motorháztető-nézetnél a kamera MEREVEN a kocsihoz van rögzítve —
@@ -4139,8 +4171,8 @@ function updateChaseCamera(dt = 1 / 60) {
     // egy fedélzeti nézettől várunk (a fej nem "csúszik" lemaradva a kocsi
     // mögött, hanem egyben mozog vele).
     camera.position.copy(desiredPos);
-    const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(yawQuat);
-    chaseTarget.copy(desiredPos).add(forward.multiplyScalar(50));
+    chaseForward.set(0, 0, 1).applyQuaternion(chaseYawQuat);
+    chaseTarget.copy(desiredPos).add(chaseForward.multiplyScalar(50));
     camera.lookAt(chaseTarget);
     if (cameraSnapPending) consumeCameraSnap();
     return;
@@ -5203,8 +5235,8 @@ function sampleNetPerformance(nowMs, rawFrameMs) {
     localVisual.cameraJerkMaxM,
     localVisual.cameraRelativeJerkMaxM,
     localVisual.ownCarJerkMaxM,
+    localVisual.cameraAngularJerkMaxDeg,
     remoteVisual.nearestDistanceM,
-    remoteVisual.nearestPredictionBlend,
     remoteVisual.nearTimelineShiftMaxM,
     remoteVisual.nearJerkMaxM,
     localVisual.cameraStepMaxM,

@@ -13,9 +13,10 @@ import { ghostCheckpointSplits } from '/shared/gate.js';
 import {
   LOCAL_RENDER_DELAY_MAX_MS, LOCAL_RENDER_DELAY_MIN_MS,
   REMOTE_VISUAL_PREDICT_FAR,
+  alignedRemoteRenderTime,
   localRenderDelayTarget, remoteDetailPhase, remoteDetailUpdateInterval,
   remoteVisualCorrectionHalfLife,
-  remoteVisualPredictionBlend, smootherLeadSeconds,
+  remoteVisualNearFactor, smootherLeadSeconds,
 } from '/shared/remoteVisual.js';
 import {
   advanceRenderClock, pushTransitSample, expireTransitSamples,
@@ -104,7 +105,6 @@ let pendingHotLap = null;
 // A távoli autók modelljei: playerId -> { group, buf: [állapotok] }
 const others = new Map();
 let nearestRemoteVisualDistanceM = Infinity;
-let nearestRemotePredictionBlend = Number.NaN;
 let nearRemoteTimelineShiftMaxM = 0;
 let nearRemoteVisualJerkMaxM = 0;
 let nearRemoteSeen = false;
@@ -115,12 +115,10 @@ function takeVisualMotionDiagnostics() {
     nearestDistanceM: Number.isFinite(nearestRemoteVisualDistanceM)
       ? nearestRemoteVisualDistanceM
       : Number.NaN,
-    nearestPredictionBlend: nearestRemotePredictionBlend,
     nearTimelineShiftMaxM: nearRemoteSeen ? nearRemoteTimelineShiftMaxM : Number.NaN,
     nearJerkMaxM: nearRemoteMotionSeen ? nearRemoteVisualJerkMaxM : Number.NaN,
   };
   nearestRemoteVisualDistanceM = Infinity;
-  nearestRemotePredictionBlend = Number.NaN;
   nearRemoteTimelineShiftMaxM = 0;
   nearRemoteVisualJerkMaxM = 0;
   nearRemoteSeen = false;
@@ -128,10 +126,9 @@ function takeVisualMotionDiagnostics() {
   return sample;
 }
 
-function observeRemoteVisualMotion(o, nowMs, distanceM, predictionBlend, timelineShiftM) {
+function observeRemoteVisualMotion(o, nowMs, distanceM, timelineShiftM) {
   if (distanceM < nearestRemoteVisualDistanceM) {
     nearestRemoteVisualDistanceM = distanceM;
-    nearestRemotePredictionBlend = predictionBlend;
   }
   const motionValid = observeVisualMotion(
     o.visualMotion,
@@ -2348,6 +2345,7 @@ let predDelayMs = LOCAL_RENDER_DELAY_MIN_MS;
 let predDelayTargetMs = LOCAL_RENDER_DELAY_MIN_MS;
 let predDelayUpdatedAt = 0;
 let predRenderAt = NaN;
+let predSampleAt = NaN;
 let predPlaybackRate = 1;
 let physicsTimerLatenessMs = 0;
 let physicsTimerJitterMs = 0;
@@ -2409,6 +2407,7 @@ function resetPredState() {
   predDelayTargetMs = LOCAL_RENDER_DELAY_MIN_MS;
   predDelayUpdatedAt = performance.now();
   predRenderAt = NaN;
+  predSampleAt = NaN;
   predPlaybackRate = 1;
   physicsTimerLatenessMs = 0;
   physicsTimerJitterMs = 0;
@@ -2441,12 +2440,12 @@ function recordPhysState(scheduledAt, state = G.getCarState()) {
   physSteps++;
 }
 
-function interpolatedPhys() {
+function interpolatedPhys(now = performance.now()) {
   if (!predBuf.length) {
     localBufferHeadroomMs = 0;
+    predSampleAt = now;
     return G.getCarState();
   }
-  const now = performance.now();
   const clock = advanceRenderClock({
     renderAtMs: predRenderAt,
     previousNowMs: predDelayUpdatedAt,
@@ -2476,6 +2475,7 @@ function interpolatedPhys() {
     if (a.t <= at && at <= b.t) {
       const span = b.t - a.t;
       const f = span > 0 ? (at - a.t) / span : 0;
+      predSampleAt = at;
       return {
         p: [a.p[0] + (b.p[0] - a.p[0]) * f, a.p[1] + (b.p[1] - a.p[1]) * f, a.p[2] + (b.p[2] - a.p[2]) * f],
         q: slerp(a.q, b.q, f),
@@ -2484,7 +2484,9 @@ function interpolatedPhys() {
   }
   // A kért idő a puffer előtt/után van (indulás, vagy megakadt a fizika) —
   // ilyenkor a legközelebbi ismert állapot a legjobb tipp.
-  return at < predBuf[0].t ? predBuf[0] : predBuf[predBuf.length - 1];
+  const nearest = at < predBuf[0].t ? predBuf[0] : predBuf[predBuf.length - 1];
+  predSampleAt = nearest.t;
+  return nearest;
 }
 
 // A visszaszámlálás alatt befagyasztjuk a helyi kocsit.
@@ -2805,21 +2807,6 @@ function slerp(a, b, f) {
   return [a[0] * w1 + bb[0] * w2, a[1] * w1 + bb[1] * w2, a[2] * w1 + bb[2] * w2, a[3] * w1 + bb[3] * w2];
 }
 
-function blendRemoteStates(delayed, current, amount) {
-  if (amount <= 0) return delayed;
-  if (amount >= 1) return current;
-  const mix = (a, b) => a + (b - a) * amount;
-  return {
-    p: delayed.p.map((value, index) => mix(value, current.p[index])),
-    q: slerp(delayed.q, current.q, amount),
-    v: delayed.v.map((value, index) => mix(value, current.v[index])),
-    w: delayed.w.map((value, index) => mix(value, current.w[index])),
-    st: mix(delayed.st ?? 0, current.st ?? 0),
-    wr: mix(delayed.wr ?? 0, current.wr ?? 0),
-    th: mix(delayed.th ?? 0, current.th ?? 0),
-  };
-}
-
 // A hálózatról kapott fizikai kormányállás digitális irányításnál
 // egyik snapshotról a másikra nagyot ugorhat. A saját autóhoz hasonlóan csak
 // a látható kerék közelít fokozatosan; a fizika és a hálózati állapot nem
@@ -3002,9 +2989,10 @@ function frame(dt = 1 / 60) {
   flushPendingSnapshot(1);
   remoteDetailFrame = (remoteDetailFrame + 1) % 240;
   const nowServer = serverNow();
-  // A távoli idővonal órája. Ugyanaz a mechanizmus, mint a saját kocsié, csak
-  // tágabb tűréssel: itt a mélyítés biztonsági kérdés (üres puffer = megálló
-  // autó), a sekélyítés csak kényelmi.
+  // Hálózati biztonsági referencia: megmutatja, milyen mély puffer kellene
+  // extrapoláció nélkül a snapshotokhoz. A látható autó nem ezt az időt
+  // követi, hanem lejjebb a saját autó tényleges kirajzolási időpontját; a
+  // referencia a korrekció erősségéhez és az F9-diagnosztikához marad meg.
   const nowLocal = performance.now();
   const interpClock = advanceRenderClock({
     renderAtMs: interpRenderAt,
@@ -3024,19 +3012,23 @@ function frame(dt = 1 / 60) {
   interpUpdatedAt = nowServer;
   interpPlaybackRate = interpClock.rate;
   interpDelayMs = Math.max(0, nowServer - interpClock.at);
-  const renderTime = interpClock.at;
-  // Ugrás után a képi simítónak nincs mit elrejtenie: a régi helyről indulva
-  // másodpercekig csúszna a helyére. Ilyenkor a következő képkocka odateszi
-  // az autókat, ahol vannak.
-  if (interpClock.resynced) {
-    for (const o of others.values()) o.renderReady = false;
-  }
+  const stableRemoteTime = interpClock.at;
   // Az ablak akkor is öregedjen, ha épp nem jön snapshot — különben egy
   // megszakadt kapcsolat után a régi minták tartanák magasan a célmélységet.
   expireTransitSamples(transitSamples, nowLocal);
 
-  const state = interpolatedPhys();
+  const state = interpolatedPhys(nowLocal);
   G.applyServerTransform(state.p, state.q);
+  // A saját és a távoli autó ugyanazt a szimulációs pillanatot mutassa. A
+  // saját renderóra performance.now()-alapú; ezt egyszer átváltjuk a távoli
+  // minták szerverórájára. Korábban a közeli autót egészen `nowServer`-ig
+  // húztuk előre, miközben a saját képünk 33–100 ms-mal a jelen mögött járt.
+  const localRenderTime = alignedRemoteRenderTime(
+    nowServer,
+    nowLocal,
+    predSampleAt,
+    predDelayMs,
+  );
 
   // A többiek helye a minitérképhez is kell, ezért ugyanabban a körben
   // gyűjtjük — a kirajzolt (interpolált) pozícióból, hogy a pötty pontosan azt
@@ -3067,9 +3059,9 @@ function frame(dt = 1 / 60) {
     // saját kocsinktól. Vezetés közben a kettő gyakorlatilag ugyanaz (a kamera
     // néhány méterrel a kocsi mögött ül), nézői módban viszont nem: ott a
     // saját kocsink fél pályával arrébb parkol, és épp a nézett játékos
-    // névtáblája tűnne el. A távolság-alapú hálózati simítás (lásd lejjebb)
-    // szándékosan marad a saját kocsihoz kötve — az arról szól, hol számít a
-    // pontos ütközés, nem arról, mit látunk.
+    // névtáblája tűnne el. A közelségi korrekciós súly (lásd lejjebb)
+    // szándékosan marad a saját kocsihoz kötve; a névtábla viszont ahhoz,
+    // amit a kamera ténylegesen lát.
     const cam = G.camera.position;
     const lx = currentState.p[0] - cam.x, ly = currentState.p[1] - cam.y, lz = currentState.p[2] - cam.z;
     const labelDistSq = lx * lx + ly * ly + lz * lz;
@@ -3103,7 +3095,7 @@ function frame(dt = 1 / 60) {
       continue;
     }
 
-    const delayedState = sampleAt(o.buf, renderTime);
+    const delayedState = sampleAt(o.buf, stableRemoteTime);
     if (!delayedState) {
       hideRemoteCar(o);
       continue;
@@ -3120,15 +3112,12 @@ function frame(dt = 1 / 60) {
         o.label.visible = opacity > 0.01;
       }
     }
-    // Korábban 60 méternél egyetlen képkocka alatt váltottunk a stabil,
-    // pufferelt állapotról a jelenre extrapoláltra. Nagy pingnél ez többméteres
-    // idővonal-ugrás lehetett. Most a távolság függvényében fokozatos az átmenet.
+    // A távolság csak a korrekció lecsengését szabályozza. Magát a mintavételi
+    // időt nem: előzéskor a távolságtól függő idővonal 300–378 km/h-nál
+    // 10–16 métert adott hozzá, majd távolodáskor ugyanennyit vett vissza.
     const remoteDistance = Math.sqrt(distSq);
-    const predictionBlend = remoteVisualPredictionBlend(remoteDistance);
-    // A távoli autó képe kizárólag a hálózati idővonalat követi. A helyi
-    // kontaktmegoldó csak a saját autónkat módosítja, ezért nincs külön,
-    // falba tolható vizuális/fizikai proxypóz, amit ide keverni kellene.
-    const s = blendRemoteStates(delayedState, currentState, predictionBlend);
+    const nearFactor = remoteVisualNearFactor(remoteDistance);
+    const s = remoteStateAt(o.buf, localRenderTime);
     if (!s) continue;
     const firstRenderedFrame = !o.renderReady;
     if (firstRenderedFrame) {
@@ -3137,10 +3126,9 @@ function frame(dt = 1 / 60) {
       o.group.quaternion.set(s.q[0], s.q[1], s.q[2], s.q[3]);
       o.renderReady = true;
     } else {
-      // A kontakt a frissebb becslést használja. A látható modell korrekciója
-      // nagy hálózati késésnél lassabban cseng le, ezért az új snapshot nem
-      // rántja oldalra az autót.
-      const halfLife = remoteVisualCorrectionHalfLife(interpDelayMs, predictionBlend);
+      // A közös időpontra vett cél korrekciója nagy hálózati késésnél lassabban
+      // cseng le, ezért az új snapshot nem rántja oldalra az autót.
+      const halfLife = remoteVisualCorrectionHalfLife(interpDelayMs, nearFactor);
       const alpha = 1 - Math.pow(0.5, dt / halfLife);
       // A simító célja a kocsi ELŐRE vetített helye, hogy a szűrő állandósult
       // lemaradása épp kiessen — különben a látható kocsi a saját ütközőteste
@@ -3165,7 +3153,7 @@ function frame(dt = 1 / 60) {
       s.p[1] - delayedState.p[1],
       s.p[2] - delayedState.p[2],
     );
-    observeRemoteVisualMotion(o, nowLocal, remoteDistance, predictionBlend, timelineShiftM);
+    observeRemoteVisualMotion(o, nowLocal, remoteDistance, timelineShiftM);
     const targetSteer = s.st ?? 0;
     o.visualSteerAngle = firstRenderedFrame
       ? targetSteer
