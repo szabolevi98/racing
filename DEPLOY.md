@@ -360,6 +360,7 @@ változhatnak.
 | Tanúsítvány | `certbot certificates` | érvényes, automatikus megújítás bekapcsolva |
 | **WebSocket** | Upgrade-fejlécekkel a `/ws`-re | **101 Switching Protocols** |
 | Manifest | `curl https://racing.levente.net/api/assets` | 200, mindhárom asset-típus |
+| Kliensmodul | `curl -I https://racing.levente.net/carVisualBatch.js` | 200, JavaScript MIME-típus |
 | Nagy `.glb` | `curl -r 0-99 <asset-url>` | 206, `model/gltf-binary` |
 | `collision.bin` | `curl -I <collision-url>` | 200, helyes `Content-Length` |
 | Cache | `curl -I .../2004_ferrari_f2004.glb` | `immutable`, 1 év, `Content-Length` megvan |
@@ -448,10 +449,12 @@ helyi és távoli példányt. Ezután jöhet a fenti `git pull --ff-only` és re
 
 ```bash
 curl -I https://racing.levente.net/
+curl -I https://racing.levente.net/carVisualBatch.js
 curl https://racing.levente.net/api/status
 curl https://racing.levente.net/api/assets
 ```
 
-Az első két kérésnek 200-at kell adnia, a manifestben pedig szerepelnie kell az
-új pályának vagy autónak a helyes fájlmérettel. A közvetlen asset URL-t is
-ellenőrizd, ne csak a sikeres `git pull` kimenetére hagyatkozz.
+A főoldalnak, a kliensmodulnak és az API-státusznak 200-at kell adnia, a
+manifestben pedig szerepelnie kell az új pályának vagy autónak a helyes
+fájlmérettel. A közvetlen asset URL-t is ellenőrizd, ne csak a sikeres
+`git pull` kimenetére hagyatkozz.

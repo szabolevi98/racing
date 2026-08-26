@@ -24,6 +24,7 @@ import {
   LOCAL_CLOCK_RATE_MIN, LOCAL_CLOCK_RATE_MAX,
   REMOTE_CLOCK_RATE_MIN, REMOTE_CLOCK_RATE_MAX,
 } from '/shared/renderClock.js';
+import { batchCarVisual } from './carVisualBatch.js';
 import { createPitState, hasCompletePitConfig, updatePitState } from '/shared/pit.js';
 import {
   acceptsClockSample, smoothPing, updateMinRtt,
@@ -165,7 +166,8 @@ let localPitConfig = null;
 let localPitState = createPitState(false);
 let localPitStopIndex = 0;
 let pitPrevPosition = null;
-let inputTimer = null;
+let inputLoopActive = false;
+let nextInputTickAt = 0;
 // A helyi fizika 60 Hz marad, de csak minden második lépés kerül hálózatra.
 // Futam/reconnect kezdetén a nulla fázis azonnali első csomagot jelent.
 let stateSendPhase = 0;
@@ -1894,7 +1896,7 @@ function removeOtherCar(playerId) {
 }
 
 function cleanupMultiplayerForMenu() {
-  const wasActive = G.appState === 'mp' || !!inputTimer || awaitingFirstSnapshot || raceLoadActive;
+  const wasActive = G.appState === 'mp' || inputLoopActive || awaitingFirstSnapshot || raceLoadActive;
   cancelRaceLoad();
   stopInputLoop();
   awaitingFirstSnapshot = false;
@@ -2015,6 +2017,10 @@ async function loadRemoteCarVisual(car, fallbackColor, onProgress, translucent =
     // A saját autóval azonos geometriai felismerés: autónkénti kézi lista vagy
     // offset nélkül megtalálja és külön pivotokra fűzi a látható kerekeket.
     group.userData.wheelRig = G.createRemoteWheelRig(model, car.config?.wheelPattern, group);
+    group.userData.batchStats = batchCarVisual(
+      group,
+      [model, ...group.userData.wheelRig.pivots],
+    );
   } catch (error) {
     if (error?.name === 'AbortError' || signal?.aborted) throw error;
     // Ha a modell nem tölthető, egy doboz is jobb, mint egy láthatatlan
@@ -2324,7 +2330,7 @@ function mulQuat(a, b) {
 }
 
 // ---------- A saját kocsi megjelenítése: időbélyeges puffer ----------
-// A fizika fix 60 Hz-en lép (a bemenet-hurokban), a képernyő viszont a saját
+// A fizika fix 60 Hz-en lép (a képkocka eleji fix lépéses hurokban), a képernyő viszont a saját
 // frissítésével rajzol — 75 Hz-en mérve a képkockák 27%-ára NULLA lépés jutott,
 // 7%-ára kettő. Ha a fizikai test pillanatnyi állapotát rajzolnánk ki, a kocsi
 // pont ilyen egyenetlenül haladna: ez a rángás.
@@ -2433,6 +2439,11 @@ function pushPredState(state, t) {
   predBuf.push({ t, p: [...state.p], q: [...state.q] });
   // Negyed másodpercnyi múlt bőven elég a késleltetett mintavételhez.
   while (predBuf.length > 20) predBuf.shift();
+}
+
+function shiftPredictionTimeline(deltaMs) {
+  if (!(deltaMs > 0)) return;
+  for (let i = 0; i < predBuf.length; i++) predBuf[i].t += deltaMs;
 }
 
 function recordPhysState(scheduledAt, state = G.getCarState()) {
@@ -2987,13 +2998,14 @@ function frame(dt = 1 / 60) {
   // a legfrissebb állapot kerül a pufferekbe; az eseményeket az onMessage
   // továbbra is mind, érkezési sorrendben dolgozza fel.
   flushPendingSnapshot(1);
+  const nowLocal = performance.now();
+  pumpInputLoop(nowLocal);
   remoteDetailFrame = (remoteDetailFrame + 1) % 240;
   const nowServer = serverNow();
   // Hálózati biztonsági referencia: megmutatja, milyen mély puffer kellene
   // extrapoláció nélkül a snapshotokhoz. A látható autó nem ezt az időt
   // követi, hanem lejjebb a saját autó tényleges kirajzolási időpontját; a
   // referencia a korrekció erősségéhez és az F9-diagnosztikához marad meg.
-  const nowLocal = performance.now();
   const interpClock = advanceRenderClock({
     renderAtMs: interpRenderAt,
     previousNowMs: interpUpdatedAt,
@@ -3383,8 +3395,9 @@ function eventText(e) {
   return '';
 }
 
-// A helyi fizikát és az állapotküldést fix ütemben futtatjuk, nem
-// képkockánként, így a viselkedés és a hálózati terhelés FPS-független.
+// A helyi fizikát a képkocka elején, de fix 60 Hz-es idővonalon futtatjuk:
+// egy képkockára az eltelt időtől függően 0–3 lépés jut. A viselkedés és a
+// hálózati terhelés így nem válik a pillanatnyi FPS függvényévé.
 
 function startInputLoop() {
   stopInputLoop();
@@ -3397,35 +3410,47 @@ function startInputLoop() {
   resetPredState();
   stateSendPhase = 0;
 
-  // Önkorrigáló ütemező, nem setInterval: az utóbbi ezredmásodpercre kerekít
-  // és hosszabb távon sodródna.
-  let next = performance.now();
-  const tick = () => {
-    const now = performance.now();
-    if (lastInputTickAt > 0) {
-      inputTickGapMaxMs = Math.max(inputTickGapMaxMs, now - lastInputTickAt);
-    }
-    lastInputTickAt = now;
-    observePhysicsTimer(now - next);
-    // A behozatalt korlátozzuk. Ha a lap háttérbe került, az ütemező befagy,
-    // és visszatéréskor több száz bemenetet akarna egyszerre kilőni — az csak
-    // elárasztaná a szerver sorát, ami onnan eldobásba fordulna.
-    let steps = 0;
-    while (next <= now && steps < 3) {
-      // Az ÜTEMEZETT időt adjuk át, nem a tényleges órát. Ez a kulcs a sima
-      // képhez: a setTimeout rendszeresen késve sül el (a Windows időzítő-
-      // granularitása ~15.6 ms), ilyenkor két lépés fut le EGYMÁS UTÁN,
-      // ugyanabban a hívásban. A tényleges órával mindkettő szinte azonos
-      // időbélyeget kapna — pedig két ticknyi mozgást jelentenek —, és a
-      // képkocka-interpoláció ezen a "függőleges" szakaszon ugrana egyet.
-      sendOneInput(next);
-      next += TICK_MS;
-      steps++;
-    }
-    if (next < now) next = now;
-    inputTimer = setTimeout(tick, Math.max(0, next - performance.now()));
-  };
-  tick();
+  // A renderrel versengő külön setTimeout-hurok terhelt integrált GPU-kon
+  // 80–125 ms-ra is kiszorult a főszál ütemezéséből, miközben képkockák még
+  // készültek. Ilyenkor a saját renderpuffer kifogyott, a kocsi megállt, majd
+  // a késve egymás után lefutó lépésektől előreugrott. A 60 Hz-es ütemet most
+  // a képkocka ELEJÉN fogyasztjuk el; így minden kirajzolás előtt biztosan
+  // elkészülnek az addig esedékes fizikai állapotok.
+  nextInputTickAt = performance.now();
+  inputLoopActive = true;
+}
+
+function pumpInputLoop(now = performance.now()) {
+  if (!inputLoopActive) return;
+  if (lastInputTickAt > 0) {
+    inputTickGapMaxMs = Math.max(inputTickGapMaxMs, now - lastInputTickAt);
+  }
+  lastInputTickAt = now;
+  observePhysicsTimer(now - nextInputTickAt);
+
+  // Hosszú háttérbe kerülés vagy valódi főszálfagyás után nem játszunk le
+  // több száz lépést gyorsítva. Normál 30–60 FPS között a háromlépéses keret
+  // bőven elég a fix 60 Hz megtartásához.
+  const latestCatchupStart = now - TICK_MS * 2;
+  if (nextInputTickAt < latestCatchupStart) {
+    // Még a lépések ELŐTT dobjuk el a három ticken túli régi időt. Így a
+    // szerverre sem mennek ki frissen elkészített, de 100+ ms-os időbélyegű
+    // állapotok, és a helyi renderpuffer régi mintái is ugyanannyival
+    // tolódnak: a fizika és a kép idővonala együtt marad.
+    const droppedMs = latestCatchupStart - nextInputTickAt;
+    shiftPredictionTimeline(droppedMs);
+    nextInputTickAt = latestCatchupStart;
+  }
+
+  let steps = 0;
+  while (nextInputTickAt <= now && steps < 3) {
+    // Az ÜTEMEZETT idő marad a fizikai és hálózati állapot időbélyege. Két,
+    // ugyanazon képkocka előtt behozott lépés így továbbra is két külön tick,
+    // nem két szinte azonos performance.now()-minta.
+    sendOneInput(nextInputTickAt);
+    nextInputTickAt += TICK_MS;
+    steps++;
+  }
 }
 
 function sendOneInput(scheduledAt) {
@@ -3558,8 +3583,8 @@ function sendOneInput(scheduledAt) {
 }
 
 function stopInputLoop() {
-  if (inputTimer) clearTimeout(inputTimer);
-  inputTimer = null;
+  inputLoopActive = false;
+  nextInputTickAt = 0;
   lastInputTickAt = 0;
 }
 

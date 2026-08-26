@@ -161,7 +161,8 @@ test('local render clock follows timer stress without visible timeline jumps', (
   assert.equal(resumed.at, now + 1000 - LOCAL_RENDER_DELAY_MAX_MS);
   assert.equal(resumed.rate, 1);
   assert.equal(resumed.resynced, true);
-  assert.match(mp, /observePhysicsTimer\(now - next\)/);
+  assert.match(mp, /observePhysicsTimer\(now - nextInputTickAt\)/);
+  assert.match(mp, /pumpInputLoop\(nowLocal\)/);
   assert.match(mp, /rateMin: LOCAL_CLOCK_RATE_MIN/);
   assert.match(mp, /get predDelayMs\(\)/);
 });

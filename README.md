@@ -160,8 +160,12 @@ test/         Node tesztcsomag
 ```
 
 A saját autó fizikáját a játékos böngészője számolja fix 60 Hz-en, ezért a
-kormányzás nem vár hálózati válaszra. A kliens 30 Hz-en küldi az állapotát; a
-szerver ellenőrzi a mozgást, kezeli a rajtot, checkpointokat, köröket,
+kormányzás nem vár hálózati válaszra. Az esedékes fix lépéseket minden képkocka
+elején dolgozza fel, legfeljebb hármas behozatallal; így a renderelés nem tudja
+külön időzítősorban 80–125 ms-ra kiszorítani a helyi fizikát. Eldobott régi idő
+esetén a teljes megjelenítési puffer idővonala együtt igazodik a jelenhez, nem
+marad egyetlen hosszú interpolációs lyuk. A kliens 30 Hz-en küldi az állapotát;
+a szerver ellenőrzi a mozgást, kezeli a rajtot, checkpointokat, köröket,
 boxkiállást, eredményeket és szellemeket, majd 20 Hz-es snapshotokat továbbít.
 
 A távoli autók késleltetett, adaptív interpolációval jelennek meg. A korrekció,
@@ -169,8 +173,11 @@ a kerékanimáció, a hang és a frissítési gyakoriság távolságfüggő; a n
 mindig kivétel a ritkítás alól. A részletes ellenfélmodellek a töltőképernyő
 alatt tényleges GPU-draw-val melegszenek elő. A kiválasztott, optimalizált
 autóskint rossz képkockaidőnél sem cseréljük le; egyszerű dobozmodell csak akkor
-jelenik meg, ha a valódi modell betöltése hibát jelez. A helyi főszálakadás nem
-kerülhet sem a ping-, sem a snapshot-jitter
+jelenik meg, ha a valódi modell betöltése hibát jelez. A kerékpivotok leválasztása
+után az együtt mozgó, azonos anyagú, kompatibilis merev mesh-ek betöltéskor egy
+geometriába kerülnek. Ez a kinézetet és a mozgó kerekeket változatlanul hagyja,
+de a sok autó által okozott draw call-terhelést jelentősen csökkenti. A helyi
+főszálakadás nem kerülhet sem a ping-, sem a snapshot-jitter
 becslésébe, a renderórák pedig hosszú képkocka után a megengedett puffermélységre
 állnak vissza ahelyett, hogy másodpercekig vagy percekig késleltetnék az autók képét.
 
@@ -243,22 +250,22 @@ alacsony/közepes/magas fokozaton 256/512/1024 pixeles cubemap-oldalak készüln
 A teljes HDR-t csak a betöltés és az egyszeri GPU-s átméretezés idejére tartjuk
 meg; külön skyboxfájlok és tartós 4K környezeti textúra nem szükségesek.
 
-### Későbbi helyi fizikai munka
+### Helyi fizika és további lehetőségek
 
-A helyi fizikai ciklus nagyobb átalakítása és a saját autó rövid vizuális
-extrapolációja szándékosan nincs vakon bekapcsolva. Egyik sem szabadítja fel
-önmagában a főszálat: az ütemező átalakítása ugyanazt a Rapier-munkát számolná,
-az extrapoláció pedig csak a meglévő állapotok közti képet becsülné. A teljes
-fizika Web Workerbe költöztetése valóban levenné ezt a munkát a főszálról, de
-nagy refaktor, és egy blokkoló renderelés alatt attól még nem készülne új kép.
+Az F9 schema 10 riportjai megmutatták, hogy gyengébb integrált GPU-n a képkockák
+még elkészültek, miközben a korábbi külön `setTimeout`-os fizikai hurok 80–125
+ms-ig nem kapott futási lehetőséget. Ezért a fix 60 Hz-es lépések most a
+képkockához igazított ütemezőből futnak. Ettől a Rapier számítási költsége nem
+tűnik el; a terhelést a látható autók merev mesh-einek kötegelése csökkenti, az
+új ütemezés pedig megakadályozza, hogy a renderelés mellett külön a saját autó
+állapotfrissítése éhezzen ki.
 
-Az F9-riport ezért külön méri a fizikai lépések idejét és késését, a saját
-megjelenítési puffer kifogyását, valamint a kamera lemaradását. Ha a képkockák
-még elkészülnek, miközben a fizikai időzítő vagy a helyi puffer rendszeresen
-éhezik, következő lépésként képkockához igazított fix lépéses ütemezést kell
-kipróbálni. Saját autós, legfeljebb egy tickes extrapoláció csak ezután indokolt;
-Workerre pedig akkor érdemes váltani, ha a mérés szerint maga a fizika terheli
-érdemben a főszálat.
+Az F9-riport továbbra is külön méri a fizikai lépések idejét és késését, a saját
+megjelenítési puffer kifogyását, valamint a kamera lemaradását. Saját autós
+vizuális extrapoláció csak akkor indokolt, ha új mérés szerint a puffer az új
+ütemezéssel is rendszeresen kifogy. A teljes fizika Web Workerbe költöztetése
+pedig csak akkor éri meg a nagy refaktort, ha maga a Rapier-munka terheli
+érdemben a főszálat; egy blokkoló renderelés alatt attól sem készülne új kép.
 
 ## Fejlesztői mód
 
