@@ -20,7 +20,6 @@ import {
   normalizePitConfig, pitLimitedVelocity, updatePitState,
 } from '/shared/pit.js';
 import { restHeightAboveGround } from '/shared/spawnRest.js';
-import { connectedVertexComponents } from '/shared/meshTopology.js';
 import { gridSlotPose, hotLapStartPose } from '/shared/grid.js';
 import { gateRespawnPoint } from '/shared/gate.js';
 import { classifyPing, shouldWarnAboutPing } from '/shared/ping.js';
@@ -2328,7 +2327,6 @@ const SMOOTH_MAX_LAYER_GAP = Math.max(0.35, SMOOTH_RADIUS * 0.25);
 // el — a szűrő csak a kis amplitúdójú töréseket tudja ténylegesen kiegyenlíteni.
 function smoothFloorHeights(positions, indices) {
   const n = positions.length / 3;
-  const components = connectedVertexComponents(n, indices);
   const cell = SMOOTH_RADIUS;
   const grid = new Map();
   const key = (ix, iz) => ix + ',' + iz;
@@ -2347,7 +2345,6 @@ function smoothFloorHeights(positions, indices) {
         const a = grid.get(key(ix + dx, iz + dz));
         if (!a) continue;
         for (const j of a) {
-          if (components[j] !== components[i]) continue;
           const ddx = positions[j * 3] - x, ddz = positions[j * 3 + 2] - z;
           // A magasságkorlát tartja külön a felettünk/alattunk futó rétegeket
           // — lásd SMOOTH_MAX_LAYER_GAP.
@@ -2443,14 +2440,8 @@ function smoothFloorHeights(positions, indices) {
 //
 // A síkot minden körben ÚJRASZÁMOLJUK a már mozgatott állapotból (nem az
 // eredetiből), különben egyetlen lépés után megállna a folyamat.
-function smoothAsphaltToPlane(
-  positions,
-  indices,
-  isAsphaltAt,
-  { iterations, maxShift, radius, isNeighbourAt = isAsphaltAt },
-) {
+function smoothAsphaltToPlane(positions, indices, isAsphaltAt, { iterations, maxShift, radius }) {
   const n = positions.length / 3;
-  const components = connectedVertexComponents(n, indices);
   // A SUGÁR a legerősebb paraméter, messze a kör-szám és a korlát előtt: egy
   // R sugarú síkillesztés az R-nél RÖVIDEBB hullámot veszi ki, a hosszabbat
   // érintetlenül hagyja. A hibás modellek hullámossága több méteres, ezért a
@@ -2492,8 +2483,6 @@ function smoothAsphaltToPlane(
         const a = grid.get(key(ix + dx, iz + dz));
         if (!a) continue;
         for (const j of a) {
-          if (components[j] !== components[i]) continue;
-          if (!isNeighbourAt(positions[j * 3], positions[j * 3 + 2])) continue;
           const ddx = positions[j * 3] - x, ddz = positions[j * 3 + 2] - z;
           const ddy = positions[j * 3 + 1] - y;
           if (ddx * ddx + ddz * ddz <= cell * cell && Math.abs(ddy) <= maxLayerGap) nb.push(j);
