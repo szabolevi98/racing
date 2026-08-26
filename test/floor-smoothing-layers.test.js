@@ -38,6 +38,8 @@ test('a rázókő-simítás nem vesz egy környezetbe eltérő magasságú réte
   assert.match(forras, /Math\.abs\(ddy\) <= SMOOTH_MAX_LAYER_GAP/,
     'a magasságkülönbség nincs korlátozva');
   assert.match(main, /const SMOOTH_MAX_LAYER_GAP = /, 'nincs magasság-korlát konstans');
+  assert.match(forras, /components\[j\] !== components\[i\]/,
+    'a szomszédkeresés összekeverheti a különálló pályaelemeket');
 });
 
 test('az aszfalt-simítás megtartja ugyanezt a védelmet', () => {
@@ -45,6 +47,10 @@ test('az aszfalt-simítás megtartja ugyanezt a védelmet', () => {
   assert.match(forras, /maxLayerGap/, 'a rétegkorlát eltűnt az aszfalt-simításból');
   assert.match(forras, /Math\.abs\(ddy\) <= maxLayerGap/,
     'a szomszédkeresés nem használja a rétegkorlátot');
+  assert.match(forras, /components\[j\] !== components\[i\]/,
+    'a szomszédkeresés összekeverheti a különálló pályaelemeket');
+  assert.match(forras, /isNeighbourAt\(positions\[j \* 3\], positions\[j \* 3 \+ 2\]\)/,
+    'a helyi síkba aszfalton kívüli geometria is bekerülhet');
 });
 
 test('a rétegkorlát átengedi a valódi bankolást, de kizárja a szerkezeteket', () => {

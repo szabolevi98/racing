@@ -2092,6 +2092,9 @@ async function bakeCollisionToFile() {
     const s = smoothAsphaltToPlane(floor.positions, floor.indices, smoothingAt, {
       iterations: asphaltIterations,
       radius: asphaltRadius,
+      // A kék maszk csak azt mondja meg, MIT mozgassunk. A helyi síkhoz a
+      // környező normál aszfalt kell, kerítés/fal/fű viszont nem.
+      isNeighbourAt: api.isAsphaltAt,
       // 5 cm helyett 20: a korlát a valódi lépcsőket (hidak, pályaszél) védi,
       // de 5 cm-nél a simított felület jó részét is levágta, és maga a levágás
       // is törést csinált. Mérve 0.2 a jó érték; ennél nagyobb már nem javít.
