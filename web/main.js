@@ -20,7 +20,7 @@ import {
   normalizePitConfig, pitLimitedVelocity, updatePitState,
 } from '/shared/pit.js';
 import {
-  TIRE_CHANGE_RECOMMENDED, advanceTireWearByCheckpoints, changeTires,
+  advanceTireWearByCheckpoints, changeTires,
   createTireWearState, tireConditionPercent, tireWearLevel,
 } from '/shared/tireWear.js';
 import { restHeightAboveGround } from '/shared/spawnRest.js';
@@ -2736,26 +2736,22 @@ function setPitStopMarker(stop, visible = true) {
   pitStopMarker.visible = true;
 }
 
-function shouldGuideToPit(state, tires) {
-  return !!state?.enabled && (state.inLane || (tires?.wear ?? 0) >= TIRE_CHANGE_RECOMMENDED);
+function shouldGuideToPit(state) {
+  return !!state?.enabled && !!state.inLane;
 }
 
-function setTireCondition(condition = null) {
-  const visible = Number.isFinite(condition);
+function setTireCondition(tires = null) {
+  const visible = !!tires?.enabled && Number.isFinite(tires.wear);
   tireStatusEl.classList.toggle('hidden', !visible);
   if (!visible) {
     tireStatusEl.removeAttribute('data-quality');
     return;
   }
-  const percent = Math.max(0, Math.min(100, Math.round(condition)));
+  const percent = tireConditionPercent(tires);
   tireValueEl.textContent = `${percent}%`;
-  tireStatusEl.dataset.quality = percent > 60
-    ? 'good'
-    : percent > 40
-      ? 'warning'
-      : percent > 20
-        ? 'recommended'
-        : 'bad';
+  // Ugyanaz a közös besorolás hajtja a HUD színét és a vezetési alertet.
+  // Így a shared/tireWear.js küszöbeinek hangolásakor nem csúszhatnak szét.
+  tireStatusEl.dataset.quality = tireWearLevel(tires);
 }
 
 function renderPitStopHud(state, stopIndex = 0, tires = null) {
@@ -3453,9 +3449,7 @@ function updateRaceHud() {
   const current = race.phase === 'running' ? now - race.lapStartTime : 0;
   const validTimes = race.lapTimes.filter((l) => !l.invalid).map((l) => l.time);
   const best = validTimes.length ? Math.min(...validTimes) : NaN;
-  setTireCondition(
-    race.tires.enabled ? tireConditionPercent(race.tires) : null
-  );
+  setTireCondition(race.tires.enabled ? race.tires : null);
   raceHudEl.innerHTML =
     '<div class="lap-head">' +
       `<span class="lbl">${t('hud.lap')}</span>` +
@@ -3555,7 +3549,7 @@ function updateRace(dt) {
   if (race.pit.changeCount > pitChangesBefore) changeTires(race.tires);
   setPitStopMarker(
     currentPitConfig.stops[race.pitStopIndex],
-    shouldGuideToPit(race.pit, race.tires)
+    shouldGuideToPit(race.pit)
   );
   renderPitStopHud(race.pit, race.pitStopIndex, race.tires);
   const checkpoints = currentGates.checkpoints;

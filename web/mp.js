@@ -26,8 +26,8 @@ import {
 } from '/shared/renderClock.js';
 import { createPitState, hasCompletePitConfig, updatePitState } from '/shared/pit.js';
 import {
-  TIRE_CHANGE_RECOMMENDED, changeTires, createTireWearState,
-  syncTireWearSnapshot, tireConditionPercent,
+  changeTires, createTireWearState,
+  syncTireWearSnapshot,
 } from '/shared/tireWear.js';
 import {
   acceptsClockSample, smoothPing, updateMinRtt,
@@ -1943,7 +1943,7 @@ async function addOtherCar(p, onProgress, loadGeneration, signal) {
     group, label, wheelRig: group.userData.wheelRig || { pivots: [], sources: [] },
     engineAudio: G.createRemoteEngine(), buf: [], color: p.color, name: p.name, lap: 0, cp: 0,
     rank: 0, gap: null, bestLap: null, lastLap: null, lastLapInvalid: false, finished: false,
-    tireCondition: null,
+    tireState: null,
     detailPhase: remoteDetailPhase(p.id), audioDt: 0, visualSteerAngle: 0,
     visualMotion: createVisualMotionTracker(),
     contactActive: false,
@@ -2559,8 +2559,9 @@ function onSnapshot(
       entry.bestLap = c.best ?? null;
       entry.lastLap = c.last ?? null;
       entry.lastLapInvalid = !!c.li;
-      entry.tireCondition = c.tw
-        ? tireConditionPercent({ wear: Number(c.tw.w) / 1000 })
+      const remoteWear = Number(c.tw?.w);
+      entry.tireState = Number.isFinite(remoteWear)
+        ? { enabled: true, wear: Math.max(0, Math.min(1, remoteWear / 1000)) }
         : null;
       entry.finished = !!c.fin;
       if (entry.finished) {
@@ -2607,9 +2608,7 @@ function onSnapshot(
       syncTireWearSnapshot(localTireState, c.tw);
       G.setPitStopMarker(
         localPitConfig?.stops?.[localPitStopIndex],
-        localPitState.enabled && (
-          localPitState.inLane || localTireState.wear >= TIRE_CHANGE_RECOMMENDED
-        )
+        localPitState.enabled && localPitState.inLane
       );
       G.renderPitStopHud(localPitState, localPitStopIndex, localTireState);
       if (isHotLap()) {
@@ -3042,8 +3041,8 @@ function frame(dt = 1 / 60) {
   const watchedEntry = spectateId ? others.get(spectateId) : null;
   G.setTireCondition(
     spectateId
-      ? (Number.isFinite(watchedEntry?.tireCondition) ? watchedEntry.tireCondition : null)
-      : (localTireState.enabled ? tireConditionPercent(localTireState) : null)
+      ? (watchedEntry?.tireState ?? null)
+      : (localTireState.enabled ? localTireState : null)
   );
   for (const o of others.values()) {
     const latest = o.buf[o.buf.length - 1];
@@ -3538,9 +3537,7 @@ function sendOneInput(scheduledAt) {
   pitPrevPosition = { x: state.p[0], z: state.p[2] };
   G.setPitStopMarker(
     localPitConfig?.stops?.[localPitStopIndex],
-    localPitState.enabled && (
-      localPitState.inLane || localTireState.wear >= TIRE_CHANGE_RECOMMENDED
-    )
+    localPitState.enabled && localPitState.inLane
   );
   G.renderPitStopHud(localPitState, localPitStopIndex, localTireState);
   const steppedAt = scheduledAt + TICK_MS;

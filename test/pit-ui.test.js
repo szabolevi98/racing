@@ -20,9 +20,11 @@ test('menu and HUD expose the optional tire-wear rule', () => {
   assert.match(main, /race\.totalLaps > 1/);
   assert.match(main, /tireWearCheckbox\.disabled = !available/);
   assert.match(mp, /tireWear: laps > 1 && tireWearCheckbox\.checked/);
-  assert.match(main, /tireConditionPercent\(race\.tires\)/);
-  assert.match(mp, /tireConditionPercent\(localTireState\)/);
-  assert.match(main, /function setTireCondition\(condition = null\)/);
+  assert.match(main, /tireConditionPercent\(tires\)/);
+  assert.match(main, /function setTireCondition\(tires = null\)/);
+  assert.match(main, /tireStatusEl\.dataset\.quality = tireWearLevel\(tires\)/);
+  assert.doesNotMatch(main, /percent > (?:60|40|20)/);
+  assert.match(mp, /localTireState\.enabled \? localTireState : null/);
   assert.match(mp, /G\.setTireCondition\(/);
   assert.doesNotMatch(main, /<div class="t-row"><span class="lbl">\$\{t\('hud\.tires'\)\}/);
   assert.doesNotMatch(mp, /<div class="t-row"><span class="lbl">\$\{t\('hud\.tires'\)\}/);
@@ -50,6 +52,9 @@ test('multiplayer passes pit limiter state into the local physics step', () => {
   assert.match(main, /findPitGroundAt\(currentTrack, currentTrackBox, stop\.x, stop\.z, gridGroundLevel\(\)\)/);
   assert.match(main, /function gridGroundLevel\(\)/);
   assert.match(main, /state\.servicedThisVisit && state\.inLane/);
+  assert.match(main, /function shouldGuideToPit\(state\) \{\s*return !!state\?\.enabled && !!state\.inLane;/);
+  assert.doesNotMatch(main, /TIRE_CHANGE_RECOMMENDED/);
+  assert.doesNotMatch(mp, /TIRE_CHANGE_RECOMMENDED/);
   const pit = fs.readFileSync(new URL('../shared/pit.js', import.meta.url), 'utf8');
   const css = fs.readFileSync(new URL('../web/style.css', import.meta.url), 'utf8');
   assert.doesNotMatch(pit, /if \(!inStop\) state\.servicedThisVisit = false/);

@@ -702,10 +702,10 @@ kbd.k {
   color: var(--muted);
 }
 #tireValue { transition: color .15s ease; }
-#tireStatus[data-quality="good"] #tireValue { color: var(--ok); }
-#tireStatus[data-quality="warning"] #tireValue { color: var(--warn); }
+#tireStatus[data-quality="fresh"] #tireValue { color: var(--ok); }
+#tireStatus[data-quality="wearing"] #tireValue { color: var(--warn); }
 #tireStatus[data-quality="recommended"] #tireValue { color: #ff984d; }
-#tireStatus[data-quality="bad"] #tireValue { color: var(--danger); }
+#tireStatus[data-quality="critical"] #tireValue { color: var(--danger); }
 #zoneIndicator {
   display: inline-flex; align-items: center; gap: 7px;
   margin-left: auto;
