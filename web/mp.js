@@ -677,7 +677,7 @@ $('mpLogout').addEventListener('click', () => {
 $('mpCreate').addEventListener('click', () => {
   const mapId = document.getElementById('mapSelect')?.value;
   const carId = document.getElementById('carSelect')?.value;
-  const laps = Number(document.getElementById('lapCountSelect')?.value) || 3;
+  const laps = Number(document.getElementById('lapCountSelect')?.value) || 5;
   if (!mapId || !carId) return setErr(t('mp.pickMapCarMenu'));
   send(C2S.CREATE_ROOM, {
     mapId,

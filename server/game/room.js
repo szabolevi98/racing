@@ -23,7 +23,7 @@ export class Room {
     // Az Időmérés soha nem publikus: egyszemélyes, nincs mit meghirdetni.
     this.isPublic = mode !== GAME_MODE.HOT_LAP && isPublic !== false;
     this.mapId = mapId;
-    this.laps = Math.max(1, Math.min(20, Number(laps) || 3));
+    this.laps = Math.max(1, Math.min(20, Number(laps) || 5));
     this.mode = mode === GAME_MODE.HOT_LAP ? GAME_MODE.HOT_LAP : GAME_MODE.MULTIPLAYER;
     this.ghostPlayerId = Number.isSafeInteger(ghostPlayerId) && ghostPlayerId > 0
       ? ghostPlayerId

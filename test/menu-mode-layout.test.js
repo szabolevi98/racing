@@ -21,6 +21,8 @@ test('menu shows single-player and timing together with multiplayer below', asyn
   assert.equal(hu['mp.hotLap'], 'Időmérés');
   assert.equal(hu['menu.multiplayer'], 'Többjátékos');
   assert.equal(hu['menu.gameMode'], 'Játékmód');
+  assert.match(html, /<option value="5" selected>5<\/option>/);
+  assert.doesNotMatch(html, /<option value="3" selected>3<\/option>/);
   assert.match(
     html,
     /class="graphics-quality-field"[\s\S]*class="mode-section"[\s\S]*id="modeButtons"/,

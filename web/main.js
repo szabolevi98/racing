@@ -3364,7 +3364,7 @@ function startRace() {
   race.active = !!currentGates.start;
   race.phase = 'countdown';
   race.countdownLeft = COUNTDOWN_SECONDS;
-  race.totalLaps = Number(lapCountSelect.value) || 3;
+  race.totalLaps = Number(lapCountSelect.value) || 5;
   race.lap = 0;
   race.nextCheckpoint = 0;
   race.passed.clear();
