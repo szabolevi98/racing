@@ -101,7 +101,6 @@
   "results.bestTag": "najbolje",
   "menu.count": "({n})",
   "error.physicsFailed": "Greška pri pripremi fizike: ",
-  "mp.prevLap": "Prethodni krug",
   "mp.waitingForOthers": "Čeka se: {names}…",
   "mp.waitingForStart": "Čeka se start…",
   "mp.noGhost": "Bez duha",

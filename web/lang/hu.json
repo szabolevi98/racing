@@ -101,7 +101,6 @@
   "results.bestTag": "legjobb",
   "menu.count": "({n} db)",
   "error.physicsFailed": "Hiba a fizika előkészítésekor: ",
-  "mp.prevLap": "Előző kör",
   "mp.waitingForOthers": "Várakozás a többiekre: {names}…",
   "mp.waitingForStart": "Várakozás a rajtra…",
   "mp.noGhost": "Szellem nélkül",

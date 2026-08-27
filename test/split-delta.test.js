@@ -72,9 +72,9 @@ test('ghost splits keep checkpoint order even when one segment spans two gates',
   assert.ok(splits[0] < splits[1], 'a sorrend nem fordulhat meg');
 });
 
-test('the server reports the lap-relative split of the checkpoint just crossed', async () => {
+test('the server reports the current split with the same checkpoint from the best valid lap', async () => {
   const host = { id: 'p1', slot: 0, carId: 'auto', name: 'Vezeto' };
-  const room = new Room('SPLIT1', host, { mapId: 'palya', laps: 2, mode: GAME_MODE.MULTIPLAYER });
+  const room = new Room('SPLIT1', host, { mapId: 'palya', laps: 3, mode: GAME_MODE.MULTIPLAYER });
   room.add(host, 'auto');
   room.state = ROOM_STATE.RACING;
   room.recordLap = async () => {};
@@ -130,7 +130,39 @@ test('the server reports the lap-relative split of the checkpoint just crossed',
     // értékét hasonlítgassa a kliens.
     kuld(-10, 1000);
     assert.equal(car.race.lap, 1, 'lezárult a kör');
-    assert.equal(utolsoSnapshot().ci, -1, 'új körben tiszta lappal indul');
+    const ujKor = utolsoSnapshot();
+    assert.equal(ujKor.ci, -1, 'új körben tiszta lappal indul');
+    assert.equal(ujKor.bt, null, 'checkpoint nélkül nincs referencia-részidő');
+    assert.deepEqual(car.race.bestLapSplits, [1500, 2999.5]);
+
+    // A tesztpálya a rajtvonalnál „körbetekeredik”: a következő mintát már
+    // közvetlenül a vonal utáni pontról indítjuk. A második kör szándékosan
+    // lassabb, mégsem válhat a harmadik kör delta-referenciájává.
+    car.state.p[2] = 10;
+    car.race.prevZ = 10;
+    car.race.prevAt = ora;
+    kuld(50, 2000);
+    const masodikKorElso = utolsoSnapshot();
+    assert.equal(masodikKorElso.ci, 0);
+    assert.equal(masodikKorElso.bt, 1500, 'a referencia az első kör legjobb részideje');
+    kuld(70, 1000);
+    kuld(-10, 5000);
+    assert.equal(car.race.lap, 2, 'a lassabb második kör is lezárult');
+    assert.deepEqual(
+      car.race.bestLapSplits,
+      [1500, 2999.5],
+      'a lassabb előző kör nem írhatja felül a legjobb kör részidőit'
+    );
+
+    car.state.p[2] = 10;
+    car.race.prevZ = 10;
+    car.race.prevAt = ora;
+    kuld(50, 2000);
+    assert.equal(
+      utolsoSnapshot().bt,
+      1500,
+      'a harmadik kör továbbra is a legjobb, nem az előző körhöz mér'
+    );
   } finally {
     sim.stop();
   }

@@ -101,7 +101,6 @@
   "results.bestTag": "최고",
   "menu.count": "({n})",
   "error.physicsFailed": "물리 준비 오류: ",
-  "mp.prevLap": "이전 랩",
   "mp.waitingForOthers": "대기 중: {names}…",
   "mp.waitingForStart": "출발 대기 중…",
   "mp.noGhost": "고스트 없음",

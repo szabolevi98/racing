@@ -101,7 +101,6 @@
   "results.bestTag": "найкраще",
   "menu.count": "({n})",
   "error.physicsFailed": "Помилка підготовки фізики: ",
-  "mp.prevLap": "Попереднє коло",
   "mp.waitingForOthers": "Очікування: {names}…",
   "mp.waitingForStart": "Очікування старту…",
   "mp.noGhost": "Без привида",

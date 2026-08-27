@@ -101,7 +101,6 @@
   "results.bestTag": "en iyi",
   "menu.count": "({n})",
   "error.physicsFailed": "Fizik hazırlanırken hata: ",
-  "mp.prevLap": "Önceki tur",
   "mp.waitingForOthers": "Beklenenler: {names}…",
   "mp.waitingForStart": "Başlangıç bekleniyor…",
   "mp.noGhost": "Hayalet yok",

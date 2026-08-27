@@ -21,7 +21,7 @@ import {
 } from '/shared/pit.js';
 import { restHeightAboveGround } from '/shared/spawnRest.js';
 import { gridSlotPose, hotLapStartPose } from '/shared/grid.js';
-import { gateRespawnPoint } from '/shared/gate.js';
+import { crossingTime, gateRespawnPoint } from '/shared/gate.js';
 import { classifyPing, shouldWarnAboutPing } from '/shared/ping.js';
 import {
   DEFAULT_GRAPHICS_QUALITY, graphicsProfile,
@@ -40,6 +40,7 @@ import {
 import {
   NET_DIAG_EVENT, NET_DIAG_INCIDENT, netDiagnostics,
 } from './netDiagnostics.js';
+import { hideSplitDelta, showSplitDelta } from './splitDelta.js';
 import {
   createAngularMotionTracker, createVisualMotionTracker,
   observeAngularMotion, observeVisualMotion,
@@ -3255,10 +3256,14 @@ const race = {
   startTime: 0,
   lapStartTime: 0,
   lapTimes: [],       // { time, invalid } — az érvénytelen kör is SZÁMÍT, csak meg van jelölve
+  lapSplits: [],      // az aktuális kör checkpoint-részidői
+  bestLapTime: null,  // csak érvényes kör válhat referenciává
+  bestLapSplits: null,
   lapTainted: false,  // elromlott-e már ez a kör (kihagyott checkpoint vagy letérés)
   taintReason: TAINT.NONE,  // TAINT kódja — mi rontotta el a kört
   prevX: 0,
   prevZ: 0,
+  prevAt: 0,
   invalidUntil: 0,  // performance.now() időbélyeg, ameddig a "kör érvénytelen" üzenet látszik
   hasCrossedStart: false,  // a rajtpont a rajtvonal ELŐTT van, ezért az induláskori
                            // első átlépés csak a kört KEZDI, nem zárja le
@@ -3298,19 +3303,10 @@ function showCountdown(secondsLeft) {
 // szándékosan nem, így R mindig a legutóbbi jó pontra visz vissza.
 let lastCheckpointSpawn = null;
 
-// Két szakasz metszi-e egymást (2D, felülnézetből).
-function segmentsIntersect(ax, az, bx, bz, cx, cz, dx, dz) {
-  const d1 = (dx - cx) * (az - cz) - (dz - cz) * (ax - cx);
-  const d2 = (dx - cx) * (bz - cz) - (dz - cz) * (bx - cx);
-  const d3 = (bx - ax) * (cz - az) - (bz - az) * (cx - ax);
-  const d4 = (bx - ax) * (dz - az) - (bz - az) * (dx - ax);
-  return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
-         ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
-}
-
+// A dev/debug API régi logikai segédje megmarad, de ugyanazt a közös
+// kapumetszést használja, mint az időzített versenylogika.
 function crossedGate(gate, fromX, fromZ, toX, toZ) {
-  if (!gate) return false;
-  return segmentsIntersect(fromX, fromZ, toX, toZ, gate.x1, gate.z1, gate.x2, gate.z2);
+  return !!gate && crossingTime(gate, fromX, fromZ, toX, toZ, 0, 1) !== null;
 }
 
 // Aszfalton oda állítunk vissza, ahol a kocsi ténylegesen átlépte a vonalat.
@@ -3355,12 +3351,17 @@ function startRace() {
   race.nextCheckpoint = 0;
   race.passed.clear();
   race.lapTimes = [];
+  race.lapSplits = [];
+  race.bestLapTime = null;
+  race.bestLapSplits = null;
   race.lapTainted = false;
   race.taintReason = TAINT.NONE;
   race.prevX = pos.x;
   race.prevZ = pos.z;
+  race.prevAt = performance.now();
   race.invalidUntil = 0;
   race.hasCrossedStart = false;
+  hideSplitDelta();
   race.pitStopIndex = 0;
   race.pit = createPitState(
     race.active && race.totalLaps > 1
@@ -3475,6 +3476,7 @@ function updateRace(dt) {
     const p = chassisBody.translation();
     race.prevX = p.x;
     race.prevZ = p.z;
+    race.prevAt = performance.now();
     race.countdownLeft -= dt;
     if (race.countdownLeft <= 0) {
       race.phase = 'running';
@@ -3493,12 +3495,14 @@ function updateRace(dt) {
 
   if (race.phase !== 'running') return;
 
+  const now = performance.now();
   const pos = chassisBody.translation();
   const fromX = race.prevX, fromZ = race.prevZ;
+  const fromAt = race.prevAt || now;
   race.prevX = pos.x;
   race.prevZ = pos.z;
+  race.prevAt = now;
 
-  const now = performance.now();
   const velocity = chassisBody.linvel();
   updatePitState(race.pit, currentPitConfig, race.pitStopIndex, {
     fromX, fromZ, x: pos.x, z: pos.z, now,
@@ -3507,15 +3511,21 @@ function updateRace(dt) {
   setPitStopMarker(currentPitConfig.stops[race.pitStopIndex], race.pit.required && !race.pit.completed);
   renderPitStopHud(race.pit, race.pitStopIndex);
   const checkpoints = currentGates.checkpoints;
-  const startCrossed = crossedGate(currentGates.start, fromX, fromZ, pos.x, pos.z);
+  const startCrossedAt = crossingTime(
+    currentGates.start, fromX, fromZ, pos.x, pos.z, fromAt, now
+  );
+  const startCrossed = startCrossedAt !== null;
 
   // Nem csak a soron következő checkpointot nézzük, hanem MINDET — így ha a
   // játékos egyet kihagyott és egy KÉSŐBBI checkpointon megy át, azt azonnal
   // észrevesszük, nem csak akkor, amikor (ha egyáltalán) visszaér a rajtvonalhoz.
   let crossedCheckpoint = -1;
+  let crossedCheckpointAt = null;
   for (let i = 0; i < checkpoints.length; i++) {
-    if (crossedGate(checkpoints[i], fromX, fromZ, pos.x, pos.z)) {
+    const crossedAt = crossingTime(checkpoints[i], fromX, fromZ, pos.x, pos.z, fromAt, now);
+    if (crossedAt !== null) {
       crossedCheckpoint = i;
+      crossedCheckpointAt = crossedAt;
       break;
     }
   }
@@ -3530,6 +3540,17 @@ function updateRace(dt) {
       ...respawnPointAtCrossing(checkpoints[crossedCheckpoint], fromX, fromZ, pos.x, pos.z),
       heading: headingFromMovement(fromX, fromZ, pos.x, pos.z, lastCheckpointSpawn?.heading ?? spawnHeading),
     };
+    // Az első érvényes kör előtt még nincs mihez mérni. Utána mindig az
+    // eddigi LEGJOBB érvényes kör azonos checkpointja a referencia; lassabb
+    // vagy érvénytelen kör nem írhatja felül.
+    if (race.hasCrossedStart && !Number.isFinite(race.lapSplits[crossedCheckpoint])) {
+      const splitMs = crossedCheckpointAt - race.lapStartTime;
+      race.lapSplits[crossedCheckpoint] = splitMs;
+      const bestSplitMs = race.bestLapSplits?.[crossedCheckpoint];
+      if (Number.isFinite(bestSplitMs)) {
+        showSplitDelta(splitMs - bestSplitMs, t('hud.bestLap'));
+      }
+    }
     if (crossedCheckpoint === race.nextCheckpoint) {
       race.nextCheckpoint++;
     } else if (crossedCheckpoint > race.nextCheckpoint) {
@@ -3538,7 +3559,7 @@ function updateRace(dt) {
       // volt.
       //
       // Egy MÁR MEGSZERZETT kapu újbóli átlépése viszont NEM hiba: a
-      // crossedGate iránytól függetlenül metsz szakaszt, tehát egy megcsúszás
+      // A kapumetszés iránytól független, tehát egy megcsúszás
       // vagy pördülés ugyanazon a vonalon másodszor is "átlépés". Korábban ez
       // csalás nélkül is elrontotta a kört. (Ugyanez a szabály fut a
       // szerveren — a két oldal nem térhet el.)
@@ -3562,14 +3583,16 @@ function updateRace(dt) {
     // hogy a játékos elindult a rajtvonalon túlra — ez KEZDI az 1. kört, nem
     // zárja le, ezért nem számít bele a körökbe/időkbe.
     race.hasCrossedStart = true;
-    race.lapStartTime = now;
+    race.lapStartTime = startCrossedAt;
+    race.lapSplits = [];
+    hideSplitDelta();
     lastCheckpointSpawn = {
       ...respawnPointAtCrossing(currentGates.start, fromX, fromZ, pos.x, pos.z),
       heading: headingFromMovement(fromX, fromZ, pos.x, pos.z, lastCheckpointSpawn?.heading ?? spawnHeading),
     };
   } else if (startCrossed && race.passed.size < requiredCheckpoints(checkpoints.length)) {
     // TÚL KEVÉS kapu: a kör NEM zárul le. Enélkül a rajtvonalon oda-vissza
-    // gurulva végig lehetett "teljesíteni" a versenyt — a crossedGate iránytól
+    // gurulva végig lehetett "teljesíteni" a versenyt — a kapumetszés iránytól
     // független, tehát minden áthaladás számított. (Ugyanez a szabály fut a
     // szerveren is; a két oldal nem térhet el.)
     race.lapTainted = true;
@@ -3588,8 +3611,14 @@ function updateRace(dt) {
       race.taintReason = TAINT.PIT_STOP;
     }
     const invalid = race.lapTainted;
-    race.lapTimes.push({ time: now - race.lapStartTime, invalid });
-    race.lapStartTime = now;
+    const lapTime = startCrossedAt - race.lapStartTime;
+    race.lapTimes.push({ time: lapTime, invalid });
+    if (!invalid && (race.bestLapTime === null || lapTime < race.bestLapTime)) {
+      race.bestLapTime = lapTime;
+      race.bestLapSplits = race.lapSplits.slice();
+    }
+    race.lapStartTime = startCrossedAt;
+    race.lapSplits = [];
     race.lap++;
     race.nextCheckpoint = 0;
     race.passed.clear();

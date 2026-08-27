@@ -101,7 +101,6 @@
   "results.bestTag": "cel mai bun",
   "menu.count": "({n})",
   "error.physicsFailed": "Eroare la pregătirea fizicii: ",
-  "mp.prevLap": "Turul anterior",
   "mp.waitingForOthers": "Se așteaptă: {names}…",
   "mp.waitingForStart": "Se așteaptă startul…",
   "mp.noGhost": "Fără fantomă",

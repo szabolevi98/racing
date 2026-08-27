@@ -39,6 +39,7 @@ import {
   NET_DIAG_CONNECTION, NET_DIAG_EVENT, NET_DIAG_INCIDENT, NET_DIAG_RACE_STAGE,
   netDiagnostics,
 } from './netDiagnostics.js';
+import { hideSplitDelta, showSplitDelta } from './splitDelta.js';
 
 // A szerver kódot küld (shared/errorCodes.js), a szöveg itt születik a
 // játékos nyelvén. A `detail` technikai adat (kivételszöveg, üzenettípus),
@@ -191,26 +192,23 @@ let spectateId = null;
 // ---------- Részidő-különbség ----------
 //
 // Checkpointonként megmutatjuk, mennyivel vagyunk jobbak vagy rosszabbak a
-// viszonyítási körnél. A viszonyítás alapból a SAJÁT előző körünk; Időmérésben,
-// ha van kiválasztott szellem, akkor a szellemé — ott ő az ellenfél.
+// viszonyítási körnél. Normál versenyben a SAJÁT legjobb érvényes körünk;
+// Időmérésben mindig a kiválasztott szellemé — ott ő az ellenfél.
 //
 // A részidőket a szerver adja (snapshot `ci`/`ct`), mert az átlépés pontos
 // idejét csak ő ismeri: a kliens a 20 Hz-es snapshotokból legfeljebb 50 ms-ra
 // tippelhetne, és a delta pont századokról szól.
-let lapSplits = [];        // az aktuális kör részidői (index = checkpoint)
-let prevLapSplits = null;  // az előző köré — ez a viszonyítás, ha nincs szellem
 let lastSeenSplitIndex = -1;
 
-function resetSplitTracking({ keepPrevious = false } = {}) {
-  if (!keepPrevious) prevLapSplits = null;
-  lapSplits = [];
+function resetSplitTracking() {
   lastSeenSplitIndex = -1;
   hideSplitDelta();
 }
 
-// Mihez mérjük magunkat? Időmérésben a szellemhez, ha van — ő az ellenfél,
-// az ő idejét akarjuk verni. Egyébként (és szellem nélküli időmérésben) a
-// saját előző körünkhöz. Ha egyik sincs, nincs mit kiírni.
+// Mihez mérjük magunkat? Időmérésben kizárólag a szellemhez — ő az ellenfél,
+// az ő idejét akarjuk verni. Normál versenyben a szerver által küldött saját
+// legjobb érvényes körhöz. Ha a választott referenciának még nincs részideje,
+// nincs mit kiírni.
 // A szellem checkpoint-részidői a felvett pályájából. A párhuzamos assetek
 // elkészülte után előre kiszámoljuk őket; ez a függvény lazy tartalék is arra,
 // ha akkor még nem álltak a kapuk. A pálya azonosítóját is eltesszük, hogy egy
@@ -227,31 +225,22 @@ function ghostSplits() {
   return ghostCar.splits;
 }
 
-function splitReference() {
+function splitReference(index, bestSplitMs) {
   if (isHotLap()) {
     const splits = ghostSplits();
-    if (splits?.length) return { splits, label: ghostCar.name || t('mp.ghost') };
+    const split = splits?.[index];
+    return Number.isFinite(split)
+      ? { split, label: ghostCar.name || t('mp.ghost') }
+      : null;
   }
-  if (prevLapSplits?.length) return { splits: prevLapSplits, label: t('mp.prevLap') };
-  return null;
+  return Number.isFinite(bestSplitMs)
+    ? { split: bestSplitMs, label: t('hud.bestLap') }
+    : null;
 }
 
-const splitDeltaEl = document.getElementById('splitDeltaAlert');
-const splitDeltaValueEl = document.getElementById('splitDeltaValue');
-const splitDeltaRefEl = document.getElementById('splitDeltaRef');
 const waitingPlayersAlertEl = document.getElementById('waitingPlayersAlert');
 const waitingPlayersAlertTextEl = document.getElementById('waitingPlayersAlertText');
-// Elég röviden látszania: a következő checkpointig úgyis új adat jön, és
-// vezetés közben egy tartósan kint lévő doboz csak takar.
-const SPLIT_DELTA_VISIBLE_MS = 2600;
-let splitDeltaTimer = null;
 let lastWaitingDiagnostic = '';
-
-function hideSplitDelta() {
-  if (splitDeltaTimer) clearTimeout(splitDeltaTimer);
-  splitDeltaTimer = null;
-  splitDeltaEl.classList.add('hidden');
-}
 
 function setWaitingPlayersAlert(visible, waiting = []) {
   waitingPlayersAlertTextEl.textContent = waiting.length
@@ -270,28 +259,15 @@ function setWaitingPlayersAlert(visible, waiting = []) {
   }
 }
 
-function showSplitDelta(deltaMs, label) {
-  const seconds = deltaMs / 1000;
-  const faster = deltaMs < 0;
-  splitDeltaValueEl.textContent = (faster ? '−' : '+') + Math.abs(seconds).toFixed(2);
-  splitDeltaRefEl.textContent = label;
-  splitDeltaEl.classList.toggle('is-faster', faster);
-  splitDeltaEl.classList.toggle('is-slower', !faster);
-  splitDeltaEl.classList.remove('hidden');
-  if (splitDeltaTimer) clearTimeout(splitDeltaTimer);
-  splitDeltaTimer = setTimeout(hideSplitDelta, SPLIT_DELTA_VISIBLE_MS);
-}
-
 // A szerver minden snapshotban elmondja, melyik checkpointot érintettük
-// utoljára és mikor. Új sorszámnál rögzítjük, és ha van mihez mérni, kiírjuk.
-function trackSplit(index, splitMs) {
+// utoljára és mikor, valamint ugyanott mennyi volt a legjobb körünk részideje.
+// Új sorszámnál, ha van mihez mérni, kiírjuk.
+function trackSplit(index, splitMs, bestSplitMs) {
   if (!Number.isInteger(index) || index < 0 || index === lastSeenSplitIndex) return;
   lastSeenSplitIndex = index;
-  lapSplits[index] = splitMs;
-  const reference = splitReference();
-  const other = reference?.splits?.[index];
-  if (!Number.isFinite(other)) return;
-  showSplitDelta(splitMs - other, reference.label);
+  const reference = splitReference(index, bestSplitMs);
+  if (!reference || !Number.isFinite(splitMs)) return;
+  showSplitDelta(splitMs - reference.split, reference.label);
 }
 
 // ---------- Lobby felület ----------
@@ -1455,7 +1431,6 @@ function onMessage(m) {
       }
       if (m.kind === 'lapRetry' && m.playerId === me.id) {
         myLapStartedAt = Number.isFinite(m.startedAt) ? m.startedAt : serverNow();
-        lapSplits = [];
         lastSeenSplitIndex = -1;
         hideSplitDelta();
       }
@@ -2587,19 +2562,16 @@ function onSnapshot(
         selfDiagnosticState = speedState;
         G.setSpeed(Math.hypot(speedState.v[0], speedState.v[2]) * 3.6);
       }
-      // Kör lezárult: a most befejezett kör részidői lesznek a viszonyítás.
-      // Az érvényességtől függetlenül — „az előző kör" azt jelenti, amit
-      // legutóbb mentünk, nem azt, amit legutóbb hibátlanul.
+      // Körváltáskor ugyanaz a checkpoint-index újra feldolgozható. A
+      // referencia-részidőt a szerver a legjobb érvényes körből küldi.
       if (c.lap > myLap) {
-        prevLapSplits = lapSplits;
-        lapSplits = [];
         lastSeenSplitIndex = -1;
       } else if (c.lap < myLap) {
         // Visszafelé csak újrakezdéskor (R az Időmérésben) léphet a körszám.
         // Ilyenkor az addigi részidők nem tartoznak az új próbálkozáshoz.
         resetSplitTracking();
       }
-      trackSplit(c.ci, c.ct);
+      trackSplit(c.ci, c.ct, c.bt);
       myLap = c.lap;
       myCp = c.cp ?? 0;
       myRank = c.rk ?? 1;

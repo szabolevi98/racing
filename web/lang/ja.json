@@ -101,7 +101,6 @@
   "results.bestTag": "ベスト",
   "menu.count": "({n})",
   "error.physicsFailed": "物理演算の準備でエラー: ",
-  "mp.prevLap": "前のラップ",
   "mp.waitingForOthers": "待機中: {names}…",
   "mp.waitingForStart": "スタート待ち…",
   "mp.noGhost": "ゴーストなし",

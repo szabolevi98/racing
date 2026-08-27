@@ -101,7 +101,6 @@
   "results.bestTag": "beste",
   "menu.count": "({n})",
   "error.physicsFailed": "Fout bij het voorbereiden van de fysica: ",
-  "mp.prevLap": "Vorige ronde",
   "mp.waitingForOthers": "Wachten op: {names}…",
   "mp.waitingForStart": "Wachten op de start…",
   "mp.noGhost": "Geen ghost",

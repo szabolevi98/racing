@@ -101,7 +101,6 @@
   "results.bestTag": "лучший",
   "menu.count": "({n})",
   "error.physicsFailed": "Ошибка подготовки физики: ",
-  "mp.prevLap": "Предыдущий круг",
   "mp.waitingForOthers": "Ожидание: {names}…",
   "mp.waitingForStart": "Ожидание старта…",
   "mp.noGhost": "Без призрака",

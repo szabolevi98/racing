@@ -101,7 +101,6 @@
   "results.bestTag": "meilleur",
   "menu.count": "({n})",
   "error.physicsFailed": "Erreur lors de la préparation de la physique : ",
-  "mp.prevLap": "Tour précédent",
   "mp.waitingForOthers": "En attente de : {names}…",
   "mp.waitingForStart": "En attente du départ…",
   "mp.noGhost": "Pas de fantôme",

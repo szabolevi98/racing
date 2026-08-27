@@ -101,7 +101,6 @@
   "results.bestTag": "najlepsze",
   "menu.count": "({n})",
   "error.physicsFailed": "Błąd przygotowania fizyki: ",
-  "mp.prevLap": "Poprzednie okrążenie",
   "mp.waitingForOthers": "Czekanie na: {names}…",
   "mp.waitingForStart": "Czekanie na start…",
   "mp.noGhost": "Bez ducha",

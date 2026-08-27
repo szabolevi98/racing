@@ -101,7 +101,6 @@
   "results.bestTag": "beste",
   "menu.count": "({n})",
   "error.physicsFailed": "Fehler beim Einrichten der Physik: ",
-  "mp.prevLap": "Vorherige Runde",
   "mp.waitingForOthers": "Warten auf: {names}…",
   "mp.waitingForStart": "Warten auf den Start…",
   "mp.noGhost": "Kein Geist",

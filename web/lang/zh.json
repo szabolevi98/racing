@@ -101,7 +101,6 @@
   "results.bestTag": "最佳",
   "menu.count": "({n})",
   "error.physicsFailed": "准备物理时出错：",
-  "mp.prevLap": "上一圈",
   "mp.waitingForOthers": "正在等待：{names}…",
   "mp.waitingForStart": "等待发车…",
   "mp.noGhost": "不用幽灵",

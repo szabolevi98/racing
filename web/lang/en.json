@@ -101,7 +101,6 @@
   "results.bestTag": "best",
   "menu.count": "({n})",
   "error.physicsFailed": "Physics setup error: ",
-  "mp.prevLap": "Previous lap",
   "mp.waitingForOthers": "Waiting for others: {names}…",
   "mp.waitingForStart": "Waiting for the start…",
   "mp.noGhost": "No ghost",

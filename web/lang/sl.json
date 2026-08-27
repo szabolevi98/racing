@@ -101,7 +101,6 @@
   "results.bestTag": "najboljše",
   "menu.count": "({n})",
   "error.physicsFailed": "Napaka pri pripravi fizike: ",
-  "mp.prevLap": "Prejšnji krog",
   "mp.waitingForOthers": "Čakanje na: {names}…",
   "mp.waitingForStart": "Čakanje na start…",
   "mp.noGhost": "Brez duha",

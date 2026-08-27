@@ -101,7 +101,6 @@
   "results.bestTag": "najlepšie",
   "menu.count": "({n})",
   "error.physicsFailed": "Chyba pri príprave fyziky: ",
-  "mp.prevLap": "Predchádzajúce kolo",
   "mp.waitingForOthers": "Čaká sa na: {names}…",
   "mp.waitingForStart": "Čaká sa na štart…",
   "mp.noGhost": "Bez ducha",

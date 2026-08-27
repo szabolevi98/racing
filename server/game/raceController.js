@@ -184,6 +184,11 @@ function createRaceState(x, z, pitRequired = false) {
     lapStart: 0,
     lapTimes: [],
     bestLapTime: null,
+    // A delta alapja nem az előző, hanem a legjobb ÉRVÉNYES kör. A szerver
+    // őrzi a részidőket is, mert csak itt ismert a minták közé interpolált,
+    // pontos checkpoint-átlépési idő.
+    lapSplits: [],
+    bestLapSplits: null,
     ghostFrames: null,
     lastGhostSampleAt: 0,
     progressKey: -1,
@@ -498,6 +503,7 @@ export class RaceController {
     r.lapStart = crossedAt;
     r.lastSplitIndex = -1;
     r.lastSplitMs = 0;
+    r.lapSplits = [];
     this.beginGhostRecording(car, crossedAt);
     // A minimum alatt a rajtvonal nem zárhatja le a kört: ez akadályozza meg,
     // hogy valaki oda-vissza gurulással teljesítse a versenyt. A küszöböt elérő,
@@ -551,6 +557,7 @@ export class RaceController {
           r.splits.set(splitKey, crossedAt);
           r.lastSplitIndex = i;
           r.lastSplitMs = Math.max(0, crossedAt - r.lapStart);
+          r.lapSplits[i] = r.lastSplitMs;
           // Az R ugyanoda kövesse az előrehaladást, mint a standings: ha egy
           // kapu kimaradt, a kör továbbra is érvénytelen, de egy későbbi,
           // ténylegesen átlépett checkpoint után ne dobjon vissza a kihagyás
@@ -577,6 +584,8 @@ export class RaceController {
       r.taintReason = TAINT.NONE;
       r.lapStart = crossedAt;
       r.lastSplitIndex = -1;
+      r.lastSplitMs = 0;
+      r.lapSplits = [];
       this.beginGhostRecording(car, crossedAt);
       r.progressKey = r.lap * (checkpoints.length + 1);
       r.splits.set(r.progressKey, crossedAt);
@@ -607,7 +616,10 @@ export class RaceController {
     r.progressKey = splitKey;
     r.splits.set(splitKey, crossedAt);
     r.lapTimes.push({ time, invalid });
-    if (!invalid && (r.bestLapTime === null || time < r.bestLapTime)) r.bestLapTime = time;
+    if (!invalid && (r.bestLapTime === null || time < r.bestLapTime)) {
+      r.bestLapTime = time;
+      r.bestLapSplits = r.lapSplits.slice();
+    }
     if (this.room.endlessLaps && r.lapTimes.length > HOT_LAP_HISTORY_LIMIT) {
       r.lapTimes.splice(0, r.lapTimes.length - HOT_LAP_HISTORY_LIMIT);
     }
@@ -616,7 +628,8 @@ export class RaceController {
     r.passed.clear();
     r.taintReason = TAINT.NONE;
     r.lapStart = crossedAt;
-    // Új kör: a delta-kijelző ne az előző kör utolsó részidejét hasonlítgassa.
+    r.lapSplits = [];
+    // Új kör: ugyanaz a checkpoint-index ismét új részidőt jelentsen.
     r.lastSplitIndex = -1;
     if (this.room.endlessLaps) {
       // Hot Lapban egyetlen autó van, ezért a régi körök abszolút splitjeire
@@ -724,6 +737,13 @@ export class RaceController {
         // eseményként: így egy elveszett csomag nem hagy ki egy részidőt.
         ci: car.race.lastSplitIndex,
         ct: Math.round(car.race.lastSplitMs),
+        // Ugyanennek a checkpointnak a legjobb érvényes körben mért ideje.
+        // A kliens így csomagvesztés után sem próbál előző körből részidőket
+        // összerakni. Hot Lapban ezt szándékosan figyelmen kívül hagyja, ott
+        // továbbra is a kiválasztott szellem az ellenfél.
+        bt: Number.isFinite(car.race.bestLapSplits?.[car.race.lastSplitIndex])
+          ? Math.round(car.race.bestLapSplits[car.race.lastSplitIndex])
+          : null,
         // Küldött-e már valódi állapotot, vagy még a rajtrács-helyfoglalón ül?
         //
         // A kezdőállapotot a start() rakja össze a rajthelyből, ahol viszont
