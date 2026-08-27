@@ -94,10 +94,9 @@ export function updatePitState(state, pitConfig, assignedStopIndex, sample) {
   const stopIndex = Math.max(0, Math.min(PIT_STOP_COUNT - 1, Number(assignedStopIndex) || 0));
   const stop = pit.stops[stopIndex];
   const inStop = !!stop && Math.hypot(x - stop.x, z - stop.z) <= PIT_STOP_RADIUS_M;
-  // Ugyanabban a megállásban csak egy szett jár. Új csere akkor élesedik,
-  // amikor az autó ténylegesen elhagyta a boxhely sugarát; puszta megindulás
-  // és visszafékezés a helyen belül nem gyárthat végtelen friss gumit.
-  if (!inStop) state.servicedThisVisit = false;
+  // Egy boxutca-látogatás alatt csak egy szett jár. A kész állapot az exit
+  // kapuig megmarad: így a visszajelzés nem tűnik el a boxhely sugarának
+  // elhagyásakor, és ugyanabban a látogatásban nem lehet újabb szettet kérni.
   if (!state.servicedThisVisit && state.inLane && inStop
       && speed <= PIT_STOP_MAX_SPEED_MPS && Number.isFinite(now)) {
     if (!Number.isFinite(state.stopStartedAt)) state.stopStartedAt = now;

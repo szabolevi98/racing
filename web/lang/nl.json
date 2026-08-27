@@ -17,7 +17,7 @@
   "menu.ghostMode": "Ghostmodus",
   "menu.ghostModeHint": "In multiplayer rijden auto's door elkaar heen.",
   "menu.pitStop": "Bandenwissel",
-  "menu.pitStopHint": "De eerste ronde van elke nieuwe set is slijtagevrij, daarna slijten de banden 50% per ronde. Versleten banden verliezen grip.",
+  "menu.pitStopHint": "Banden slijten vanaf de eerste ronde en gaan ongeveer drie ronden mee. Versleten banden verliezen grip.",
   "menu.language": "Taal",
   "hud.backToMenu": "← Terug naar het menu",
   "hud.controls": "Besturing",

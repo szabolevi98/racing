@@ -17,7 +17,7 @@
   "menu.ghostMode": "Modalità fantasma",
   "menu.ghostModeHint": "In multigiocatore le auto si attraversano.",
   "menu.pitStop": "Cambio gomme",
-  "menu.pitStopHint": "Il primo giro di ogni set nuovo è senza usura, poi le gomme si consumano del 50% a giro. Le gomme usurate perdono aderenza.",
+  "menu.pitStopHint": "Le gomme si consumano dal primo giro e durano circa tre giri. Le gomme usurate perdono aderenza.",
   "menu.language": "Lingua",
   "hud.backToMenu": "← Torna al menu",
   "hud.controls": "Comandi",

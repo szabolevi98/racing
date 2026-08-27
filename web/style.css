@@ -906,7 +906,10 @@ kbd.k {
 .top-center-alert { flex: none; max-width: 100%; pointer-events: none; }
 /* A rejtett elemek kiesnek a flexből, ezért az első látható jelzés mindig
    ugyanott kezdődik, a többi pedig a tényleges magassága alapján csúszik le. */
-#pitStopAlert .alert-pill.done { color: var(--ok); border-color: rgba(65, 211, 146, .45); }
+#pitStopAlert .alert-pill.done {
+  color: #d8ffeb; background: rgba(20, 105, 70, .94);
+  border: 1px solid rgba(90, 235, 165, .72);
+}
 
 /* Részidő-különbség: zöld ha jobbak vagyunk, piros ha rosszabbak. */
 #splitDeltaAlert {

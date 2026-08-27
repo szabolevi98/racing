@@ -17,7 +17,7 @@
   "menu.ghostMode": "Način duha",
   "menu.ghostModeHint": "V igri za več igralcev avtomobili vozijo drug skozi drugega.",
   "menu.pitStop": "Menjava pnevmatik",
-  "menu.pitStopHint": "Prvi krog vsakega novega kompleta je brez obrabe, nato se pnevmatike obrabijo za 50 % na krog. Obrabljene pnevmatike izgubijo oprijem.",
+  "menu.pitStopHint": "Pnevmatike se obrabljajo od prvega kroga in zdržijo približno tri kroge. Obrabljene pnevmatike izgubijo oprijem.",
   "menu.language": "Jezik",
   "hud.backToMenu": "← Nazaj v meni",
   "hud.controls": "Upravljanje",

@@ -17,7 +17,7 @@
   "menu.ghostMode": "Ghost mód",
   "menu.ghostModeHint": "Többjátékos módban az autók nem ütköznek egymással.",
   "menu.pitStop": "Kerékcsere",
-  "menu.pitStopHint": "Minden új szett első köre kopásmentes; utána körönként 50%-ot kopik. A kopott gumi tapadást veszít.",
+  "menu.pitStopHint": "A gumi már az első körtől fokozatosan kopik, és nagyjából három kört bír. A kopott gumi tapadást veszít.",
   "menu.language": "Nyelv",
   "hud.backToMenu": "← Vissza a menübe",
   "hud.controls": "Irányítás",

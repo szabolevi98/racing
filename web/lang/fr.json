@@ -17,7 +17,7 @@
   "menu.ghostMode": "Mode fantôme",
   "menu.ghostModeHint": "Les voitures se traversent en multijoueur.",
   "menu.pitStop": "Changement de pneus",
-  "menu.pitStopHint": "Le premier tour de chaque train neuf est sans usure, puis les pneus s'usent de 50 % par tour. Les pneus usés perdent de l'adhérence.",
+  "menu.pitStopHint": "Les pneus s'usent dès le premier tour et durent environ trois tours. Les pneus usés perdent de l'adhérence.",
   "menu.language": "Langue",
   "hud.backToMenu": "← Retour au menu",
   "hud.controls": "Commandes",

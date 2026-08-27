@@ -1,14 +1,13 @@
 // Árkádszerű, de kiszámítható F1-gumikopás.
 //
-// Minden új szett első, egy referenciakörnyi távolsága kopásmentes. Utána
-// minden további referenciakör 50 százalék kopást ad, tehát egy szett a
-// harmadik rajtvonal-átlépés környékére éri el a plafont. A referencia az
-// adott játékos első teljes körének ténylegesen megtett távolsága, ezért egy
-// rövid és egy hosszú pályán is ugyanannyi KÖRNYI használatot bír a gumi.
+// A kopás a pálya checkpointjaihoz kötődik, ezért nem függ az FPS-től, a
+// hálózati mintavételtől, a resetektől vagy egy hibásan bemért referenciakörtől.
+// Egy teljes kör checkpointjai a gumi egyharmadát fogyasztják el: a kopás már
+// az első körben látszik, egy szett pedig nagyjából három teljes kört bír.
 
-export const TIRE_WEAR_PER_REFERENCE_LAP = 0.5;
+export const TIRE_WEAR_PER_LAP = 1 / 3;
 export const TIRE_WEAR_WARNING = 0.4;
-export const TIRE_CHANGE_RECOMMENDED = 0.5;
+export const TIRE_CHANGE_RECOMMENDED = 0.6;
 export const TIRE_WEAR_CRITICAL = 0.8;
 
 // A kopás eleje alig érezhető, a teljesen elkopott gumi viszont már
@@ -18,84 +17,34 @@ export const TIRE_GRIP_LOSS_START = 0.25;
 export const TIRE_LONGITUDINAL_MAX_LOSS = 0.18;
 export const TIRE_LATERAL_MAX_LOSS = 0.25;
 
-const MIN_REFERENCE_LAP_DISTANCE_M = 250;
-const MAX_REFERENCE_LAP_DISTANCE_M = 30_000;
-const MAX_DISTANCE_SAMPLE_M = 1_000;
-
 const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
 
 export function createTireWearState(enabled = false) {
   return {
     enabled: !!enabled,
     wear: 0,
-    referenceLapDistance: null,
-    calibrationDistance: 0,
-    distanceSinceChange: 0,
-    graceDistanceRemaining: null,
     changeCount: 0,
   };
 }
 
-// A helyi fizika sebességből, a szerver az elfogadott pozíciómintákból adja a
-// távolságot. A mintánkénti korlát a resetet/teleportot nem engedi egyetlen
-// lépésben több környi kopássá válni; a normál 30–60 Hz-es mozgás ennek csak
-// a töredéke.
-export function advanceTireWear(state, distanceM) {
+// Minden checkpoint egyenlő részt ér az adott pályán. A hívó ugyanazt a
+// checkpointot körönként csak egyszer adhatja át. A rajtvonalnál a hiányzó
+// checkpointok is elszámolhatók, így egy kihagyás érvényteleníti a kört, de
+// nem ad mellé gumielőnyt.
+export function advanceTireWearByCheckpoints(state, crossedCount, checkpointCount) {
   if (!state?.enabled) return state;
-  let distance = Math.max(0, Math.min(MAX_DISTANCE_SAMPLE_M, Number(distanceM) || 0));
-  if (distance <= 0) return state;
-
-  state.distanceSinceChange += distance;
-  if (!Number.isFinite(state.referenceLapDistance)) {
-    state.calibrationDistance += distance;
-    return state;
-  }
-
-  if (state.graceDistanceRemaining > 0) {
-    const protectedDistance = Math.min(distance, state.graceDistanceRemaining);
-    state.graceDistanceRemaining -= protectedDistance;
-    distance -= protectedDistance;
-  }
-  if (distance > 0) {
-    state.wear = clamp01(
-      state.wear + distance / state.referenceLapDistance * TIRE_WEAR_PER_REFERENCE_LAP
-    );
-  }
+  const total = Math.max(0, Math.trunc(Number(checkpointCount) || 0));
+  const crossed = Math.max(0, Math.trunc(Number(crossedCount) || 0));
+  if (total <= 0 || crossed <= 0) return state;
+  state.wear = clamp01(
+    state.wear + Math.min(crossed, total) / total * TIRE_WEAR_PER_LAP
+  );
   return state;
-}
-
-// Az első teljes kör lezárásakor válik ismertté a pálya játékos által megtett
-// hossza. Az induló szett ezt a friss kört már elfogyasztotta; ha valaki még
-// a kalibráció alatt állt ki, az új szett megmaradt védett távolságát is
-// helyesen kiszámítjuk.
-export function completeTireCalibrationLap(state) {
-  if (!state?.enabled || Number.isFinite(state.referenceLapDistance)) return false;
-  const measured = Number(state.calibrationDistance) || 0;
-  if (measured <= 0) return false;
-  state.referenceLapDistance = Math.max(
-    MIN_REFERENCE_LAP_DISTANCE_M,
-    Math.min(MAX_REFERENCE_LAP_DISTANCE_M, measured)
-  );
-  state.graceDistanceRemaining = Math.max(
-    0,
-    state.referenceLapDistance - state.distanceSinceChange
-  );
-  return true;
-}
-
-export function restartTireCalibrationLap(state) {
-  if (!state?.enabled || Number.isFinite(state.referenceLapDistance)) return false;
-  state.calibrationDistance = 0;
-  return true;
 }
 
 export function changeTires(state) {
   if (!state?.enabled) return false;
   state.wear = 0;
-  state.distanceSinceChange = 0;
-  state.graceDistanceRemaining = Number.isFinite(state.referenceLapDistance)
-    ? state.referenceLapDistance
-    : null;
   state.changeCount = Math.max(0, Math.trunc(Number(state.changeCount) || 0)) + 1;
   return true;
 }
@@ -127,18 +76,12 @@ export function tireGripMultipliers(wear) {
   };
 }
 
-// Tömör snapshot a szerver és a helyi predikció egyeztetéséhez. A távolságok
-// tizedméteres, a kopás ezredes felbontása bőven finomabb annál, amit a
-// vezetésben érzékelni lehet.
+// Tömör snapshot a szerver és a kliens egyeztetéséhez. A szerver számolja a
+// checkpointokat; a kliens ezt jeleníti meg és adja át a helyi fizikának.
 export function encodeTireWearSnapshot(state) {
   if (!state?.enabled) return null;
-  const scaled = (value) => Number.isFinite(value) ? Math.round(value * 10) : null;
   return {
     w: Math.round(clamp01(state.wear) * 1000),
-    r: scaled(state.referenceLapDistance),
-    g: scaled(state.graceDistanceRemaining),
-    d: scaled(state.calibrationDistance),
-    s: scaled(state.distanceSinceChange),
     c: Math.max(0, Math.trunc(Number(state.changeCount) || 0)),
   };
 }
@@ -149,18 +92,7 @@ export function syncTireWearSnapshot(state, snapshot) {
   // A kliens a három másodperc leteltekor azonnal előre jelezheti a cserét;
   // egy még úton lévő régi snapshot ilyenkor nem teheti vissza a kopott gumit.
   if (serverChanges < state.changeCount) return false;
-  // A JSON `null` értéke Number(null) alakban 0 lenne. Az első kör alatt a
-  // szerver szándékosan null referenciatávot küld, mert még nincs kész a
-  // kalibráció; ha ezt 0 méternek olvasnánk, a következő megtett méter
-  // nullával osztva azonnal 100%-ra koptatná a gumit.
-  const distance = (value) => typeof value === 'number' && Number.isFinite(value)
-    ? value / 10
-    : null;
   state.wear = clamp01(Number(snapshot.w) / 1000);
-  state.referenceLapDistance = distance(snapshot.r);
-  state.graceDistanceRemaining = distance(snapshot.g);
-  state.calibrationDistance = distance(snapshot.d) ?? 0;
-  state.distanceSinceChange = distance(snapshot.s) ?? 0;
   state.changeCount = serverChanges;
   return true;
 }

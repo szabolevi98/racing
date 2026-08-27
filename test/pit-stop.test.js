@@ -56,9 +56,18 @@ test('pit state changes one set after three continuous stopped seconds in the as
   assert.equal(state.changeCount, 1, 'standing still cannot repeatedly create fresh sets');
 
   updatePitState(state, pit, 2, { fromX: 7, fromZ: 0, x: 12, z: 0, speedMps: 2, now: 9100 });
+  assert.equal(state.servicedThisVisit, true, 'the done state stays visible until pit exit');
   updatePitState(state, pit, 2, { fromX: 12, fromZ: 0, x: 7, z: 0, speedMps: 0, now: 9200 });
   updatePitState(state, pit, 2, { fromX: 7, fromZ: 0, x: 7, z: 0, speedMps: 0, now: 9200 + PIT_STOP_DURATION_MS });
-  assert.equal(state.changeCount, 2, 'leaving the stall arms another tire change');
+  assert.equal(state.changeCount, 1, 'one pit-lane visit cannot create a second fresh set');
+
+  updatePitState(state, pit, 2, { fromX: 19, fromZ: 0, x: 21, z: 0, speedMps: 20, now: 13000 });
+  assert.equal(state.inLane, false);
+  assert.equal(state.servicedThisVisit, false, 'the exit gate clears the done state');
+  updatePitState(state, pit, 2, { fromX: -1, fromZ: 0, x: 1, z: 0, speedMps: 20, now: 14000 });
+  updatePitState(state, pit, 2, { fromX: 1, fromZ: 0, x: 7, z: 0, speedMps: 0, now: 15000 });
+  updatePitState(state, pit, 2, { fromX: 7, fromZ: 0, x: 7, z: 0, speedMps: 0, now: 15000 + PIT_STOP_DURATION_MS });
+  assert.equal(state.changeCount, 2, 'a new visit arms the next tire change');
 });
 
 test('leaving or moving in the assigned stall resets the continuous timer', () => {

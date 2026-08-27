@@ -17,7 +17,7 @@
   "menu.ghostMode": "Tryb ducha",
   "menu.ghostModeHint": "W trybie wieloosobowym samochody przenikają przez siebie.",
   "menu.pitStop": "Zmiana opon",
-  "menu.pitStopHint": "Pierwsze okrążenie każdego nowego kompletu nie zużywa opon, potem zużywają się o 50% na okrążenie. Zużyte opony tracą przyczepność.",
+  "menu.pitStopHint": "Opony zużywają się od pierwszego okrążenia i wystarczają na około trzy okrążenia. Zużyte opony tracą przyczepność.",
   "menu.language": "Język",
   "hud.backToMenu": "← Powrót do menu",
   "hud.controls": "Sterowanie",

@@ -18,8 +18,8 @@ import {
 } from '../../shared/ghost.js';
 import { createPitState, hasCompletePitConfig, updatePitState } from '../../shared/pit.js';
 import {
-  advanceTireWear, changeTires, completeTireCalibrationLap,
-  createTireWearState, encodeTireWearSnapshot, restartTireCalibrationLap,
+  advanceTireWearByCheckpoints, changeTires,
+  createTireWearState, encodeTireWearSnapshot,
 } from '../../shared/tireWear.js';
 import { loadMapZoneRuntime } from './zoneRuntime.js';
 import { measureServerWork } from '../loopLag.js';
@@ -509,7 +509,6 @@ export class RaceController {
     r.lastSplitIndex = -1;
     r.lastSplitMs = 0;
     r.lapSplits = [];
-    restartTireCalibrationLap(r.tires);
     this.beginGhostRecording(car, crossedAt);
     // A minimum alatt a rajtvonal nem zárhatja le a kört: ez akadályozza meg,
     // hogy valaki oda-vissza gurulással teljesítse a versenyt. A küszöböt elérő,
@@ -526,9 +525,6 @@ export class RaceController {
     const x = car.state.p[0], z = car.state.p[2];
     const fromX = r.prevX, fromZ = r.prevZ;
     const fromAt = r.prevAt || now;
-    if (r.hasCrossedStart) {
-      advanceTireWear(r.tires, Math.hypot(x - fromX, z - fromZ));
-    }
     r.prevX = x;
     r.prevZ = z;
     r.prevAt = now;
@@ -555,7 +551,9 @@ export class RaceController {
       }
       crossings.sort((a, b) => a.crossedAt - b.crossedAt || a.i - b.i);
       for (const { i, crossedAt } of crossings) {
+        const firstCrossing = !r.passed.has(i);
         r.passed.add(i);
+        if (firstCrossing) advanceTireWearByCheckpoints(r.tires, 1, checkpoints.length);
         if (i >= r.nextCheckpoint) {
           const skippedCheckpoint = i > r.nextCheckpoint;
           if (skippedCheckpoint) r.taintReason = TAINT.CHECKPOINT;
@@ -616,6 +614,12 @@ export class RaceController {
       ...this.respawnPoint(gates.start, fromX, fromZ, x, z),
       heading: headingFrom(fromX, fromZ, x, z, car.respawn.heading),
     };
+    // Egy kihagyott kapu érvényteleníti a kört, de nem takaríthat meg kopást.
+    // A már átlépett checkpointok menet közben fogytak el, itt csak a hiányzó
+    // részt számoljuk hozzá, hogy minden lezárt kör pontosan 1/3 szett legyen.
+    advanceTireWearByCheckpoints(
+      r.tires, checkpoints.length - r.passed.size, checkpoints.length
+    );
     if (r.passed.size < checkpoints.length) r.taintReason = TAINT.CHECKPOINT;
     const invalid = !!r.taintReason;
     const time = crossedAt - r.lapStart;
@@ -624,7 +628,6 @@ export class RaceController {
     r.progressKey = splitKey;
     r.splits.set(splitKey, crossedAt);
     r.lapTimes.push({ time, invalid });
-    completeTireCalibrationLap(r.tires);
     if (!invalid && (r.bestLapTime === null || time < r.bestLapTime)) {
       r.bestLapTime = time;
       r.bestLapSplits = r.lapSplits.slice();

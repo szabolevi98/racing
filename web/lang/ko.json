@@ -17,7 +17,7 @@
   "menu.ghostMode": "고스트 모드",
   "menu.ghostModeHint": "멀티 플레이에서 차량끼리 서로 통과합니다.",
   "menu.pitStop": "타이어 교체",
-  "menu.pitStopHint": "새 타이어 세트는 첫 랩에 마모되지 않고 이후 랩마다 50% 마모됩니다. 마모된 타이어는 접지력을 잃습니다.",
+  "menu.pitStopHint": "타이어는 첫 랩부터 마모되며 약 세 랩 동안 사용할 수 있습니다. 마모된 타이어는 접지력을 잃습니다.",
   "menu.language": "언어",
   "hud.backToMenu": "← 메뉴로 돌아가기",
   "hud.controls": "조작",

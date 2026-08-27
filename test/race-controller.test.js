@@ -256,6 +256,10 @@ test('skipping a tire change never invalidates the final lap', async () => {
 
     assert.equal(room.lapsSaved.length, 1);
     assert.equal(room.lapsSaved[0][3], false, 'tire strategy affects grip, not lap validity');
+    assert.ok(
+      Math.abs(sim.cars.get('p1').race.tires.wear - 1 / 3) < 1e-12,
+      'the authoritative server charges one third of a set for the completed lap'
+    );
     assert.equal(sim.cars.get('p1').race.lap, 2, 'the lap still counts toward race distance');
     assert.equal(sim.cars.get('p1').race.finished, true, 'the player still finishes normally');
     assert.equal(

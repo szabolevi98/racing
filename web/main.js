@@ -20,9 +20,8 @@ import {
   normalizePitConfig, pitLimitedVelocity, updatePitState,
 } from '/shared/pit.js';
 import {
-  TIRE_CHANGE_RECOMMENDED, advanceTireWear, changeTires,
-  completeTireCalibrationLap, createTireWearState,
-  restartTireCalibrationLap, tireConditionPercent, tireWearLevel,
+  TIRE_CHANGE_RECOMMENDED, advanceTireWearByCheckpoints, changeTires,
+  createTireWearState, tireConditionPercent, tireWearLevel,
 } from '/shared/tireWear.js';
 import { restHeightAboveGround } from '/shared/spawnRest.js';
 import { gridSlotPose, hotLapStartPose } from '/shared/grid.js';
@@ -3564,7 +3563,11 @@ function updateRace(dt) {
   // megvan, de akár egy kapu hiányzik, a kör lezárul és érvénytelen lesz.
   if (crossedCheckpoint !== -1) {
     // A Set miatt ugyanaz a kapu kétszer sem számít duplán.
+    const firstCrossing = !race.passed.has(crossedCheckpoint);
     race.passed.add(crossedCheckpoint);
+    if (race.hasCrossedStart && firstCrossing) {
+      advanceTireWearByCheckpoints(race.tires, 1, checkpoints.length);
+    }
     lastCheckpointSpawn = {
       ...respawnPointAtCrossing(checkpoints[crossedCheckpoint], fromX, fromZ, pos.x, pos.z),
       heading: headingFromMovement(fromX, fromZ, pos.x, pos.z, lastCheckpointSpawn?.heading ?? spawnHeading),
@@ -3627,14 +3630,15 @@ function updateRace(dt) {
     race.lapTainted = true;
     race.taintReason = TAINT.CHECKPOINT;
     race.invalidUntil = now + 2500;
-    // Az első referenciakör mérése is innen induljon újra. A levágott,
-    // rajtvonalhoz visszaforduló próbálkozás távolsága nem rövidítheti meg
-    // minden későbbi gumiszett kopásmentes szakaszát.
-    restartTireCalibrationLap(race.tires);
   } else if (startCrossed) {
     // A kör lezárul — de ha bármi hiányzott vagy lement a pályáról, akkor
     // érvénytelenül. A kör SZÁMÍT (nem kell újrázni), csak a legjobb körbe nem
     // megy bele.
+    // A kihagyott checkpoint érvényteleníti a kört, de gumit nem spórolhat:
+    // a már átlépett kapuk menet közben koptattak, itt a hiányzó részt pótoljuk.
+    advanceTireWearByCheckpoints(
+      race.tires, checkpoints.length - race.passed.size, checkpoints.length
+    );
     if (race.passed.size < checkpoints.length) {
       race.lapTainted = true;
       race.taintReason = TAINT.CHECKPOINT;
@@ -3642,7 +3646,6 @@ function updateRace(dt) {
     const invalid = race.lapTainted;
     const lapTime = startCrossedAt - race.lapStartTime;
     race.lapTimes.push({ time: lapTime, invalid });
-    completeTireCalibrationLap(race.tires);
     if (!invalid && (race.bestLapTime === null || lapTime < race.bestLapTime)) {
       race.bestLapTime = lapTime;
       race.bestLapSplits = race.lapSplits.slice();
@@ -5417,15 +5420,7 @@ function animate() {
       // ez lövi ki a kerék-sugarakat és számolja a felfüggesztés/tapadás erőket.
       applyVehicleStepForces(vehicle, chassisBody, world.timestep);
       vehicle.updateVehicle(world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
-      const tireSpeedBefore = Math.hypot(chassisBody.linvel().x, chassisBody.linvel().z);
       world.step();
-      const tireSpeedAfter = Math.hypot(chassisBody.linvel().x, chassisBody.linvel().z);
-      if (race.hasCrossedStart && race.phase === 'running') {
-        advanceTireWear(
-          race.tires,
-          (tireSpeedBefore + tireSpeedAfter) * 0.5 * world.timestep
-        );
-      }
       applySpeedCap(chassisBody);
       applyPitLimiter(world.timestep, race.pit.enabled && race.pit.inLane);
       applyWallConstraint();

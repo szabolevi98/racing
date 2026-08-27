@@ -42,6 +42,10 @@ test('multiplayer passes pit limiter state into the local physics step', () => {
   assert.match(main, /findPitGroundAt\(currentTrack, currentTrackBox, stop\.x, stop\.z, gridGroundLevel\(\)\)/);
   assert.match(main, /function gridGroundLevel\(\)/);
   assert.match(main, /state\.servicedThisVisit && state\.inLane/);
+  const pit = fs.readFileSync(new URL('../shared/pit.js', import.meta.url), 'utf8');
+  const css = fs.readFileSync(new URL('../web/style.css', import.meta.url), 'utf8');
+  assert.doesNotMatch(pit, /if \(!inStop\) state\.servicedThisVisit = false/);
+  assert.match(css, /#pitStopAlert \.alert-pill\.done\s*\{[\s\S]*?background:/);
 });
 
 test('reset waits for the first start crossing and pauses state packets in flight', () => {

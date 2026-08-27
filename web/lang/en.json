@@ -17,7 +17,7 @@
   "menu.ghostMode": "Ghost mode",
   "menu.ghostModeHint": "Cars pass through each other in multiplayer.",
   "menu.pitStop": "Tyre change",
-  "menu.pitStopHint": "Each fresh set gets one wear-free lap; then tyres wear 50% per lap. Worn tyres lose grip.",
+  "menu.pitStopHint": "Tyres wear from the first lap and last about three laps. Worn tyres lose grip.",
   "menu.language": "Language",
   "hud.backToMenu": "← Back to menu",
   "hud.controls": "Controls",

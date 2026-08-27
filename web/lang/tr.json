@@ -17,7 +17,7 @@
   "menu.ghostMode": "Hayalet modu",
   "menu.ghostModeHint": "Çok oyunculuda arabalar birbirinin içinden geçer.",
   "menu.pitStop": "Lastik değişimi",
-  "menu.pitStopHint": "Her yeni setin ilk turunda aşınma olmaz, ardından lastikler tur başına %50 aşınır. Aşınmış lastikler yol tutuşunu kaybeder.",
+  "menu.pitStopHint": "Lastikler ilk turdan itibaren aşınır ve yaklaşık üç tur dayanır. Aşınmış lastikler yol tutuşunu kaybeder.",
   "menu.language": "Dil",
   "hud.backToMenu": "← Menüye dön",
   "hud.controls": "Kontroller",

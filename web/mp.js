@@ -26,7 +26,7 @@ import {
 } from '/shared/renderClock.js';
 import { createPitState, hasCompletePitConfig, updatePitState } from '/shared/pit.js';
 import {
-  TIRE_CHANGE_RECOMMENDED, advanceTireWear, changeTires, createTireWearState,
+  TIRE_CHANGE_RECOMMENDED, changeTires, createTireWearState,
   syncTireWearSnapshot, tireConditionPercent,
 } from '/shared/tireWear.js';
 import {
@@ -3508,7 +3508,6 @@ function sendOneInput(scheduledAt) {
   const contactStartedAt = performance.now();
   syncRemoteContacts(input.at);
   const physicsStartedAt = performance.now();
-  const speedBefore = Math.hypot(beforeState.v[0], beforeState.v[2]);
   G.stepLocalPhysics(
     input,
     input.frozen,
@@ -3522,10 +3521,6 @@ function sendOneInput(scheduledAt) {
     physicsFinishedAt - physicsStartedAt,
   );
   const state = G.getCarState();
-  const speedAfter = Math.hypot(state.v[0], state.v[2]);
-  if (multiplayerStartCrossed && !finishedDriving && !raceEnded) {
-    advanceTireWear(localTireState, (speedBefore + speedAfter) * 0.5 * TICK_MS / 1000);
-  }
   pitChangesBefore = localPitState.changeCount;
   updatePitState(localPitState, localPitConfig, localPitStopIndex, {
     fromX: beforeState.p[0],

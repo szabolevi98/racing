@@ -114,18 +114,20 @@ teljes vizuális és hangfrissítést kap akkor is, ha távol van.
 ## Gumikopás és kerékcsere
 
 A szabály az Egyjátékos és Többjátékos módhoz kapcsolható be; Időmérésben és
-egykörös futamban nem aktív. Minden új szett első, egy referenciakörnyi távja
-kopásmentes, utána körönként 50%-ot kopik. A kopott gumi fokozatosan veszít a
-hosszanti és oldalirányú tapadásából, de nem kap defektet és nem érvénytelenít kört.
+egykörös futamban nem aktív. A gumi már az első kör checkpointjaitól fokozatosan
+kopik, és egy szett nagyjából három teljes kört bír. A kopott gumi fokozatosan
+veszít a hosszanti és oldalirányú tapadásából, de nem kap defektet és nem
+érvénytelenít kört. Kihagyott checkpointtal sem lehet kopást megtakarítani: a
+lezárt kör hiányzó része a rajtvonalnál elszámolódik.
 
 - A boxbejárat átlépése után a rendszer legfeljebb 100 km/h-ra lassítja az autót.
 - Minden rajthelyhez saját, azonos sorszámú boxhely tartozik.
 - A saját boxhelyen 3 másodpercig folyamatosan állni kell.
-- A három másodperc után friss gumiszett kerül fel; ugyanabban a megállásban csak
-  egyszer lehet cserélni.
+- A három másodperc után friss gumiszett kerül fel; egy boxutca-látogatás alatt
+  csak egyszer lehet cserélni, a kész jelzés a kijáratig látható marad.
 - A boxkijárat átlépése után megszűnik a sebességkorlátozás.
-- A HUD százalékosan mutatja a gumi állapotát, és 40%, 50%, illetve 80% kopásnál
-  egyre erősebb figyelmeztetést ad.
+- A HUD százalékosan mutatja a gumi állapotát, és 60%, 40%, illetve 20% állapotnál
+  tartós, egyre erősebb figyelmeztetést ad.
 - A kiállás bármelyik körben és egy futam alatt többször is teljesíthető.
 - Hiányos boxkonfiguráció esetén a szabály automatikusan inaktív.
 

@@ -17,7 +17,7 @@
   "menu.ghostMode": "Mod fantomă",
   "menu.ghostModeHint": "În multiplayer mașinile trec una prin alta.",
   "menu.pitStop": "Schimb de pneuri",
-  "menu.pitStopHint": "Primul tur al fiecărui set nou nu produce uzură, apoi pneurile se uzează cu 50% pe tur. Pneurile uzate pierd aderență.",
+  "menu.pitStopHint": "Pneurile se uzează din primul tur și rezistă aproximativ trei tururi. Pneurile uzate pierd aderență.",
   "menu.language": "Limbă",
   "hud.backToMenu": "← Înapoi la meniu",
   "hud.controls": "Comenzi",

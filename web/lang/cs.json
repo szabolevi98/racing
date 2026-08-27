@@ -17,7 +17,7 @@
   "menu.ghostMode": "Režim ducha",
   "menu.ghostModeHint": "Ve hře více hráčů auta projíždějí skrz sebe.",
   "menu.pitStop": "Výměna pneumatik",
-  "menu.pitStopHint": "První kolo každé nové sady je bez opotřebení, poté se pneumatiky opotřebují o 50 % za kolo. Opotřebené pneumatiky ztrácejí přilnavost.",
+  "menu.pitStopHint": "Pneumatiky se opotřebovávají už od prvního kola a vydrží přibližně tři kola. Opotřebené pneumatiky ztrácejí přilnavost.",
   "menu.language": "Jazyk",
   "hud.backToMenu": "← Zpět do menu",
   "hud.controls": "Ovládání",
