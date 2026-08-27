@@ -107,8 +107,8 @@ test('grip loss is progressive and bounded', () => {
   assert.deepEqual(fresh, { longitudinal: 1, lateral: 1 });
   assert.ok(half.longitudinal < fresh.longitudinal && half.longitudinal > worn.longitudinal);
   assert.ok(half.lateral < fresh.lateral && half.lateral > worn.lateral);
-  assert.ok(Math.abs(worn.longitudinal - 0.82) < 1e-12);
-  assert.ok(Math.abs(worn.lateral - 0.75) < 1e-12);
+  assert.ok(Math.abs(worn.longitudinal - 0.75) < 1e-12);
+  assert.ok(Math.abs(worn.lateral - 0.65) < 1e-12);
 });
 
 test('dev tire grip tuning is live and can always return to canonical values', () => {
@@ -121,8 +121,8 @@ test('dev tire grip tuning is live and can always return to canonical values', (
   closeTo(tuned.lateral, 0.68);
   resetLiveTireGripTunables();
   const canonical = tireGripMultipliers(1);
-  closeTo(canonical.longitudinal, 0.82);
-  closeTo(canonical.lateral, 0.75);
+  closeTo(canonical.longitudinal, 0.75);
+  closeTo(canonical.lateral, 0.65);
 });
 
 test('server snapshots correct wear but an old snapshot cannot undo a local tire change', () => {
