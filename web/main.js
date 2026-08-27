@@ -21,7 +21,7 @@ import {
 } from '/shared/pit.js';
 import {
   advanceTireWearByCheckpoints, changeTires,
-  createTireWearState, tireConditionPercent, tireWearLevel,
+  createTireWearState, resetLiveTireGripTunables, tireConditionPercent, tireWearLevel,
 } from '/shared/tireWear.js';
 import { restHeightAboveGround } from '/shared/spawnRest.js';
 import { gridSlotPose, hotLapStartPose } from '/shared/grid.js';
@@ -3376,6 +3376,7 @@ function startRace() {
   // tapadás), egy valódi versenynek MINDIG a kanonikus értékekkel kell
   // indulnia, függetlenül attól, hogyan hagytuk ott a dev módot.
   resetLiveVehicleTunables();
+  resetLiveTireGripTunables();
   const pos = chassisBody.translation();
   race.active = !!currentGates.start;
   race.phase = 'countdown';
@@ -4691,6 +4692,8 @@ const devApi = {
   chassisBody, vehicle,
   prepareTrackPhysics, resetCarTo,
   resetLiveVehicleTunables,
+  resetLiveTireGripTunables,
+  setTireCondition,
   get spawnPoint() { return spawnPoint; },
   // A race objektum referenciaként megy át: a dev.js az `active` mezőt írja,
   // hogy versenylogika/visszaszámlálás nélkül, azonnal vezethető legyen a
@@ -5709,6 +5712,7 @@ function stepMultiplayerFrame(dt) {
 window.__game = {
   THREE, scene, camera, carPivot, renderer,
   resetLiveVehicleTunables,
+  resetLiveTireGripTunables,
   get appState() { return appState; },
   get hasFrameHook() { return !!mpFrameHook; },
   stepMpFrame: stepMultiplayerFrame,

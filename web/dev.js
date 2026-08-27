@@ -22,6 +22,10 @@ import {
   AERO_DRAG_COEFFICIENT, AERO_DOWNFORCE_COEFFICIENT,
   setLiveVehicleTunables, resetLiveVehicleTunables,
 } from '/shared/vehicleConfig.js';
+import {
+  TIRE_LONGITUDINAL_MAX_LOSS, TIRE_LATERAL_MAX_LOSS,
+  setLiveTireGripTunables, resetLiveTireGripTunables,
+} from '/shared/tireWear.js';
 import { findGateHit, findSpawnHit } from '/shared/editorSelection.js';
 import {
   mergeByPosition, componentAtFace, boundsOfVertices,
@@ -44,6 +48,7 @@ let roughnessStatusEl;
 let carTesterBtn, carTesterHudEl, carTesterBackBtn, carTesterCarSelectEl;
 let carTesterCompressedEl, carTesterFileInfoEl;
 let devDriveBtn, devDriveHudEl, devDriveBackBtn, devDriveResetBtn, devDriveSaveBtn, devDriveSlidersEl;
+let devTireConditionEl, devTireConditionValueEl;
 let objectCutterBtn, objectCutterHudEl, cutterPickEl, cutterCutBtn, cutterUndoBtn;
 let cutterNudgeBtn, cutterPushBtn, cutterNudgeCmEl;
 let cutterCopyMatBtn, cutterApplyMatBtn, cutterMatInfoEl;
@@ -142,6 +147,8 @@ function queryElements() {
   devDriveResetBtn = $('devDriveResetBtn');
   devDriveSaveBtn = $('devDriveSaveBtn');
   devDriveSlidersEl = $('devDriveSliders');
+  devTireConditionEl = $('devTireCondition');
+  devTireConditionValueEl = $('devTireConditionValue');
   openMaterialPickerBtn = $('openMaterialPickerBtn');
   generateCheckpointsBtn = $('generateCheckpointsBtn');
   autoCheckpointCountEl = $('autoCheckpointCount');
@@ -207,6 +214,7 @@ function hideOverlays() {
   if (devDriveActive) {
     devDriveActive = false;
     resetAllTunables();
+    clearDevTireCondition();
     devSpawnMarkers.forEach((m) => { m.visible = true; });
   }
 }
@@ -385,6 +393,8 @@ const VEHICLE_TUNABLES = [
   ['HANDBRAKE_REAR_SLIP', 'Kézifék — hátsó tapadás', 0.1, 3, 0.05],
   ['FRONT_FRICTION_SLIP', 'Tapadás — elöl', 0.5, 8, 0.05],
   ['REAR_FRICTION_SLIP', 'Tapadás — hátul', 0.5, 8, 0.05],
+  ['TIRE_LONGITUDINAL_MAX_LOSS', 'Kopott gumi — hosszanti veszteség', 0, 0.5, 0.01],
+  ['TIRE_LATERAL_MAX_LOSS', 'Kopott gumi — oldalirányú veszteség', 0, 0.5, 0.01],
   ['SUSPENSION_STIFFNESS', 'Felfüggesztés — merevség', 5, 100, 1],
   ['SUSPENSION_COMPRESSION', 'Felfüggesztés — kompresszió', 0.5, 10, 0.1],
   ['SUSPENSION_RELAXATION', 'Felfüggesztés — relaxáció', 0.5, 10, 0.1],
@@ -401,6 +411,7 @@ const CANONICAL_TUNABLES = {
   MAX_ENGINE_FORCE, MAX_ENGINE_POWER, REVERSE_FACTOR, MAX_STEER,
   BRAKE_FRONT, BRAKE_REAR, HANDBRAKE_FORCE, HANDBRAKE_REAR_SLIP,
   FRONT_FRICTION_SLIP, REAR_FRICTION_SLIP,
+  TIRE_LONGITUDINAL_MAX_LOSS, TIRE_LATERAL_MAX_LOSS,
   SUSPENSION_STIFFNESS: SUSPENSION.stiffness,
   SUSPENSION_COMPRESSION: SUSPENSION.compression,
   SUSPENSION_RELAXATION: SUSPENSION.relaxation,
@@ -431,6 +442,10 @@ function applyTunable(key, value) {
       break;
     case 'ANGULAR_DAMPING':
       api.chassisBody.setAngularDamping(value);
+      break;
+    case 'TIRE_LONGITUDINAL_MAX_LOSS':
+    case 'TIRE_LATERAL_MAX_LOSS':
+      setLiveTireGripTunables({ [key]: value });
       break;
     default:
       // MAX_ENGINE_FORCE, MAX_STEER, BRAKE_*, HANDBRAKE_REAR_SLIP,
@@ -529,6 +544,7 @@ function buildTunablePanel() {
 // egyjátékos/multiplayer verseny.
 function resetAllTunables() {
   resetLiveVehicleTunables();
+  resetLiveTireGripTunables();
   for (const [key, , , , step] of VEHICLE_TUNABLES) {
     const value = CANONICAL_TUNABLES[key];
     applyTunable(key, value);
@@ -540,12 +556,37 @@ function resetAllTunables() {
   }
 }
 
+// A gumiállapot nem mentendő jármű-paraméter, hanem tesztkörülmény: ugyanazzal
+// a tireWear értékkel hajtja az applyControls()-t, mint egy valódi verseny.
+// A százalék a játékos által látott ÁLLAPOT, ezért wear = 1 - condition.
+function setDevTireCondition(condition) {
+  const percent = Math.max(0, Math.min(100, Math.round(Number(condition) || 0)));
+  devTireConditionEl.value = String(percent);
+  devTireConditionValueEl.textContent = `${percent}%`;
+  api.race.tires.enabled = true;
+  api.race.tires.wear = 1 - percent / 100;
+  api.setTireCondition(api.race.tires);
+}
+
+function clearDevTireCondition() {
+  api.race.tires.enabled = false;
+  api.race.tires.wear = 0;
+  devTireConditionEl.value = '100';
+  devTireConditionValueEl.textContent = '100%';
+  api.setTireCondition(null);
+}
+
+function resetDevDrivePanel() {
+  resetAllTunables();
+  setDevTireCondition(100);
+}
+
 function enterDevDrive() {
   if (!api.manifest || !api.currentTrack || devDriveActive) return;
   devDriveActive = true;
   devHudEl.classList.add('hidden');
   buildTunablePanel();
-  resetAllTunables();
+  resetDevDrivePanel();
   api.prepareTrackPhysics()
     .then(() => {
       api.resetCarTo(api.spawnPoint);
@@ -574,6 +615,7 @@ function exitDevDrive() {
   if (!devDriveActive) return;
   devDriveActive = false;
   resetAllTunables();
+  clearDevTireCondition();
   devDriveHudEl.classList.add('hidden');
   hudEl.classList.add('hidden');
   api.appState = 'dev';
@@ -2284,8 +2326,11 @@ function wireEvents() {
 
   devDriveBtn.addEventListener('click', enterDevDrive);
   devDriveBackBtn.addEventListener('click', exitDevDrive);
-  devDriveResetBtn.addEventListener('click', resetAllTunables);
+  devDriveResetBtn.addEventListener('click', resetDevDrivePanel);
   devDriveSaveBtn.addEventListener('click', saveTunablesToFile);
+  devTireConditionEl.addEventListener('input', () => {
+    setDevTireCondition(devTireConditionEl.value);
+  });
 
   // A keréktesztelő W/S kocsiváltását a main.js kezeli — mi csak az Escape-et
   // vesszük át, ami kilép a tesztelőből / a vezetéses tesztből.

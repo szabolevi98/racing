@@ -11,6 +11,8 @@ import {
   tireConditionPercent,
   tireGripMultipliers,
   tireWearLevel,
+  resetLiveTireGripTunables,
+  setLiveTireGripTunables,
 } from '../shared/tireWear.js';
 
 const CHECKPOINTS = 60;
@@ -107,6 +109,20 @@ test('grip loss is progressive and bounded', () => {
   assert.ok(half.lateral < fresh.lateral && half.lateral > worn.lateral);
   assert.ok(Math.abs(worn.longitudinal - 0.82) < 1e-12);
   assert.ok(Math.abs(worn.lateral - 0.75) < 1e-12);
+});
+
+test('dev tire grip tuning is live and can always return to canonical values', () => {
+  setLiveTireGripTunables({
+    TIRE_LONGITUDINAL_MAX_LOSS: 0.22,
+    TIRE_LATERAL_MAX_LOSS: 0.32,
+  });
+  const tuned = tireGripMultipliers(1);
+  closeTo(tuned.longitudinal, 0.78);
+  closeTo(tuned.lateral, 0.68);
+  resetLiveTireGripTunables();
+  const canonical = tireGripMultipliers(1);
+  closeTo(canonical.longitudinal, 0.82);
+  closeTo(canonical.lateral, 0.75);
 });
 
 test('server snapshots correct wear but an old snapshot cannot undo a local tire change', () => {

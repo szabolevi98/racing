@@ -5,6 +5,13 @@
 // Egy teljes kör checkpointjai a gumi egynegyedét fogyasztják el: a kopás már
 // az első körben látszik, egy szett pedig nagyjából négy teljes kört bír.
 
+import {
+  TIRE_LONGITUDINAL_MAX_LOSS,
+  TIRE_LATERAL_MAX_LOSS,
+} from './vehicleTunables.js';
+
+export { TIRE_LONGITUDINAL_MAX_LOSS, TIRE_LATERAL_MAX_LOSS };
+
 export const TIRE_WEAR_PER_LAP = 1 / 4;
 export const TIRE_WEAR_WARNING = 0.4;
 export const TIRE_CHANGE_RECOMMENDED = 0.6;
@@ -14,10 +21,26 @@ export const TIRE_WEAR_CRITICAL = 0.8;
 // egyértelműen kisebb hosszanti és oldalirányú tapadást ad. Nem lesz defekt és
 // nem válik vezethetetlenné: a veszteség ezen a plafonon megáll.
 export const TIRE_GRIP_LOSS_START = 0.25;
-export const TIRE_LONGITUDINAL_MAX_LOSS = 0.18;
-export const TIRE_LATERAL_MAX_LOSS = 0.25;
 
 const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
+
+const LIVE_GRIP_DEFAULTS = Object.freeze({
+  TIRE_LONGITUDINAL_MAX_LOSS,
+  TIRE_LATERAL_MAX_LOSS,
+});
+const liveGrip = { ...LIVE_GRIP_DEFAULTS };
+
+// Kizárólag a dev vezetési teszt használja. A normál futamok induláskor és a
+// dev panel elhagyásakor is visszaállítják a fájlba mentett alapértékeket.
+export function setLiveTireGripTunables(partial = {}) {
+  for (const key of Object.keys(LIVE_GRIP_DEFAULTS)) {
+    if (Number.isFinite(partial[key])) liveGrip[key] = clamp01(partial[key]);
+  }
+}
+
+export function resetLiveTireGripTunables() {
+  Object.assign(liveGrip, LIVE_GRIP_DEFAULTS);
+}
 
 export function createTireWearState(enabled = false) {
   return {
@@ -71,8 +94,8 @@ export function tireGripMultipliers(wear) {
     (clamp01(wear) - TIRE_GRIP_LOSS_START) / (1 - TIRE_GRIP_LOSS_START)
   );
   return {
-    longitudinal: 1 - TIRE_LONGITUDINAL_MAX_LOSS * loss,
-    lateral: 1 - TIRE_LATERAL_MAX_LOSS * loss,
+    longitudinal: 1 - liveGrip.TIRE_LONGITUDINAL_MAX_LOSS * loss,
+    lateral: 1 - liveGrip.TIRE_LATERAL_MAX_LOSS * loss,
   };
 }
 

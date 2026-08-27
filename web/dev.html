@@ -27,6 +27,7 @@
   .vt-row label { flex: 1 1 auto; font-size: 0.8rem; }
   .vt-row input[type="range"] { flex: 1 1 auto; width: 100%; }
   .vt-row .vt-value { flex: 0 0 auto; width: 3.4em; text-align: right; font-size: 0.8rem; }
+  .vt-test-row { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.15); }
 
   #zoneEditor.hidden { display: none !important; }
   /* A 3D pálya élőben, a fő renderer canvas-án látszik alatta — ezért a
@@ -209,6 +210,11 @@
            írva, de a hangoláshoz a csúszkák helye ér többet — a magyarázat
            itt marad, annak, aki a kódot nézi.) -->
       <strong class="text-primary">VEZETÉSES TESZT</strong>
+      <div class="vt-row vt-test-row">
+        <label for="devTireCondition">Tesztgumi állapota</label>
+        <input type="range" id="devTireCondition" min="0" max="100" step="1" value="100">
+        <span class="vt-value" id="devTireConditionValue">100%</span>
+      </div>
       <div id="devDriveSliders"></div>
 
       <button id="devDriveSaveBtn" class="btn btn-sm btn-primary mt-2">Mentés fájlba</button>

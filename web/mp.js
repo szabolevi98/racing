@@ -1697,6 +1697,7 @@ async function beginRace(info) {
   resetNetworkRaceState();
   // Multiplayerben mindig a fájlba mentett, kanonikus járműbeállításokkal indulunk.
   G.resetLiveVehicleTunables();
+  G.resetLiveTireGripTunables();
   G.setMenuStatus(t('mp.loadingRace'));
 
   // A saját kocsi, a pálya és a többi játékos kocsija — mind egyszerre, EGY

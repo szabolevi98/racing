@@ -43,6 +43,21 @@ test('dev editor exposes and persists pit entry, exit and eight numbered stalls'
   assert.match(dev, /'P' \+ \(idx \+ 1\)/);
 });
 
+test('dev driving test can apply real tire wear without leaking it into races', () => {
+  assert.match(devHtml, /id="devTireCondition"[^>]*min="0"[^>]*max="100"[^>]*value="100"/);
+  assert.match(dev, /api\.race\.tires\.wear = 1 - percent \/ 100/);
+  assert.match(dev, /api\.setTireCondition\(api\.race\.tires\)/);
+  assert.match(dev, /TIRE_LONGITUDINAL_MAX_LOSS', 'Kopott gumi — hosszanti veszteség'/);
+  assert.match(dev, /TIRE_LATERAL_MAX_LOSS', 'Kopott gumi — oldalirányú veszteség'/);
+  assert.match(dev, /setLiveTireGripTunables\(\{ \[key\]: value \}\)/);
+  assert.match(dev, /function clearDevTireCondition\(\)[\s\S]*?api\.race\.tires\.enabled = false/);
+  assert.match(dev, /devTireConditionEl\.addEventListener\('input'/);
+  assert.match(main, /resetLiveTireGripTunables\(\)/);
+  assert.match(main, /const devApi = \{[\s\S]*?setTireCondition,[\s\S]*?get race\(\)/);
+  assert.match(main, /window\.__game = \{[\s\S]*?resetLiveTireGripTunables,/);
+  assert.match(mp, /G\.resetLiveTireGripTunables\(\)/);
+});
+
 test('multiplayer passes pit limiter state into the local physics step', () => {
   assert.match(mp, /localPitState\.enabled && localPitState\.inLane/);
   assert.match(main, /pitLimitedVelocity\(velocity\.x, velocity\.z, dt\)/);

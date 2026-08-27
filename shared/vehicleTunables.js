@@ -24,6 +24,11 @@ export const HANDBRAKE_FORCE = 53;
 export const HANDBRAKE_REAR_SLIP = 1.1;
 export const FRONT_FRICTION_SLIP = 3;
 export const REAR_FRICTION_SLIP = 3.5;
+// A teljesen elkopott gumi legnagyobb tapadásvesztesége. A köztes állapotokat
+// a tireWear.js sima görbéje számolja; ezek a dev vezetési tesztben élőben
+// hangolhatók és a többi menetdinamikai értékkel együtt menthetők.
+export const TIRE_LONGITUDINAL_MAX_LOSS = 0.18;
+export const TIRE_LATERAL_MAX_LOSS = 0.25;
 export const SUSPENSION_STIFFNESS = 70;
 export const SUSPENSION_COMPRESSION = 5;
 export const SUSPENSION_RELAXATION = 3.5;
