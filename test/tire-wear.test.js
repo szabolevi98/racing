@@ -128,6 +128,24 @@ test('server snapshots correct prediction but an old snapshot cannot undo a loca
   assert.equal(client.wear, 0);
 });
 
+test('a pre-calibration snapshot keeps the unknown lap distance null', () => {
+  const server = createTireWearState(true);
+  advanceTireWear(server, 100);
+  const snapshot = encodeTireWearSnapshot(server);
+  assert.equal(snapshot.r, null);
+  assert.equal(snapshot.g, null);
+
+  const client = createTireWearState(true);
+  assert.equal(syncTireWearSnapshot(client, snapshot), true);
+  assert.equal(client.referenceLapDistance, null);
+  assert.equal(client.graceDistanceRemaining, null);
+  assert.equal(client.calibrationDistance, 100);
+
+  advanceTireWear(client, 10);
+  assert.equal(client.wear, 0, 'the first lap must stay wear-free after synchronization');
+  assert.equal(client.calibrationDistance, 110);
+});
+
 test('disabled tire wear leaves every value untouched', () => {
   const tires = createTireWearState(false);
   advanceTireWear(tires, 50_000);

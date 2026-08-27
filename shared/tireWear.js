@@ -149,7 +149,13 @@ export function syncTireWearSnapshot(state, snapshot) {
   // A kliens a három másodperc leteltekor azonnal előre jelezheti a cserét;
   // egy még úton lévő régi snapshot ilyenkor nem teheti vissza a kopott gumit.
   if (serverChanges < state.changeCount) return false;
-  const distance = (value) => Number.isFinite(Number(value)) ? Number(value) / 10 : null;
+  // A JSON `null` értéke Number(null) alakban 0 lenne. Az első kör alatt a
+  // szerver szándékosan null referenciatávot küld, mert még nincs kész a
+  // kalibráció; ha ezt 0 méternek olvasnánk, a következő megtett méter
+  // nullával osztva azonnal 100%-ra koptatná a gumit.
+  const distance = (value) => typeof value === 'number' && Number.isFinite(value)
+    ? value / 10
+    : null;
   state.wear = clamp01(Number(snapshot.w) / 1000);
   state.referenceLapDistance = distance(snapshot.r);
   state.graceDistanceRemaining = distance(snapshot.g);
