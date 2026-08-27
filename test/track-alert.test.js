@@ -19,6 +19,7 @@ test('track alerts are exposed as language keys with a translation everywhere', 
   const byId = new Map(maps.map((map) => [map.id, map]));
   const languages = await loadLanguages();
 
+  assert.equal(byId.get('redbull_ring_2025_layout')?.alert?.messageKey, 'trackAlert.visualGlitches');
   assert.equal(byId.get('high_speed_ring')?.alert?.messageKey, 'trackAlert.visualGlitches');
   // Ezeken a pályákon a vizuális hibák javítva lettek, ezért az alert.json-juk
   // törölve — a figyelmeztetés HIÁNYA is ellenőrzött állapot, különben egy
@@ -27,11 +28,8 @@ test('track alerts are exposed as language keys with a translation everywhere', 
   // A Suzukán az "átlátszó aszfalt" oka a Merged_materials lombozat-textúrája
   // volt; a két érintett darab az objektumvágóval saját primitívbe került, egy
   // rendes, átlátszatlan anyag alá.
-  //
-  // A Red Bull Ring zavaró darabjait az objektumvágóval kivágtuk a modellből.
   assert.equal(byId.get('nurburgring_gp_2016_layout')?.alert, undefined);
   assert.equal(byId.get('suzuka-circuit-2001-layout')?.alert, undefined);
-  assert.equal(byId.get('redbull_ring_2025_layout')?.alert, undefined);
   assert.deepEqual(byId.get('bahrain_international_circuit_2006_layout')?.alert, {
     type: 'danger',
     messageKey: 'trackAlert.brokenAsphalt',
