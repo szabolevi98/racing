@@ -17,7 +17,7 @@
   "menu.ghostMode": "幽灵模式",
   "menu.ghostModeHint": "多人游戏中车辆可以互相穿过。",
   "menu.pitStop": "更换轮胎",
-  "menu.pitStopHint": "轮胎从第一圈开始磨损，大约可用三圈。旧轮胎会降低抓地力。",
+  "menu.pitStopHint": "轮胎每圈消耗三分之一：100% → 67% → 33%。低于百分之四十就会明显打滑，因此跑完第二圈后应进站换胎。",
   "menu.language": "语言",
   "hud.backToMenu": "← 返回菜单",
   "hud.controls": "操作",

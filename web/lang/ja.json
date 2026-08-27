@@ -17,7 +17,7 @@
   "menu.ghostMode": "ゴーストモード",
   "menu.ghostModeHint": "マルチプレイでは車同士がすり抜けます。",
   "menu.pitStop": "タイヤ交換",
-  "menu.pitStopHint": "タイヤは1周目から摩耗し、約3周もちます。摩耗したタイヤはグリップが低下します。",
+  "menu.pitStopHint": "タイヤは1周ごとに3分の1を消費します：100% → 67% → 33%。40%を下回ると明らかに滑るため、2周目を終えたらピットインして交換しましょう。",
   "menu.language": "言語",
   "hud.backToMenu": "← メニューに戻る",
   "hud.controls": "操作",

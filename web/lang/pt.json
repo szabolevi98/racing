@@ -17,7 +17,7 @@
   "menu.ghostMode": "Modo fantasma",
   "menu.ghostModeHint": "No multijogador os carros atravessam-se.",
   "menu.pitStop": "Troca de pneus",
-  "menu.pitStopHint": "Os pneus desgastam-se desde a primeira volta e duram cerca de três voltas. Pneus gastos perdem aderência.",
+  "menu.pitStopHint": "Os pneus perdem um terço da vida por volta: 100% → 67% → 33%. Abaixo de quarenta por cento deslizam de forma notória, por isso vale a pena parar nas boxes após a segunda volta.",
   "menu.language": "Idioma",
   "hud.backToMenu": "← Voltar ao menu",
   "hud.controls": "Controlos",

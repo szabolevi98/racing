@@ -17,7 +17,7 @@
   "menu.ghostMode": "Geistermodus",
   "menu.ghostModeHint": "Autos fahren im Mehrspieler durcheinander hindurch.",
   "menu.pitStop": "Reifenwechsel",
-  "menu.pitStopHint": "Die Reifen verschleißen ab der ersten Runde und halten ungefähr drei Runden. Abgenutzte Reifen verlieren Grip.",
+  "menu.pitStopHint": "Pro Runde verbraucht sich ein Drittel der Reifen: 100% → 67% → 33%. Unter vierzig Prozent rutschen sie spürbar, also nach der zweiten Runde zum Reifenwechsel an die Box.",
   "menu.language": "Sprache",
   "hud.backToMenu": "← Zurück zum Menü",
   "hud.controls": "Steuerung",

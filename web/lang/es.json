@@ -17,7 +17,7 @@
   "menu.ghostMode": "Modo fantasma",
   "menu.ghostModeHint": "Los coches se atraviesan entre sí en multijugador.",
   "menu.pitStop": "Cambio de neumáticos",
-  "menu.pitStopHint": "Los neumáticos se desgastan desde la primera vuelta y duran unas tres vueltas. Los neumáticos gastados pierden agarre.",
+  "menu.pitStopHint": "Los neumáticos pierden un tercio de su vida por vuelta: 100% → 67% → 33%. Por debajo del cuarenta por ciento deslizan de forma notable, así que entra a boxes tras la segunda vuelta.",
   "menu.language": "Idioma",
   "hud.backToMenu": "← Volver al menú",
   "hud.controls": "Controles",
