@@ -551,14 +551,15 @@ export class RaceController {
           r.splits.set(splitKey, crossedAt);
           r.lastSplitIndex = i;
           r.lastSplitMs = Math.max(0, crossedAt - r.lapStart);
-          // A standings helyrejöhet, de a reset ne váljon pályalevágási
-          // kiskapuvá: csak hiánytalan checkpoint-prefix lehet respawnpont.
-          if (r.passed.size === i + 1) {
-            car.respawn = {
-              ...this.respawnPoint(checkpoints[i], fromX, fromZ, x, z),
-              heading: headingFrom(fromX, fromZ, x, z, car.respawn.heading),
-            };
-          }
+          // Az R ugyanoda kövesse az előrehaladást, mint a standings: ha egy
+          // kapu kimaradt, a kör továbbra is érvénytelen, de egy későbbi,
+          // ténylegesen átlépett checkpoint után ne dobjon vissza a kihagyás
+          // előtti pontra. Ettől nem lesz érvényes a levágás, csak a respawn
+          // viselkedik ugyanúgy, mint singleplayerben.
+          car.respawn = {
+            ...this.respawnPoint(checkpoints[i], fromX, fromZ, x, z),
+            heading: headingFrom(fromX, fromZ, x, z, car.respawn.heading),
+          };
         }
       }
     }

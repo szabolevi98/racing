@@ -160,7 +160,7 @@ test('a checkpoint skip taints the lap but later checkpoints restore standings p
     assert.equal(car.race.splits.has(2), false, 'the missing checkpoint gets no fabricated split');
     assert.ok(Number.isFinite(car.race.splits.get(3)));
     assert.ok(Number.isFinite(car.race.splits.get(4)));
-    assert.equal(car.respawn.x, 10, 'reset stays at the last checkpoint before the shortcut');
+    assert.equal(car.respawn.x, 40, 'reset follows the latest checkpoint actually crossed after the skip');
 
     const other = sim.cars.get('p2');
     other.race.progressKey = 3;
