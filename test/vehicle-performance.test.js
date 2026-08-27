@@ -30,8 +30,8 @@ function makeFlatWorld() {
   return { world, ...buildVehicle(RAPIER, world, { x: 0, y: 2, z: 0 }) };
 }
 
-function step(car, input = NEUTRAL, frozen = false) {
-  applyControls(car.vehicle, car.body, input, { frozen, offtrackWheels: ON_TRACK });
+function step(car, input = NEUTRAL, frozen = false, tireWear = 0) {
+  applyControls(car.vehicle, car.body, input, { frozen, offtrackWheels: ON_TRACK, tireWear });
   applyVehicleStepForces(car.vehicle, car.body, DT);
   car.vehicle.updateVehicle(DT, undefined, WHEEL_RAY_FILTER_GROUPS);
   car.world.step();
@@ -47,14 +47,14 @@ function speedKmh(body) {
   return Math.hypot(v.x, v.z) * 3.6;
 }
 
-function measureAcceleration() {
+function measureAcceleration(tireWear = 0) {
   const car = makeFlatWorld();
   try {
     settle(car);
     car.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     const reached = { 100: null, 200: null, 300: null };
     for (let tick = 1; tick <= TICK_RATE * 60; tick++) {
-      step(car, { throttle: 1 });
+      step(car, { throttle: 1 }, false, tireWear);
       const speed = speedKmh(car.body);
       for (const target of [100, 200, 300]) {
         if (reached[target] === null && speed >= target) reached[target] = tick * DT;
@@ -66,7 +66,7 @@ function measureAcceleration() {
   }
 }
 
-function measureBraking(fromKmh) {
+function measureBraking(fromKmh, tireWear = 0) {
   const car = makeFlatWorld();
   try {
     settle(car);
@@ -74,7 +74,7 @@ function measureBraking(fromKmh) {
     car.body.setTranslation({ x: 0, y, z: 0 }, true);
     car.body.setLinvel({ x: 0, y: 0, z: fromKmh / 3.6 }, true);
     for (let tick = 1; tick <= TICK_RATE * 8; tick++) {
-      step(car, { brake: true });
+      step(car, { brake: true }, false, tireWear);
       if (speedKmh(car.body) < 1.26) {
         return { time: tick * DT, distance: car.body.translation().z };
       }
@@ -90,7 +90,7 @@ function yaw(rotation) {
   return Math.atan2(2 * (q.x * q.z + q.w * q.y), 1 - 2 * (q.x * q.x + q.y * q.y));
 }
 
-function measureFastCorner() {
+function measureFastCorner(tireWear = 0) {
   const car = makeFlatWorld();
   try {
     settle(car);
@@ -103,7 +103,7 @@ function measureFastCorner() {
     let maxLateralG = 0;
     let minUpright = 1;
     for (let tick = 0; tick < TICK_RATE * 3; tick++) {
-      step(car, { throttle: 1, steer: 0.15 });
+      step(car, { throttle: 1, steer: 0.15 }, false, tireWear);
       const q = car.body.rotation();
       const currentYaw = yaw(q);
       let delta = currentYaw - previousYaw;
@@ -183,4 +183,16 @@ test('high-speed downforce gives F1 grip without rolling the arcade chassis', ()
   assert.ok(result.turnDegrees >= 75 && result.turnDegrees <= 110, `turn: ${result.turnDegrees}°`);
   assert.ok(result.maxLateralG >= 4.5 && result.maxLateralG <= 6.5, `lateral: ${result.maxLateralG} G`);
   assert.ok(result.minUpright > 0.98, `upright: ${result.minUpright}`);
+});
+
+test('fully worn tires lose grip but keep the drag-limited 378 km/h top speed', () => {
+  const acceleration = measureAcceleration(1);
+  const freshCorner = measureFastCorner();
+  const wornCorner = measureFastCorner(1);
+
+  assert.ok(
+    Math.abs(acceleration.top - TARGET_TOP_SPEED_KMH) <= 2,
+    `worn-tire top speed: ${acceleration.top} km/h`,
+  );
+  assert.ok(wornCorner.maxLateralG < freshCorner.maxLateralG, 'worn tires must reduce cornering grip');
 });

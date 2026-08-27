@@ -17,6 +17,10 @@ import {
   GHOST_SAMPLE_MS, MAX_GHOST_FRAMES, makeGhostFrame, makeGhostReplay,
 } from '../../shared/ghost.js';
 import { createPitState, hasCompletePitConfig, updatePitState } from '../../shared/pit.js';
+import {
+  advanceTireWear, changeTires, completeTireCalibrationLap,
+  createTireWearState, encodeTireWearSnapshot, restartTireCalibrationLap,
+} from '../../shared/tireWear.js';
 import { loadMapZoneRuntime } from './zoneRuntime.js';
 import { measureServerWork } from '../loopLag.js';
 
@@ -174,7 +178,7 @@ function headingFrom(fromX, fromZ, toX, toZ, fallback) {
   return Math.atan2(dx, dz);
 }
 
-function createRaceState(x, z, pitRequired = false) {
+function createRaceState(x, z, tireWearEnabled = false) {
   return {
     lap: 0,
     nextCheckpoint: 0,
@@ -207,7 +211,8 @@ function createRaceState(x, z, pitRequired = false) {
     prevZ: z,
     prevAt: 0,
     validationAlertLap: -1,
-    pit: createPitState(pitRequired),
+    pit: createPitState(tireWearEnabled),
+    tires: createTireWearState(tireWearEnabled),
   };
 }
 
@@ -265,7 +270,7 @@ export class RaceController {
           spawn.x,
           spawn.z,
           this.room.laps > 1
-            && this.room.mandatoryPitStop === true
+            && this.room.tireWear === true
             && hasCompletePitConfig(this.map?.pit)
         ),
       });
@@ -504,6 +509,7 @@ export class RaceController {
     r.lastSplitIndex = -1;
     r.lastSplitMs = 0;
     r.lapSplits = [];
+    restartTireCalibrationLap(r.tires);
     this.beginGhostRecording(car, crossedAt);
     // A minimum alatt a rajtvonal nem zárhatja le a kört: ez akadályozza meg,
     // hogy valaki oda-vissza gurulással teljesítse a versenyt. A küszöböt elérő,
@@ -520,13 +526,18 @@ export class RaceController {
     const x = car.state.p[0], z = car.state.p[2];
     const fromX = r.prevX, fromZ = r.prevZ;
     const fromAt = r.prevAt || now;
+    if (r.hasCrossedStart) {
+      advanceTireWear(r.tires, Math.hypot(x - fromX, z - fromZ));
+    }
     r.prevX = x;
     r.prevZ = z;
     r.prevAt = now;
+    const pitChangesBefore = r.pit.changeCount;
     updatePitState(r.pit, this.map?.pit, this.room.players.get(car.playerId)?.slot ?? 0, {
       fromX, fromZ, x, z, now,
       speedMps: Math.hypot(car.state.v[0], car.state.v[2]),
     });
+    if (r.pit.changeCount > pitChangesBefore) changeTires(r.tires);
     if (!gates?.start) return;
     const checkpoints = gates.checkpoints || [];
     this.recordGhostFrame(car, now);
@@ -606,9 +617,6 @@ export class RaceController {
       heading: headingFrom(fromX, fromZ, x, z, car.respawn.heading),
     };
     if (r.passed.size < checkpoints.length) r.taintReason = TAINT.CHECKPOINT;
-    if (!this.room.endlessLaps && r.lap + 1 >= this.room.laps && r.pit.required && !r.pit.completed) {
-      r.taintReason = TAINT.PIT_STOP;
-    }
     const invalid = !!r.taintReason;
     const time = crossedAt - r.lapStart;
     const ghost = invalid ? null : this.finishGhostRecording(car, crossedAt);
@@ -616,6 +624,7 @@ export class RaceController {
     r.progressKey = splitKey;
     r.splits.set(splitKey, crossedAt);
     r.lapTimes.push({ time, invalid });
+    completeTireCalibrationLap(r.tires);
     if (!invalid && (r.bestLapTime === null || time < r.bestLapTime)) {
       r.bestLapTime = time;
       r.bestLapSplits = r.lapSplits.slice();
@@ -729,9 +738,11 @@ export class RaceController {
           ? Math.round(car.race.lapStart)
           : null,
         fin: !!car.race.finished,
-        pc: !!car.race.pit.completed,
         pi: !!car.race.pit.inLane,
         pt: Math.round(car.race.pit.stopElapsedMs),
+        ps: car.race.pit.changeCount,
+        pv: !!car.race.pit.servicedThisVisit,
+        tw: encodeTireWearSnapshot(car.race.tires),
         // A legutóbbi checkpoint sorszáma és a kör kezdetétől mért ideje — a
         // delta-kijelző alapja. Minden snapshotban megy, nem egyszeri
         // eseményként: így egy elveszett csomag nem hagy ki egy részidőt.

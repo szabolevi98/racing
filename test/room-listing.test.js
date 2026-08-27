@@ -64,7 +64,7 @@ test('the listing carries the player count but no player details', () => {
   assert.equal(JSON.stringify(sor).includes('Titkos Név'), false);
   assert.deepEqual(
     Object.keys(sor).sort(),
-    ['code', 'ghostMode', 'laps', 'mandatoryPitStop', 'mapId', 'max', 'players'],
+    ['code', 'ghostMode', 'laps', 'mapId', 'max', 'players', 'tireWear'],
   );
 });
 

@@ -58,18 +58,19 @@ export function hasCompletePitConfig(raw) {
   return hasCompleteNormalizedPit(normalizePitConfig(raw));
 }
 
-export function createPitState(required = false) {
+export function createPitState(enabled = false) {
   return {
-    required: !!required,
-    completed: false,
+    enabled: !!enabled,
     inLane: false,
     stopStartedAt: null,
     stopElapsedMs: 0,
+    servicedThisVisit: false,
+    changeCount: 0,
   };
 }
 
 export function updatePitState(state, pitConfig, assignedStopIndex, sample) {
-  if (!state?.required) return state;
+  if (!state?.enabled) return state;
   const pit = normalizePitConfig(pitConfig);
   if (!hasCompleteNormalizedPit(pit)) return state;
   const fromX = Number(sample?.fromX), fromZ = Number(sample?.fromZ);
@@ -86,20 +87,27 @@ export function updatePitState(state, pitConfig, assignedStopIndex, sample) {
     if (!state.inLane) {
       state.stopStartedAt = null;
       state.stopElapsedMs = 0;
+      state.servicedThisVisit = false;
     }
   }
 
   const stopIndex = Math.max(0, Math.min(PIT_STOP_COUNT - 1, Number(assignedStopIndex) || 0));
   const stop = pit.stops[stopIndex];
   const inStop = !!stop && Math.hypot(x - stop.x, z - stop.z) <= PIT_STOP_RADIUS_M;
-  if (!state.completed && state.inLane && inStop && speed <= PIT_STOP_MAX_SPEED_MPS && Number.isFinite(now)) {
+  // Ugyanabban a megállásban csak egy szett jár. Új csere akkor élesedik,
+  // amikor az autó ténylegesen elhagyta a boxhely sugarát; puszta megindulás
+  // és visszafékezés a helyen belül nem gyárthat végtelen friss gumit.
+  if (!inStop) state.servicedThisVisit = false;
+  if (!state.servicedThisVisit && state.inLane && inStop
+      && speed <= PIT_STOP_MAX_SPEED_MPS && Number.isFinite(now)) {
     if (!Number.isFinite(state.stopStartedAt)) state.stopStartedAt = now;
     state.stopElapsedMs = Math.max(0, now - state.stopStartedAt);
     if (state.stopElapsedMs >= PIT_STOP_DURATION_MS) {
       state.stopElapsedMs = PIT_STOP_DURATION_MS;
-      state.completed = true;
+      state.servicedThisVisit = true;
+      state.changeCount++;
     }
-  } else if (!state.completed) {
+  } else if (!state.servicedThisVisit) {
     state.stopStartedAt = null;
     state.stopElapsedMs = 0;
   }

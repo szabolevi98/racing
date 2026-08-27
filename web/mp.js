@@ -26,6 +26,10 @@ import {
 } from '/shared/renderClock.js';
 import { createPitState, hasCompletePitConfig, updatePitState } from '/shared/pit.js';
 import {
+  TIRE_CHANGE_RECOMMENDED, advanceTireWear, changeTires, createTireWearState,
+  syncTireWearSnapshot, tireConditionPercent,
+} from '/shared/tireWear.js';
+import {
   acceptsClockSample, smoothPing, updateMinRtt,
 } from '/shared/ping.js';
 import { ERR } from '/shared/errorCodes.js';
@@ -164,6 +168,7 @@ const departedPlayerIds = new Set();
 let lapTainted = TAINT.NONE;
 let localPitConfig = null;
 let localPitState = createPitState(false);
+let localTireState = createTireWearState(false);
 let localPitStopIndex = 0;
 let pitPrevPosition = null;
 let inputLoopActive = false;
@@ -428,7 +433,7 @@ const $ = (id) => document.getElementById(id);
 const show = (id, on) => $(id).classList.toggle('hidden', !on);
 const setErr = (m) => { $('mpError').textContent = m || ''; };
 const ghostModeCheckbox = $('ghostModeCheckbox');
-const mandatoryPitStopCheckbox = $('mandatoryPitStopCheckbox');
+const tireWearCheckbox = $('tireWearCheckbox');
 ghostModeCheckbox.checked = localStorage.getItem('racing.ghostMode') === '1';
 ghostModeCheckbox.addEventListener('change', () => {
   localStorage.setItem('racing.ghostMode', ghostModeCheckbox.checked ? '1' : '0');
@@ -679,7 +684,7 @@ $('mpCreate').addEventListener('click', () => {
     carId,
     laps,
     ghostMode: ghostModeCheckbox.checked,
-    mandatoryPitStop: laps > 1 && mandatoryPitStopCheckbox.checked,
+    tireWear: laps > 1 && tireWearCheckbox.checked,
     isPublic: publicRoomCheckbox.checked,
   });
 });
@@ -995,7 +1000,7 @@ function renderRoomList(list, { page = 0, pages = 1, total = list.length } = {})
     return '<div class="mp-browse-row">' +
       '<span class="br-main">' +
         `<span class="br-map">${escapeHtml(map?.label || room.mapId)}</span>` +
-        `<span class="br-meta">${t('mp.roomLaps', { n: room.laps })}${room.ghostMode ? ' · ghost' : ''}${room.mandatoryPitStop ? t('mp.roomPit') : ''}</span>` +
+        `<span class="br-meta">${t('mp.roomLaps', { n: room.laps })}${room.ghostMode ? ' · ghost' : ''}${room.tireWear ? t('mp.roomPit') : ''}</span>` +
       '</span>' +
       `<span class="br-players${tele ? ' is-full' : ''}">${room.players}/${room.max}</span>` +
       `<button class="mp-btn ghost compact br-join" data-code="${escapeHtml(room.code)}">${t('mp.join')}</button>` +
@@ -1230,7 +1235,11 @@ function onMessage(m) {
           m.pendingReset.z,
           reset,
         );
-        if (reset) resetPredState();
+        if (reset) {
+          resetPredState();
+          const resetState = G.getCarState();
+          pitPrevPosition = { x: resetState.p[0], z: resetState.p[2] };
+        }
       }
       if (Array.isArray(m.results) && m.results.length) {
         showResults(m.results);
@@ -1320,7 +1329,7 @@ function onMessage(m) {
       starting = m;
       if (room) {
         room.ghostMode = m.ghostMode === true;
-        room.mandatoryPitStop = m.mandatoryPitStop === true;
+        room.tireWear = m.tireWear === true;
         room.mode = m.mode || room.mode;
       }
       hideMultiplayerResults();
@@ -1580,7 +1589,7 @@ function renderRoom() {
   $('mpRoomMap').textContent = map?.label || room.mapId;
   $('mpRoomLaps').textContent = room.laps;
   $('mpRoomMode').textContent = (room.ghostMode ? t('mp.modeGhost') : t('mp.modeNormal'))
-    + (room.mandatoryPitStop ? t('mp.roomPitLong') : '');
+    + (room.tireWear ? t('mp.roomPitLong') : '');
   // Publikus szobába a keresőből ismeretlenek is érkezhetnek — ezt látni kell
   // bent is, ne érje meglepetésként a társaságot.
   $('mpRoomVisibility').textContent = room.isPublic ? t('mp.public') : t('mp.private');
@@ -1699,9 +1708,10 @@ async function beginRace(info) {
   localPitState = createPitState(
     info.mode !== GAME_MODE.HOT_LAP
       && Number(info.laps) > 1
-      && info.mandatoryPitStop === true
+      && info.tireWear === true
       && hasCompletePitConfig(localPitConfig)
   );
+  localTireState = createTireWearState(localPitState.enabled);
   pitPrevPosition = null;
   const car = G.manifest.cars.find((c) => c.id === myPlayer?.carId);
   const otherPlayers = info.players.filter((p) => p.id !== me.id);
@@ -1777,8 +1787,8 @@ async function beginRace(info) {
   );
   const placedState = G.getCarState();
   pitPrevPosition = { x: placedState.p[0], z: placedState.p[2] };
-  G.setPitStopMarker(localPitConfig?.stops?.[localPitStopIndex], localPitState.required);
-  G.renderPitStopHud(localPitState, localPitStopIndex);
+  G.setPitStopMarker(localPitConfig?.stops?.[localPitStopIndex], false);
+  G.renderPitStopHud(localPitState, localPitStopIndex, localTireState);
   G.enterMultiplayer(frame);
   raceLoadActive = false;
   if (raceLoadController === loadController) raceLoadController = null;
@@ -1848,9 +1858,10 @@ function clearOtherCars({ preserveGhost = false } = {}) {
   G.setMiniMapMarkers([], null);
   localPitConfig = null;
   localPitState = createPitState(false);
+  localTireState = createTireWearState(false);
   pitPrevPosition = null;
   G.setPitStopMarker(null, false);
-  G.renderPitStopHud(localPitState, 0);
+  G.renderPitStopHud(localPitState, 0, localTireState);
 }
 
 // Egyetlen játékos kocsijának leszedése — verseny KÖZBEN is, amikor kilép
@@ -2580,15 +2591,22 @@ function onSnapshot(
       myLastLap = c.last ?? null;
       myLastLapInvalid = !!c.li;
       myFinished = !!c.fin;
-      if (c.pc) localPitState.completed = true;
-      if (!localPitState.completed && Number.isFinite(c.pt)) {
+      const serverPitChanges = Math.max(0, Math.trunc(Number(c.ps) || 0));
+      if (serverPitChanges >= localPitState.changeCount) {
+        localPitState.changeCount = serverPitChanges;
+        localPitState.servicedThisVisit = !!c.pv;
+      }
+      if (!localPitState.servicedThisVisit && Number.isFinite(c.pt)) {
         localPitState.stopElapsedMs = Math.max(localPitState.stopElapsedMs, c.pt);
       }
+      syncTireWearSnapshot(localTireState, c.tw);
       G.setPitStopMarker(
         localPitConfig?.stops?.[localPitStopIndex],
-        localPitState.required && !localPitState.completed
+        localPitState.enabled && (
+          localPitState.inLane || localTireState.wear >= TIRE_CHANGE_RECOMMENDED
+        )
       );
-      G.renderPitStopHud(localPitState, localPitStopIndex);
+      G.renderPitStopHud(localPitState, localPitStopIndex, localTireState);
       if (isHotLap()) {
         // A szerver az egyetlen hiteles időmérő: null a felvezetőn, majd az
         // átlépés szimulációs időpontja. Így nagy pingnél sem a csomag
@@ -3206,6 +3224,7 @@ function frame(dt = 1 / 60) {
       lapTotal: room?.laps ?? '?',
       current: NaN, best: NaN, total: NaN, lapsDone: 0,
       hotLap: isHotLap(),
+      tireCondition: localTireState.enabled ? tireConditionPercent(localTireState) : null,
     }));
     G.setStandings('');
     return;
@@ -3231,7 +3250,10 @@ function frame(dt = 1 / 60) {
 //
 // A hiányzó időket nem külön ággal kezeljük: a formatTime a nem véges értékre
 // „--:--.---”-t ad, tehát a placeholder ugyanaz a doboz, ugyanazon a helyen.
-function lapPanelHtml({ lapNow, lapTotal, current, best, total, lapsDone, tainted = false, hotLap = false }) {
+function lapPanelHtml({
+  lapNow, lapTotal, current, best, total, lapsDone,
+  tainted = false, hotLap = false, tireCondition = null,
+}) {
   // Időmérésben nincs körszám-korlát, tehát nincs mihez viszonyítani: csak a
   // sorszám megy ki, „/ 1” nélkül.
   const korSzamlalo = hotLap
@@ -3247,6 +3269,10 @@ function lapPanelHtml({ lapNow, lapTotal, current, best, total, lapsDone, tainte
     `<div class="t-row${Number.isFinite(best) ? ' is-best' : ''}">` +
       `<span class="lbl">${t('hud.best')}</span>` +
       `<span class="t-val num">${G.formatTime(best)}</span></div>` +
+    (Number.isFinite(tireCondition)
+      ? `<div class="t-row"><span class="lbl">${t('hud.tires')}</span>` +
+        `<span class="t-val num">${tireCondition}%</span></div>`
+      : '') +
     // Időmérésben az „Összes” ugyanazt mutatná, mint az „Aktuális” (a
     // raceClock ott mindkettőt a kör kezdetétől számolja) — korlátlan körnél
     // a megfutott körök száma többet mond.
@@ -3282,6 +3308,7 @@ function lapPanelHtml({ lapNow, lapTotal, current, best, total, lapsDone, tainte
     lapsDone: myLap,
     tainted: lapTainted,
     hotLap: isHotLap(),
+    tireCondition: localTireState.enabled ? tireConditionPercent(localTireState) : null,
   }));
 
   const evt = lastEvents[0];
@@ -3434,6 +3461,7 @@ function sendOneInput(scheduledAt) {
   const beforeState = G.getCarState();
   const { q, v } = beforeState;
   const previousPitPosition = pitPrevPosition || { x: beforeState.p[0], z: beforeState.p[2] };
+  let pitChangesBefore = localPitState.changeCount;
   updatePitState(localPitState, localPitConfig, localPitStopIndex, {
     fromX: previousPitPosition.x,
     fromZ: previousPitPosition.z,
@@ -3442,6 +3470,7 @@ function sendOneInput(scheduledAt) {
     now: scheduledAt,
     speedMps: Math.hypot(v[0], v[2]),
   });
+  if (localPitState.changeCount > pitChangesBefore) changeTires(localTireState);
   const fwdSpeed = forwardSpeed(q[0], q[1], q[2], q[3], v[0], v[1], v[2]);
   const brake = backwardHeld && fwdSpeed > REVERSE_BRAKE_THRESHOLD ? backwardAmount : 0;
   const reverseAmount = backwardHeld && !brake ? backwardAmount : 0;
@@ -3479,13 +3508,25 @@ function sendOneInput(scheduledAt) {
   const contactStartedAt = performance.now();
   syncRemoteContacts(input.at);
   const physicsStartedAt = performance.now();
-  G.stepLocalPhysics(input, input.frozen, !controlsEnabled, localPitState.required && localPitState.inLane);
+  const speedBefore = Math.hypot(beforeState.v[0], beforeState.v[2]);
+  G.stepLocalPhysics(
+    input,
+    input.frozen,
+    !controlsEnabled,
+    localPitState.enabled && localPitState.inLane,
+    localTireState.wear,
+  );
   const physicsFinishedAt = performance.now();
   observePipelineTimings(
     physicsStartedAt - contactStartedAt,
     physicsFinishedAt - physicsStartedAt,
   );
   const state = G.getCarState();
+  const speedAfter = Math.hypot(state.v[0], state.v[2]);
+  if (multiplayerStartCrossed && !finishedDriving && !raceEnded) {
+    advanceTireWear(localTireState, (speedBefore + speedAfter) * 0.5 * TICK_MS / 1000);
+  }
+  pitChangesBefore = localPitState.changeCount;
   updatePitState(localPitState, localPitConfig, localPitStopIndex, {
     fromX: beforeState.p[0],
     fromZ: beforeState.p[2],
@@ -3494,12 +3535,15 @@ function sendOneInput(scheduledAt) {
     now: scheduledAt + TICK_MS,
     speedMps: Math.hypot(state.v[0], state.v[2]),
   });
+  if (localPitState.changeCount > pitChangesBefore) changeTires(localTireState);
   pitPrevPosition = { x: state.p[0], z: state.p[2] };
   G.setPitStopMarker(
     localPitConfig?.stops?.[localPitStopIndex],
-    localPitState.required && !localPitState.completed
+    localPitState.enabled && (
+      localPitState.inLane || localTireState.wear >= TIRE_CHANGE_RECOMMENDED
+    )
   );
-  G.renderPitStopHud(localPitState, localPitStopIndex);
+  G.renderPitStopHud(localPitState, localPitStopIndex, localTireState);
   const steppedAt = scheduledAt + TICK_MS;
   recordPhysState(steppedAt, state);
   // Nézői módban NEM a saját kocsink hajtja a sebességmérőt — azt a frame()

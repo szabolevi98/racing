@@ -12,12 +12,15 @@ import {
 
 function harness() {
   const slip = [0, 0, 0, 0];
+  const side = [0, 0, 0, 0];
   const brake = [0, 0, 0, 0];
   return {
     slip,
+    side,
     brake,
     vehicle: {
       setWheelFrictionSlip(index, value) { slip[index] = value; },
+      setWheelSideFrictionStiffness(index, value) { side[index] = value; },
       setWheelEngineForce() {},
       setWheelSteering() {},
       setWheelBrake(index, value) { brake[index] = value; },
@@ -38,6 +41,7 @@ test('asphalt uses axle grip while each offtrack wheel uses the independent runo
     REAR_FRICTION_SLIP,
     REAR_FRICTION_SLIP,
   ]);
+  assert.deepEqual(asphalt.side, [1, 1, 1, 1]);
 
   const mixed = harness();
   applyControls(
@@ -52,6 +56,25 @@ test('asphalt uses axle grip while each offtrack wheel uses the independent runo
     OFFTRACK_FRICTION_SLIP,
     REAR_FRICTION_SLIP,
   ]);
+  assert.deepEqual(mixed.side, [1, 1, 1, 1]);
+});
+
+test('worn tires reduce asphalt grip without changing the runoff profile', () => {
+  const worn = harness();
+  applyControls(
+    worn.vehicle,
+    worn.body,
+    {},
+    { tireWear: 1, offtrackWheels: [false, false, true, true] }
+  );
+  assert.ok(worn.slip[0] < FRONT_FRICTION_SLIP);
+  assert.ok(worn.slip[1] < FRONT_FRICTION_SLIP);
+  assert.equal(worn.slip[2], OFFTRACK_FRICTION_SLIP);
+  assert.equal(worn.slip[3], OFFTRACK_FRICTION_SLIP);
+  assert.ok(worn.side[0] < 1);
+  assert.ok(worn.side[1] < 1);
+  assert.equal(worn.side[2], 1);
+  assert.equal(worn.side[3], 1);
 });
 
 test('analog brake scales both axles while boolean brake stays full strength', () => {

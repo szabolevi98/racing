@@ -85,13 +85,14 @@
       <small id="ghostModeHint" class="option-tooltip" role="tooltip" data-i18n="menu.ghostModeHint">Többjátékos módban az autók nem ütköznek egymással.</small>
     </div>
     <div class="ghost-mode-option">
-      <label for="mandatoryPitStopCheckbox">
-        <input id="mandatoryPitStopCheckbox" type="checkbox">
+      <label for="tireWearCheckbox">
+        <input id="tireWearCheckbox" type="checkbox">
         <strong data-i18n="menu.pitStop">Kerékcsere</strong>
       </label>
-      <button type="button" class="option-info" aria-describedby="mandatoryPitStopHint"
-              aria-label="Kötelező kiállás egy- és többjátékos módban.">i</button>
-      <small id="mandatoryPitStopHint" class="option-tooltip" role="tooltip">Kötelező kiállás egy- és többjátékos módban.</small>
+      <button type="button" class="option-info" aria-describedby="tireWearHint"
+              data-i18n-aria-label="menu.pitStopHint"
+              aria-label="Minden új szett első köre kopásmentes; utána körönként 50%-ot kopik. A kopott gumi tapadást veszít.">i</button>
+      <small id="tireWearHint" class="option-tooltip" role="tooltip" data-i18n="menu.pitStopHint">Minden új szett első köre kopásmentes; utána körönként 50%-ot kopik. A kopott gumi tapadást veszít.</small>
     </div>
   </div>
   <div class="graphics-quality-field">
@@ -258,7 +259,7 @@
     <div class="alert-pill warn" id="lapInvalidAlertText" data-i18n="alert.lapInvalid">Kör érvénytelen!</div>
   </div>
   <div id="pitStopAlert" class="top-center-alert hidden">
-    <div class="alert-pill warn" id="pitStopAlertText" data-i18n="alert.pitStopRequired">⚠ KÖTELEZŐ KERÉKCSERE</div>
+    <div class="alert-pill warn" id="pitStopAlertText" data-i18n="pit.recommended">⚠ KERÉKCSERE AJÁNLOTT</div>
   </div>
   <div id="rolloverAlert" class="top-center-alert hidden">
     <div class="alert-pill danger" id="rolloverAlertText"></div>

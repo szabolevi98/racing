@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { RaceController } from '../server/game/raceController.js';
 import { GAME_MODE, ROOM_STATE, S2C, TAINT } from '../shared/protocol.js';
+import { createPitState } from '../shared/pit.js';
+import { createTireWearState } from '../shared/tireWear.js';
 
 test('Hot Lap warm-up ignores checkpoints before the timing line', () => {
   const room = {
@@ -37,6 +39,8 @@ test('Hot Lap warm-up ignores checkpoints before the timing line', () => {
     lapTimes: [],
     lastGhostSampleAt: 0,
     validationAlertLap: -1,
+    pit: createPitState(false),
+    tires: createTireWearState(false),
   };
   sim.cars.set('driver', {
     playerId: 'driver',

@@ -29,6 +29,7 @@ import {
   AERO_DRAG_COEFFICIENT, AERO_DOWNFORCE_COEFFICIENT,
   LINEAR_DAMPING, ANGULAR_DAMPING,
 } from './vehicleTunables.js';
+import { tireGripMultipliers } from './tireWear.js';
 
 export const GRAVITY = { x: 0, y: -9.81, z: 0 };
 
@@ -391,7 +392,7 @@ export function buildVehicle(
 // négy kerékre ugyanaz vonatkozik, mint korábban.
 export function applyControls(
   vehicle, body, input,
-  { offtrack = false, offtrackWheels = null, frozen = false } = {}
+  { offtrack = false, offtrackWheels = null, frozen = false, tireWear = 0 } = {}
 ) {
   const wheelsOff = offtrackWheels || [offtrack, offtrack, offtrack, offtrack];
   const offCount = (wheelsOff[0] ? 1 : 0) + (wheelsOff[1] ? 1 : 0)
@@ -402,10 +403,19 @@ export function applyControls(
   // viszont mindegyik kerék ugyanarra a külön OFFTRACK értékre vált: a
   // hátsó aszfalttapadás emelése ne gyengítse mellékesen az első kereket
   // füvön/kavicson az első-hátsó arány továbbvitelével.
+  const tireGrip = tireGripMultipliers(tireWear);
   const slipOf = (i) => wheelsOff[i]
     ? OFFTRACK_FRICTION_SLIP
-    : (i < 2 ? live.FRONT_FRICTION_SLIP : live.REAR_FRICTION_SLIP);
-  for (let i = 0; i < 4; i++) vehicle.setWheelFrictionSlip(i, slipOf(i));
+    : (i < 2 ? live.FRONT_FRICTION_SLIP : live.REAR_FRICTION_SLIP)
+      * tireGrip.longitudinal;
+  for (let i = 0; i < 4; i++) {
+    vehicle.setWheelFrictionSlip(i, slipOf(i));
+    // A frictionSlip a hosszanti tapadást/fékezést, a side stiffness a
+    // kanyartartást szabja. A kifutó eddigi külön fizikáját nem írjuk át;
+    // aszfalton viszont mindkét tengely azonos arányban kopik, így az autó
+    // alapvető első/hátsó egyensúlya megmarad.
+    vehicle.setWheelSideFrictionStiffness?.(i, wheelsOff[i] ? 1 : tireGrip.lateral);
+  }
   // A kézifékhez a HÁTSÓ tengely tapadása a viszonyítás (lásd lentebb).
   const slip = Math.min(slipOf(2), slipOf(3));
 

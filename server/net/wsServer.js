@@ -273,7 +273,7 @@ async function handleMessage(player, msg) {
         mapId: msg.mapId,
         laps: msg.laps,
         ghostMode: msg.ghostMode === true,
-        mandatoryPitStop: msg.mandatoryPitStop === true && hasCompletePitConfig(selectedMap.pit),
+        tireWear: msg.tireWear === true && hasCompletePitConfig(selectedMap.pit),
         isPublic: msg.isPublic !== false,
       });
       room.add(player, selectedCar.id);
@@ -499,8 +499,8 @@ async function startRace(room) {
     laps: room.laps,
     mode: room.mode,
     ghostMode: room.ghostMode,
-    mandatoryPitStop: room.mandatoryPitStop,
-    pit: room.mandatoryPitStop ? (map?.pit || null) : null,
+    tireWear: room.tireWear,
+    pit: room.tireWear ? (map?.pit || null) : null,
     ghost,
     spawns,
     hotLapSpawn: room.mode === GAME_MODE.HOT_LAP ? (map?.hotLapSpawn || null) : null,

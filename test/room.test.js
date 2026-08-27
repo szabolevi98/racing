@@ -33,17 +33,17 @@ test('ghost mode is a room-wide setting included in room state', () => {
   assert.equal(normalRoom.toJSON().ghostMode, false);
 });
 
-test('mandatory pit stop needs multiplayer mode and more than one lap', () => {
+test('tire wear needs race mode and more than one lap', () => {
   const host = { id: 'host' };
-  const race = new Room('PIT', host, { mapId: 'map', laps: 3, mandatoryPitStop: true });
-  const oneLap = new Room('ONE', host, { mapId: 'map', laps: 1, mandatoryPitStop: true });
+  const race = new Room('PIT', host, { mapId: 'map', laps: 3, tireWear: true });
+  const oneLap = new Room('ONE', host, { mapId: 'map', laps: 1, tireWear: true });
   const hotLap = new Room('HOT', host, {
-    mapId: 'map', laps: 1, mode: GAME_MODE.HOT_LAP, mandatoryPitStop: true,
+    mapId: 'map', laps: 1, mode: GAME_MODE.HOT_LAP, tireWear: true,
   });
-  assert.equal(race.toJSON().mandatoryPitStop, true);
-  assert.equal(race.listing().mandatoryPitStop, true);
-  assert.equal(oneLap.toJSON().mandatoryPitStop, false);
-  assert.equal(hotLap.toJSON().mandatoryPitStop, false);
+  assert.equal(race.toJSON().tireWear, true);
+  assert.equal(race.listing().tireWear, true);
+  assert.equal(oneLap.toJSON().tireWear, false);
+  assert.equal(hotLap.toJSON().tireWear, false);
 });
 
 test('Hot Lap is a one-lap server mode with collisionless replay support', () => {

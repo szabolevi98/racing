@@ -8,18 +8,18 @@ const mp = fs.readFileSync(new URL('../web/mp.js', import.meta.url), 'utf8');
 const devHtml = fs.readFileSync(new URL('../web/dev.html', import.meta.url), 'utf8');
 const dev = fs.readFileSync(new URL('../web/dev.js', import.meta.url), 'utf8');
 
-test('menu and HUD expose the optional mandatory tire-change rule', () => {
-  assert.match(html, /id="mandatoryPitStopCheckbox"/);
+test('menu and HUD expose the optional tire-wear rule', () => {
+  assert.match(html, /id="tireWearCheckbox"/);
+  assert.match(html, /id="tireWearHint"[^>]*data-i18n="menu\.pitStopHint"/);
   assert.match(html, /id="pitStopAlert"/);
   assert.match(main, /hasCompletePitConfig\(currentPitConfig\)/);
   assert.match(main, /race\.totalLaps > 1/);
-  assert.match(main, /mandatoryPitStopCheckbox\.disabled = !available/);
-  assert.match(mp, /mandatoryPitStop: laps > 1 && mandatoryPitStopCheckbox\.checked/);
-  assert.match(
-    main,
-    /race\.lap \+ 1 >= race\.totalLaps[\s\S]{0,220}const invalid = race\.lapTainted/,
-    'single-player applies the penalty while closing the final lap'
-  );
+  assert.match(main, /tireWearCheckbox\.disabled = !available/);
+  assert.match(mp, /tireWear: laps > 1 && tireWearCheckbox\.checked/);
+  assert.match(main, /tireConditionPercent\(race\.tires\)/);
+  assert.match(mp, /tireConditionPercent\(localTireState\)/);
+  assert.doesNotMatch(main, /TAINT\.PIT_STOP/);
+  assert.doesNotMatch(mp, /TAINT\.PIT_STOP/);
 });
 
 test('dev editor exposes and persists pit entry, exit and eight numbered stalls', () => {
@@ -34,14 +34,14 @@ test('dev editor exposes and persists pit entry, exit and eight numbered stalls'
 });
 
 test('multiplayer passes pit limiter state into the local physics step', () => {
-  assert.match(mp, /localPitState\.required && localPitState\.inLane/);
+  assert.match(mp, /localPitState\.enabled && localPitState\.inLane/);
   assert.match(main, /pitLimitedVelocity\(velocity\.x, velocity\.z, dt\)/);
   // A boxjelölő magasságát a RAJTRÁCS szintjéhez mérve választjuk ki: a
   // boxhelyek alatt több vízszintes felület is van (garázstető fölöttük,
   // alaplap alattuk), és sem a legfelső, sem a legalsó nem a boxutca.
   assert.match(main, /findPitGroundAt\(currentTrack, currentTrackBox, stop\.x, stop\.z, gridGroundLevel\(\)\)/);
   assert.match(main, /function gridGroundLevel\(\)/);
-  assert.match(main, /state\.completed && !state\.inLane/);
+  assert.match(main, /state\.servicedThisVisit && state\.inLane/);
 });
 
 test('reset waits for the first start crossing and pauses state packets in flight', () => {

@@ -19,6 +19,11 @@ import {
   PIT_SPEED_LIMIT_MPS, PIT_STOP_DURATION_MS, createPitState, hasCompletePitConfig,
   normalizePitConfig, pitLimitedVelocity, updatePitState,
 } from '/shared/pit.js';
+import {
+  TIRE_CHANGE_RECOMMENDED, advanceTireWear, changeTires,
+  completeTireCalibrationLap, createTireWearState,
+  restartTireCalibrationLap, tireConditionPercent, tireWearLevel,
+} from '/shared/tireWear.js';
 import { restHeightAboveGround } from '/shared/spawnRest.js';
 import { gridSlotPose, hotLapStartPose } from '/shared/grid.js';
 import { crossingTime, gateRespawnPoint } from '/shared/gate.js';
@@ -185,8 +190,8 @@ const mapSelect = document.getElementById('mapSelect');
 const carSelect = document.getElementById('carSelect');
 const envSelect = document.getElementById('envSelect');
 const startBtn = document.getElementById('startBtn');
-const mandatoryPitStopCheckbox = document.getElementById('mandatoryPitStopCheckbox');
-const mandatoryPitStopHintEl = document.getElementById('mandatoryPitStopHint');
+const tireWearCheckbox = document.getElementById('tireWearCheckbox');
+const tireWearHintEl = document.getElementById('tireWearHint');
 const backToMenuLink = document.getElementById('backToMenuLink');
 // A fejlesztői felületnek EGY eleme sincs itt: a markupja a dev.html-ben van,
 // és a dev.js injektálja be, amikor tényleg dev módba lépsz. Elrejteni a
@@ -2704,10 +2709,10 @@ function updatePitOptionAvailability(entry) {
     : !hasEnoughLaps
       ? t('pit.oneLapInactive')
       : t('menu.pitStopHint');
-  mandatoryPitStopHintEl.textContent = hint;
-  if (!available) mandatoryPitStopCheckbox.checked = false;
-  mandatoryPitStopCheckbox.disabled = !available;
-  const optionCard = mandatoryPitStopCheckbox.closest('.ghost-mode-option');
+  tireWearHintEl.textContent = hint;
+  if (!available) tireWearCheckbox.checked = false;
+  tireWearCheckbox.disabled = !available;
+  const optionCard = tireWearCheckbox.closest('.ghost-mode-option');
   optionCard?.classList.toggle('is-unavailable', !available);
   optionCard?.querySelector('.option-info')?.setAttribute('aria-label', hint);
 }
@@ -2730,15 +2735,24 @@ function setPitStopMarker(stop, visible = true) {
   pitStopMarker.visible = true;
 }
 
-function renderPitStopHud(state, stopIndex = 0) {
-  if (!state?.required || (state.completed && !state.inLane)) {
+function shouldGuideToPit(state, tires) {
+  return !!state?.enabled && (state.inLane || (tires?.wear ?? 0) >= TIRE_CHANGE_RECOMMENDED);
+}
+
+function renderPitStopHud(state, stopIndex = 0, tires = null) {
+  const wearLevel = tireWearLevel(tires);
+  if (!state?.enabled || (!state.inLane && wearLevel === 'fresh')) {
     pitStopAlertEl.classList.add('hidden');
     return;
   }
   pitStopAlertEl.classList.remove('hidden');
   const pill = pitStopAlertTextEl;
-  pill.classList.toggle('done', !!state.completed);
-  if (state.completed) {
+  const done = !!state.servicedThisVisit && state.inLane;
+  const critical = !state.inLane && wearLevel === 'critical';
+  pill.classList.toggle('done', done);
+  pill.classList.toggle('danger', critical);
+  pill.classList.toggle('warn', !done && !critical);
+  if (done) {
     pill.textContent = t('pit.done');
   } else if (state.stopElapsedMs > 0) {
     pill.textContent = t('pit.changing', {
@@ -2747,8 +2761,12 @@ function renderPitStopHud(state, stopIndex = 0) {
     });
   } else if (state.inLane) {
     pill.textContent = t('pit.limiter', { n: stopIndex + 1 });
+  } else if (wearLevel === 'critical') {
+    pill.textContent = t('pit.critical');
+  } else if (wearLevel === 'recommended') {
+    pill.textContent = t('pit.recommended');
   } else {
-    pill.textContent = t('pit.required', { n: stopIndex + 1 });
+    pill.textContent = t('pit.wearing');
   }
 }
 
@@ -3268,6 +3286,7 @@ const race = {
   hasCrossedStart: false,  // a rajtpont a rajtvonal ELŐTT van, ezért az induláskori
                            // első átlépés csak a kört KEZDI, nem zárja le
   pit: createPitState(false),
+  tires: createTireWearState(false),
   pitStopIndex: 0,
 };
 
@@ -3363,12 +3382,14 @@ function startRace() {
   race.hasCrossedStart = false;
   hideSplitDelta();
   race.pitStopIndex = 0;
-  race.pit = createPitState(
+  const tireWearEnabled = (
     race.active && race.totalLaps > 1
-      && mandatoryPitStopCheckbox.checked && hasCompletePitConfig(currentPitConfig)
+      && tireWearCheckbox.checked && hasCompletePitConfig(currentPitConfig)
   );
-  setPitStopMarker(currentPitConfig.stops[race.pitStopIndex], race.pit.required);
-  renderPitStopHud(race.pit, race.pitStopIndex);
+  race.pit = createPitState(tireWearEnabled);
+  race.tires = createTireWearState(tireWearEnabled);
+  setPitStopMarker(currentPitConfig.stops[race.pitStopIndex], false);
+  renderPitStopHud(race.pit, race.pitStopIndex, race.tires);
   lastCheckpointSpawn = { x: spawnPoint.x, z: spawnPoint.z, heading: spawnHeading };
   resultsEl.classList.add('hidden');
   lapInvalidAlertEl.classList.add('hidden');
@@ -3387,7 +3408,6 @@ function lapInvalidText(reason) {
   // A minimum checkpointarány alatt a kör nem zárul le; a küszöböt elérő,
   // de hiányos kör lezárul és érvénytelenként beleszámít a versenytávba.
   if (reason === TAINT.CHECKPOINT) return t('race.lapInvalidCheckpoint');
-  if (reason === TAINT.PIT_STOP) return t('race.lapInvalidPitStop');
   return t('alert.lapInvalid');
 }
 
@@ -3425,6 +3445,10 @@ function updateRaceHud() {
     // "--:--.---" is zölden világítana, mintha eredmény lenne.
     `<div class="t-row${Number.isFinite(best) ? ' is-best' : ''}">` +
       `<span class="lbl">${t('hud.best')}</span><span class="t-val num">${formatTime(best)}</span></div>` +
+    (race.tires.enabled
+      ? `<div class="t-row"><span class="lbl">${t('hud.tires')}</span>` +
+        `<span class="t-val num">${tireConditionPercent(race.tires)}%</span></div>`
+      : '') +
     `<div class="t-row"><span class="lbl">${t('hud.total')}</span><span class="t-val num">${formatTime(total)}</span></div>`;
   // A figyelmeztetés nem néhány másodperc után tűnik el, hanem addig marad,
   // amíg a folyamatban lévő kör tart — a játékos végig lássa, hogy ez a kör
@@ -3504,12 +3528,17 @@ function updateRace(dt) {
   race.prevAt = now;
 
   const velocity = chassisBody.linvel();
+  const pitChangesBefore = race.pit.changeCount;
   updatePitState(race.pit, currentPitConfig, race.pitStopIndex, {
     fromX, fromZ, x: pos.x, z: pos.z, now,
     speedMps: Math.hypot(velocity.x, velocity.z),
   });
-  setPitStopMarker(currentPitConfig.stops[race.pitStopIndex], race.pit.required && !race.pit.completed);
-  renderPitStopHud(race.pit, race.pitStopIndex);
+  if (race.pit.changeCount > pitChangesBefore) changeTires(race.tires);
+  setPitStopMarker(
+    currentPitConfig.stops[race.pitStopIndex],
+    shouldGuideToPit(race.pit, race.tires)
+  );
+  renderPitStopHud(race.pit, race.pitStopIndex, race.tires);
   const checkpoints = currentGates.checkpoints;
   const startCrossedAt = crossingTime(
     currentGates.start, fromX, fromZ, pos.x, pos.z, fromAt, now
@@ -3598,6 +3627,10 @@ function updateRace(dt) {
     race.lapTainted = true;
     race.taintReason = TAINT.CHECKPOINT;
     race.invalidUntil = now + 2500;
+    // Az első referenciakör mérése is innen induljon újra. A levágott,
+    // rajtvonalhoz visszaforduló próbálkozás távolsága nem rövidítheti meg
+    // minden későbbi gumiszett kopásmentes szakaszát.
+    restartTireCalibrationLap(race.tires);
   } else if (startCrossed) {
     // A kör lezárul — de ha bármi hiányzott vagy lement a pályáról, akkor
     // érvénytelenül. A kör SZÁMÍT (nem kell újrázni), csak a legjobb körbe nem
@@ -3606,13 +3639,10 @@ function updateRace(dt) {
       race.lapTainted = true;
       race.taintReason = TAINT.CHECKPOINT;
     }
-    if (race.lap + 1 >= race.totalLaps && race.pit.required && !race.pit.completed) {
-      race.lapTainted = true;
-      race.taintReason = TAINT.PIT_STOP;
-    }
     const invalid = race.lapTainted;
     const lapTime = startCrossedAt - race.lapStartTime;
     race.lapTimes.push({ time: lapTime, invalid });
+    completeTireCalibrationLap(race.tires);
     if (!invalid && (race.bestLapTime === null || lapTime < race.bestLapTime)) {
       race.bestLapTime = lapTime;
       race.bestLapSplits = race.lapSplits.slice();
@@ -3879,7 +3909,7 @@ function updateControls(dt = 1 / 60) {
   // A tényleges vezérlés a KÖZÖS applyControls()-ban van — ugyanaz a kód fut
   // itt és a szerveren. A billentyűket normalizált bemenetté fordítjuk, pont
   // olyanná, amilyet a mp.js is küld a hálózaton.
-  const pitOverLimit = race.pit.required && race.pit.inLane
+  const pitOverLimit = race.pit.enabled && race.pit.inLane
     && Math.hypot(linvel.x, linvel.z) > PIT_SPEED_LIMIT_MPS;
   applyControls(
     vehicle,
@@ -3890,7 +3920,7 @@ function updateControls(dt = 1 / 60) {
       brake: pitOverLimit ? 1 : brake,
       handbrake,
     },
-    { offtrackWheels: wheelsOffTrack(), frozen }
+    { offtrackWheels: wheelsOffTrack(), frozen, tireWear: race.tires.wear }
   );
 
   // Az "up" vektor Y-komponense a kasztni forgatásából: 1 = szabályosan áll,
@@ -4662,8 +4692,8 @@ async function prepareTrackPhysics({ strict = false, signal } = {}) {
   return mesh;
 }
 
-mandatoryPitStopCheckbox.addEventListener('change', () => {
-  saveLastChoice('mandatoryPitStop', mandatoryPitStopCheckbox.checked ? '1' : '0');
+tireWearCheckbox.addEventListener('change', () => {
+  saveLastChoice('tireWear', tireWearCheckbox.checked ? '1' : '0');
 });
 
 startBtn.addEventListener('click', async () => {
@@ -5058,7 +5088,10 @@ async function init() {
   if ([...lapCountSelect.options].some((o) => o.value === savedLaps)) {
     lapCountSelect.value = savedLaps;
   }
-  mandatoryPitStopCheckbox.checked = loadLastChoice('mandatoryPitStop', '0') === '1';
+  tireWearCheckbox.checked = loadLastChoice(
+    'tireWear',
+    loadLastChoice('mandatoryPitStop', '0')
+  ) === '1';
   loadLeaderboard(initialMap.id);
   updateTrackAlert(initialMap);
   updatePitOptionAvailability(initialMap);
@@ -5384,9 +5417,17 @@ function animate() {
       // ez lövi ki a kerék-sugarakat és számolja a felfüggesztés/tapadás erőket.
       applyVehicleStepForces(vehicle, chassisBody, world.timestep);
       vehicle.updateVehicle(world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
+      const tireSpeedBefore = Math.hypot(chassisBody.linvel().x, chassisBody.linvel().z);
       world.step();
+      const tireSpeedAfter = Math.hypot(chassisBody.linvel().x, chassisBody.linvel().z);
+      if (race.hasCrossedStart && race.phase === 'running') {
+        advanceTireWear(
+          race.tires,
+          (tireSpeedBefore + tireSpeedAfter) * 0.5 * world.timestep
+        );
+      }
       applySpeedCap(chassisBody);
-      applyPitLimiter(world.timestep, race.pit.required && race.pit.inLane);
+      applyPitLimiter(world.timestep, race.pit.enabled && race.pit.inLane);
       applyWallConstraint();
       captureCarState();
       physicsAccum -= world.timestep;
@@ -5787,11 +5828,13 @@ window.__game = {
     return true;
   },
   // Egyetlen online szimulációs lépés, beleértve a kifutó-lassítást és a falat.
-  stepLocalPhysics(input, frozen = false, finished = false, pitLimiter = false) {
+  stepLocalPhysics(input, frozen = false, finished = false, pitLimiter = false, tireWear = 0) {
     const velocity = chassisBody.linvel();
     const overPitLimit = pitLimiter && Math.hypot(velocity.x, velocity.z) > PIT_SPEED_LIMIT_MPS;
     const limitedInput = overPitLimit ? { ...input, throttle: 0, brake: 1 } : input;
-    applyControls(vehicle, chassisBody, limitedInput, { frozen, offtrackWheels: wheelsOffTrack() });
+    applyControls(vehicle, chassisBody, limitedInput, {
+      frozen, offtrackWheels: wheelsOffTrack(), tireWear,
+    });
     applyVehicleStepForces(vehicle, chassisBody, world.timestep);
     vehicle.updateVehicle(world.timestep, undefined, WHEEL_RAY_FILTER_GROUPS);
     const contactPoseBeforeStep = chassisContactPose();

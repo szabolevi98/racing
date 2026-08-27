@@ -12,7 +12,7 @@ import { createRace, finishRace, saveResult, saveLap } from '../db/index.js';
 export class Room {
   constructor(code, host, {
     mapId, laps, ghostMode = false, mode = GAME_MODE.MULTIPLAYER, ghostPlayerId = null,
-    isPublic = true, mandatoryPitStop = false,
+    isPublic = true, tireWear = false,
   }) {
     this.code = code;
     this.hostId = host.id;
@@ -35,9 +35,9 @@ export class Room {
     // Szobaszintű és futam közben nem változtatható: minden kliensnek ugyanazt
     // kell használnia.
     this.ghostMode = this.mode === GAME_MODE.HOT_LAP || ghostMode === true;
-    this.mandatoryPitStop = this.mode !== GAME_MODE.HOT_LAP
+    this.tireWear = this.mode !== GAME_MODE.HOT_LAP
       && this.laps > 1
-      && mandatoryPitStop === true;
+      && tireWear === true;
     this.state = ROOM_STATE.LOBBY;
     this.players = new Map(); // playerId -> player
     this.raceId = null;       // adatbázis-beli verseny azonosító
@@ -160,7 +160,7 @@ export class Room {
       laps: this.laps,
       mode: this.mode,
       ghostMode: this.ghostMode,
-      mandatoryPitStop: this.mandatoryPitStop,
+      tireWear: this.tireWear,
       isPublic: this.isPublic,
       state: this.state,
       countdownEndsAt: this.countdownEndsAt || null,
@@ -196,7 +196,7 @@ export class Room {
       mapId: this.mapId,
       laps: this.laps,
       ghostMode: this.ghostMode,
-      mandatoryPitStop: this.mandatoryPitStop,
+      tireWear: this.tireWear,
       players: this.players.size,
       max: MAX_PLAYERS_PER_ROOM,
     };

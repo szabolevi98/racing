@@ -111,20 +111,23 @@ autó–autó ütközést. Célba érés után a játék automatikusan nézői m
 következő gombbal a még versenyző játékosok között lehet lépkedni. A nézett autó
 teljes vizuális és hangfrissítést kap akkor is, ha távol van.
 
-## Kötelező kerékcsere
+## Gumikopás és kerékcsere
 
-A szabály az Egyjátékos és Többjátékos módhoz kapcsolható be; Időmérésben nincs
-értelme, ezért ott nem aktív.
+A szabály az Egyjátékos és Többjátékos módhoz kapcsolható be; Időmérésben és
+egykörös futamban nem aktív. Minden új szett első, egy referenciakörnyi távja
+kopásmentes, utána körönként 50%-ot kopik. A kopott gumi fokozatosan veszít a
+hosszanti és oldalirányú tapadásából, de nem kap defektet és nem érvénytelenít kört.
 
 - A boxbejárat átlépése után a rendszer legfeljebb 100 km/h-ra lassítja az autót.
 - Minden rajthelyhez saját, azonos sorszámú boxhely tartozik.
 - A saját boxhelyen 3 másodpercig folyamatosan állni kell.
-- A boxkijárat átlépése után megszűnik a sebességkorlátozás és a már teljesített
-  kerékcsere értesítése eltűnik.
-- A kiállás bármelyik körben teljesíthető.
-- Aki nem áll ki, annak az utolsó köre érvénytelen lesz, de a versenyt befejezheti.
-- Egykörös futamban, illetve hiányos boxkonfiguráció esetén a szabály automatikusan
-  inaktív, így nem tud hibásan érvényteleníteni egy futamot.
+- A három másodperc után friss gumiszett kerül fel; ugyanabban a megállásban csak
+  egyszer lehet cserélni.
+- A boxkijárat átlépése után megszűnik a sebességkorlátozás.
+- A HUD százalékosan mutatja a gumi állapotát, és 40%, 50%, illetve 80% kopásnál
+  egyre erősebb figyelmeztetést ad.
+- A kiállás bármelyik körben és egy futam alatt többször is teljesíthető.
+- Hiányos boxkonfiguráció esetén a szabály automatikusan inaktív.
 
 Egy teljes boxkonfigurációhoz legalább egy bejárat, legalább egy kijárat és
 pontosan 8 boxhely szükséges. Bejáratból és kijáratból több vonal is megadható.

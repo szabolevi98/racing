@@ -51,7 +51,7 @@ test('main menu applies and remembers graphics quality immediately', () => {
   assert.match(html, /name="graphicsQuality" value="low"[\s\S]*name="graphicsQuality" value="medium"[\s\S]*name="graphicsQuality" value="high"/);
   assert.match(
     html,
-    /class="race-options-row"[\s\S]*id="ghostModeCheckbox"[\s\S]*id="mandatoryPitStopCheckbox"[\s\S]*class="graphics-quality-field"[\s\S]*name="graphicsQuality"/,
+    /class="race-options-row"[\s\S]*id="ghostModeCheckbox"[\s\S]*id="tireWearCheckbox"[\s\S]*class="graphics-quality-field"[\s\S]*name="graphicsQuality"/,
     'the two race options share a row and graphics sits beneath them',
   );
   assert.equal((html.match(/class="option-info"/g) || []).length, 2,

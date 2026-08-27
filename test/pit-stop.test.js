@@ -11,7 +11,7 @@ const pit = {
   stops: Array.from({ length: 8 }, (_, i) => ({ x: 5 + i, z: 0, heading: 0 })),
 };
 
-test('mandatory pit stop only activates with a complete 8-stall configuration', () => {
+test('tire service only activates with a complete 8-stall configuration', () => {
   assert.equal(hasCompletePitConfig(pit), true);
   assert.equal(hasCompletePitConfig({ ...pit, exits: [] }), false);
   assert.equal(hasCompletePitConfig({ ...pit, stops: pit.stops.slice(0, 7) }), false);
@@ -41,15 +41,24 @@ test('crossing any configured entry and exit controls the pit lane state', () =>
   assert.equal(state.inLane, false, 'the second exit also disables the limiter');
 });
 
-test('pit state requires entry crossing and three continuous stopped seconds in assigned stall', () => {
+test('pit state changes one set after three continuous stopped seconds in the assigned stall', () => {
   const state = createPitState(true);
   updatePitState(state, pit, 2, { fromX: -1, fromZ: 0, x: 1, z: 0, speedMps: 20, now: 1000 });
   assert.equal(state.inLane, true);
   updatePitState(state, pit, 2, { fromX: 1, fromZ: 0, x: 7, z: 0, speedMps: 0, now: 2000 });
   updatePitState(state, pit, 2, { fromX: 7, fromZ: 0, x: 7, z: 0, speedMps: 0, now: 2000 + PIT_STOP_DURATION_MS - 1 });
-  assert.equal(state.completed, false);
+  assert.equal(state.changeCount, 0);
   updatePitState(state, pit, 2, { fromX: 7, fromZ: 0, x: 7, z: 0, speedMps: 0, now: 2000 + PIT_STOP_DURATION_MS });
-  assert.equal(state.completed, true);
+  assert.equal(state.servicedThisVisit, true);
+  assert.equal(state.changeCount, 1);
+
+  updatePitState(state, pit, 2, { fromX: 7, fromZ: 0, x: 7, z: 0, speedMps: 0, now: 9000 });
+  assert.equal(state.changeCount, 1, 'standing still cannot repeatedly create fresh sets');
+
+  updatePitState(state, pit, 2, { fromX: 7, fromZ: 0, x: 12, z: 0, speedMps: 2, now: 9100 });
+  updatePitState(state, pit, 2, { fromX: 12, fromZ: 0, x: 7, z: 0, speedMps: 0, now: 9200 });
+  updatePitState(state, pit, 2, { fromX: 7, fromZ: 0, x: 7, z: 0, speedMps: 0, now: 9200 + PIT_STOP_DURATION_MS });
+  assert.equal(state.changeCount, 2, 'leaving the stall arms another tire change');
 });
 
 test('leaving or moving in the assigned stall resets the continuous timer', () => {

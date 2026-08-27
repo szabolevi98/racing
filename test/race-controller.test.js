@@ -218,11 +218,11 @@ test('race controller quarantines invalid physics states and keeps the player ra
   }
 });
 
-test('missing mandatory pit stop invalidates only the final lap and still finishes the race', async () => {
+test('skipping a tire change never invalidates the final lap', async () => {
   const room = makeRoom();
   room.mode = GAME_MODE.MULTIPLAYER;
   room.laps = 2;
-  room.mandatoryPitStop = true;
+  room.tireWear = true;
   const messages = [];
   const map = {
     spawns: [{ x: -1, z: 0, heading: 0 }],
@@ -255,12 +255,12 @@ test('missing mandatory pit stop invalidates only the final lap and still finish
     await new Promise((resolve) => setImmediate(resolve));
 
     assert.equal(room.lapsSaved.length, 1);
-    assert.equal(room.lapsSaved[0][3], true, 'the final lap cannot become a best lap');
+    assert.equal(room.lapsSaved[0][3], false, 'tire strategy affects grip, not lap validity');
     assert.equal(sim.cars.get('p1').race.lap, 2, 'the lap still counts toward race distance');
     assert.equal(sim.cars.get('p1').race.finished, true, 'the player still finishes normally');
     assert.equal(
       messages.find((message) => message.kind === 'lap')?.invalid,
-      true
+      false
     );
   } finally {
     sim.stop();
