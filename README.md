@@ -115,7 +115,7 @@ teljes vizuális és hangfrissítést kap akkor is, ha távol van.
 
 A szabály az Egyjátékos és Többjátékos módhoz kapcsolható be; Időmérésben és
 egykörös futamban nem aktív. A gumi már az első kör checkpointjaitól fokozatosan
-kopik, és egy szett nagyjából három teljes kört bír. A kopott gumi fokozatosan
+kopik, és egy szett nagyjából négy teljes kört bír. A kopott gumi fokozatosan
 veszít a hosszanti és oldalirányú tapadásából, de nem kap defektet és nem
 érvénytelenít kört. Kihagyott checkpointtal sem lehet kopást megtakarítani: a
 lezárt kör hiányzó része a rajtvonalnál elszámolódik.

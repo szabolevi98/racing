@@ -2,10 +2,10 @@
 //
 // A kopás a pálya checkpointjaihoz kötődik, ezért nem függ az FPS-től, a
 // hálózati mintavételtől, a resetektől vagy egy hibásan bemért referenciakörtől.
-// Egy teljes kör checkpointjai a gumi egyharmadát fogyasztják el: a kopás már
-// az első körben látszik, egy szett pedig nagyjából három teljes kört bír.
+// Egy teljes kör checkpointjai a gumi egynegyedét fogyasztják el: a kopás már
+// az első körben látszik, egy szett pedig nagyjából négy teljes kört bír.
 
-export const TIRE_WEAR_PER_LAP = 1 / 3;
+export const TIRE_WEAR_PER_LAP = 1 / 4;
 export const TIRE_WEAR_WARNING = 0.4;
 export const TIRE_CHANGE_RECOMMENDED = 0.6;
 export const TIRE_WEAR_CRITICAL = 0.8;

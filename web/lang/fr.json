@@ -17,7 +17,7 @@
   "menu.ghostMode": "Mode fantôme",
   "menu.ghostModeHint": "Les voitures se traversent en multijoueur.",
   "menu.pitStop": "Changement de pneus",
-  "menu.pitStopHint": "Les pneus perdent un tiers de leur vie par tour : 100% → 67% → 33%. En dessous de quarante pour cent, ils glissent nettement : passez aux stands après le deuxième tour.",
+  "menu.pitStopHint": "Les pneus perdent un quart de leur vie par tour : 100% → 75% → 50% → 25%. En dessous de quarante pour cent, ils glissent nettement : passez aux stands après le troisième tour.",
   "menu.language": "Langue",
   "hud.backToMenu": "← Retour au menu",
   "hud.controls": "Commandes",

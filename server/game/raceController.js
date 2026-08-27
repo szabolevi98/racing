@@ -616,7 +616,7 @@ export class RaceController {
     };
     // Egy kihagyott kapu érvényteleníti a kört, de nem takaríthat meg kopást.
     // A már átlépett checkpointok menet közben fogytak el, itt csak a hiányzó
-    // részt számoljuk hozzá, hogy minden lezárt kör pontosan 1/3 szett legyen.
+    // részt számoljuk hozzá, hogy minden lezárt kör pontosan 1/4 szett legyen.
     advanceTireWearByCheckpoints(
       r.tires, checkpoints.length - r.passed.size, checkpoints.length
     );

@@ -17,7 +17,7 @@
   "menu.ghostMode": "Režim ducha",
   "menu.ghostModeHint": "Ve hře více hráčů auta projíždějí skrz sebe.",
   "menu.pitStop": "Výměna pneumatik",
-  "menu.pitStopHint": "Pneumatiky se za kolo opotřebují o třetinu: 100% → 67% → 33%. Pod čtyřiceti procenty už znatelně kloužou, proto se po druhém kole vyplatí zajet do boxů pro nové.",
+  "menu.pitStopHint": "Pneumatiky se za kolo opotřebují o čtvrtinu: 100% → 75% → 50% → 25%. Pod čtyřiceti procenty už znatelně kloužou, proto se po třetím kole vyplatí zajet do boxů pro nové.",
   "menu.language": "Jazyk",
   "hud.backToMenu": "← Zpět do menu",
   "hud.controls": "Ovládání",

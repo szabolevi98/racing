@@ -17,7 +17,7 @@
   "menu.ghostMode": "Režim duha",
   "menu.ghostModeHint": "U igri za više igrača automobili prolaze jedan kroz drugi.",
   "menu.pitStop": "Promena guma",
-  "menu.pitStopHint": "Gume po krugu potroše trećinu: 100% → 67% → 33%. Ispod četrdeset odsto osetno klize, zato posle drugog kruga svrati u boks po nove.",
+  "menu.pitStopHint": "Gume po krugu potroše četvrtinu: 100% → 75% → 50% → 25%. Ispod četrdeset odsto osetno klize, zato posle trećeg kruga svrati u boks po nove.",
   "menu.language": "Jezik",
   "hud.backToMenu": "← Nazad na meni",
   "hud.controls": "Upravljanje",

@@ -17,7 +17,7 @@
   "menu.ghostMode": "Ghost mód",
   "menu.ghostModeHint": "Többjátékos módban az autók nem ütköznek egymással.",
   "menu.pitStop": "Kerékcsere",
-  "menu.pitStopHint": "Körönként a gumi harmada fogy: 100% → 67% → 33%. Negyven százalék alatt már érezhetően csúszik, ezért a második kör után érdemes kiállni és kereket cserélni.",
+  "menu.pitStopHint": "Körönként a gumi negyede fogy: 100% → 75% → 50% → 25%. Negyven százalék alatt már érezhetően csúszik, ezért a harmadik kör után érdemes kiállni és kereket cserélni.",
   "menu.language": "Nyelv",
   "hud.backToMenu": "← Vissza a menübe",
   "hud.controls": "Irányítás",

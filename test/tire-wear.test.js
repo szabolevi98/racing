@@ -23,21 +23,24 @@ const advanceLap = (tires, count = CHECKPOINTS) => {
   }
 };
 
-test('wear starts at the first checkpoint and one set lasts about three laps', () => {
+test('wear starts at the first checkpoint and one set lasts about four laps', () => {
   const tires = createTireWearState(true);
   advanceTireWearByCheckpoints(tires, 1, CHECKPOINTS);
   assert.ok(tires.wear > 0, 'the first lap is no longer wear-free');
 
   advanceTireWearByCheckpoints(tires, CHECKPOINTS - 1, CHECKPOINTS);
-  closeTo(tires.wear, TIRE_WEAR_PER_LAP, 'one lap must consume one third');
-  assert.equal(tireConditionPercent(tires), 67);
+  closeTo(tires.wear, TIRE_WEAR_PER_LAP, 'one lap must consume one quarter');
+  assert.equal(tireConditionPercent(tires), 75);
 
   advanceLap(tires);
-  closeTo(tires.wear, 2 / 3, 'two laps must consume two thirds');
-  assert.equal(tireConditionPercent(tires), 33);
+  closeTo(tires.wear, 1 / 2, 'two laps must consume half of the set');
+  assert.equal(tireConditionPercent(tires), 50);
 
   advanceLap(tires);
-  closeTo(tires.wear, 1, 'three laps must reach the wear cap');
+  closeTo(tires.wear, 3 / 4, 'three laps must consume three quarters');
+  assert.equal(tireConditionPercent(tires), 25);
+  advanceLap(tires);
+  closeTo(tires.wear, 1, 'four laps must reach the wear cap');
   assert.equal(tireConditionPercent(tires), 0);
   advanceLap(tires);
   assert.equal(tires.wear, 1, 'wear is capped instead of causing a puncture');
@@ -51,7 +54,7 @@ test('every fresh set begins wearing immediately after a tire change', () => {
   assert.equal(tires.changeCount, 1);
 
   advanceTireWearByCheckpoints(tires, 1, CHECKPOINTS);
-  closeTo(tires.wear, 1 / (3 * CHECKPOINTS));
+  closeTo(tires.wear, 1 / (4 * CHECKPOINTS));
 });
 
 test('missing checkpoints can be charged at the finish without double wear', () => {
@@ -59,28 +62,25 @@ test('missing checkpoints can be charged at the finish without double wear', () 
   const crossed = 52;
   advanceTireWearByCheckpoints(tires, crossed, CHECKPOINTS);
   advanceTireWearByCheckpoints(tires, CHECKPOINTS - crossed, CHECKPOINTS);
-  closeTo(tires.wear, 1 / 3, 'a completed shortcut lap must still cost a full lap');
+  closeTo(tires.wear, 1 / 4, 'a completed shortcut lap must still cost a full lap');
 });
 
-test('the wear curve creates the intended 3, 5 and 10 lap strategy windows', () => {
+test('the wear curve creates the intended 3, 4 and 5 lap strategy windows', () => {
   const threeLaps = createTireWearState(true);
   for (let lap = 1; lap <= 3; lap++) advanceLap(threeLaps);
-  closeTo(threeLaps.wear, 1, 'without a stop the third lap ends at the wear cap');
+  closeTo(threeLaps.wear, 0.75, 'three laps are possible without a mandatory stop');
+
+  const fourLaps = createTireWearState(true);
+  for (let lap = 1; lap <= 4; lap++) advanceLap(fourLaps);
+  closeTo(fourLaps.wear, 1, 'without a stop the fourth lap ends at the wear cap');
 
   const fiveLaps = createTireWearState(true);
   for (let lap = 1; lap <= 5; lap++) {
     advanceLap(fiveLaps);
     if (lap === 2) changeTires(fiveLaps);
   }
-  closeTo(fiveLaps.wear, 1, 'one stop completes five laps, a second keeps more grip');
-
-  const tenLaps = createTireWearState(true);
-  for (let lap = 1; lap <= 10; lap++) {
-    advanceLap(tenLaps);
-    if (lap === 3 || lap === 6) changeTires(tenLaps);
-  }
-  assert.equal(tenLaps.changeCount, 2);
-  closeTo(tenLaps.wear, 1, 'two stops finish at the cap, a third avoids it');
+  assert.equal(fiveLaps.changeCount, 1);
+  closeTo(fiveLaps.wear, 0.75, 'one mid-race stop is enough for five laps');
 });
 
 test('wear alerts use persistent 60, 40 and 20 percent condition thresholds', () => {
@@ -111,7 +111,7 @@ test('grip loss is progressive and bounded', () => {
 
 test('server snapshots correct wear but an old snapshot cannot undo a local tire change', () => {
   const server = createTireWearState(true);
-  advanceTireWearByCheckpoints(server, 45, CHECKPOINTS);
+  advanceTireWearByCheckpoints(server, CHECKPOINTS, CHECKPOINTS);
   const oldSnapshot = encodeTireWearSnapshot(server);
 
   const client = createTireWearState(true);

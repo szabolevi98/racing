@@ -17,7 +17,7 @@
   "menu.ghostMode": "Mod fantomă",
   "menu.ghostModeHint": "În multiplayer mașinile trec una prin alta.",
   "menu.pitStop": "Schimb de pneuri",
-  "menu.pitStopHint": "Pneurile consumă o treime pe tur: 100% → 67% → 33%. Sub patruzeci la sută alunecă vizibil, așa că după al doilea tur merită să intri la boxe pentru unele noi.",
+  "menu.pitStopHint": "Pneurile consumă un sfert pe tur: 100% → 75% → 50% → 25%. Sub patruzeci la sută alunecă vizibil, așa că după al treilea tur merită să intri la boxe pentru unele noi.",
   "menu.language": "Limbă",
   "hud.backToMenu": "← Înapoi la meniu",
   "hud.controls": "Comenzi",

@@ -17,7 +17,7 @@
   "menu.ghostMode": "Ghost mode",
   "menu.ghostModeHint": "Cars pass through each other in multiplayer.",
   "menu.pitStop": "Tyre change",
-  "menu.pitStopHint": "Tyres lose a third of their life each lap: 100% → 67% → 33%. Below forty percent they noticeably slide, so pit for a fresh set after the second lap.",
+  "menu.pitStopHint": "Tyres lose a quarter of their life each lap: 100% → 75% → 50% → 25%. Below forty percent they noticeably slide, so pit for a fresh set after the third lap.",
   "menu.language": "Language",
   "hud.backToMenu": "← Back to menu",
   "hud.controls": "Controls",

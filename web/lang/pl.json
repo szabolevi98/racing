@@ -17,7 +17,7 @@
   "menu.ghostMode": "Tryb ducha",
   "menu.ghostModeHint": "W trybie wieloosobowym samochody przenikają przez siebie.",
   "menu.pitStop": "Zmiana opon",
-  "menu.pitStopHint": "Opony zużywają jedną trzecią na okrążenie: 100% → 67% → 33%. Poniżej czterdziestu procent wyraźnie ślizgają się, więc po drugim okrążeniu warto zjechać po nowy komplet.",
+  "menu.pitStopHint": "Opony zużywają jedną czwartą na okrążenie: 100% → 75% → 50% → 25%. Poniżej czterdziestu procent wyraźnie ślizgają się, więc po trzecim okrążeniu warto zjechać po nowy komplet.",
   "menu.language": "Język",
   "hud.backToMenu": "← Powrót do menu",
   "hud.controls": "Sterowanie",

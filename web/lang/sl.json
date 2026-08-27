@@ -17,7 +17,7 @@
   "menu.ghostMode": "Način duha",
   "menu.ghostModeHint": "V igri za več igralcev avtomobili vozijo drug skozi drugega.",
   "menu.pitStop": "Menjava pnevmatik",
-  "menu.pitStopHint": "Pnevmatike na krog porabijo tretjino: 100% → 67% → 33%. Pod štiridesetimi odstotki občutno drsijo, zato se po drugem krogu splača zapeljati v bokse po nove.",
+  "menu.pitStopHint": "Pnevmatike na krog porabijo četrtino: 100% → 75% → 50% → 25%. Pod štiridesetimi odstotki občutno drsijo, zato se po tretjem krogu splača zapeljati v bokse po nove.",
   "menu.language": "Jezik",
   "hud.backToMenu": "← Nazaj v meni",
   "hud.controls": "Upravljanje",
