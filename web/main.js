@@ -205,6 +205,8 @@ const miniMapWrapEl = document.getElementById('miniMapWrap');
 const miniMapCanvas = document.getElementById('miniMapCanvas');
 const miniMapCtx = miniMapCanvas.getContext('2d');
 const speedValueEl = document.getElementById('speedValue');
+const tireStatusEl = document.getElementById('tireStatus');
+const tireValueEl = document.getElementById('tireValue');
 const pingBoxEl = document.getElementById('pingBox');
 const pingValueEl = document.getElementById('pingValue');
 const fpsValueEl = document.getElementById('fpsValue');
@@ -2738,6 +2740,24 @@ function shouldGuideToPit(state, tires) {
   return !!state?.enabled && (state.inLane || (tires?.wear ?? 0) >= TIRE_CHANGE_RECOMMENDED);
 }
 
+function setTireCondition(condition = null) {
+  const visible = Number.isFinite(condition);
+  tireStatusEl.classList.toggle('hidden', !visible);
+  if (!visible) {
+    tireStatusEl.removeAttribute('data-quality');
+    return;
+  }
+  const percent = Math.max(0, Math.min(100, Math.round(condition)));
+  tireValueEl.textContent = `${percent}%`;
+  tireStatusEl.dataset.quality = percent > 60
+    ? 'good'
+    : percent > 40
+      ? 'warning'
+      : percent > 20
+        ? 'recommended'
+        : 'bad';
+}
+
 function renderPitStopHud(state, stopIndex = 0, tires = null) {
   const wearLevel = tireWearLevel(tires);
   if (!state?.enabled || (!state.inLane && wearLevel === 'fresh')) {
@@ -3422,6 +3442,7 @@ function updateZoneIndicator(x, z) {
 
 function updateRaceHud() {
   if (!race.active) {
+    setTireCondition(null);
     raceHudEl.innerHTML = `<div class="hud-note">${t('hud.noStartLine')}</div>`;
     lapInvalidAlertEl.classList.add('hidden');
     return;
@@ -3432,6 +3453,9 @@ function updateRaceHud() {
   const current = race.phase === 'running' ? now - race.lapStartTime : 0;
   const validTimes = race.lapTimes.filter((l) => !l.invalid).map((l) => l.time);
   const best = validTimes.length ? Math.min(...validTimes) : NaN;
+  setTireCondition(
+    race.tires.enabled ? tireConditionPercent(race.tires) : null
+  );
   raceHudEl.innerHTML =
     '<div class="lap-head">' +
       `<span class="lbl">${t('hud.lap')}</span>` +
@@ -3444,10 +3468,6 @@ function updateRaceHud() {
     // "--:--.---" is zölden világítana, mintha eredmény lenne.
     `<div class="t-row${Number.isFinite(best) ? ' is-best' : ''}">` +
       `<span class="lbl">${t('hud.best')}</span><span class="t-val num">${formatTime(best)}</span></div>` +
-    (race.tires.enabled
-      ? `<div class="t-row"><span class="lbl">${t('hud.tires')}</span>` +
-        `<span class="t-val num">${tireConditionPercent(race.tires)}%</span></div>`
-      : '') +
     `<div class="t-row"><span class="lbl">${t('hud.total')}</span><span class="t-val num">${formatTime(total)}</span></div>`;
   // A figyelmeztetés nem néhány másodperc után tűnik el, hanem addig marad,
   // amíg a folyamatban lévő kör tart — a játékos végig lássa, hogy ez a kör
@@ -4448,6 +4468,7 @@ function enterMenu() {
   // tehát ami az utolsó képkockán látszott, az fagy be.
   lapInvalidAlertEl.classList.add('hidden');
   pitStopAlertEl.classList.add('hidden');
+  setTireCondition(null);
   setPitStopMarker(null, false);
   clearServerValidationAlert();
   rolloverAlertEl.classList.add('hidden');
@@ -5746,6 +5767,7 @@ window.__game = {
   findGroundAt,
   setPitStopMarker,
   renderPitStopHud,
+  setTireCondition,
   // Kísérlethez: __game.setUnlitFoliage(false/true) — élőben, pálya
   // újratöltése nélkül váltja a lombozat árnyékolását.
   setUnlitFoliage(on) {

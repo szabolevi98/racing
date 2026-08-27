@@ -1862,6 +1862,7 @@ function clearOtherCars({ preserveGhost = false } = {}) {
   pitPrevPosition = null;
   G.setPitStopMarker(null, false);
   G.renderPitStopHud(localPitState, 0, localTireState);
+  G.setTireCondition(null);
 }
 
 // Egyetlen játékos kocsijának leszedése — verseny KÖZBEN is, amikor kilép
@@ -1942,6 +1943,7 @@ async function addOtherCar(p, onProgress, loadGeneration, signal) {
     group, label, wheelRig: group.userData.wheelRig || { pivots: [], sources: [] },
     engineAudio: G.createRemoteEngine(), buf: [], color: p.color, name: p.name, lap: 0, cp: 0,
     rank: 0, gap: null, bestLap: null, lastLap: null, lastLapInvalid: false, finished: false,
+    tireCondition: null,
     detailPhase: remoteDetailPhase(p.id), audioDt: 0, visualSteerAngle: 0,
     visualMotion: createVisualMotionTracker(),
     contactActive: false,
@@ -2557,6 +2559,9 @@ function onSnapshot(
       entry.bestLap = c.best ?? null;
       entry.lastLap = c.last ?? null;
       entry.lastLapInvalid = !!c.li;
+      entry.tireCondition = c.tw
+        ? tireConditionPercent({ wear: Number(c.tw.w) / 1000 })
+        : null;
       entry.finished = !!c.fin;
       if (entry.finished) {
         entry.contactActive = false;
@@ -3035,6 +3040,11 @@ function frame(dt = 1 / 60) {
   // interpolált állapotból — nem a 20 Hz-es snapshotból. Így ugyanolyan
   // folyamatos, mint vezetés közben a sajátunk.
   const watchedEntry = spectateId ? others.get(spectateId) : null;
+  G.setTireCondition(
+    spectateId
+      ? (Number.isFinite(watchedEntry?.tireCondition) ? watchedEntry.tireCondition : null)
+      : (localTireState.enabled ? tireConditionPercent(localTireState) : null)
+  );
   for (const o of others.values()) {
     const latest = o.buf[o.buf.length - 1];
     const currentState = remoteStateAt(o.buf, nowServer);
@@ -3224,7 +3234,6 @@ function frame(dt = 1 / 60) {
       lapTotal: room?.laps ?? '?',
       current: NaN, best: NaN, total: NaN, lapsDone: 0,
       hotLap: isHotLap(),
-      tireCondition: localTireState.enabled ? tireConditionPercent(localTireState) : null,
     }));
     G.setStandings('');
     return;
@@ -3252,7 +3261,7 @@ function frame(dt = 1 / 60) {
 // „--:--.---”-t ad, tehát a placeholder ugyanaz a doboz, ugyanazon a helyen.
 function lapPanelHtml({
   lapNow, lapTotal, current, best, total, lapsDone,
-  tainted = false, hotLap = false, tireCondition = null,
+  tainted = false, hotLap = false,
 }) {
   // Időmérésben nincs körszám-korlát, tehát nincs mihez viszonyítani: csak a
   // sorszám megy ki, „/ 1” nélkül.
@@ -3269,10 +3278,6 @@ function lapPanelHtml({
     `<div class="t-row${Number.isFinite(best) ? ' is-best' : ''}">` +
       `<span class="lbl">${t('hud.best')}</span>` +
       `<span class="t-val num">${G.formatTime(best)}</span></div>` +
-    (Number.isFinite(tireCondition)
-      ? `<div class="t-row"><span class="lbl">${t('hud.tires')}</span>` +
-        `<span class="t-val num">${tireCondition}%</span></div>`
-      : '') +
     // Időmérésben az „Összes” ugyanazt mutatná, mint az „Aktuális” (a
     // raceClock ott mindkettőt a kör kezdetétől számolja) — korlátlan körnél
     // a megfutott körök száma többet mond.
@@ -3308,7 +3313,6 @@ function lapPanelHtml({
     lapsDone: myLap,
     tainted: lapTainted,
     hotLap: isHotLap(),
-    tireCondition: localTireState.enabled ? tireConditionPercent(localTireState) : null,
   }));
 
   const evt = lastEvents[0];

@@ -690,11 +690,25 @@ kbd.k {
    nagybetűs felirat, a sebesség alatt egy vékony elválasztóval. Keretes
    pilulaként ez volt a HUD legigénytelenebb eleme. */
 .sp-zone {
-  display: flex; align-items: center; justify-content: flex-end;
+  display: flex; align-items: center;
   margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line);
 }
+.sp-tire {
+  display: inline-flex; align-items: baseline; gap: 5px;
+  font-size: 10px; font-weight: 800;
+}
+.sp-tire-label {
+  font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--muted);
+}
+#tireValue { transition: color .15s ease; }
+#tireStatus[data-quality="good"] #tireValue { color: var(--ok); }
+#tireStatus[data-quality="warning"] #tireValue { color: var(--warn); }
+#tireStatus[data-quality="recommended"] #tireValue { color: #ff984d; }
+#tireStatus[data-quality="bad"] #tireValue { color: var(--danger); }
 #zoneIndicator {
   display: inline-flex; align-items: center; gap: 7px;
+  margin-left: auto;
   font-size: 10px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
   color: var(--zone-c);
 }
@@ -879,6 +893,8 @@ kbd.k {
   #speedValue { font-size: 35px; }
   .sp-unit { font-size: 8px; }
   .sp-zone { margin-top: 5px; padding-top: 5px; }
+  .sp-tire { gap: 3px; font-size: 8px; }
+  .sp-tire-label { font-size: 6px; }
   #zoneIndicator { gap: 5px; font-size: 7px; }
   #zoneIndicator::before { width: 5px; height: 5px; }
 }

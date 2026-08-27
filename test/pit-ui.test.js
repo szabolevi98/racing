@@ -12,12 +12,20 @@ test('menu and HUD expose the optional tire-wear rule', () => {
   assert.match(html, /id="tireWearCheckbox"/);
   assert.match(html, /id="tireWearHint"[^>]*data-i18n="menu\.pitStopHint"/);
   assert.match(html, /id="pitStopAlert"/);
+  assert.match(
+    html,
+    /id="speedPanel"[\s\S]*id="tireStatus"[\s\S]*id="tireValue"[\s\S]*id="zoneIndicator"/
+  );
   assert.match(main, /hasCompletePitConfig\(currentPitConfig\)/);
   assert.match(main, /race\.totalLaps > 1/);
   assert.match(main, /tireWearCheckbox\.disabled = !available/);
   assert.match(mp, /tireWear: laps > 1 && tireWearCheckbox\.checked/);
   assert.match(main, /tireConditionPercent\(race\.tires\)/);
   assert.match(mp, /tireConditionPercent\(localTireState\)/);
+  assert.match(main, /function setTireCondition\(condition = null\)/);
+  assert.match(mp, /G\.setTireCondition\(/);
+  assert.doesNotMatch(main, /<div class="t-row"><span class="lbl">\$\{t\('hud\.tires'\)\}/);
+  assert.doesNotMatch(mp, /<div class="t-row"><span class="lbl">\$\{t\('hud\.tires'\)\}/);
   assert.doesNotMatch(main, /TAINT\.PIT_STOP/);
   assert.doesNotMatch(mp, /TAINT\.PIT_STOP/);
 });
