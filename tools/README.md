@@ -9,8 +9,7 @@ npm run verify:assets
 Csak olvassa a fájlokat, nem módosít semmit. Ellenőrzi az összes asset-JSON
 szintaxisát, a normál/compressed/master autók és manifestjeik egyezését,
 a tartalomalapú konverziós aláírásokat, a méretkorlátokat és a kerék-regexeket.
-Az aktív pályáknál vizsgálja a modellt, az optimalizált pályák masterének és
-generált kiadásának aláírását, a nyolc rajtpontot, a rajt- és
+Az aktív pályáknál vizsgálja a modellt, a nyolc rajtpontot, a rajt- és
 checkpointvonalakat, az opcionális boxkonfigurációt és zónatérképet, valamint a
 multiplayerhez szükséges `collision.bin` formátumát. A környezeteknél HDR/EXR
 fájlt keres. Hibánál nem nulla kilépési kódot ad, ezért deploy előtti ellenőrzésbe
@@ -18,39 +17,6 @@ vagy teljes assetkészlettel futó CI-folyamatba is beilleszthető.
 
 A nagy GLB/BIN/HDR fájlok nincsenek Gitben, ezért egy assetek nélküli friss
 klónban a hiányukat helyesen hibának jelenti.
-
-## Pályák hálózati optimalizálása
-
-```bash
-npm run maps:optimize -- hungaroring_2020_layout
-npm run maps:optimize -- hungaroring_2020_layout --force
-npm run maps:optimize                         # minden aktív pálya
-```
-
-Az első futás a publikus GLB-t változatlan masterként elmenti ide:
-`masters/maps/<pálya-id>/<fájlnév>.glb`. Ezután ugyanebből készíti el a
-`web/assets/maps/<pálya-id>/` alatti kiadást:
-
-- a geometria Meshopt tömörítést kap, de nincs egyszerűsítés vagy kvantálás;
-- a szín- és adattextúrák ETC1S KTX2, a normálmapok jobb minőségű UASTC KTX2
-  formátumba kerülnek;
-- a master `BLEND`/`MASK` anyagbeállításai megmaradnak; ez különösen a
-  fakártyák kliensoldali mélységi és megvilágítási kezeléséhez szükséges;
-- a node- és anyagnevek, extras adatok, valamint a látható háromszögszám
-  változatlan marad; az objektumvágó által már három azonos indexre
-  összecsukott, kirajzolhatatlan lapokat és az ezekből álló üres mesh-eket a
-  gltfpack elhagyhatja;
-- a script validálás után, helyreállítható master birtokában cseréli le a
-  publikus fájlt;
-- a tartalomalapú `masters/maps/manifest.json` miatt a naprakész pályákat kihagyja.
-
-Ha master nélkül már Meshopt/KTX2 fájlt talál, hibával leáll: optimalizált
-kiadásból nem készít újabb, generációsan romló forrást. A `collision.bin` külön
-marad és nem változik. A normál játék a kis kiadást tölti, a helyi `/dev` mód
-ütközéssütője és objektumvágója viszont a mastert kapja a letiltható dev API-n.
-
-Az objektumvágó által letöltött fájlt a kijelzett `masters/maps/...` útvonalra
-kell visszamenteni, majd ugyanarra a pályára újra futtatni a fenti parancsot.
 
 ## Nagy játékosmodellek optimalizálása
 

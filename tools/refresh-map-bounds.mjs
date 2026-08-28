@@ -1,14 +1,13 @@
-// A pálya-masterek elavult befoglaló dobozainak helyrehozása.
+// A pályamodellek elavult befoglaló dobozainak helyrehozása.
 //
 // A csúcsmozgató (dev mód, objektumvágó) bájtpontosan írja át a
 // koordinátákat, de a glTF-ben a `min`/`max` KÜLÖN mező a JSON-ban. A mentés
 // ezt 2026-08-28 óta magától frissíti; az annál korábban szerkesztett
-// masterekben viszont elavultan maradt.
+// modellekben viszont elavultan maradt.
 //
 // A hiba csendes: a Three.js ebből a két mezőből veszi a `boundingBox`-ot,
 // tehát a látótér-vágás és a sugárvetés a valóságosnál szűkebb dobozzal
-// dolgozik. A KISZOLGÁLT modelleket nem érinti, mert azok befoglalóját a
-// gltfpack újraszámolja — csak a dev mód tölti be a mastert.
+// dolgozik.
 //
 // A BIN egyetlen bájtja sem mozdul, csak a JSON-darab épül újra. Az eszköz
 // ezt minden fájlon ellenőrzi is, mielőtt kiírná.
@@ -18,10 +17,10 @@ import { fileURLToPath } from 'node:url';
 import { parseGlb, refreshPositionBounds } from '../shared/meshCut.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const MASTERS = path.join(ROOT, 'masters', 'maps');
+const MAPS = path.join(ROOT, 'web', 'assets', 'maps');
 
 // Csak azok az accessorok jöhetnek szóba, amiket a javító egyáltalán olvasni
-// tud: tömörítetlen, float32 POSITION. A masterek ilyenek, de egy jövőbeli
+// tud: tömörítetlen, float32 POSITION. A pályamodellek ilyenek, de egy jövőbeli
 // formátumváltásnál inkább hagyjuk ki őket, mint hogy elszálljunk.
 function pozicioAccessorok(glb) {
   const ki = new Set();
@@ -42,8 +41,8 @@ function pozicioAccessorok(glb) {
 // A fájlnév NEM mindig egyezik a mappanévvel: néhány pálya azonosítója
 // kötőjeles, a modellé viszont aláhúzásos (suzuka-circuit-2001-layout ->
 // suzuka_circuit_2001_layout.glb). Ezért a mappa tartalmából indulunk ki.
-function masterFajl(id) {
-  const dir = path.join(MASTERS, id);
+function palyaFajl(id) {
+  const dir = path.join(MAPS, id);
   if (!fs.existsSync(dir)) return null;
   const glbk = fs.readdirSync(dir).filter((f) => f.toLowerCase().endsWith('.glb'));
   if (glbk.length !== 1) return null;
@@ -51,8 +50,8 @@ function masterFajl(id) {
 }
 
 function javit(id, { szaraz }) {
-  const file = masterFajl(id);
-  if (!file) return { id, allapot: 'nincs master (vagy több GLB a mappában)' };
+  const file = palyaFajl(id);
+  if (!file) return { id, allapot: 'nincs modell (vagy több GLB a mappában)' };
   const bytes = new Uint8Array(fs.readFileSync(file));
   const glb = parseGlb(bytes);
   const accessorok = pozicioAccessorok(glb);
@@ -88,8 +87,8 @@ function javit(id, { szaraz }) {
 const argv = process.argv.slice(2);
 const szaraz = argv.includes('--dry-run');
 const idk = argv.filter((a) => !a.startsWith('--'));
-const cel = idk.length ? idk : fs.readdirSync(MASTERS).filter(
-  (d) => fs.statSync(path.join(MASTERS, d)).isDirectory()
+const cel = idk.length ? idk : fs.readdirSync(MAPS).filter(
+  (d) => fs.statSync(path.join(MAPS, d)).isDirectory()
 );
 
 if (!cel.length) {
@@ -97,7 +96,7 @@ if (!cel.length) {
   console.error('  node tools/refresh-map-bounds.mjs [pálya-azonosító ...] [--dry-run]');
   process.exitCode = 1;
 } else {
-  console.log(`${cel.length} master vizsgálata${szaraz ? ' (száraz futás, nem ír)' : ''}...\n`);
+  console.log(`${cel.length} pálya vizsgálata${szaraz ? ' (száraz futás, nem ír)' : ''}...\n`);
   let valtozott = 0;
   for (const id of cel) {
     const r = javit(id, { szaraz });
@@ -113,9 +112,5 @@ if (!cel.length) {
       console.log(`  ${r.id}: ${r.allapot}`);
     }
   }
-  console.log(`\n${valtozott ? valtozott + ' master' : 'egyik master sem'} szorult javításra.`);
-  if (valtozott && !szaraz) {
-    console.log('A kiszolgált modelleket NEM kell újragenerálni: azok befoglalóját a gltfpack');
-    console.log('amúgy is újraszámolja, tehát bennük eddig is helyes volt.');
-  }
+  console.log(`\n${valtozott ? valtozott + ' pálya' : 'egyik pálya sem'} szorult javításra.`);
 }

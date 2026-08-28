@@ -2657,8 +2657,8 @@ function wireEvents() {
     api.showLoadingOverlay(true);
     try {
       await api.runLoadTasks([{
-        bytes: api.trackAssetBytes(entry),
-        run: (onP) => setTrack(api.trackAssetUrl(entry), entry.id, entry.spawns, entry.gates, onP, entry.hotLapSpawn, entry.pit),
+        bytes: entry.bytes,
+        run: (onP) => setTrack(api.assetUrl(entry), entry.id, entry.spawns, entry.gates, onP, entry.hotLapSpawn, entry.pit),
       }]);
     } finally {
       api.hideLoadingOverlay();
@@ -3099,12 +3099,8 @@ async function cutterSaveModel() {
         + (befoglaloElteres ? ` (legfeljebb ${(befoglaloElteres * 100).toFixed(1)} cm)` : '')
         + (kilogo ? `, ${kilogo} csúcs lépett ki a régiből.` : '.')
       : '';
-    const masterBetoltve = url.startsWith('/api/dev/map-master');
-    const cel = masterBetoltve
-      ? `masters/maps/${api.currentMapId}/${nev}`
-      : `web/assets/maps/${api.currentMapId}/${nev}`;
     cutterSay(`Kész: ${mit}, ${(bytes.byteLength / 1048576).toFixed(1)} MB. `
-      + `Mentsd ide: ${cel}, majd futtasd az npm run maps:optimize -- ${api.currentMapId} parancsot.${figyelmeztetes}`,
+      + `Mentsd ide: web/assets/maps/${api.currentMapId}/${nev}${figyelmeztetes}`,
       'text-success');
   } catch (err) {
     cutterSay(`Mentés sikertelen: ${err.message}`, 'text-danger');

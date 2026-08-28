@@ -5,10 +5,6 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PIPELINE_VERSION, sourceSignature } from './build-remote-cars.mjs';
-import {
-  MAP_PIPELINE_VERSION, alreadyOptimized, mapSourceSignature,
-  readGlbFileJson, triangleCount,
-} from './build-maps.mjs';
 // A nyelvlista egyetlen forrásból jön: ha új nyelv kerül a lang.js-be, ez az
 // ellenőrzés magától elkezdi számonkérni a pálya-figyelmeztetéseken is.
 import { SUPPORTED_LANGUAGES } from '../web/lang.js';
@@ -25,7 +21,6 @@ const CARS_DIR = path.join(ASSETS_DIR, 'cars');
 const COMPRESSED_DIR = path.join(CARS_DIR, 'compressed');
 const MASTERS_DIR = path.join(ROOT, 'masters', 'cars');
 const MAPS_DIR = path.join(ASSETS_DIR, 'maps');
-const MAP_MASTERS_DIR = path.join(ROOT, 'masters', 'maps');
 const SKYBOX_DIR = path.join(ASSETS_DIR, 'skybox');
 const IGNORED_DIRS = /^(not_used|[_.].*)$/i;
 const COLLISION_MAGIC = 0xc0111505;
@@ -387,61 +382,6 @@ async function verifyMaps() {
   return ids.length;
 }
 
-async function verifyMapMasters(activeMapIds) {
-  const masterIds = await listActiveDirs(MAP_MASTERS_DIR);
-  const metadataFile = path.join(MAP_MASTERS_DIR, 'manifest.json');
-  const metadata = await readJson(metadataFile, 'Pályamaster manifest');
-  if (!metadata) {
-    if (masterIds.length) reportError('Pályamasterek', 'hiányzó manifest.json');
-    return masterIds.length;
-  }
-  if (metadata.version !== MAP_PIPELINE_VERSION) {
-    reportError('Pályamaster manifest', `pipeline-verzió ${metadata.version}, elvárt ${MAP_PIPELINE_VERSION}`);
-  }
-  const manifestIds = Object.keys(metadata.maps || {}).sort();
-  for (const id of setDifference(masterIds, manifestIds)) {
-    reportError('Pályamaster manifest', `hiányzó bejegyzés: ${id}`);
-  }
-  for (const id of setDifference(manifestIds, masterIds)) {
-    reportError('Pályamaster manifest', `árva bejegyzés: ${id}`);
-  }
-
-  for (const id of masterIds) {
-    const scope = `Pályamaster ${id}`;
-    if (!activeMapIds.includes(id)) reportError(scope, 'nincs hozzá aktív runtime pálya');
-    const masterDir = path.join(MAP_MASTERS_DIR, id);
-    const masterGlbs = await listFiles(masterDir, '.glb');
-    if (masterGlbs.length !== 1) {
-      reportError(scope, `pontosan egy GLB szükséges, talált: ${masterGlbs.length}`);
-      continue;
-    }
-    const fileName = masterGlbs[0];
-    const sourceFile = path.join(masterDir, fileName);
-    const outputFile = path.join(MAPS_DIR, id, fileName);
-    if (!await exists(outputFile)) {
-      reportError(scope, `hiányzó runtime kimenet: web/assets/maps/${id}/${fileName}`);
-      continue;
-    }
-    await verifyGlbHeader(sourceFile, `${scope}/${fileName}`);
-    await verifyGlbHeader(outputFile, `Pálya ${id}/${fileName}`);
-    const entry = metadata.maps?.[id];
-    if (!entry) continue;
-    try {
-      const [sourceStat, outputStat, sourceSignatureValue, outputGltf] = await Promise.all([
-        fs.stat(sourceFile), fs.stat(outputFile), mapSourceSignature(sourceFile), readGlbFileJson(outputFile),
-      ]);
-      if (entry.signature !== sourceSignatureValue) reportError(scope, 'a master változott, generáld újra a pályát');
-      if (entry.sourceBytes !== sourceStat.size) reportError(scope, 'a manifest forrásmérete elavult');
-      if (entry.bytes !== outputStat.size) reportError(scope, 'a manifest kimeneti mérete elavult');
-      if (!alreadyOptimized(outputGltf)) reportError(scope, 'a runtime modell nem Meshopt/KTX2 optimalizált');
-      if (entry.triangles !== triangleCount(outputGltf)) reportError(scope, 'a manifest háromszögszáma elavult');
-    } catch (error) {
-      reportError(scope, error.message);
-    }
-  }
-  return masterIds.length;
-}
-
 async function verifySkyboxes() {
   const ids = await listActiveDirs(SKYBOX_DIR);
   if (!ids.length) reportError('Környezetek', 'nincs aktív HDR/EXR környezet');
@@ -466,15 +406,13 @@ export async function verifyAssets() {
 
   for (const file of await walkJson(ASSETS_DIR)) await readJson(file);
   for (const file of await walkJson(MASTERS_DIR)) await readJson(file);
-  for (const file of await walkJson(MAP_MASTERS_DIR)) await readJson(file);
 
   const cars = await verifyCars();
   const maps = await verifyMaps();
-  const mapMasters = await verifyMapMasters(await listActiveDirs(MAPS_DIR));
   const skyboxes = await verifySkyboxes();
 
   console.log(`\nAutók: ${cars.primary} játékos · ${cars.compressed} compressed · ${cars.masters} master`);
-  console.log(`Pályák: ${maps} · optimalizált masterrel: ${mapMasters} · Környezetek: ${skyboxes}`);
+  console.log(`Pályák: ${maps} · Környezetek: ${skyboxes}`);
   if (warnings.length) {
     console.log(`\nFigyelmeztetések (${warnings.length}):`);
     warnings.forEach((message) => console.log(`  ⚠ ${message}`));
@@ -486,7 +424,7 @@ export async function verifyAssets() {
   } else {
     console.log('\n✓ Minden kötelező asset és konfiguráció rendben van.');
   }
-  return { cars, maps, mapMasters, skyboxes, warnings: [...warnings], errors: [...errors] };
+  return { cars, maps, skyboxes, warnings: [...warnings], errors: [...errors] };
 }
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);

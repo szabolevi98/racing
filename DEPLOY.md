@@ -67,9 +67,7 @@ a Node folyamat. Cserébe elindul bootoláskor, újraindul összeomlás után, a
 - legalább ~6 GB szabad lemez a publikus assetekhez. A jelenlegi készlet kb.
   **5,6 GB** (autók 4,1 GB, pályák 1,4 GB, égboltok 131 MB). A nem publikus
   `masters/cars/` további kb. 2,1 GB, de az éles játék futásához nem szükséges;
-  csak akkor kell a VPS-re, ha ott is akarsz autómodelleket újragenerálni. A
-  helyi, kb. 2,6 GB-os `masters/maps/` pályaforrások szintén nem publikusak és
-  nem szükségesek az éles játékhoz.
+  csak akkor kell a VPS-re, ha ott is akarsz autómodelleket újragenerálni.
 - **Node 20+** — az éles gépen jelenleg Node 22 fut.
 
 ## 1. Node telepítése
@@ -159,9 +157,7 @@ Két csapda, amibe élesben bele is futottunk:
   módosított asset feltöltése után `systemctl restart racing`, különben az új
   fájl, méret és tartalomverzió nem jelenik meg.
 - Új pályánál a `<pálya-id>.glb` mellett a `collision.bin` fájlt is fel kell
-  tölteni. A pálya GLB-je előtte a helyi `npm run maps:optimize -- <pálya-id>`
-  paranccsal készüljön el; a `masters/maps/` eredetijét ne töltsd a webrootba.
-  Új autónál a játékosmodell mellett a
+  tölteni. Új autónál a játékosmodell mellett a
   `web/assets/cars/compressed/<autó-id>.glb` remote/ghost változat se maradjon ki.
 
 Feltöltés után a jogosultságokat is rendezni kell, hogy a `racing` user olvassa:
@@ -444,9 +440,7 @@ scp -P 62222 -i ~/.ssh/levente \
   root@169.58.43.205:/opt/racing/web/assets/maps/<pálya-id>/
 ```
 
-Pályánál csak a generált `web/assets/maps/...` GLB és a `collision.bin` megy
-élesbe; a `masters/maps/` helyi szerkesztési forrás. Autónál a játékosmodell és a
-`compressed/` remote modell is szükséges.
+Autónál az eredeti/játékosmodell és a `compressed/` remote modell is szükséges.
 Feltöltés után érdemes SHA-256-tal vagy legalább fájlmérettel összehasonlítani a
 helyi és távoli példányt. Ezután jöhet a fenti `git pull --ff-only` és restart.
 

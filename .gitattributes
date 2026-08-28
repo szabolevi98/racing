@@ -20,7 +20,6 @@
 *.woff  binary
 *.woff2 binary
 *.exe   binary
-*.wasm  binary
 
 # Nem a kiterjesztéséről ismerszik meg, ezért külön. A git NUL-heurisztikája
 # binárisnak látná, de a verziókövetett binárisokat nem bízzuk a heurisztikára:

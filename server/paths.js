@@ -17,4 +17,3 @@ export const SHARED_DIR = path.join(ROOT_DIR, 'shared');
 // web/assets/maps alá generált, hálózatra optimalizált modelleket látja; a
 // mastereket csak a helyi dev végpont szolgálhatja ki az ütközéssütőnek és az
 // objektumvágónak.
-export const MAP_MASTERS_DIR = path.join(ROOT_DIR, 'masters', 'maps');

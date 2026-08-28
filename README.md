@@ -161,7 +161,6 @@ server/       helyi statikus kiszolgálás, REST API, WebSocket és versenyvezé
 shared/       kliens és szerver által közösen használt fizika és szabályok
 tools/        autóelemző, kerékfelismerő és modelloptimalizáló eszközök
 masters/cars/ nagy autók nem publikus, teljes minőségű forrásmodelljei
-masters/maps/ pályák nem publikus, teljes minőségű szerkesztési forrásai
 test/         Node tesztcsomag
 ```
 
@@ -305,9 +304,7 @@ megfelelő 3D geometria; attól még nem hiba, ha egy pálya alig használja.
 Az **Ütközés bekészítése** a pálya geometriájából `collision.bin` fájlt készít.
 Multiplayerhez ez kötelező, mert a szerver és minden kliens ugyanazt az ütközési
 hálót használja. Szűrhetőek az apró törmelékek, simíthatóak a rázókövek és
-kizárhatóak a magas lombkoronák. Optimalizált pályánál a `/dev` mód automatikusan
-a `masters/maps/` alatti eredetit tölti, ezért a sütés nem a Meshopt/KTX2 kiadási
-fájlból indul.
+kizárhatóak a magas lombkoronák.
 
 ### Objektumvágó
 
@@ -319,9 +316,7 @@ A vágás nem törlés, hanem elfajult háromszög: mindhárom index ugyanarra a
 mutat, aminek nincs felülete, a GPU eldobja. Ezért a puffer HOSSZA nem változik,
 és a GLB bájtra pontosan, helyben javítható — a textúrák, kiterjesztések és
 eltolások érintetlenek maradnak, újrakódolás nélkül. A mentés a böngésző
-letöltésén keresztül adja vissza a módosított mastert. Ezt a jelzett
-`masters/maps/<pálya-id>/` útvonalra kell menteni, majd újra futtatni a
-`maps:optimize` parancsot.
+letöltésén keresztül adja vissza a módosított modellt.
 
 Vágás után érdemes újrasütni az ütközési hálót. Gyakran kiderül, hogy a
 kivágott dobozok eleve nem is voltak benne: a törmelékszűrő már korábban
@@ -332,20 +327,6 @@ kiszedte őket, mert különálló darabok.
 Az autót helyben mutatja forgó és kormányzott kerekekkel. Itt a `W`/`S` és a
 fel/le nyíl végiglépteti az autókat; a normál menüben ezek a billentyűk nem
 változtatják meg a kiválasztást.
-
-## Pályák optimalizálása
-
-```bash
-npm run maps:optimize -- hungaroring_2020_layout
-```
-
-Első futáskor az eredeti GLB-t a webrooton kívüli
-`masters/maps/<pálya-id>/` mappába menti, majd a publikus helyére Meshopt
-geometriás és KTX2 textúrás kiadást generál. A látható geometriát nem
-egyszerűsíti (csak a már összecsukott, kirajzolhatatlan vágólapokat hagyhatja
-el), az attribútumokat nem kvantálja, az eredeti anyag-átlátszóságot megőrzi,
-és a `collision.bin`-hez nem nyúl. A kapcsolódó dev eszközök mindig a mastert használják. Az összes pálya feldolgozásához hagyd
-el a pályaazonosítót; részletek: [tools/README.md](tools/README.md).
 
 ## Autók feldolgozása
 
@@ -400,7 +381,7 @@ Egy pálya mappája a `web/assets/maps/<pálya-id>/` könyvtárban él. A teljes
 konfiguráció jellemzően:
 
 ```text
-<pálya-id>.glb       optimalizált, játékban letöltött pályamodell
+<pálya-id>.glb       látható pályamodell
 collision.bin        előre sütött fizikai geometria
 spawn.json           legfeljebb 8 rajthely
 hotlap_spawn.json    külön időmérő rajtpont
@@ -414,8 +395,6 @@ bake.json            az ütközési háló sütési beállításai
 A JSON- és PNG-fájlok Gitben vannak. A nagy `*.glb` és `*.bin` fájlok gitignore-osak,
 ezért új pálya élesítésekor ezeket külön fel kell tölteni a VPS azonos mappájába.
 Ezután a Node szolgáltatást újra kell indítani, mert az asset-manifest gyorsítótárazott.
-Az eredeti GLB a helyi `masters/maps/` mappában marad; nem kell és nem is szabad a
-publikus VPS-mappába másolni.
 
 ## Éles kiszolgálás
 

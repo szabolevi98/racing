@@ -17,10 +17,9 @@ test('large model and environment URLs carry manifest content versions', () => {
   assert.match(assets, /entry\.v = fileVersion\(stat\)/);
   assert.match(assets, /entry\.remoteV = fileVersion\(remoteStat\)/);
   assert.match(main, /function assetUrl\(entry, remote = false\)/);
-  assert.match(main, /setTrack\(trackAssetUrl\(entry\)/);
-  assert.match(main, /params\.set\('v', entry\.master\.v\)/);
+  assert.match(main, /setTrack\(assetUrl\(entry\)/);
   assert.match(main, /setSkybox\(assetUrl\(entry\)/);
-  assert.match(multiplayer, /G\.trackAssetUrl\(map\)/);
+  assert.match(multiplayer, /G\.assetUrl\(map\)/);
   assert.match(multiplayer, /G\.assetUrl\(car, true\)/);
 });
 

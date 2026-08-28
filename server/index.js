@@ -9,7 +9,6 @@ import { serveStatic } from './static.js';
 import { getManifest } from './assets.js';
 import {
   saveSpawn, saveGates, savePit, saveZonemap, saveCollision, saveBakeConfig,
-  serveMapMaster,
 } from './devApi.js';
 import { attachWebSocket, roomStats } from './net/wsServer.js';
 import { initDb, bestLaps, dbAvailable } from './db/index.js';
@@ -76,27 +75,6 @@ async function handleApi(req, res, url) {
     return true;
   }
 
-  if (url.pathname === '/api/dev/map-master' && (req.method === 'GET' || req.method === 'HEAD')) {
-    if (!ALLOW_DEV_WRITES) {
-      sendJson(res, 403, { error: 'A fejlesztői eszközök ki vannak kapcsolva (ALLOW_DEV_WRITES=0).' });
-      return true;
-    }
-    try {
-      const mapId = url.searchParams.get('mapId') || '';
-      const manifest = await getManifest();
-      const map = manifest.maps.find((entry) => entry.id === mapId);
-      if (!map?.master?.fileName) {
-        const error = new Error('Ehhez a pályához nincs master modell.');
-        error.status = 404;
-        throw error;
-      }
-      await serveMapMaster(req, res, mapId, map.master.fileName);
-    } catch (err) {
-      if (!res.headersSent) sendJson(res, err.status || 500, { error: err.message || 'Master betöltési hiba.' });
-      else res.end();
-    }
-    return true;
-  }
 
   const devRoutes = {
     '/api/dev/spawn': async () => saveSpawn(JSON.parse((await readBody(req)).toString('utf8'))),
