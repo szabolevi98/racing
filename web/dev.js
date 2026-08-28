@@ -31,7 +31,7 @@ import {
   mergeByPosition, componentAtFace, boundsOfVertices,
   degenerateFaces, restoreFaces, parseGlb, patchGlbFaces, cutBlocker, mapTrianglesToGlb,
   addPrimitiveWithMaterial,
-  nudgeVertices, restoreVertices, patchGlbPositions,
+  nudgeVertices, restoreVertices, patchGlbPositions, refreshPositionBounds,
 } from '/shared/meshCut.js';
 import { isSmoothingPaint } from '/shared/zone.js';
 
@@ -2971,8 +2971,12 @@ function cutterUndo() {
 
 // A mentés nem exportálja újra a modellt — az újrakódolná a textúrákat és
 // elveszíthetne kiterjesztéseket. Az EREDETI fájl bájtjait tölti le, azon
-// javítja az érintett indextartományokat, és azt adja letöltésre: minden más
-// bájt érintetlen marad, a fájl mérete sem változik.
+// javítja az érintett indextartományokat, és azt adja letöltésre: a BIN minden
+// más bájtja érintetlen marad.
+//
+// Két művelet mégis újraépíti a fájlt, mert a JSON-darab hossza változik: az
+// anyagcsere (új primitív) és az eltolás utáni befoglaló-frissítés. Ilyenkor a
+// fájl mérete kicsit változik, a geometria viszont nem.
 async function cutterSaveModel() {
   const url = api.currentTrackUrl;
   const assoc = api.currentTrackAssociations;
@@ -2991,6 +2995,7 @@ async function cutterSaveModel() {
     let csucsok = 0;
     let kilogo = 0;
     let ujPrimitiv = 0;
+    const mozgatottAccessorok = new Set();
     for (const cut of cutterCuts) {
       const hely = assoc.get(cut.mesh);
       if (!hely || hely.meshes === undefined) {
@@ -3035,6 +3040,10 @@ async function cutterSaveModel() {
         const r = patchGlbPositions(bytes, glb, prim.attributes.POSITION, moves);
         csucsok += r.db;
         kilogo += r.kilog;
+        // Az érintett accessor befoglalóját a ciklus UTÁN frissítjük, egyszerre:
+        // az újraépítés lecseréli a bájttömböt, és azt a ciklus közben nem
+        // szeretnénk minden eltolásnál megtenni.
+        mozgatottAccessorok.add(prim.attributes.POSITION);
         continue;
       }
 
@@ -3052,6 +3061,21 @@ async function cutterSaveModel() {
     // némán hiányos mentés pont az a hiba, amit ez a fordítás megszüntet.
     if (hianyzo) throw new Error(`${hianyzo} háromszög nem azonosítható a GLB-ben — a mentés nem lenne teljes.`);
 
+    // Az eltolt csúcsok után az accessor `min`/`max` mezője elavul. Ha nem
+    // frissítjük, a Three.js a valóságosnál szűkebb befoglalóval dolgozik —
+    // lásd a refreshPositionBounds kommentjét a shared/meshCut.js-ben.
+    let befoglalo = 0;
+    let befoglaloElteres = 0;
+    if (mozgatottAccessorok.size) {
+      const r = refreshPositionBounds(bytes, glb, mozgatottAccessorok);
+      if (r) {
+        bytes = r.bytes;
+        glb = parseGlb(bytes);
+        befoglalo = r.frissitve.length;
+        for (const f of r.frissitve) befoglaloElteres = Math.max(befoglaloElteres, f.elteres);
+      }
+    }
+
     // A dev pálya master URL-je API-végpont, ezért abból nem nyerhető ki a
     // fájlnév. A master struktúrában ugyanaz a név él, mint a runtime mappában.
     const entry = api.manifest?.maps?.find((map) => map.id === api.currentMapId);
@@ -3067,11 +3091,13 @@ async function cutterSaveModel() {
       csucsok ? `${csucsok} csúcs eltolva` : '',
       ujPrimitiv ? `${ujPrimitiv} darab új anyag alá` : '',
     ].filter(Boolean).join(', ');
-    // A min/max mezőket nem írjuk át (az a JSON hosszát változtatná, és elveszne
-    // a bájtpontos javítás), ezért ha egy csúcs kilépett a deklarált befoglaló
-    // dobozból, azt KI KELL írni — némán hagyva egy hibás modellt adnánk vissza.
-    const figyelmeztetes = kilogo
-      ? ` FIGYELEM: ${kilogo} csúcs kilépett a háló deklarált befoglaló dobozából.`
+    // Ha egy csúcs kilépett a deklarált befoglaló dobozból, azt a mentés már
+    // rendezi: a doboz újraszámolódik. A számot azért írjuk ki, mert elárulja,
+    // hogy az eltolás tényleg a háló határát mozdította-e.
+    const figyelmeztetes = befoglalo
+      ? ` ${befoglalo} háló befoglaló doboza frissítve`
+        + (befoglaloElteres ? ` (legfeljebb ${(befoglaloElteres * 100).toFixed(1)} cm)` : '')
+        + (kilogo ? `, ${kilogo} csúcs lépett ki a régiből.` : '.')
       : '';
     const masterBetoltve = url.startsWith('/api/dev/map-master');
     const cel = masterBetoltve
@@ -3079,7 +3105,7 @@ async function cutterSaveModel() {
       : `web/assets/maps/${api.currentMapId}/${nev}`;
     cutterSay(`Kész: ${mit}, ${(bytes.byteLength / 1048576).toFixed(1)} MB. `
       + `Mentsd ide: ${cel}, majd futtasd az npm run maps:optimize -- ${api.currentMapId} parancsot.${figyelmeztetes}`,
-      kilogo ? 'text-warning' : 'text-success');
+      'text-success');
   } catch (err) {
     cutterSay(`Mentés sikertelen: ${err.message}`, 'text-danger');
   } finally {

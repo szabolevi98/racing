@@ -291,6 +291,78 @@ export function patchGlbPositions(bytes, glb, accessorIndex, moves) {
   return { db, kilog, olvas };
 }
 
+// ---- Az elmozgatott csúcsok befoglalójának frissítése ----
+//
+// A `patchGlbPositions` bájtpontosan írja át a koordinátákat, de az accessor
+// `min`/`max` mezője a glTF-ben KÜLÖN, a JSON-ban él — az így elavul. A hiba
+// csendes: a Three.js ebből a két mezőből veszi a `boundingBox`-ot, tehát a
+// látótér-vágás és a sugárvetés egy a valóságosnál szűkebb dobozzal dolgozik.
+//
+// Mérve a Hungaroringen, öt eltolt reklámtáblán: a tárolt befoglaló 3,1 és
+// 10,0 cm közt tért el a tényleges adattól. A kiszolgált modellen ez nem
+// látszott, mert a gltfpack újraszámolja — a masterben viszont ott maradt, és
+// dev módban éppen azt töltjük be.
+//
+// A javítás nem lehet bájtpontos folt: a számok szöveges hossza változik,
+// tehát a JSON-darabbal együtt a fájlt újra kell építeni. A BIN egyetlen
+// bájtja sem mozdul.
+export function refreshPositionBounds(bytes, glb, accessorIndexek) {
+  const json = JSON.parse(JSON.stringify(glb.json));
+  const frissitve = [];
+  for (const idx of new Set(accessorIndexek)) {
+    const { count, olvas } = glbPositionAccessor(bytes, glb, idx);
+    if (!count) continue;
+    const min = [Infinity, Infinity, Infinity];
+    const max = [-Infinity, -Infinity, -Infinity];
+    for (let v = 0; v < count; v++) {
+      for (let k = 0; k < 3; k++) {
+        const x = olvas(v, k);
+        if (x < min[k]) min[k] = x;
+        if (x > max[k]) max[k] = x;
+      }
+    }
+    const cel = json.accessors[idx];
+    const azonos = Array.isArray(cel.min) && Array.isArray(cel.max)
+      && min.every((x, k) => x === cel.min[k])
+      && max.every((x, k) => x === cel.max[k]);
+    if (azonos) continue;
+    let elteres = 0;
+    if (Array.isArray(cel.min) && Array.isArray(cel.max)) {
+      for (let k = 0; k < 3; k++) {
+        elteres = Math.max(elteres, Math.abs(min[k] - cel.min[k]), Math.abs(max[k] - cel.max[k]));
+      }
+    }
+    cel.min = min;
+    cel.max = max;
+    frissitve.push({ accessor: idx, elteres });
+  }
+  if (!frissitve.length) return null;
+  return { bytes: rebuildWithJson(bytes, glb, json), frissitve };
+}
+
+// Új GLB ugyanabból a BIN-ből, cserélt JSON-nal.
+function rebuildWithJson(bytes, glb, json) {
+  const jsonBytes = new TextEncoder().encode(JSON.stringify(json));
+  const jsonPad = padTo4(jsonBytes.byteLength);
+  const bin = bytes.subarray(glb.binStart, glb.binStart + glb.binLength);
+  const total = 12 + 8 + jsonBytes.byteLength + jsonPad + 8 + bin.byteLength;
+  const out = new Uint8Array(total);
+  const dv = new DataView(out.buffer);
+  dv.setUint32(0, GLB_MAGIC, true);
+  dv.setUint32(4, 2, true);
+  dv.setUint32(8, total, true);
+  dv.setUint32(12, jsonBytes.byteLength + jsonPad, true);
+  dv.setUint32(16, 0x4e4f534a, true);
+  out.set(jsonBytes, 20);
+  // A JSON-darab kitöltése SZÓKÖZ — ezt a glTF előírja.
+  out.fill(0x20, 20 + jsonBytes.byteLength, 20 + jsonBytes.byteLength + jsonPad);
+  const binChunk = 20 + jsonBytes.byteLength + jsonPad;
+  dv.setUint32(binChunk, bin.byteLength, true);
+  dv.setUint32(binChunk + 4, 0x004e4942, true);
+  out.set(bin, binChunk + 8);
+  return out;
+}
+
 // ---- Darab áthelyezése másik anyag alá ----
 //
 // A Suzukán az aszfalt néhol átlátszó, és ez NEM megjelenítési hiba: az
