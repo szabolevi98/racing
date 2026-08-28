@@ -234,5 +234,15 @@
   "alert.highPing": "延迟偏高：{ping} ms — 连接可能会卡顿。",
   "mp.roomCountOne": "1 个房间",
   "mp.roomCount": "{n} 个房间",
-  "menu.credits": "大部分 3D 模型作者："
+  "menu.credits": "大部分 3D 模型作者：",
+  "dataWarning.title": "即将进行大文件下载",
+  "dataWarning.body": "启动游戏约需下载 {mb} MB。",
+  "dataWarning.note": "建议使用 Wi-Fi。使用移动数据可能消耗较多流量。",
+  "dataWarning.remember": "在此设备上不再询问",
+  "dataWarning.cancel": "取消",
+  "dataWarning.continue": "继续",
+  "dataWarning.cancelledTitle": "已取消下载",
+  "dataWarning.cancelledBody": "游戏尚未加载。如果改变主意，请点按按钮。",
+  "dataWarning.loadAnyway": "仍然下载",
+  "dataWarning.more": "之后每次更换赛道需下载 {mapMin}–{mapMax} MB，每次更换赛车需 {carMin}–{carMax} MB。"
 }

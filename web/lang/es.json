@@ -234,5 +234,15 @@
   "alert.highPing": "Ping alto: {ping} ms — la conexión puede entrecortarse.",
   "mp.roomCountOne": "1 sala",
   "mp.roomCount": "{n} salas",
-  "menu.credits": "La mayoría de los modelos 3D son de"
+  "menu.credits": "La mayoría de los modelos 3D son de",
+  "dataWarning.title": "Descarga grande a continuación",
+  "dataWarning.body": "Iniciar el juego descarga unos {mb} MB.",
+  "dataWarning.note": "Se recomienda wifi. Con datos móviles puede consumir bastante.",
+  "dataWarning.remember": "No preguntar de nuevo en este dispositivo",
+  "dataWarning.cancel": "Cancelar",
+  "dataWarning.continue": "Continuar",
+  "dataWarning.cancelledTitle": "Descarga cancelada",
+  "dataWarning.cancelledBody": "El juego no se cargó. Toca el botón si cambias de opinión.",
+  "dataWarning.loadAnyway": "Descargar de todos modos",
+  "dataWarning.more": "Después, cada cambio de circuito descarga {mapMin}–{mapMax} MB y cada cambio de coche {carMin}–{carMax} MB."
 }

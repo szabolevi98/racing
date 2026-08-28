@@ -234,5 +234,15 @@
   "alert.highPing": "Visok ping: {ping} ms — povezava lahko zatika.",
   "mp.roomCountOne": "1 soba",
   "mp.roomCount": "{n} sob",
-  "menu.credits": "Večino 3D modelov je izdelal"
+  "menu.credits": "Večino 3D modelov je izdelal",
+  "dataWarning.title": "Sledi velik prenos",
+  "dataWarning.body": "Zagon igre prenese približno {mb} MB.",
+  "dataWarning.note": "Priporočamo Wi-Fi. Prek mobilnih podatkov je to lahko občutno.",
+  "dataWarning.remember": "Na tej napravi ne sprašuj več",
+  "dataWarning.cancel": "Prekliči",
+  "dataWarning.continue": "Nadaljuj",
+  "dataWarning.cancelledTitle": "Prenos preklican",
+  "dataWarning.cancelledBody": "Igra se ni naložila. Če si premisliš, se dotakni gumba.",
+  "dataWarning.loadAnyway": "Vseeno prenesi",
+  "dataWarning.more": "Pozneje vsaka menjava steze prenese {mapMin}–{mapMax} MB, vsaka menjava avta pa {carMin}–{carMax} MB."
 }

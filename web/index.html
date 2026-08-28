@@ -26,6 +26,37 @@
   <div data-i18n="orientation.rotate">Fordítsd el a készüléket fekvő nézetbe a megfelelő élményhez!</div>
 </div>
 
+<!-- Mobilon a letöltés mérete valódi pénzbe kerülhet, ezért a nagy fájlok
+     ELŐTT kérdezünk rá. A méret nem tapasztalati becslés: a manifestből
+     számoljuk az induláshoz ténylegesen letöltendő pálya, autó és égbolt
+     összegét, és azt írjuk ki. -->
+<div id="dataWarning" class="hidden" role="dialog" aria-modal="true"
+     aria-labelledby="dataWarningTitle">
+  <div class="data-warning-box">
+    <img class="data-warning-icon" src="favicon.svg" alt="" aria-hidden="true"
+         width="64" height="64">
+    <h2 id="dataWarningTitle" data-i18n="dataWarning.title">Nagy letöltés következik</h2>
+    <p id="dataWarningBody">A játék indításához kb. 120 MB tölt le.</p>
+    <p class="data-warning-note" data-i18n="dataWarning.note">
+      Wifin ajánlott. Mobilneten ez érezhető adatforgalom lehet.
+    </p>
+    <!-- Enélkül a fenti szám egyszeri költségnek látszana, pedig minden
+         pálya- és autóváltás újabb letöltés. A tartományt a manifestből
+         számoljuk, hogy új assetekkel se avuljon el. -->
+    <p class="data-warning-note" id="dataWarningMore"></p>
+    <label class="data-warning-remember">
+      <input type="checkbox" id="dataWarningRemember" class="form-check-input">
+      <span data-i18n="dataWarning.remember">Ne kérdezd újra ezen az eszközön</span>
+    </label>
+    <div class="data-warning-actions">
+      <button type="button" id="dataWarningCancel" class="btn btn-outline-light"
+              data-i18n="dataWarning.cancel">Mégse</button>
+      <button type="button" id="dataWarningContinue" class="btn btn-primary"
+              data-i18n="dataWarning.continue">Folytatás</button>
+    </div>
+  </div>
+</div>
+
 <div id="menu">
  <div class="menu-inner p-4 p-md-5">
   <div class="lang-field">

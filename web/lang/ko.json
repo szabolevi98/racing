@@ -234,5 +234,15 @@
   "alert.highPing": "핑이 높습니다: {ping} ms — 연결이 끊길 수 있습니다.",
   "mp.roomCountOne": "방 1개",
   "mp.roomCount": "방 {n}개",
-  "menu.credits": "대부분의 3D 모델 제작:"
+  "menu.credits": "대부분의 3D 모델 제작:",
+  "dataWarning.title": "대용량 다운로드가 시작됩니다",
+  "dataWarning.body": "게임을 시작하려면 약 {mb} MB를 내려받습니다.",
+  "dataWarning.note": "Wi-Fi를 권장합니다. 모바일 데이터로는 사용량이 많을 수 있습니다.",
+  "dataWarning.remember": "이 기기에서 다시 묻지 않기",
+  "dataWarning.cancel": "취소",
+  "dataWarning.continue": "계속",
+  "dataWarning.cancelledTitle": "다운로드를 취소했습니다",
+  "dataWarning.cancelledBody": "게임을 불러오지 않았습니다. 생각이 바뀌면 버튼을 누르세요.",
+  "dataWarning.loadAnyway": "그래도 내려받기",
+  "dataWarning.more": "이후 트랙을 바꿀 때마다 {mapMin}~{mapMax} MB, 차량을 바꿀 때마다 {carMin}~{carMax} MB를 내려받습니다."
 }

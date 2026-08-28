@@ -4321,6 +4321,69 @@ let appState = 'menu';
 // indítógombjánál azonnal kérjük. Multiplayer vendégnél a rajt szerverüzenetre
 // történik; ott az első játékbeli érintés a tartalék aktiválási pont.
 const mobilePointerQuery = window.matchMedia('(hover: none) and (pointer: coarse)');
+
+// ---------- Adatforgalmi figyelmeztetés mobilon ----------
+//
+// Asztali gépen ez csak útban lenne, ezért kizárólag érintéses eszközön
+// kérdezünk. A "ne kérdezd újra" CSAK a Folytatással együtt jegyződik meg: egy
+// megjegyzett Mégse azt jelentené, hogy a játék soha többé nem tölt be ezen az
+// eszközön, és a felhasználónak fogalma sem lenne, miért.
+async function askAboutMobileData(bytes, manifest) {
+  const panel = document.getElementById('dataWarning');
+  if (!panel || !mobilePointerQuery.matches) return;
+  if (loadLastChoice('dataWarning', '0') === '1') return;
+
+  const mb = Math.max(1, Math.round(bytes / 1048576));
+  document.getElementById('dataWarningBody').textContent = t('dataWarning.body', { mb });
+
+  // A fenti szám csak az INDULÁS költsége. Pálya- és autóváltáskor újabb
+  // fájlok jönnek, ezért a tartományukat is kiírjuk — a manifestből, hogy új
+  // assetekkel se avuljon el.
+  const hatarok = (lista) => {
+    const meretek = (lista || []).map((x) => x.bytes).filter((x) => x > 0);
+    if (!meretek.length) return null;
+    return {
+      min: Math.max(1, Math.round(Math.min(...meretek) / 1048576)),
+      max: Math.max(1, Math.round(Math.max(...meretek) / 1048576)),
+    };
+  };
+  const palya = hatarok(manifest?.maps);
+  const auto = hatarok(manifest?.cars);
+  const tovabbi = document.getElementById('dataWarningMore');
+  if (tovabbi && palya && auto) {
+    tovabbi.textContent = t('dataWarning.more', {
+      mapMin: palya.min, mapMax: palya.max, carMin: auto.min, carMax: auto.max,
+    });
+  }
+  const remember = document.getElementById('dataWarningRemember');
+  const contBtn = document.getElementById('dataWarningContinue');
+  const cancelBtn = document.getElementById('dataWarningCancel');
+  panel.classList.remove('hidden');
+  contBtn.focus();
+
+  await new Promise((resolve) => {
+    const folytat = () => {
+      if (remember.checked) saveLastChoice('dataWarning', '1');
+      panel.classList.add('hidden');
+      resolve();
+    };
+    // A Mégse nem tud lapot bezárni (a böngésző nem engedi), és zsákutcát sem
+    // hagyhatunk magunk után: a panel marad, csak elmondja, mi a helyzet, és
+    // egyetlen gombbal újra indítható a letöltés.
+    const megse = () => {
+      document.getElementById('dataWarningTitle').textContent = t('dataWarning.cancelledTitle');
+      document.getElementById('dataWarningBody').textContent = t('dataWarning.cancelledBody');
+      panel.querySelector('.data-warning-note').classList.add('hidden');
+      panel.querySelector('.data-warning-remember').classList.add('hidden');
+      cancelBtn.classList.add('hidden');
+      contBtn.textContent = t('dataWarning.loadAnyway');
+      contBtn.focus();
+    };
+    contBtn.addEventListener('click', folytat);
+    cancelBtn.addEventListener('click', megse);
+  });
+}
+
 let gameFullscreenWanted = false;
 let fullscreenHintTimer = null;
 
@@ -4885,6 +4948,7 @@ const LS_KEYS = {
   laps: 'racing.lastLapCount',
   graphics: 'racing.graphicsQuality',
   camera: 'racing.lastCameraView', muted: 'racing.muted', volume: 'racing.volume',
+  dataWarning: 'racing.dataWarningAck',
 };
 
 function loadLastChoice(kind, fallback) {
@@ -5141,6 +5205,11 @@ async function init() {
   // böngésző csak felhasználói gesztus után enged hangot, és a felépítés maga
   // is eltarthat pár tized másodpercig — így a legelső "3" bipje sem késik.
   primeOnFirstGesture();
+
+  // Mobilon a nagy letöltés valódi pénzbe kerülhet, ezért MIELŐTT elindul,
+  // rákérdezünk. A kiírt méret nem tapasztalati becslés: pontosan az a három
+  // fájl, amit a következő sor letölt.
+  await askAboutMobileData(initialEnv.bytes + initialMap.bytes + initialCar.bytes, manifest);
 
   await runLoadTasks([
     { bytes: initialEnv.bytes, run: (onP) => setSkybox(assetUrl(initialEnv), onP) },

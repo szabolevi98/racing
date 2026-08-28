@@ -234,5 +234,15 @@
   "alert.highPing": "Високий пінг: {ping} мс — зʼєднання може підгальмовувати.",
   "mp.roomCountOne": "1 кімната",
   "mp.roomCount": "кімнат: {n}",
-  "menu.credits": "Більшість 3D-моделей —"
+  "menu.credits": "Більшість 3D-моделей —",
+  "dataWarning.title": "Попереду велике завантаження",
+  "dataWarning.body": "Запуск гри завантажить близько {mb} МБ.",
+  "dataWarning.note": "Рекомендовано Wi-Fi. У мобільній мережі це помітний трафік.",
+  "dataWarning.remember": "Більше не питати на цьому пристрої",
+  "dataWarning.cancel": "Скасувати",
+  "dataWarning.continue": "Продовжити",
+  "dataWarning.cancelledTitle": "Завантаження скасовано",
+  "dataWarning.cancelledBody": "Гра не завантажилася. Натисніть кнопку, якщо передумаєте.",
+  "dataWarning.loadAnyway": "Усе одно завантажити",
+  "dataWarning.more": "Згодом кожна зміна траси завантажує {mapMin}–{mapMax} МБ, а кожна зміна авто — {carMin}–{carMax} МБ."
 }

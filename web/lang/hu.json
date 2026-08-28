@@ -234,5 +234,15 @@
   "alert.highPing": "Magas ping: {ping} ms — a kapcsolat akadozhat.",
   "mp.roomCountOne": "1 szoba",
   "mp.roomCount": "{n} szoba",
-  "menu.credits": "A 3D-modellek nagy részének készítője:"
+  "menu.credits": "A 3D-modellek nagy részének készítője:",
+  "dataWarning.title": "Nagy letöltés következik",
+  "dataWarning.body": "A játék indításához kb. {mb} MB tölt le.",
+  "dataWarning.note": "Wifin ajánlott. Mobilneten ez érezhető adatforgalom lehet.",
+  "dataWarning.remember": "Ne kérdezd újra ezen az eszközön",
+  "dataWarning.cancel": "Mégse",
+  "dataWarning.continue": "Folytatás",
+  "dataWarning.cancelledTitle": "Letöltés megszakítva",
+  "dataWarning.cancelledBody": "A játék nem töltött be. Ha meggondolod magad, koppints a gombra.",
+  "dataWarning.loadAnyway": "Mégis letöltöm",
+  "dataWarning.more": "Később minden pályaváltás {mapMin}–{mapMax} MB, minden autóváltás {carMin}–{carMax} MB újabb letöltés."
 }

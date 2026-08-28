@@ -234,5 +234,15 @@
   "alert.highPing": "Vysoký ping: {ping} ms — spojenie môže sekať.",
   "mp.roomCountOne": "1 miestnosť",
   "mp.roomCount": "{n} miestností",
-  "menu.credits": "Väčšinu 3D modelov vytvoril"
+  "menu.credits": "Väčšinu 3D modelov vytvoril",
+  "dataWarning.title": "Nasleduje veľké sťahovanie",
+  "dataWarning.body": "Spustenie hry stiahne približne {mb} MB.",
+  "dataWarning.note": "Odporúčame Wi-Fi. Cez mobilné dáta to môže byť citeľné.",
+  "dataWarning.remember": "Na tomto zariadení sa už nepýtať",
+  "dataWarning.cancel": "Zrušiť",
+  "dataWarning.continue": "Pokračovať",
+  "dataWarning.cancelledTitle": "Sťahovanie zrušené",
+  "dataWarning.cancelledBody": "Hra sa nenačítala. Ak si to rozmyslíš, ťukni na tlačidlo.",
+  "dataWarning.loadAnyway": "Aj tak stiahnuť",
+  "dataWarning.more": "Neskôr každá zmena trate stiahne {mapMin}–{mapMax} MB a každá zmena auta {carMin}–{carMax} MB."
 }
