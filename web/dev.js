@@ -2657,8 +2657,8 @@ function wireEvents() {
     api.showLoadingOverlay(true);
     try {
       await api.runLoadTasks([{
-        bytes: entry.bytes,
-        run: (onP) => setTrack(api.assetUrl(entry), entry.id, entry.spawns, entry.gates, onP, entry.hotLapSpawn, entry.pit),
+        bytes: api.trackAssetBytes(entry),
+        run: (onP) => setTrack(api.trackAssetUrl(entry), entry.id, entry.spawns, entry.gates, onP, entry.hotLapSpawn, entry.pit),
       }]);
     } finally {
       api.hideLoadingOverlay();
@@ -3052,7 +3052,10 @@ async function cutterSaveModel() {
     // némán hiányos mentés pont az a hiba, amit ez a fordítás megszüntet.
     if (hianyzo) throw new Error(`${hianyzo} háromszög nem azonosítható a GLB-ben — a mentés nem lenne teljes.`);
 
-    const nev = url.split('/').pop().split('?')[0] || 'palya.glb';
+    // A dev pálya master URL-je API-végpont, ezért abból nem nyerhető ki a
+    // fájlnév. A master struktúrában ugyanaz a név él, mint a runtime mappában.
+    const entry = api.manifest?.maps?.find((map) => map.id === api.currentMapId);
+    const nev = entry?.master?.fileName || url.split('/').pop().split('?')[0] || 'palya.glb';
     const blob = new Blob([bytes], { type: 'model/gltf-binary' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -3070,8 +3073,12 @@ async function cutterSaveModel() {
     const figyelmeztetes = kilogo
       ? ` FIGYELEM: ${kilogo} csúcs kilépett a háló deklarált befoglaló dobozából.`
       : '';
+    const masterBetoltve = url.startsWith('/api/dev/map-master');
+    const cel = masterBetoltve
+      ? `masters/maps/${api.currentMapId}/${nev}`
+      : `web/assets/maps/${api.currentMapId}/${nev}`;
     cutterSay(`Kész: ${mit}, ${(bytes.byteLength / 1048576).toFixed(1)} MB. `
-      + `Mentsd a pálya mappájába, a régi ${nev} helyére.${figyelmeztetes}`,
+      + `Mentsd ide: ${cel}, majd futtasd az npm run maps:optimize -- ${api.currentMapId} parancsot.${figyelmeztetes}`,
       kilogo ? 'text-warning' : 'text-success');
   } catch (err) {
     cutterSay(`Mentés sikertelen: ${err.message}`, 'text-danger');

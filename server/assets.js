@@ -7,7 +7,7 @@
 // itt egy helyen történik.)
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { ASSETS_DIR } from './paths.js';
+import { ASSETS_DIR, MAP_MASTERS_DIR } from './paths.js';
 
 function prettify(name) {
   return name
@@ -145,6 +145,19 @@ async function collectMaps() {
       entry.bytes = stat.size;
       entry.v = fileVersion(stat);
     } catch { /* nem kritikus */ }
+
+    // A master a webrooton kívül marad, ezért közvetlen fájlútvonalat nem adunk
+    // a publikus manifestbe. A dev kliensnek csak azt kell tudnia, hogy van-e,
+    // mekkora és milyen cache-kulcs tartozik hozzá; maga a GET külön, élesben
+    // letiltott /api/dev végponton megy.
+    try {
+      const masterStat = await fs.stat(path.join(MAP_MASTERS_DIR, id, sceneFile));
+      entry.master = {
+        fileName: sceneFile,
+        bytes: masterStat.size,
+        v: fileVersion(masterStat),
+      };
+    } catch { /* még nincs optimalizálva: dev módban a publikus modell a forrás */ }
 
     // Opcionális, pályánkénti menüfigyelmeztetés. Szándékosan a manifestbe
     // kerül, így a kliensnek nem kell minden pályához külön HTTP-kérést indítani.

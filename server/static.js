@@ -39,7 +39,10 @@ const MIME = {
   '.ico': 'image/x-icon',
 };
 
-const NO_CACHE = new Set(['.html', '.js', '.mjs', '.css']);
+// A WASM is futó kód, és a basis_transcoder.js-szel verzióban együtt mozog.
+// Ugyanúgy újraérvényesítjük, mint a JS-t; változatlanul 304, frissítéskor pedig
+// nem ragadhat bent az egyéves immutable cache-ben egy inkompatibilis dekóder.
+const NO_CACHE = new Set(['.html', '.js', '.mjs', '.css', '.wasm']);
 
 // Amit érdemes menet közben tömöríteni. A .glb/.png/.hdr KIMARAD: a képek és
 // a textúrákat tartalmazó modellek már tömörítettek, azokon a gzip alig nyer,

@@ -1720,9 +1720,9 @@ async function beginRace(info) {
   const tasks = [];
   if (G.currentMapId !== info.mapId) {
     tasks.push({
-      bytes: map.bytes,
+      bytes: G.trackAssetBytes(map),
       run: (onP) => G.setTrack(
-        G.assetUrl(map), map.id, map.spawns, map.gates, onP,
+        G.trackAssetUrl(map), map.id, map.spawns, map.gates, onP,
         map.hotLapSpawn, map.pit, signal
       ),
     });

@@ -6,19 +6,25 @@
 //
 // FIGYELEM: ezek mögött nincs jogosultság-ellenőrzés, és a lemezre írnak.
 // Éles kiszolgálón kapcsold ki: ALLOW_DEV_WRITES=0 a .env-ben.
+import rawFs from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { ASSETS_DIR } from './paths.js';
+import { ASSETS_DIR, MAP_MASTERS_DIR } from './paths.js';
 import { invalidateManifest } from './assets.js';
 
 const MAP_ID_RE = /^[a-zA-Z0-9_-]+$/;
 
-async function mapDirOf(mapId) {
+function validMapId(mapId) {
   if (!MAP_ID_RE.test(mapId || '')) {
     const e = new Error('Érvénytelen mapId.');
     e.status = 400;
     throw e;
   }
+  return mapId;
+}
+
+async function mapDirOf(mapId) {
+  validMapId(mapId);
   const dir = path.join(ASSETS_DIR, 'maps', mapId);
   try {
     const st = await fs.stat(dir);
@@ -29,6 +35,46 @@ async function mapDirOf(mapId) {
     throw e;
   }
   return dir;
+}
+
+// A master nagy (akár 200 MB), ezért streameljük, nem olvassuk egyben a Node
+// memóriájába. A hívó csak a manifestből származó fájlnevet adhatja át; a
+// basename-ellenőrzés és a fix masters/maps gyökér kizárja a könyvtárbejárást.
+export async function serveMapMaster(req, res, mapId, fileName) {
+  validMapId(mapId);
+  if (path.basename(fileName || '') !== fileName || !/\.glb$/i.test(fileName)) {
+    const e = new Error('Érvénytelen master fájlnév.');
+    e.status = 400;
+    throw e;
+  }
+  const file = path.join(MAP_MASTERS_DIR, mapId, fileName);
+  let stat;
+  try {
+    stat = await fs.stat(file);
+    if (!stat.isFile()) throw new Error();
+  } catch {
+    const e = new Error('Ehhez a pályához nincs master modell.');
+    e.status = 404;
+    throw e;
+  }
+  res.writeHead(200, {
+    'Content-Type': 'model/gltf-binary',
+    'Content-Length': stat.size,
+    // A kliens a manifestből kap verziózott URL-t. Devben is cache-elhető, de
+    // nem immutable: kézi mastercsere után egy újraindítás biztosan ellenőrizze.
+    'Cache-Control': 'private, no-cache, must-revalidate',
+  });
+  if (req.method === 'HEAD') {
+    res.end();
+    return;
+  }
+  await new Promise((resolve, reject) => {
+    const stream = rawFs.createReadStream(file);
+    stream.on('error', reject);
+    res.on('finish', resolve);
+    res.on('close', resolve);
+    stream.pipe(res);
+  });
 }
 
 const round2 = (v) => Math.round(Number(v) * 100) / 100;

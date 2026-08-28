@@ -13,3 +13,8 @@ export const ROOT_DIR = path.resolve(SERVER_DIR, '..');
 export const WEB_DIR = path.join(ROOT_DIR, 'web');
 export const ASSETS_DIR = path.join(WEB_DIR, 'assets');
 export const SHARED_DIR = path.join(ROOT_DIR, 'shared');
+// A teljes minőségű pályaforrások nem publikusak. A normál játék kizárólag a
+// web/assets/maps alá generált, hálózatra optimalizált modelleket látja; a
+// mastereket csak a helyi dev végpont szolgálhatja ki az ütközéssütőnek és az
+// objektumvágónak.
+export const MAP_MASTERS_DIR = path.join(ROOT_DIR, 'masters', 'maps');

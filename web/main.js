@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import RAPIER from 'rapier';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import {
@@ -1000,7 +1002,17 @@ function disposeObject3D(root) {
 }
 
 // ---------- GLTF betöltés ----------
-const gltfLoader = new GLTFLoader();
+// A pálya-kiadások hálója Meshopt, a textúrájuk KTX2/Basis tömörítésű. A
+// dekóderek egyszer épülnek fel és minden GLTFLoader-hívás megosztja őket.
+// A KTX2 a gép által támogatott GPU-formátumba alakít, tehát nemcsak a hálózati
+// fájl kisebb: a teljes PNG-ket sem kell tömörítetlen RGBA-ként VRAM-ban tartani.
+const ktx2Loader = new KTX2Loader()
+  .setTranscoderPath('/vendor/libs/basis/')
+  .setWorkerLimit(2)
+  .detectSupport(renderer);
+const gltfLoader = new GLTFLoader()
+  .setKTX2Loader(ktx2Loader)
+  .setMeshoptDecoder(MeshoptDecoder);
 const carPivot = new THREE.Group();
 scene.add(carPivot);
 
@@ -1139,6 +1151,25 @@ function assetUrl(entry, remote = false) {
   const file = remote && entry?.remoteFile ? entry.remoteFile : entry?.file;
   const version = remote && entry?.remoteFile ? entry.remoteV : entry?.v;
   return 'assets/' + file + (version ? '?v=' + encodeURIComponent(version) : '');
+}
+
+function mapMasterUrl(entry) {
+  if (!entry?.master) return assetUrl(entry);
+  const params = new URLSearchParams({ mapId: entry.id });
+  if (entry.master.v) params.set('v', entry.master.v);
+  return `/api/dev/map-master?${params}`;
+}
+
+// Normál játékban mindig a kis kiadási modell kell. /dev alatt viszont a
+// collision-sütő és az objektumvágó csak az eredeti GLB-n dolgozhat: az
+// optimalizált fájlban átrendezett pufferekre készített vágás nem lenne
+// visszaírható a masterbe, és abból újragenerálva el is veszne.
+function trackAssetUrl(entry) {
+  return DEV_MODE && entry?.master ? mapMasterUrl(entry) : assetUrl(entry);
+}
+
+function trackAssetBytes(entry) {
+  return DEV_MODE && entry?.master ? entry.master.bytes : entry?.bytes;
 }
 
 // Néhány gyors sugárvetés a pálya bbox-a fölött, hogy legyen egy használható
@@ -4651,7 +4682,8 @@ const devApi = {
   NORMAL_FOG_DENSITY,
   moveTowardsAngle, updateSunTarget, updateShowcaseCamera,
   setShadowSettings, shadowSettings,
-  findEntry, fillSelect, assetUrl, setTrack, loadZoneRuntime, extractDrivableTriangles, extractWallTriangles,
+  findEntry, fillSelect, assetUrl, trackAssetUrl, trackAssetBytes,
+  setTrack, loadZoneRuntime, extractDrivableTriangles, extractWallTriangles,
   smoothFloorHeights, smoothAsphaltToPlane, measureAsphaltRoughness,
   // Az aszfalt-simításhoz kell megmondani, hol van aszfalt. A futásidejű
   // zóna-térképet olvassa, ugyanazt, amiből vezetés közben is dolgozunk.
@@ -5131,7 +5163,7 @@ async function init() {
 
   await runLoadTasks([
     { bytes: initialEnv.bytes, run: (onP) => setSkybox(assetUrl(initialEnv), onP) },
-    { bytes: initialMap.bytes, run: (onP) => setTrack(assetUrl(initialMap), initialMap.id, initialMap.spawns, initialMap.gates, onP, initialMap.hotLapSpawn, initialMap.pit) },
+    { bytes: trackAssetBytes(initialMap), run: (onP) => setTrack(trackAssetUrl(initialMap), initialMap.id, initialMap.spawns, initialMap.gates, onP, initialMap.hotLapSpawn, initialMap.pit) },
     { bytes: initialCar.bytes, run: (onP) => setCar(assetUrl(initialCar), initialCar.id, initialCar.config, onP) },
   ]);
 
@@ -5156,7 +5188,7 @@ async function init() {
     loadLeaderboard(entry.id);
     showLoadingOverlay(true);
     try {
-      await runLoadTasks([{ bytes: entry.bytes, run: (onP) => setTrack(assetUrl(entry), entry.id, entry.spawns, entry.gates, onP, entry.hotLapSpawn, entry.pit) }]);
+      await runLoadTasks([{ bytes: trackAssetBytes(entry), run: (onP) => setTrack(trackAssetUrl(entry), entry.id, entry.spawns, entry.gates, onP, entry.hotLapSpawn, entry.pit) }]);
     } finally {
       hideLoadingOverlay();
     }
@@ -5727,7 +5759,8 @@ window.__game = {
   get carLoaded() { return carLoaded; },
   keys,
   getDriveAxes,
-  assetUrl, setCar, setTrack, prepareTrackPhysics, loadGLTF, centerCarModelOnWheels,
+  assetUrl, trackAssetUrl, trackAssetBytes,
+  setCar, setTrack, prepareTrackPhysics, loadGLTF, centerCarModelOnWheels,
   createRemoteWheelRig(carRoot, wheelPattern, pivotRoot) {
     return createWheelPivots(carRoot, wheelPattern, pivotRoot);
   },

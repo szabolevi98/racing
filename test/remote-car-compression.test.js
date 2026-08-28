@@ -151,7 +151,7 @@ test('manifest and multiplayer use compressed visuals with original fallback', (
 });
 
 test('large player cars keep a non-public master and remote builds prefer it', () => {
-  assert.match(build, /const MASTERS_DIR = path\.join\(ROOT, 'car-masters'\)/);
+  assert.match(build, /const MASTERS_DIR = path\.join\(ROOT, 'masters', 'cars'\)/);
   assert.match(build, /options\.primary \? DEFAULT_PRIMARY_TARGET_MB : DEFAULT_TARGET_MB/);
   assert.match(build, /!options\.primary && await fileExists\(master\) \? master/);
   assert.match(build, /options\.primary \? CARS_DIR : COMPRESSED_DIR/);

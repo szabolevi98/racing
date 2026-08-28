@@ -12,13 +12,13 @@ Egy autóhoz azonos azonosítóval ezek tartozhatnak:
 web/assets/cars/<azonosító>.glb             saját/játékosmodell
 web/assets/cars/<azonosító>.json            opcionális konfiguráció
 web/assets/cars/compressed/<azonosító>.glb  multiplayer- és Hot Lap-modell
-car-masters/<azonosító>.glb                 eredeti master, ha készült
+masters/cars/<azonosító>.glb                eredeti master, ha készült
 ```
 
 - A játékosmodell célmérete legfeljebb 15 MB.
 - A `compressed/` modell célmérete legfeljebb 5 MB; ellenfelekhez és a Hot Lap
   szellemautóhoz ezt tölti le a kliens.
-- A `car-masters/` nincs a webrootban, játék közben nem tölthető le. Ha van
+- A `masters/cars/` nincs a webrootban, játék közben nem tölthető le. Ha van
   master, a tömörítő abból dolgozik, így nem egy már veszteséges modellből
   készít újabb változatot.
 - A generált manifesteket ne szerkeszd kézzel; a modellfeldolgozó parancsok

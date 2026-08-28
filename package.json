@@ -11,6 +11,7 @@
     "cars:optimize": "node tools/build-remote-cars.mjs --primary",
     "cars:compress": "node tools/build-remote-cars.mjs",
     "cars:wheels": "node tools/build-car-wheels.mjs",
+    "maps:optimize": "node tools/build-maps.mjs",
     "verify:assets": "node tools/verify-assets.mjs",
     "test": "node --test"
   },

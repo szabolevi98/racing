@@ -9,7 +9,7 @@ const CARS_DIR = path.join(ROOT, 'web', 'assets', 'cars');
 const COMPRESSED_DIR = path.join(CARS_DIR, 'compressed');
 // A teljes minőségű források szándékosan a webrooton kívül vannak: a játék és
 // a publikus statikus kiszolgáló csak a 15 MB-os és az 5 MB-os változatot látja.
-const MASTERS_DIR = path.join(ROOT, 'car-masters');
+const MASTERS_DIR = path.join(ROOT, 'masters', 'cars');
 // A gltfpack binárist a repóban tartjuk (tools/vendor/), nem eldobható
 // gyorsítótárban: így a konvertálás hálózat nélkül is fut, és nem függ attól,
 // hogy a GitHub-kiadás elérhető marad-e. A verzió a mappanévben van, hogy
