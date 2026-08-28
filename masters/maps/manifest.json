@@ -1,14 +1,14 @@
 {
   "version": 2,
-  "generatedAt": "2026-08-28T16:41:53.741Z",
+  "generatedAt": "2026-08-28T18:09:36.349Z",
   "settings": {
     "mesh": "meshopt-no-quantization",
     "texture": "ktx2-etc1s-q9-uastc-normal-q10"
   },
   "maps": {
     "hungaroring_2020_layout": {
-      "signature": "map-v2:4926448b4b8fe0cac851abf3dbb40e59f978e85721124837244bdba7f372ca11",
-      "sourceBytes": 123172576,
+      "signature": "map-v2:f05bb4fa95bbb0e06a40cd43d1279a12eea078022d25a0281f6d6e8c660e4f11",
+      "sourceBytes": 123171064,
       "bytes": 35391204,
       "ratio": 0.2873,
       "triangles": 574625,
@@ -348,7 +348,7 @@
       "geometryBytes": 8994675
     },
     "redbull_ring_2025_layout": {
-      "signature": "map-v2:812abf35ad128b6d1a38ee226416caa2ecd596d2d93dd04aada39b5eb2a03f5e",
+      "signature": "map-v2:975f9316b49af91d6738284d3dc911591c1620c754d52fe6890e0e526fec4d4c",
       "sourceBytes": 64523120,
       "bytes": 29485260,
       "ratio": 0.457,
@@ -363,7 +363,7 @@
       "geometryBytes": 26534583
     },
     "suzuka-circuit-2001-layout": {
-      "signature": "map-v2:24b3958d08f403ac4a33ef4522337d2e9087007c5a10f61838bf2a15f127464f",
+      "signature": "map-v2:7865c21ad28bdff3ac5ff7a21f9e9e12a4832c15b9da03a25c9219dce8c13f69",
       "sourceBytes": 62001444,
       "bytes": 19055232,
       "ratio": 0.3073,
