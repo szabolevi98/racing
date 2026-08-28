@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "generatedAt": "2026-08-28T15:53:14.957Z",
+  "generatedAt": "2026-08-28T16:41:53.741Z",
   "settings": {
     "mesh": "meshopt-no-quantization",
     "texture": "ktx2-etc1s-q9-uastc-normal-q10"
@@ -285,7 +285,7 @@
       "materials": 100,
       "textures": 98,
       "imageBytes": 1908494,
-      "geometryBytes": 38376545
+      "geometryBytes": 38376544
     },
     "indianapolis_motor_speedway_2000s_oval_layout": {
       "signature": "map-v2:abdf4afa33080366f0eadb96ea13a1e54af99259677d6fd8709e976ba1419f4c",
