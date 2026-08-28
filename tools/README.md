@@ -34,6 +34,8 @@ Az első futás a publikus GLB-t változatlan masterként elmenti ide:
 - a geometria Meshopt tömörítést kap, de nincs egyszerűsítés vagy kvantálás;
 - a szín- és adattextúrák ETC1S KTX2, a normálmapok jobb minőségű UASTC KTX2
   formátumba kerülnek;
+- a master `BLEND`/`MASK` anyagbeállításai megmaradnak; ez különösen a
+  fakártyák kliensoldali mélységi és megvilágítási kezeléséhez szükséges;
 - a node- és anyagnevek, extras adatok, valamint a látható háromszögszám
   változatlan marad; az objektumvágó által már három azonos indexre
   összecsukott, kirajzolhatatlan lapokat és az ezekből álló üres mesh-eket a

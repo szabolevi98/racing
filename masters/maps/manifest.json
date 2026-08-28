@@ -1,13 +1,13 @@
 {
-  "version": 1,
-  "generatedAt": "2026-08-28T14:11:17.981Z",
+  "version": 2,
+  "generatedAt": "2026-08-28T15:53:14.957Z",
   "settings": {
     "mesh": "meshopt-no-quantization",
     "texture": "ktx2-etc1s-q9-uastc-normal-q10"
   },
   "maps": {
     "hungaroring_2020_layout": {
-      "signature": "map-v1:4926448b4b8fe0cac851abf3dbb40e59f978e85721124837244bdba7f372ca11",
+      "signature": "map-v2:4926448b4b8fe0cac851abf3dbb40e59f978e85721124837244bdba7f372ca11",
       "sourceBytes": 123172576,
       "bytes": 35391204,
       "ratio": 0.2873,
@@ -20,7 +20,7 @@
       "geometryBytes": 20923080
     },
     "circuit_zolder_2010s_layout": {
-      "signature": "map-v1:7e339e952511b93ae720a1353d35dbbb245a829ccb5e9d61d7f18951ab9234bc",
+      "signature": "map-v2:7e339e952511b93ae720a1353d35dbbb245a829ccb5e9d61d7f18951ab9234bc",
       "sourceBytes": 204500460,
       "bytes": 81856952,
       "ratio": 0.4003,
@@ -33,7 +33,7 @@
       "geometryBytes": 68891423
     },
     "albert_park_circuit_melbourne_2018_layout": {
-      "signature": "map-v1:64a67a9d6ae4bbff377954d90accc401bcd4920131997b3f715d7520bdcd6a89",
+      "signature": "map-v2:64a67a9d6ae4bbff377954d90accc401bcd4920131997b3f715d7520bdcd6a89",
       "sourceBytes": 123773004,
       "bytes": 51008448,
       "ratio": 0.4121,
@@ -46,7 +46,7 @@
       "geometryBytes": 47041294
     },
     "bahrain_international_circuit_2006_layout": {
-      "signature": "map-v1:62e7f82a0bfea26a3b54ecdf5c711fe64a23575b16fd9b15acdbf1fac2450599",
+      "signature": "map-v2:62e7f82a0bfea26a3b54ecdf5c711fe64a23575b16fd9b15acdbf1fac2450599",
       "sourceBytes": 70485956,
       "bytes": 26171828,
       "ratio": 0.3713,
@@ -59,7 +59,7 @@
       "geometryBytes": 19932362
     },
     "barcelona-catalunya_grand_prix_2023_layout": {
-      "signature": "map-v1:c7415c2c0364c9bc24c083724973021c253a4e6ecffd89a848a5a645a3a49527",
+      "signature": "map-v2:c7415c2c0364c9bc24c083724973021c253a4e6ecffd89a848a5a645a3a49527",
       "sourceBytes": 110213860,
       "bytes": 49463288,
       "ratio": 0.4488,
@@ -72,7 +72,7 @@
       "geometryBytes": 38251169
     },
     "bugatti_circuit_2017_layout": {
-      "signature": "map-v1:f51e9a4fea52c4ab79a02543511d7e9810332754f2bd4333c838439317004941",
+      "signature": "map-v2:f51e9a4fea52c4ab79a02543511d7e9810332754f2bd4333c838439317004941",
       "sourceBytes": 84685236,
       "bytes": 32125712,
       "ratio": 0.3794,
@@ -85,7 +85,7 @@
       "geometryBytes": 25316685
     },
     "circuit-de-spa-francorchamps-2022-layout": {
-      "signature": "map-v1:b66921aff6f655c22f8c8daa3dc3f5018fb3b61a7f52f30aa90fd940e1e3413b",
+      "signature": "map-v2:b66921aff6f655c22f8c8daa3dc3f5018fb3b61a7f52f30aa90fd940e1e3413b",
       "sourceBytes": 148448216,
       "bytes": 51759072,
       "ratio": 0.3487,
@@ -98,7 +98,7 @@
       "geometryBytes": 41553342
     },
     "circuit_de_nevers_magny-cours_2019_layout": {
-      "signature": "map-v1:b328e0b1d22ce94b486e1b9fd7cfb609e13debe4d577d1cf82fe665f2d164664",
+      "signature": "map-v2:b328e0b1d22ce94b486e1b9fd7cfb609e13debe4d577d1cf82fe665f2d164664",
       "sourceBytes": 64227792,
       "bytes": 33168336,
       "ratio": 0.5164,
@@ -111,7 +111,7 @@
       "geometryBytes": 30931503
     },
     "circuit_zandvoort_2023_layout": {
-      "signature": "map-v1:1321d6175b5c3a0ecda6359c8853370621380d9d505805edbb56caffb020d698",
+      "signature": "map-v2:1321d6175b5c3a0ecda6359c8853370621380d9d505805edbb56caffb020d698",
       "sourceBytes": 117168224,
       "bytes": 36789696,
       "ratio": 0.314,
@@ -124,7 +124,7 @@
       "geometryBytes": 27361611
     },
     "circuito_de_madring_2026_layout": {
-      "signature": "map-v1:0e6bd9e2397a51727025c64b33385c5754f5762a9e191e265b11634dc8ad0e49",
+      "signature": "map-v2:0e6bd9e2397a51727025c64b33385c5754f5762a9e191e265b11634dc8ad0e49",
       "sourceBytes": 141128964,
       "bytes": 56130412,
       "ratio": 0.3977,
@@ -137,7 +137,7 @@
       "geometryBytes": 50882181
     },
     "daytona_international_speedway_2007_layout": {
-      "signature": "map-v1:0a9733e973c2bea896a1e914366a7f1c8c1e6d61c5886e51245b62d26bee770a",
+      "signature": "map-v2:0a9733e973c2bea896a1e914366a7f1c8c1e6d61c5886e51245b62d26bee770a",
       "sourceBytes": 89878052,
       "bytes": 37568604,
       "ratio": 0.418,
@@ -150,9 +150,9 @@
       "geometryBytes": 21852496
     },
     "high_speed_ring": {
-      "signature": "map-v1:8b66086ea75ca2245fa44c3a38d0840e0464f41675977f2b0d66b7f84d77bdc1",
+      "signature": "map-v2:8b66086ea75ca2245fa44c3a38d0840e0464f41675977f2b0d66b7f84d77bdc1",
       "sourceBytes": 68264572,
-      "bytes": 16890856,
+      "bytes": 16890872,
       "ratio": 0.2474,
       "triangles": 192344,
       "nodes": 139,
@@ -163,9 +163,9 @@
       "geometryBytes": 5260987
     },
     "hockenheimring_1988_layout": {
-      "signature": "map-v1:54b50fd7eb38f4951de7f755d28eb8299877b93b98590bc25ce0e420ce408855",
+      "signature": "map-v2:54b50fd7eb38f4951de7f755d28eb8299877b93b98590bc25ce0e420ce408855",
       "sourceBytes": 50570108,
-      "bytes": 15567656,
+      "bytes": 15567756,
       "ratio": 0.3078,
       "triangles": 185463,
       "nodes": 105,
@@ -176,7 +176,7 @@
       "geometryBytes": 8889356
     },
     "sachsenring_2020_layout": {
-      "signature": "map-v1:4a5093a0a8808a98500ac51c20d6b734553925540cce37c2deacd30bb8b63b59",
+      "signature": "map-v2:4a5093a0a8808a98500ac51c20d6b734553925540cce37c2deacd30bb8b63b59",
       "sourceBytes": 86983424,
       "bytes": 26664016,
       "ratio": 0.3065,
@@ -189,7 +189,7 @@
       "geometryBytes": 14324425
     },
     "sepang_international_circuit_2025_layout": {
-      "signature": "map-v1:6b7c8c391d9e202611a1b9307b5c3e1b12d357074ac92e9140427aec7e0ba82e",
+      "signature": "map-v2:6b7c8c391d9e202611a1b9307b5c3e1b12d357074ac92e9140427aec7e0ba82e",
       "sourceBytes": 42006588,
       "bytes": 19035172,
       "ratio": 0.4531,
@@ -202,7 +202,7 @@
       "geometryBytes": 17247062
     },
     "shanghai-international-circuit-2018-layout": {
-      "signature": "map-v1:4bc4b1023fb79a76d5e9a9979d32c6f06f03c628d388ae77df52d521157fa464",
+      "signature": "map-v2:4bc4b1023fb79a76d5e9a9979d32c6f06f03c628d388ae77df52d521157fa464",
       "sourceBytes": 102141344,
       "bytes": 45304812,
       "ratio": 0.4436,
@@ -215,7 +215,7 @@
       "geometryBytes": 42911822
     },
     "silverstone_circuit_2024_layout": {
-      "signature": "map-v1:228c897e5c15674fd62d936160f0599602ca28c61e13aaf32555fd0084d58783",
+      "signature": "map-v2:228c897e5c15674fd62d936160f0599602ca28c61e13aaf32555fd0084d58783",
       "sourceBytes": 165815852,
       "bytes": 66000840,
       "ratio": 0.398,
@@ -228,9 +228,9 @@
       "geometryBytes": 54760172
     },
     "austin_circuit_of_the_americas_2012_layout": {
-      "signature": "map-v1:3d0ea2f4b304e7a1775fc32c4e7f7b366061fa77e1845a393ce9fe8d855f5e54",
+      "signature": "map-v2:3d0ea2f4b304e7a1775fc32c4e7f7b366061fa77e1845a393ce9fe8d855f5e54",
       "sourceBytes": 43575148,
-      "bytes": 21100920,
+      "bytes": 21100960,
       "ratio": 0.4842,
       "triangles": 538253,
       "sourceTriangles": 542051,
@@ -243,7 +243,7 @@
       "geometryBytes": 19288334
     },
     "circuit_gilles_villeneuve_montreal_2019_layout": {
-      "signature": "map-v1:bc0734a986a576959bc1577d6a2cba630a18de44fc473dd4270cf5a9be323743",
+      "signature": "map-v2:bc0734a986a576959bc1577d6a2cba630a18de44fc473dd4270cf5a9be323743",
       "sourceBytes": 88878684,
       "bytes": 26614460,
       "ratio": 0.2994,
@@ -258,7 +258,7 @@
       "geometryBytes": 19291349
     },
     "imola_circuit_2024_layout": {
-      "signature": "map-v1:367e417073397460674b2aeb337d66b74b24dd3cdf5c61e5dde7ffe0eb6f7881",
+      "signature": "map-v2:367e417073397460674b2aeb337d66b74b24dd3cdf5c61e5dde7ffe0eb6f7881",
       "sourceBytes": 161234356,
       "bytes": 58404556,
       "ratio": 0.3622,
@@ -273,7 +273,7 @@
       "geometryBytes": 47132629
     },
     "indianapolis_motor_speedway_2000s_layout": {
-      "signature": "map-v1:77e30e2f2a8c5395e24bb1d277b33696db50de4be70b7f09701b958f6006f110",
+      "signature": "map-v2:77e30e2f2a8c5395e24bb1d277b33696db50de4be70b7f09701b958f6006f110",
       "sourceBytes": 88113756,
       "bytes": 40395504,
       "ratio": 0.4584,
@@ -285,10 +285,10 @@
       "materials": 100,
       "textures": 98,
       "imageBytes": 1908494,
-      "geometryBytes": 38376544
+      "geometryBytes": 38376545
     },
     "indianapolis_motor_speedway_2000s_oval_layout": {
-      "signature": "map-v1:abdf4afa33080366f0eadb96ea13a1e54af99259677d6fd8709e976ba1419f4c",
+      "signature": "map-v2:abdf4afa33080366f0eadb96ea13a1e54af99259677d6fd8709e976ba1419f4c",
       "sourceBytes": 88113756,
       "bytes": 40292612,
       "ratio": 0.4573,
@@ -303,7 +303,7 @@
       "geometryBytes": 38273650
     },
     "le_mans_karting_international_2020s_layout": {
-      "signature": "map-v1:60a03aa138dc4c7c9fde81783f6d66bb0cf15047f7ceb273a6415bc5e7df843b",
+      "signature": "map-v2:60a03aa138dc4c7c9fde81783f6d66bb0cf15047f7ceb273a6415bc5e7df843b",
       "sourceBytes": 63103040,
       "bytes": 14380636,
       "ratio": 0.2279,
@@ -318,7 +318,7 @@
       "geometryBytes": 5323651
     },
     "monza_circuit_2020_layout": {
-      "signature": "map-v1:0060f8ae78415264cb5b415430c550c51f9b8766e0f9c795ef677fcaf67dd5bb",
+      "signature": "map-v2:0060f8ae78415264cb5b415430c550c51f9b8766e0f9c795ef677fcaf67dd5bb",
       "sourceBytes": 147690912,
       "bytes": 52225628,
       "ratio": 0.3536,
@@ -333,7 +333,7 @@
       "geometryBytes": 42204600
     },
     "nurburgring_gp_2016_layout": {
-      "signature": "map-v1:a72ad8c8f93ece065b3611e42c599987c1532eb08f2e82c962da6199d5832c53",
+      "signature": "map-v2:a72ad8c8f93ece065b3611e42c599987c1532eb08f2e82c962da6199d5832c53",
       "sourceBytes": 90307128,
       "bytes": 23191112,
       "ratio": 0.2568,
@@ -348,7 +348,7 @@
       "geometryBytes": 8994675
     },
     "redbull_ring_2025_layout": {
-      "signature": "map-v1:812abf35ad128b6d1a38ee226416caa2ecd596d2d93dd04aada39b5eb2a03f5e",
+      "signature": "map-v2:812abf35ad128b6d1a38ee226416caa2ecd596d2d93dd04aada39b5eb2a03f5e",
       "sourceBytes": 64523120,
       "bytes": 29485260,
       "ratio": 0.457,
@@ -363,7 +363,7 @@
       "geometryBytes": 26534583
     },
     "suzuka-circuit-2001-layout": {
-      "signature": "map-v1:24b3958d08f403ac4a33ef4522337d2e9087007c5a10f61838bf2a15f127464f",
+      "signature": "map-v2:24b3958d08f403ac4a33ef4522337d2e9087007c5a10f61838bf2a15f127464f",
       "sourceBytes": 62001444,
       "bytes": 19055232,
       "ratio": 0.3073,

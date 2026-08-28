@@ -1419,6 +1419,7 @@ function isMaskLikeTexture(tex) {
 // Nappal fény nélkül, éjszaka megvilágítva — a váltást az applyEnvLighting
 // végzi a HDRI mért fényessége alapján.
 const FOLIAGE_MIN_HEIGHT = 10;
+const FOLIAGE_ALPHA_TEST = 0.5;
 let unlitFoliage = true;
 const foliageMeshes = [];          // { mesh, lit, unlit }
 
@@ -1433,12 +1434,25 @@ function applyFoliageShading(track) {
     // kapcsoló oda-vissza működik, és nem kell újratölteni a pályát.
     const unlit = mats.map((m) => {
       if (!m) return m;
+
+      // A lombozatot itt már a geometriája alapján biztosan felismertük.
+      // Ne függjön a mélységi maszkolása az isMaskLikeTexture()
+      // képpont-vizsgálatától: a PNG/JPEG képek Canvasba rajzolhatók, a
+      // KTX2Loader CompressedTexture eredménye viszont nem. Emiatt az
+      // optimalizált pályákon a vizsgálat csendben false lett, a hatalmas
+      // fakártyák pedig depthWrite nélkül ismét rossz sorrendben rajzolódtak.
+      // Az eredeti javítás két lényegi értékét itt mind a nappali, mind az
+      // éjszakai anyag megkapja.
+      m.alphaTest = Math.max(m.alphaTest || 0, FOLIAGE_ALPHA_TEST);
+      m.depthWrite = true;
+      m.needsUpdate = true;
+
       const b = new THREE.MeshBasicMaterial({
         map: m.map || null,
         color: m.map ? 0xffffff : (m.color ? m.color.clone() : 0xffffff),
         transparent: m.transparent,
-        alphaTest: m.alphaTest,
-        depthWrite: m.depthWrite,
+        alphaTest: Math.max(m.alphaTest || 0, FOLIAGE_ALPHA_TEST),
+        depthWrite: true,
         side: m.side,
         fog: true,
       });

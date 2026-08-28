@@ -343,8 +343,8 @@ Első futáskor az eredeti GLB-t a webrooton kívüli
 `masters/maps/<pálya-id>/` mappába menti, majd a publikus helyére Meshopt
 geometriás és KTX2 textúrás kiadást generál. A látható geometriát nem
 egyszerűsíti (csak a már összecsukott, kirajzolhatatlan vágólapokat hagyhatja
-el), az attribútumokat nem kvantálja, és a `collision.bin`-hez nem nyúl. A kapcsolódó
-dev eszközök mindig a mastert használják. Az összes pálya feldolgozásához hagyd
+el), az attribútumokat nem kvantálja, az eredeti anyag-átlátszóságot megőrzi,
+és a `collision.bin`-hez nem nyúl. A kapcsolódó dev eszközök mindig a mastert használják. Az összes pálya feldolgozásához hagyd
 el a pályaazonosítót; részletek: [tools/README.md](tools/README.md).
 
 ## Autók feldolgozása

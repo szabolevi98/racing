@@ -5,7 +5,8 @@ import fsp from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  MAP_PIPELINE_VERSION, alreadyOptimized, collapsedIndexedTriangleCount, triangleCount,
+  MAP_PIPELINE_VERSION, alreadyOptimized, collapsedIndexedTriangleCount,
+  restoreMaterialAlphaSemantics, triangleCount,
 } from '../tools/build-maps.mjs';
 
 const main = fs.readFileSync(new URL('../web/main.js', import.meta.url), 'utf8');
@@ -24,10 +25,29 @@ test('map optimizer recognizes compression and counts unchanged primitives', () 
       { mode: 5, attributes: { POSITION: 1 } },
     ] }],
   };
-  assert.equal(MAP_PIPELINE_VERSION, 1);
+  assert.equal(MAP_PIPELINE_VERSION, 2);
   assert.equal(alreadyOptimized(gltf), true);
   assert.equal(triangleCount(gltf), 4 + 6);
   assert.equal(alreadyOptimized({ extensionsUsed: [] }), false);
+});
+
+test('map optimizer preserves authored foliage transparency semantics', () => {
+  const source = { materials: [
+    { name: 'trees', alphaMode: 'BLEND' },
+    { name: 'fence', alphaMode: 'MASK', alphaCutoff: 0.37 },
+    { name: 'road' },
+  ] };
+  const candidate = { materials: [
+    { name: 'trees' },
+    { name: 'fence', alphaMode: 'MASK' },
+    { name: 'road', alphaMode: 'BLEND' },
+  ] };
+
+  assert.equal(restoreMaterialAlphaSemantics(source, candidate), 3);
+  assert.equal(candidate.materials[0].alphaMode, 'BLEND');
+  assert.equal(candidate.materials[1].alphaMode, 'MASK');
+  assert.equal(candidate.materials[1].alphaCutoff, 0.37);
+  assert.equal(candidate.materials[2].alphaMode, undefined);
 });
 
 test('map optimizer only discounts explicitly collapsed cutter triangles', async () => {

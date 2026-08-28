@@ -13,7 +13,7 @@ const METADATA_FILE = path.join(MASTERS_DIR, 'manifest.json');
 
 // A növelése minden pályát újrageneráltat. A forrásmodellhez nem nyúlunk:
 // abból készül a webroot alatti, letöltésre szánt változat.
-export const MAP_PIPELINE_VERSION = 1;
+export const MAP_PIPELINE_VERSION = 2;
 const IGNORED_DIRS = /^(not_used|[_.].*)$/i;
 const PACK_ARGS = Object.freeze([
   // Meshopt tömörítés, de attribútum-kvantálás nélkül: a pálya csúcsai és UV-i
@@ -221,6 +221,71 @@ export function alreadyOptimized(gltf) {
     || hasExtension(gltf, 'KHR_texture_basisu');
 }
 
+// A gltfpack az általa teljesen fedettnek ítélt BLEND textúrákat OPAQUE-ra
+// válthatja. Ezeknél a pályáknál azonban a szerző által megadott BLEND egyben
+// a fakártyák szemantikája is: ebből ismeri fel őket a kliens, hogy megkapják a
+// korábbi mélységi és megvilágítási javítást. A master beállítása ezért
+// szerzői adat, nem eldobható optimalizációs részlet.
+export function restoreMaterialAlphaSemantics(source, candidate) {
+  const sourceByName = new Map((source.materials || [])
+    .filter((material) => material.name)
+    .map((material) => [material.name, material]));
+  let changes = 0;
+  for (const material of candidate.materials || []) {
+    const original = sourceByName.get(material.name);
+    if (!original) continue;
+
+    const sourceMode = original.alphaMode || 'OPAQUE';
+    const candidateMode = material.alphaMode || 'OPAQUE';
+    if (sourceMode !== candidateMode) {
+      if (sourceMode === 'OPAQUE') delete material.alphaMode;
+      else material.alphaMode = sourceMode;
+      changes++;
+    }
+
+    // Az alphaCutoff csak MASK módban számít; a hiánya a glTF szerint 0.5.
+    if (sourceMode === 'MASK') {
+      const sourceCutoff = original.alphaCutoff ?? 0.5;
+      const candidateCutoff = material.alphaCutoff ?? 0.5;
+      if (sourceCutoff !== candidateCutoff) {
+        if (original.alphaCutoff == null) delete material.alphaCutoff;
+        else material.alphaCutoff = original.alphaCutoff;
+        changes++;
+      }
+    }
+  }
+  return changes;
+}
+
+async function rewriteGlbJson(file, document) {
+  const input = await fs.readFile(file);
+  // A teljes fájlt itt már csak a legfeljebb ~80 MB-os generált jelöltből
+  // olvassuk, nem a 200 MB-os masterből. A BIN chunk tartalma bájtra megmarad.
+  readGlbJson(input);
+  const oldJsonLength = input.readUInt32LE(12);
+  const oldTailOffset = 20 + oldJsonLength;
+  const json = Buffer.from(JSON.stringify(document));
+  const paddedJsonLength = Math.ceil(json.length / 4) * 4;
+  const output = Buffer.allocUnsafe(20 + paddedJsonLength + input.length - oldTailOffset);
+  input.copy(output, 0, 0, 12);
+  output.writeUInt32LE(output.length, 8);
+  output.writeUInt32LE(paddedJsonLength, 12);
+  output.writeUInt32LE(0x4e4f534a, 16);
+  output.fill(0x20, 20, 20 + paddedJsonLength);
+  json.copy(output, 20);
+  input.copy(output, 20 + paddedJsonLength, oldTailOffset);
+  await fs.writeFile(file, output);
+}
+
+async function restoreCandidateMaterialSemantics(sourceFile, candidateFile) {
+  const [source, candidate] = await Promise.all([
+    readGlbFileJson(sourceFile), readGlbFileJson(candidateFile),
+  ]);
+  const changes = restoreMaterialAlphaSemantics(source, candidate);
+  if (changes) await rewriteGlbJson(candidateFile, candidate);
+  return changes;
+}
+
 async function hashFile(file) {
   const hash = createHash('sha256');
   const handle = await fs.open(file, 'r');
@@ -315,6 +380,19 @@ async function validateCandidate(sourceFile, candidateFile) {
   }
   assertNamesPreserved('Node', source.nodes, candidate.nodes);
   assertNamesPreserved('Anyag', source.materials, candidate.materials);
+  const candidateMaterials = new Map((candidate.materials || [])
+    .map((material) => [material.name, material]));
+  for (const material of source.materials || []) {
+    const output = candidateMaterials.get(material.name);
+    if (!output) continue;
+    const sourceMode = material.alphaMode || 'OPAQUE';
+    const outputMode = output.alphaMode || 'OPAQUE';
+    const sourceCutoff = sourceMode === 'MASK' ? material.alphaCutoff ?? 0.5 : null;
+    const outputCutoff = outputMode === 'MASK' ? output.alphaCutoff ?? 0.5 : null;
+    if (sourceMode !== outputMode || sourceCutoff !== outputCutoff) {
+      throw new Error(`Az anyag átlátszósága megváltozott: ${material.name}.`);
+    }
+  }
   return {
     triangles: outputTriangles,
     // Csak akkor tároljuk a különbséget, ha volt korábbi objektumvágás. Így a
@@ -376,11 +454,13 @@ async function buildMap(executable, id, options, previous) {
       '-i', masterFile, '-o', candidate,
       ...PACK_ARGS, '-tj', String(threads), '-r', reportFile,
     ]);
+    const restoredMaterials = await restoreCandidateMaterialSemantics(masterFile, candidate);
     const structure = await validateCandidate(masterFile, candidate);
     const candidateStat = await fs.stat(candidate);
     const report = await readJson(reportFile, {});
     await replaceRuntime(candidate, runtimeFile);
-    console.log(`  ✓ ${(candidateStat.size / 1048576).toFixed(1)} MB, ${structure.triangles.toLocaleString('hu-HU')} háromszög`);
+    const materialNote = restoredMaterials ? `, ${restoredMaterials} alpha-beállítás visszaállítva` : '';
+    console.log(`  ✓ ${(candidateStat.size / 1048576).toFixed(1)} MB, ${structure.triangles.toLocaleString('hu-HU')} háromszög${materialNote}`);
     return {
       changed: true,
       metadata: {
