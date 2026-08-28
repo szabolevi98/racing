@@ -235,13 +235,11 @@
   "mp.roomCountOne": "1 Raum",
   "mp.roomCount": "{n} Räume",
   "menu.credits": "Die meisten 3D-Modelle von",
-  "dataWarning.title": "Großer Download steht an",
   "dataWarning.body": "Der Spielstart lädt etwa {mb} MB herunter.",
   "dataWarning.note": "WLAN empfohlen. Über Mobilfunk kann das spürbar Datenvolumen kosten.",
   "dataWarning.remember": "Auf diesem Gerät nicht mehr fragen",
   "dataWarning.cancel": "Abbrechen",
   "dataWarning.continue": "Fortfahren",
-  "dataWarning.cancelledTitle": "Download abgebrochen",
   "dataWarning.cancelledBody": "Das Spiel wurde nicht geladen. Tippe auf die Schaltfläche, wenn du es dir anders überlegst.",
   "dataWarning.loadAnyway": "Trotzdem laden",
   "dataWarning.more": "Später lädt jeder Streckenwechsel {mapMin}–{mapMax} MB und jeder Fahrzeugwechsel {carMin}–{carMax} MB nach."

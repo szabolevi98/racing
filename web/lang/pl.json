@@ -235,13 +235,11 @@
   "mp.roomCountOne": "1 pokój",
   "mp.roomCount": "{n} pokoi",
   "menu.credits": "Większość modeli 3D wykonał",
-  "dataWarning.title": "Duże pobieranie",
   "dataWarning.body": "Uruchomienie gry pobiera około {mb} MB.",
   "dataWarning.note": "Zalecane Wi-Fi. Przez dane komórkowe może to sporo kosztować.",
   "dataWarning.remember": "Nie pytaj ponownie na tym urządzeniu",
   "dataWarning.cancel": "Anuluj",
   "dataWarning.continue": "Kontynuuj",
-  "dataWarning.cancelledTitle": "Pobieranie anulowane",
   "dataWarning.cancelledBody": "Gra nie została wczytana. Dotknij przycisku, jeśli zmienisz zdanie.",
   "dataWarning.loadAnyway": "Pobierz mimo to",
   "dataWarning.more": "Później każda zmiana toru pobiera {mapMin}–{mapMax} MB, a każda zmiana auta {carMin}–{carMax} MB."

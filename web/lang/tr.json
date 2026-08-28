@@ -235,13 +235,11 @@
   "mp.roomCountOne": "1 oda",
   "mp.roomCount": "{n} oda",
   "menu.credits": "3B modellerin çoğu:",
-  "dataWarning.title": "Büyük indirme başlıyor",
   "dataWarning.body": "Oyunu başlatmak yaklaşık {mb} MB indirir.",
   "dataWarning.note": "Wi-Fi önerilir. Mobil veride bu hatırı sayılır olabilir.",
   "dataWarning.remember": "Bu cihazda bir daha sorma",
   "dataWarning.cancel": "Vazgeç",
   "dataWarning.continue": "Devam",
-  "dataWarning.cancelledTitle": "İndirme iptal edildi",
   "dataWarning.cancelledBody": "Oyun yüklenmedi. Fikrini değiştirirsen düğmeye dokun.",
   "dataWarning.loadAnyway": "Yine de indir",
   "dataWarning.more": "Sonrasında her pist değişimi {mapMin}–{mapMax} MB, her araç değişimi {carMin}–{carMax} MB indirir."

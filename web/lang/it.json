@@ -235,13 +235,11 @@
   "mp.roomCountOne": "1 stanza",
   "mp.roomCount": "{n} stanze",
   "menu.credits": "La maggior parte dei modelli 3D è di",
-  "dataWarning.title": "Download di grandi dimensioni",
   "dataWarning.body": "L’avvio del gioco scarica circa {mb} MB.",
   "dataWarning.note": "Consigliato il Wi-Fi. Con la rete mobile può consumare parecchio.",
   "dataWarning.remember": "Non chiedere più su questo dispositivo",
   "dataWarning.cancel": "Annulla",
   "dataWarning.continue": "Continua",
-  "dataWarning.cancelledTitle": "Download annullato",
   "dataWarning.cancelledBody": "Il gioco non è stato caricato. Tocca il pulsante se cambi idea.",
   "dataWarning.loadAnyway": "Scarica comunque",
   "dataWarning.more": "In seguito, ogni cambio di circuito scarica {mapMin}–{mapMax} MB e ogni cambio di auto {carMin}–{carMax} MB."

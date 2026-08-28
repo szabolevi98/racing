@@ -154,8 +154,7 @@ kbd.k {
   display: block; margin: 0 auto 12px;
   width: clamp(48px, 14vw, 64px); height: auto; border-radius: 14px;
 }
-.data-warning-box h2 { font-size: clamp(19px, 5.5vw, 24px); font-weight: 750; margin-bottom: 12px; }
-#dataWarningBody { font-size: clamp(15px, 4.2vw, 17px); line-height: 1.45; margin-bottom: 8px; }
+.data-warning-box h2 { font-size: clamp(17px, 4.8vw, 21px); font-weight: 750; line-height: 1.35; margin-bottom: 10px; }
 .data-warning-note { font-size: clamp(13px, 3.6vw, 15px); color: var(--muted, #9aa4b2); line-height: 1.45; }
 .data-warning-remember {
   display: flex; align-items: center; justify-content: center; gap: 8px;

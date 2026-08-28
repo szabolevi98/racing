@@ -35,8 +35,10 @@
   <div class="data-warning-box">
     <img class="data-warning-icon" src="favicon.svg" alt="" aria-hidden="true"
          width="64" height="64">
-    <h2 id="dataWarningTitle" data-i18n="dataWarning.title">Nagy letöltés következik</h2>
-    <p id="dataWarningBody">A játék indításához kb. 120 MB tölt le.</p>
+    <!-- A cím MAGA a lényeg: a méret. Külön "Nagy letöltés következik"
+         felirat csak sort venne el anélkül, hogy bármit hozzátenne. A
+         szöveget a JS tölti ki, mert a szám a manifestből jön. -->
+    <h2 id="dataWarningTitle"></h2>
     <p class="data-warning-note" data-i18n="dataWarning.note">
       Wifin ajánlott. Mobilneten ez érezhető adatforgalom lehet.
     </p>

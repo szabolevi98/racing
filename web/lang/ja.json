@@ -235,13 +235,11 @@
   "mp.roomCountOne": "1 ルーム",
   "mp.roomCount": "{n} ルーム",
   "menu.credits": "3D モデルの多くの制作者:",
-  "dataWarning.title": "大きなダウンロードが始まります",
   "dataWarning.body": "ゲームの起動には約 {mb} MB のダウンロードが必要です。",
   "dataWarning.note": "Wi-Fi を推奨します。モバイル通信ではデータ量がかさむ場合があります。",
   "dataWarning.remember": "この端末では次回から確認しない",
   "dataWarning.cancel": "キャンセル",
   "dataWarning.continue": "続行",
-  "dataWarning.cancelledTitle": "ダウンロードを中止しました",
   "dataWarning.cancelledBody": "ゲームは読み込まれていません。気が変わったらボタンをタップしてください。",
   "dataWarning.loadAnyway": "それでもダウンロード",
   "dataWarning.more": "その後もコース変更ごとに {mapMin}〜{mapMax} MB、車両変更ごとに {carMin}〜{carMax} MB をダウンロードします。"

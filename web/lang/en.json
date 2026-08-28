@@ -235,13 +235,11 @@
   "mp.roomCountOne": "1 room",
   "mp.roomCount": "{n} rooms",
   "menu.credits": "Most 3D models by",
-  "dataWarning.title": "Large download ahead",
   "dataWarning.body": "Starting the game downloads about {mb} MB.",
   "dataWarning.note": "Wi-Fi recommended. On mobile data this can use a noticeable amount.",
   "dataWarning.remember": "Do not ask again on this device",
   "dataWarning.cancel": "Cancel",
   "dataWarning.continue": "Continue",
-  "dataWarning.cancelledTitle": "Download cancelled",
   "dataWarning.cancelledBody": "The game did not load. Tap the button if you change your mind.",
   "dataWarning.loadAnyway": "Download anyway",
   "dataWarning.more": "Later, each track change downloads {mapMin}–{mapMax} MB and each car change {carMin}–{carMax} MB."

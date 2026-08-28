@@ -235,13 +235,11 @@
   "mp.roomCountOne": "1 sala",
   "mp.roomCount": "{n} salas",
   "menu.credits": "A maioria dos modelos 3D é de",
-  "dataWarning.title": "Descarga grande a seguir",
   "dataWarning.body": "Iniciar o jogo descarrega cerca de {mb} MB.",
   "dataWarning.note": "Wi-Fi recomendado. Em dados móveis pode consumir bastante.",
   "dataWarning.remember": "Não perguntar novamente neste dispositivo",
   "dataWarning.cancel": "Cancelar",
   "dataWarning.continue": "Continuar",
-  "dataWarning.cancelledTitle": "Descarga cancelada",
   "dataWarning.cancelledBody": "O jogo não carregou. Toca no botão se mudares de ideias.",
   "dataWarning.loadAnyway": "Descarregar mesmo assim",
   "dataWarning.more": "Depois, cada mudança de pista descarrega {mapMin}–{mapMax} MB e cada mudança de carro {carMin}–{carMax} MB."

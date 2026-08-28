@@ -235,13 +235,11 @@
   "mp.roomCountOne": "1 комната",
   "mp.roomCount": "комнат: {n}",
   "menu.credits": "Большинство 3D-моделей —",
-  "dataWarning.title": "Предстоит большая загрузка",
   "dataWarning.body": "Запуск игры загрузит около {mb} МБ.",
   "dataWarning.note": "Рекомендуется Wi-Fi. В мобильной сети это заметный трафик.",
   "dataWarning.remember": "Больше не спрашивать на этом устройстве",
   "dataWarning.cancel": "Отмена",
   "dataWarning.continue": "Продолжить",
-  "dataWarning.cancelledTitle": "Загрузка отменена",
   "dataWarning.cancelledBody": "Игра не загрузилась. Нажмите кнопку, если передумаете.",
   "dataWarning.loadAnyway": "Всё равно загрузить",
   "dataWarning.more": "Позже каждая смена трассы загружает {mapMin}–{mapMax} МБ, а каждая смена машины — {carMin}–{carMax} МБ."

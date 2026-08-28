@@ -4334,7 +4334,7 @@ async function askAboutMobileData(bytes, manifest) {
   if (loadLastChoice('dataWarning', '0') === '1') return;
 
   const mb = Math.max(1, Math.round(bytes / 1048576));
-  document.getElementById('dataWarningBody').textContent = t('dataWarning.body', { mb });
+  document.getElementById('dataWarningTitle').textContent = t('dataWarning.body', { mb });
 
   // A fenti szám csak az INDULÁS költsége. Pálya- és autóváltáskor újabb
   // fájlok jönnek, ezért a tartományukat is kiírjuk — a manifestből, hogy új
@@ -4371,9 +4371,8 @@ async function askAboutMobileData(bytes, manifest) {
     // hagyhatunk magunk után: a panel marad, csak elmondja, mi a helyzet, és
     // egyetlen gombbal újra indítható a letöltés.
     const megse = () => {
-      document.getElementById('dataWarningTitle').textContent = t('dataWarning.cancelledTitle');
-      document.getElementById('dataWarningBody').textContent = t('dataWarning.cancelledBody');
-      panel.querySelector('.data-warning-note').classList.add('hidden');
+      document.getElementById('dataWarningTitle').textContent = t('dataWarning.cancelledBody');
+      panel.querySelectorAll('.data-warning-note').forEach((el) => el.classList.add('hidden'));
       panel.querySelector('.data-warning-remember').classList.add('hidden');
       cancelBtn.classList.add('hidden');
       contBtn.textContent = t('dataWarning.loadAnyway');

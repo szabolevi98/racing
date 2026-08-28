@@ -235,13 +235,11 @@
   "mp.roomCountOne": "1 salon",
   "mp.roomCount": "{n} salons",
   "menu.credits": "La plupart des modèles 3D par",
-  "dataWarning.title": "Téléchargement volumineux",
   "dataWarning.body": "Le lancement du jeu télécharge environ {mb} Mo.",
   "dataWarning.note": "Wi-Fi recommandé. En données mobiles, cela peut consommer beaucoup.",
   "dataWarning.remember": "Ne plus demander sur cet appareil",
   "dataWarning.cancel": "Annuler",
   "dataWarning.continue": "Continuer",
-  "dataWarning.cancelledTitle": "Téléchargement annulé",
   "dataWarning.cancelledBody": "Le jeu n’a pas été chargé. Touchez le bouton si vous changez d’avis.",
   "dataWarning.loadAnyway": "Télécharger quand même",
   "dataWarning.more": "Ensuite, chaque changement de circuit télécharge {mapMin} à {mapMax} Mo et chaque changement de voiture {carMin} à {carMax} Mo."

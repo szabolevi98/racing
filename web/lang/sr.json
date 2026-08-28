@@ -235,13 +235,11 @@
   "mp.roomCountOne": "1 soba",
   "mp.roomCount": "{n} soba",
   "menu.credits": "Većinu 3D modela je napravio",
-  "dataWarning.title": "Sledi veliko preuzimanje",
   "dataWarning.body": "Pokretanje igre preuzima oko {mb} MB.",
   "dataWarning.note": "Preporučuje se Wi-Fi. Na mobilnim podacima ovo može biti osetno.",
   "dataWarning.remember": "Ne pitaj ponovo na ovom uređaju",
   "dataWarning.cancel": "Otkaži",
   "dataWarning.continue": "Nastavi",
-  "dataWarning.cancelledTitle": "Preuzimanje otkazano",
   "dataWarning.cancelledBody": "Igra nije učitana. Dodirni dugme ako se predomisliš.",
   "dataWarning.loadAnyway": "Ipak preuzmi",
   "dataWarning.more": "Kasnije svaka promena staze preuzima {mapMin}–{mapMax} MB, a svaka promena auta {carMin}–{carMax} MB."

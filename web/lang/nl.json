@@ -235,13 +235,11 @@
   "mp.roomCountOne": "1 kamer",
   "mp.roomCount": "{n} kamers",
   "menu.credits": "De meeste 3D-modellen zijn van",
-  "dataWarning.title": "Grote download op komst",
   "dataWarning.body": "Het spel starten downloadt ongeveer {mb} MB.",
   "dataWarning.note": "Wifi aanbevolen. Via mobiele data kan dit flink aantikken.",
   "dataWarning.remember": "Niet meer vragen op dit apparaat",
   "dataWarning.cancel": "Annuleren",
   "dataWarning.continue": "Doorgaan",
-  "dataWarning.cancelledTitle": "Download geannuleerd",
   "dataWarning.cancelledBody": "Het spel is niet geladen. Tik op de knop als je van gedachten verandert.",
   "dataWarning.loadAnyway": "Toch downloaden",
   "dataWarning.more": "Daarna downloadt elke circuitwissel {mapMin}–{mapMax} MB en elke autowissel {carMin}–{carMax} MB."

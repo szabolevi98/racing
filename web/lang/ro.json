@@ -235,13 +235,11 @@
   "mp.roomCountOne": "1 cameră",
   "mp.roomCount": "{n} camere",
   "menu.credits": "Majoritatea modelelor 3D sunt realizate de",
-  "dataWarning.title": "Urmează o descărcare mare",
   "dataWarning.body": "Pornirea jocului descarcă aproximativ {mb} MB.",
   "dataWarning.note": "Se recomandă Wi-Fi. Pe date mobile poate consuma considerabil.",
   "dataWarning.remember": "Nu mai întreba pe acest dispozitiv",
   "dataWarning.cancel": "Anulează",
   "dataWarning.continue": "Continuă",
-  "dataWarning.cancelledTitle": "Descărcare anulată",
   "dataWarning.cancelledBody": "Jocul nu s-a încărcat. Atinge butonul dacă te răzgândești.",
   "dataWarning.loadAnyway": "Descarcă oricum",
   "dataWarning.more": "Ulterior, fiecare schimbare de circuit descarcă {mapMin}–{mapMax} MB, iar fiecare schimbare de mașină {carMin}–{carMax} MB."
