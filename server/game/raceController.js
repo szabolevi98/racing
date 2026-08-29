@@ -8,7 +8,7 @@ import {
   S2C, ROOM_STATE, GAME_MODE, TAINT, SNAPSHOT_RATE, requiredCheckpoints, FINISH_GRACE_MS,
 } from '../../shared/protocol.js';
 import { gridSlotPose, hotLapStartPose } from '../../shared/grid.js';
-import { crossingTime, gateRespawnPoint } from '../../shared/gate.js';
+import { crossingTime, gateRespawnPoint, headingToNextGate } from '../../shared/gate.js';
 import {
   allWheelsOffTrack, sampleZone, wheelProbes, ZONE_ASPHALT,
 } from '../../shared/zone.js';
@@ -496,6 +496,21 @@ export class RaceController {
     );
   }
 
+  // A visszaállítási pont ÉS irány egy kapun áthaladáskor — a kliens
+  // checkpointSpawnAt()-jának párja. A kettő nem térhet el: ugyanaz az R
+  // fut egyjátékos módban és multiplayerben.
+  respawnAtCrossing(gate, crossedIndex, car, fromX, fromZ, toX, toZ) {
+    const gates = this.map?.gates || {};
+    const point = this.respawnPoint(gate, fromX, fromZ, toX, toZ);
+    return {
+      ...point,
+      heading: headingToNextGate(
+        point.x, point.z, crossedIndex, gates.checkpoints, gates.start,
+        headingFrom(fromX, fromZ, toX, toZ, car.respawn.heading)
+      ),
+    };
+  }
+
   restartCheckpointRejectedLap(car, crossedAt, checkpointCount) {
     const r = car.race;
     const baseKey = r.lap * (checkpointCount + 1);
@@ -572,10 +587,7 @@ export class RaceController {
           // ténylegesen átlépett checkpoint után ne dobjon vissza a kihagyás
           // előtti pontra. Ettől nem lesz érvényes a levágás, csak a respawn
           // viselkedik ugyanúgy, mint singleplayerben.
-          car.respawn = {
-            ...this.respawnPoint(checkpoints[i], fromX, fromZ, x, z),
-            heading: headingFrom(fromX, fromZ, x, z, car.respawn.heading),
-          };
+          car.respawn = this.respawnAtCrossing(checkpoints[i], i, car, fromX, fromZ, x, z);
         }
       }
     }
@@ -598,10 +610,7 @@ export class RaceController {
       this.beginGhostRecording(car, crossedAt);
       r.progressKey = r.lap * (checkpoints.length + 1);
       r.splits.set(r.progressKey, crossedAt);
-      car.respawn = {
-        ...this.respawnPoint(gates.start, fromX, fromZ, x, z),
-        heading: headingFrom(fromX, fromZ, x, z, car.respawn.heading),
-      };
+      car.respawn = this.respawnAtCrossing(gates.start, -1, car, fromX, fromZ, x, z);
       return;
     }
     if (r.passed.size < requiredCheckpoints(checkpoints.length)) {
@@ -610,10 +619,7 @@ export class RaceController {
       return;
     }
 
-    car.respawn = {
-      ...this.respawnPoint(gates.start, fromX, fromZ, x, z),
-      heading: headingFrom(fromX, fromZ, x, z, car.respawn.heading),
-    };
+    car.respawn = this.respawnAtCrossing(gates.start, -1, car, fromX, fromZ, x, z);
     // Egy kihagyott kapu érvényteleníti a kört, de nem takaríthat meg kopást.
     // A már átlépett checkpointok menet közben fogytak el, itt csak a hiányzó
     // részt számoljuk hozzá, hogy minden lezárt kör pontosan 1/4 szett legyen.

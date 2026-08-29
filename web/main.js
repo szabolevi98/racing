@@ -25,7 +25,7 @@ import {
 } from '/shared/tireWear.js';
 import { restHeightAboveGround } from '/shared/spawnRest.js';
 import { gridSlotPose, hotLapStartPose } from '/shared/grid.js';
-import { crossingTime, gateRespawnPoint } from '/shared/gate.js';
+import { crossingTime, gateRespawnPoint, headingToNextGate } from '/shared/gate.js';
 import { classifyPing, shouldWarnAboutPing } from '/shared/ping.js';
 import {
   DEFAULT_GRAPHICS_QUALITY, graphicsProfile,
@@ -3376,6 +3376,20 @@ function headingFromMovement(fromX, fromZ, toX, toZ, fallback) {
   return Math.atan2(dx, dz);
 }
 
+// Az R visszaállítási pontja és iránya egy kapun áthaladáskor. A pont ott van,
+// ahol a kocsi átlépte a vonalat; az irány a következő kapu közepe felé néz,
+// és csak akkor esik vissza a haladási irányra, ha nincs következő kapu.
+function checkpointSpawnAt(gate, crossedIndex, fromX, fromZ, toX, toZ) {
+  const point = respawnPointAtCrossing(gate, fromX, fromZ, toX, toZ);
+  return {
+    ...point,
+    heading: headingToNextGate(
+      point.x, point.z, crossedIndex, currentGates.checkpoints, currentGates.start,
+      headingFromMovement(fromX, fromZ, toX, toZ, lastCheckpointSpawn?.heading ?? spawnHeading)
+    ),
+  };
+}
+
 function formatTime(ms) {
   if (!isFinite(ms) || ms < 0) return '--:--.---';
   const totalSec = ms / 1000;
@@ -3597,10 +3611,9 @@ function updateRace(dt) {
     if (race.hasCrossedStart && firstCrossing) {
       advanceTireWearByCheckpoints(race.tires, 1, checkpoints.length);
     }
-    lastCheckpointSpawn = {
-      ...respawnPointAtCrossing(checkpoints[crossedCheckpoint], fromX, fromZ, pos.x, pos.z),
-      heading: headingFromMovement(fromX, fromZ, pos.x, pos.z, lastCheckpointSpawn?.heading ?? spawnHeading),
-    };
+    lastCheckpointSpawn = checkpointSpawnAt(
+      checkpoints[crossedCheckpoint], crossedCheckpoint, fromX, fromZ, pos.x, pos.z
+    );
     // Az első érvényes kör előtt még nincs mihez mérni. Utána mindig az
     // eddigi LEGJOBB érvényes kör azonos checkpointja a referencia; lassabb
     // vagy érvénytelen kör nem írhatja felül.
@@ -3647,10 +3660,9 @@ function updateRace(dt) {
     race.lapStartTime = startCrossedAt;
     race.lapSplits = [];
     hideSplitDelta();
-    lastCheckpointSpawn = {
-      ...respawnPointAtCrossing(currentGates.start, fromX, fromZ, pos.x, pos.z),
-      heading: headingFromMovement(fromX, fromZ, pos.x, pos.z, lastCheckpointSpawn?.heading ?? spawnHeading),
-    };
+    lastCheckpointSpawn = checkpointSpawnAt(
+      currentGates.start, -1, fromX, fromZ, pos.x, pos.z
+    );
   } else if (startCrossed && race.passed.size < requiredCheckpoints(checkpoints.length)) {
     // TÚL KEVÉS kapu: a kör NEM zárul le. Enélkül a rajtvonalon oda-vissza
     // gurulva végig lehetett "teljesíteni" a versenyt — a kapumetszés iránytól
@@ -3686,10 +3698,9 @@ function updateRace(dt) {
     race.passed.clear();
     race.lapTainted = false;
     if (invalid) race.invalidUntil = now + 2500;
-    lastCheckpointSpawn = {
-      ...respawnPointAtCrossing(currentGates.start, fromX, fromZ, pos.x, pos.z),
-      heading: headingFromMovement(fromX, fromZ, pos.x, pos.z, lastCheckpointSpawn?.heading ?? spawnHeading),
-    };
+    lastCheckpointSpawn = checkpointSpawnAt(
+      currentGates.start, -1, fromX, fromZ, pos.x, pos.z
+    );
     if (race.lap >= race.totalLaps) finishRace();
   }
 

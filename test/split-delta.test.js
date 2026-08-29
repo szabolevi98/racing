@@ -9,6 +9,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   crossingTime, gateCrossingFraction, gateRespawnPoint, ghostCheckpointSplits,
+  headingToNextGate,
 } from '../shared/gate.js';
 import { RaceController } from '../server/game/raceController.js';
 import { Room } from '../server/game/room.js';
@@ -41,6 +42,26 @@ test('reset keeps an asphalt crossing but falls back to the gate middle off trac
     gateRespawnPoint(gate, 0, 8, 20, 8, () => false),
     { x: 10, z: 0 }
   );
+});
+
+test('reset faces the next gate centre, not the direction of travel', () => {
+  // A -1 a rajtvonalat jelenti: utána az ELSŐ checkpoint jön. A rajtvonal
+  // közepéről (0,0) a 30 m-es kapu közepe (0,30) pontosan +Z, azaz 0 rad.
+  assert.equal(headingToNextGate(0, 0, -1, CHECKPOINTS, GATES.start, 9), 0);
+  // Az első checkpointról a második felé szintén egyenesen előre.
+  assert.equal(headingToNextGate(0, 30, 0, CHECKPOINTS, GATES.start, 9), 0);
+  // Az UTOLSÓ checkpoint után a rajtvonal a következő kapu — vagyis vissza,
+  // az ellenkező irányba (Math.atan2(0, -30) = PI).
+  assert.equal(headingToNextGate(0, 60, 1, CHECKPOINTS, GATES.start, 9), Math.PI);
+  // Oldalra kanyarodó kapu: a szög tényleg a kapu KÖZEPE felé mutat.
+  const oldalt = [{ x1: 10, z1: 10, x2: 30, z2: 10 }];
+  assert.equal(
+    headingToNextGate(0, 0, -1, oldalt, GATES.start, 9),
+    Math.atan2(20, 10)
+  );
+  // Nincs hova nézni, vagy pont a kapuközépen állunk: marad a tartalék.
+  assert.equal(headingToNextGate(0, 0, -1, [], null, 9), 9);
+  assert.equal(headingToNextGate(0, 30, -1, CHECKPOINTS, GATES.start, 9), 9);
 });
 
 test('ghost splits come out of the recorded path with sub-sample accuracy', () => {

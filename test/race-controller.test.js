@@ -570,6 +570,8 @@ test('a pending reset survives a long disconnect until the checkpoint pose is ac
 });
 
 test('multiplayer respawn keeps an asphalt crossing and uses gate middle off track', async () => {
+  // Az irány a KÖVETKEZŐ kapu közepe felé néz, nem a haladási irányba. Egyetlen
+  // checkpoint van, tehát utána a rajtvonal jön: annak a közepe a (0,0).
   const room = makeRoom();
   const width = 21, height = 21;
   const codes = new Uint8Array(width * height);
@@ -592,7 +594,10 @@ test('multiplayer respawn keeps an asphalt crossing and uses gate middle off tra
     car.race.prevZ = 3;
     car.race.prevAt = 1000;
     sim.receiveState('p1', wireState(1, 1100, 11, 3), { receivedAt: 1100 });
-    assert.deepEqual(car.respawn, { x: 10, z: 3, heading: Math.PI / 2 });
+    assert.deepEqual(
+      car.respawn,
+      { x: 10, z: 3, heading: Math.atan2(0 - 10, 0 - 3) }
+    );
 
     // A következő átlépési pont képpontját kifutónak jelöljük.
     const u = Math.floor((10 / 21) * width);
@@ -604,7 +609,8 @@ test('multiplayer respawn keeps an asphalt crossing and uses gate middle off tra
     car.race.prevZ = 4;
     car.race.prevAt = 1200;
     sim.receiveState('p1', wireState(2, 1300, 11, 4), { receivedAt: 1300 });
-    assert.deepEqual(car.respawn, { x: 10, z: 0, heading: Math.PI / 2 });
+    // A kapuközépre esve (10,0) a rajtvonal közepe pontosan -X irányban van.
+    assert.deepEqual(car.respawn, { x: 10, z: 0, heading: -Math.PI / 2 });
   } finally {
     sim.stop();
   }

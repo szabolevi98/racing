@@ -29,6 +29,27 @@ export function gateMidpoint(gate) {
   return { x: (gate.x1 + gate.x2) / 2, z: (gate.z1 + gate.z2) / 2 };
 }
 
+// Merre nézzen a kocsi a visszaállítás után: a SORON KÖVETKEZŐ kapu közepe
+// felé. Korábban abból számoltuk, amerre a kocsi épp haladt az átlépés
+// pillanatában — az viszont pont akkor rossz, amikor a legtöbbet számítana:
+// megpördülve, oldalazva vagy falnak csúszva átlépett kapunál a mentett irány
+// is oldalra vagy hátrafelé nézett, és az R oda állított vissza.
+//
+// `crossedIndex`: a most átlépett checkpoint indexe, vagy -1, ha a rajtvonal.
+// A rajtvonal után az első checkpoint jön, az utolsó checkpoint után a
+// rajtvonal. Ha nincs hova nézni (kapu nélküli pálya), vagy a pont pont a
+// kapuközépen áll, marad a tartalék irány.
+export function headingToNextGate(fromX, fromZ, crossedIndex, checkpoints, start, fallback) {
+  const next = crossedIndex < 0
+    ? (checkpoints?.[0] ?? start)
+    : (checkpoints?.[crossedIndex + 1] ?? start);
+  if (!next) return fallback;
+  const mid = gateMidpoint(next);
+  const dx = mid.x - fromX, dz = mid.z - fromZ;
+  if (Math.abs(dx) < 1e-4 && Math.abs(dz) < 1e-4) return fallback;
+  return Math.atan2(dx, dz);
+}
+
 // Az R visszaállítási pontja normál esetben pontosan az, ahol a kocsi a kaput
 // átlépte. Ha ez nem aszfalt (például egy széles checkpoint kifutóra nyúló
 // része), a kapu biztonságos közepére esünk vissza.
