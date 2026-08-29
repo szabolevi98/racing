@@ -1,13 +1,13 @@
 {
   "_megjegyzes": "Az ütközési háló sütésének beállításai. A dev mód \"Ütközés bekészítése\" gombja írja, és pálya kiválasztásakor vissza is tölti — így egy újrasütés ugyanazt adja.",
   "debrisFilter": true,
-  "kerbSmoothing": true,
+  "kerbSmoothing": false,
   "canopy": {
     "enabled": true,
     "minHeight": 10
   },
   "asphaltSmoothing": {
-    "enabled": true,
+    "enabled": false,
     "iterations": 3,
     "radius": 3
   }
