@@ -5178,9 +5178,12 @@ async function init() {
   if ([...lapCountSelect.options].some((o) => o.value === savedLaps)) {
     lapCountSelect.value = savedLaps;
   }
+  // Első indításkor bekapcsolva: a gumikopás és a boxkiállás a játék része,
+  // nem extra. Aki egyszer kikapcsolta, annak a mentett választása marad — a
+  // '1' csak akkor jut szóhoz, ha még semmit nem választott.
   tireWearCheckbox.checked = loadLastChoice(
     'tireWear',
-    loadLastChoice('mandatoryPitStop', '0')
+    loadLastChoice('mandatoryPitStop', '1')
   ) === '1';
   loadLeaderboard(initialMap.id);
   updateTrackAlert(initialMap);
