@@ -124,9 +124,12 @@ kbd.k {
   48%, 72% { transform: rotate(90deg); }
   100% { transform: rotate(0deg); }
 }
+/* Töltés alatt nincs értelme elfordítást kérni: a játékos még csak vár. A
+   `loading-visible` osztály már a markupban ott van, ezért a jelzés a legelső
+   festéskor sem villan fel; a betöltés végén kerül le. */
 @media (orientation: portrait) and (hover: none) and (pointer: coarse),
        (orientation: portrait) and (max-width: 600px) {
-  #orientationPrompt { display: flex; }
+  html:not(.loading-visible) #orientationPrompt { display: flex; }
 }
 @media (prefers-reduced-motion: reduce) {
   .orientation-phone { animation: none; transform: rotate(90deg); }

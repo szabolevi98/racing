@@ -156,11 +156,13 @@ function showLoadingOverlay(translucent) {
   loadingBarEl.style.width = '0%';
   loadingPctEl.textContent = '0%';
   loadingEl.style.display = 'flex';
+  document.documentElement.classList.add('loading-visible');
 }
 
 function hideLoadingOverlay() {
   loadingEl.style.display = 'none';
   loadingEl.classList.remove('overlay-translucent');
+  document.documentElement.classList.remove('loading-visible');
 }
 
 // tasks: [{ bytes, run(onProgress) => Promise }]. A %-ot fájlméret szerint
