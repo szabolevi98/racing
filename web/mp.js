@@ -3245,9 +3245,7 @@ function frame(dt = 1 / 60) {
         `<span class="lbl">${t('mp.hotLap')}</span>` +
         `<span><span class="lap-now num">${myLap + 1}</span></span>` +
       '</div>' +
-      `<div class="hud-note"><strong>${t('hud.warmUp')}</strong><br>${t('hud.warmUpHint')}</div>` +
-      `<div class="t-row"><span class="lbl">${t('hud.current')}</span><span class="t-val num">—</span></div>` +
-      `<div class="t-row"><span class="lbl">${t('hud.total')}</span><span class="t-val num">—</span></div>`
+      `<div class="hud-note"><strong>${t('hud.warmUp')}</strong><br>${t('hud.warmUpHint')}</div>`
     );
     G.setStandings('');
     return;
