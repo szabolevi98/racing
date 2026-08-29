@@ -142,7 +142,7 @@ kbd.k {
   display: none; align-items: center; justify-content: center;
   padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
     max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
-  background: rgba(11, 13, 18, .97); touch-action: none;
+  background: var(--bg); touch-action: none;
 }
 /* A `data-warning-pending` osztályt az index.html FEJLÉCÉBEN álló szkript
    teszi fel, modulon kívül — szándékosan. A modulok betöltése, a Three.js és
