@@ -39,8 +39,17 @@
 <div id="dataWarning" role="dialog" aria-modal="true"
      aria-labelledby="dataWarningTitle">
   <div class="data-warning-box">
-    <img class="data-warning-icon" src="favicon.svg" alt="" aria-hidden="true"
-         width="64" height="64">
+    <svg class="data-warning-icon" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+      <defs>
+        <linearGradient id="dwLogo" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#1e3a8a"/>
+          <stop offset="100%" stop-color="#4f7dff"/>
+        </linearGradient>
+      </defs>
+      <rect width="100" height="100" rx="22" fill="url(#dwLogo)"/>
+      <text x="50" y="50" font-family="Arial, sans-serif" font-weight="800" font-style="italic"
+            font-size="62" fill="#ffffff" text-anchor="middle" dominant-baseline="central">L</text>
+    </svg>
     <h2 id="dataWarningTitle"></h2>
     <p class="data-warning-note" data-i18n="dataWarning.note">
       Wifin ajánlott. Mobilneten ez érezhető adatforgalom lehet.
