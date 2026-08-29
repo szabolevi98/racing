@@ -285,7 +285,6 @@
   <div class="lb-foot" data-i18n="leaderboard.multiplayerOnly">Csak a többjátékos és az időmérős körök számítanak</div>
 </div>
 
-<!-- Checkpointonkénti különbség a viszonyítási körhöz képest. Rövid életű. -->
 <div id="splitDeltaAlert" class="hidden" role="status" aria-live="off">
   <span id="splitDeltaValue" class="sd-value num">+0.00</span>
   <span id="splitDeltaRef" class="sd-ref"></span>
@@ -308,7 +307,6 @@
     <div class="alert-pill danger" id="highPingAlertText"></div>
   </div>
 
-  <!-- Célba érés után: kit nézünk, és hogyan váltunk. Csak többjátékosban. -->
   <div id="spectateBar" class="hidden">
     <span class="spec-eye" aria-hidden="true">👁</span>
     <span class="spec-who"><span class="spec-lbl" data-i18n="spectate.watching">Nézőben</span><span id="spectateName" class="spec-name">—</span></span>
@@ -318,7 +316,6 @@
     </button>
   </div>
 
-  <!-- Az első befutó után indul; mindenki látja, a célba értek is. -->
   <div id="finishTimer" class="hidden" role="status" aria-live="off">
     <span class="ft-label" data-i18n="finish.raceEndsIn">A verseny véget ér</span>
     <span id="finishTimerValue" class="ft-value num">60.0</span>
@@ -341,9 +338,6 @@
     </div>
   </div>
 </div>
-
-<!-- A dev mód felülete (devHud, autó tesztelő, zóna-szerkesztő) a dev.html-ben
-     van: a dev.js kéri le és injektálja be, amikor tényleg dev módba lépsz. -->
 
 <script type="importmap">
 {
