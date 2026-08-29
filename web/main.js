@@ -4953,22 +4953,6 @@ function saveLastChoice(kind, id) {
   } catch { /* pl. letiltott localStorage — nem kritikus, csak nem emlékszik legközelebb */ }
 }
 
-// A kerékcsere választása a bevezetése óta a szó szerint "undefined" nevű
-// kulcsba került: sem a 'tireWear', sem a régi 'mandatoryPitStop' név nem
-// szerepelt az LS_KEYS-ben, így LS_KEYS[kind] undefined lett, amit a
-// localStorage kulcsnévvé alakított. Működött, mert ugyanoda írt és onnan
-// olvasott, de bármely új, LS_KEYS-bejegyzés nélküli beállítás némán
-// felülírta volna. Ez egyszer átveszi a régi értéket, aztán kitakarít.
-function migrateTireWearChoice() {
-  try {
-    const regi = localStorage.getItem('undefined');
-    if (regi !== null && localStorage.getItem(LS_KEYS.tireWear) === null) {
-      localStorage.setItem(LS_KEYS.tireWear, regi);
-    }
-    localStorage.removeItem('undefined');
-  } catch { /* letiltott localStorage: marad az alapérték */ }
-}
-
 // Kereshető select: a natív <select> köré egy szöveges mezőt és egy szűrhető
 // legördülő listát épít, de a <select> marad az egyetlen igazságforrás
 // (érték, disabled, 'change' esemény) — a meglévő kód (fillSelect,
@@ -5198,7 +5182,6 @@ async function init() {
   // Első indításkor bekapcsolva: a gumikopás és a boxkiállás a játék része,
   // nem extra. Aki egyszer kikapcsolta, annak a mentett választása marad — a
   // '1' csak akkor jut szóhoz, ha még semmit nem választott.
-  migrateTireWearChoice();
   tireWearCheckbox.checked = loadLastChoice('tireWear', '1') === '1';
   loadLeaderboard(initialMap.id);
   updateTrackAlert(initialMap);
