@@ -10,10 +10,10 @@
 <link href="style.css" rel="stylesheet">
 <script>
 (function () {
-  var acknowledged = false;
+  let acknowledged = false;
   try { acknowledged = localStorage.getItem('racing.dataWarningAck') === '1'; }
   catch (e) { acknowledged = false; }
-  var touchDevice = matchMedia('(hover: none) and (pointer: coarse)').matches;
+  const touchDevice = matchMedia('(hover: none) and (pointer: coarse)').matches;
   if (touchDevice && !acknowledged) document.documentElement.classList.add('data-warning-pending');
   window.__assetManifest = fetch('/api/assets').then(function (r) { return r.json(); });
 })();
