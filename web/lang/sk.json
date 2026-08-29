@@ -242,5 +242,5 @@
   "dataWarning.continue": "Pokračovať",
   "dataWarning.cancelledBody": "Hra sa nenačítala. Ak si to rozmyslíš, ťukni na tlačidlo.",
   "dataWarning.loadAnyway": "Aj tak stiahnuť",
-  "dataWarning.more": "Neskôr každá zmena trate stiahne {mapMin}–{mapMax} MB a každá zmena auta {carMin}–{carMax} MB."
+  "dataWarning.more": "Neskôr každá zmena trate stiahne 50–200 MB a každá zmena auta 5–20 MB."
 }

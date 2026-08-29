@@ -242,5 +242,5 @@
   "dataWarning.continue": "Devam",
   "dataWarning.cancelledBody": "Oyun yüklenmedi. Fikrini değiştirirsen düğmeye dokun.",
   "dataWarning.loadAnyway": "Yine de indir",
-  "dataWarning.more": "Sonrasında her pist değişimi {mapMin}–{mapMax} MB, her araç değişimi {carMin}–{carMax} MB indirir."
+  "dataWarning.more": "Sonrasında her pist değişimi 50–200 MB, her araç değişimi 5–20 MB indirir."
 }

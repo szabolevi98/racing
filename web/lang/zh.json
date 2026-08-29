@@ -242,5 +242,5 @@
   "dataWarning.continue": "继续",
   "dataWarning.cancelledBody": "游戏尚未加载。如果改变主意，请点按按钮。",
   "dataWarning.loadAnyway": "仍然下载",
-  "dataWarning.more": "之后每次更换赛道需下载 {mapMin}–{mapMax} MB，每次更换赛车需 {carMin}–{carMax} MB。"
+  "dataWarning.more": "之后每次更换赛道需下载 50–200 MB，每次更换赛车需 5–20 MB。"
 }

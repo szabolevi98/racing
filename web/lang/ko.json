@@ -242,5 +242,5 @@
   "dataWarning.continue": "계속",
   "dataWarning.cancelledBody": "게임을 불러오지 않았습니다. 생각이 바뀌면 버튼을 누르세요.",
   "dataWarning.loadAnyway": "그래도 내려받기",
-  "dataWarning.more": "이후 트랙을 바꿀 때마다 {mapMin}~{mapMax} MB, 차량을 바꿀 때마다 {carMin}~{carMax} MB를 내려받습니다."
+  "dataWarning.more": "이후 트랙을 바꿀 때마다 50~200 MB, 차량을 바꿀 때마다 5~20 MB를 내려받습니다."
 }

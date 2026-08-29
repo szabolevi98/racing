@@ -242,5 +242,5 @@
   "dataWarning.continue": "Continuer",
   "dataWarning.cancelledBody": "Le jeu n’a pas été chargé. Touchez le bouton si vous changez d’avis.",
   "dataWarning.loadAnyway": "Télécharger quand même",
-  "dataWarning.more": "Ensuite, chaque changement de circuit télécharge {mapMin} à {mapMax} Mo et chaque changement de voiture {carMin} à {carMax} Mo."
+  "dataWarning.more": "Ensuite, chaque changement de circuit télécharge 50 à 200 Mo et chaque changement de voiture 5 à 20 Mo."
 }

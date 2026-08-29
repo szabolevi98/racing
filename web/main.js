@@ -4328,7 +4328,7 @@ const mobilePointerQuery = window.matchMedia('(hover: none) and (pointer: coarse
 // kérdezünk. A "ne kérdezd újra" CSAK a Folytatással együtt jegyződik meg: egy
 // megjegyzett Mégse azt jelentené, hogy a játék soha többé nem tölt be ezen az
 // eszközön, és a felhasználónak fogalma sem lenne, miért.
-async function askAboutMobileData(bytes, manifest) {
+async function askAboutMobileData(bytes) {
   const panel = document.getElementById('dataWarning');
   // A panelt az index.html fejlécbeli szkriptje nyitotta ki, még az első
   // festés előtt; itt már csak a manifestből számolt szöveg hiányzik róla.
@@ -4338,25 +4338,6 @@ async function askAboutMobileData(bytes, manifest) {
   const mb = Math.max(1, Math.round(bytes / 1048576));
   document.getElementById('dataWarningTitle').textContent = t('dataWarning.body', { mb });
 
-  // A fenti szám csak az INDULÁS költsége. Pálya- és autóváltáskor újabb
-  // fájlok jönnek, ezért a tartományukat is kiírjuk — a manifestből, hogy új
-  // assetekkel se avuljon el.
-  const hatarok = (lista) => {
-    const meretek = (lista || []).map((x) => x.bytes).filter((x) => x > 0);
-    if (!meretek.length) return null;
-    return {
-      min: Math.max(1, Math.round(Math.min(...meretek) / 1048576)),
-      max: Math.max(1, Math.round(Math.max(...meretek) / 1048576)),
-    };
-  };
-  const palya = hatarok(manifest?.maps);
-  const auto = hatarok(manifest?.cars);
-  const tovabbi = document.getElementById('dataWarningMore');
-  if (tovabbi && palya && auto) {
-    tovabbi.textContent = t('dataWarning.more', {
-      mapMin: palya.min, mapMax: palya.max, carMin: auto.min, carMax: auto.max,
-    });
-  }
   const remember = document.getElementById('dataWarningRemember');
   const contBtn = document.getElementById('dataWarningContinue');
   const cancelBtn = document.getElementById('dataWarningCancel');
@@ -5214,7 +5195,7 @@ async function init() {
   // Mobilon a nagy letöltés valódi pénzbe kerülhet, ezért MIELŐTT elindul,
   // rákérdezünk. A kiírt méret nem tapasztalati becslés: pontosan az a három
   // fájl, amit a következő sor letölt.
-  await askAboutMobileData(initialEnv.bytes + initialMap.bytes + initialCar.bytes, manifest);
+  await askAboutMobileData(initialEnv.bytes + initialMap.bytes + initialCar.bytes);
 
   await runLoadTasks([
     { bytes: initialEnv.bytes, run: (onP) => setSkybox(assetUrl(initialEnv), onP) },

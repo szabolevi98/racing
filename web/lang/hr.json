@@ -242,5 +242,5 @@
   "dataWarning.continue": "Nastavi",
   "dataWarning.cancelledBody": "Igra nije učitana. Dodirni gumb ako se predomisliš.",
   "dataWarning.loadAnyway": "Ipak preuzmi",
-  "dataWarning.more": "Poslije svaka promjena staze preuzima {mapMin}–{mapMax} MB, a svaka promjena auta {carMin}–{carMax} MB."
+  "dataWarning.more": "Poslije svaka promjena staze preuzima 50–200 MB, a svaka promjena auta 5–20 MB."
 }

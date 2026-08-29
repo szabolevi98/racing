@@ -242,5 +242,5 @@
   "dataWarning.continue": "続行",
   "dataWarning.cancelledBody": "ゲームは読み込まれていません。気が変わったらボタンをタップしてください。",
   "dataWarning.loadAnyway": "それでもダウンロード",
-  "dataWarning.more": "その後もコース変更ごとに {mapMin}〜{mapMax} MB、車両変更ごとに {carMin}〜{carMax} MB をダウンロードします。"
+  "dataWarning.more": "その後もコース変更ごとに 50〜200 MB、車両変更ごとに 5〜20 MB をダウンロードします。"
 }

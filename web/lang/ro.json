@@ -242,5 +242,5 @@
   "dataWarning.continue": "Continuă",
   "dataWarning.cancelledBody": "Jocul nu s-a încărcat. Atinge butonul dacă te răzgândești.",
   "dataWarning.loadAnyway": "Descarcă oricum",
-  "dataWarning.more": "Ulterior, fiecare schimbare de circuit descarcă {mapMin}–{mapMax} MB, iar fiecare schimbare de mașină {carMin}–{carMax} MB."
+  "dataWarning.more": "Ulterior, fiecare schimbare de circuit descarcă 50–200 MB, iar fiecare schimbare de mașină 5–20 MB."
 }

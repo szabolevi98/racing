@@ -242,5 +242,5 @@
   "dataWarning.continue": "Kontynuuj",
   "dataWarning.cancelledBody": "Gra nie została wczytana. Dotknij przycisku, jeśli zmienisz zdanie.",
   "dataWarning.loadAnyway": "Pobierz mimo to",
-  "dataWarning.more": "Później każda zmiana toru pobiera {mapMin}–{mapMax} MB, a każda zmiana auta {carMin}–{carMax} MB."
+  "dataWarning.more": "Później każda zmiana toru pobiera 50–200 MB, a każda zmiana auta 5–20 MB."
 }

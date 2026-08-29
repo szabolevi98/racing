@@ -242,5 +242,5 @@
   "dataWarning.continue": "Continue",
   "dataWarning.cancelledBody": "The game did not load. Tap the button if you change your mind.",
   "dataWarning.loadAnyway": "Download anyway",
-  "dataWarning.more": "Later, each track change downloads {mapMin}–{mapMax} MB and each car change {carMin}–{carMax} MB."
+  "dataWarning.more": "Later, each track change downloads 50–200 MB and each car change 5–20 MB."
 }

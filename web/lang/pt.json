@@ -242,5 +242,5 @@
   "dataWarning.continue": "Continuar",
   "dataWarning.cancelledBody": "O jogo não carregou. Toca no botão se mudares de ideias.",
   "dataWarning.loadAnyway": "Descarregar mesmo assim",
-  "dataWarning.more": "Depois, cada mudança de pista descarrega {mapMin}–{mapMax} MB e cada mudança de carro {carMin}–{carMax} MB."
+  "dataWarning.more": "Depois, cada mudança de pista descarrega 50–200 MB e cada mudança de carro 5–20 MB."
 }

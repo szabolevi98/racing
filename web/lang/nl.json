@@ -242,5 +242,5 @@
   "dataWarning.continue": "Doorgaan",
   "dataWarning.cancelledBody": "Het spel is niet geladen. Tik op de knop als je van gedachten verandert.",
   "dataWarning.loadAnyway": "Toch downloaden",
-  "dataWarning.more": "Daarna downloadt elke circuitwissel {mapMin}–{mapMax} MB en elke autowissel {carMin}–{carMax} MB."
+  "dataWarning.more": "Daarna downloadt elke circuitwissel 50–200 MB en elke autowissel 5–20 MB."
 }

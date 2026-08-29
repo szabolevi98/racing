@@ -242,5 +242,5 @@
   "dataWarning.continue": "Nadaljuj",
   "dataWarning.cancelledBody": "Igra se ni naložila. Če si premisliš, se dotakni gumba.",
   "dataWarning.loadAnyway": "Vseeno prenesi",
-  "dataWarning.more": "Pozneje vsaka menjava steze prenese {mapMin}–{mapMax} MB, vsaka menjava avta pa {carMin}–{carMax} MB."
+  "dataWarning.more": "Pozneje vsaka menjava steze prenese 50–200 MB, vsaka menjava avta pa 5–20 MB."
 }

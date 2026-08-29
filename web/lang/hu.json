@@ -242,5 +242,5 @@
   "dataWarning.continue": "Folytatás",
   "dataWarning.cancelledBody": "A játék nem töltött be. Ha meggondolod magad, koppints a gombra.",
   "dataWarning.loadAnyway": "Mégis letöltöm",
-  "dataWarning.more": "Később minden pályaváltás {mapMin}–{mapMax} MB, minden autóváltás {carMin}–{carMax} MB újabb letöltés."
+  "dataWarning.more": "Később minden pályaváltás 50–200 MB, minden autóváltás 5–20 MB újabb letöltés."
 }

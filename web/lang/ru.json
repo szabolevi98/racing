@@ -242,5 +242,5 @@
   "dataWarning.continue": "Продолжить",
   "dataWarning.cancelledBody": "Игра не загрузилась. Нажмите кнопку, если передумаете.",
   "dataWarning.loadAnyway": "Всё равно загрузить",
-  "dataWarning.more": "Позже каждая смена трассы загружает {mapMin}–{mapMax} МБ, а каждая смена машины — {carMin}–{carMax} МБ."
+  "dataWarning.more": "Позже каждая смена трассы загружает 50–200 МБ, а каждая смена машины — 5–20 МБ."
 }

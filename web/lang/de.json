@@ -242,5 +242,5 @@
   "dataWarning.continue": "Fortfahren",
   "dataWarning.cancelledBody": "Das Spiel wurde nicht geladen. Tippe auf die Schaltfläche, wenn du es dir anders überlegst.",
   "dataWarning.loadAnyway": "Trotzdem laden",
-  "dataWarning.more": "Später lädt jeder Streckenwechsel {mapMin}–{mapMax} MB und jeder Fahrzeugwechsel {carMin}–{carMax} MB nach."
+  "dataWarning.more": "Später lädt jeder Streckenwechsel 50–200 MB und jeder Fahrzeugwechsel 5–20 MB nach."
 }

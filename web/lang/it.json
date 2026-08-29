@@ -242,5 +242,5 @@
   "dataWarning.continue": "Continua",
   "dataWarning.cancelledBody": "Il gioco non è stato caricato. Tocca il pulsante se cambi idea.",
   "dataWarning.loadAnyway": "Scarica comunque",
-  "dataWarning.more": "In seguito, ogni cambio di circuito scarica {mapMin}–{mapMax} MB e ogni cambio di auto {carMin}–{carMax} MB."
+  "dataWarning.more": "In seguito, ogni cambio di circuito scarica 50–200 MB e ogni cambio di auto 5–20 MB."
 }

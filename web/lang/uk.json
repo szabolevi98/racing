@@ -242,5 +242,5 @@
   "dataWarning.continue": "Продовжити",
   "dataWarning.cancelledBody": "Гра не завантажилася. Натисніть кнопку, якщо передумаєте.",
   "dataWarning.loadAnyway": "Усе одно завантажити",
-  "dataWarning.more": "Згодом кожна зміна траси завантажує {mapMin}–{mapMax} МБ, а кожна зміна авто — {carMin}–{carMax} МБ."
+  "dataWarning.more": "Згодом кожна зміна траси завантажує 50–200 МБ, а кожна зміна авто — 5–20 МБ."
 }
