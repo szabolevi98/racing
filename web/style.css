@@ -144,9 +144,16 @@ kbd.k {
     max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
   background: rgba(11, 13, 18, .97); touch-action: none;
 }
-/* A fejlécbeli parányi szkript dönt, még az első festés ELŐTT. Amíg a kérdés
-   nyitva van, a töltőképernyő és az elfordítás-jelzés nem villanhat fel — a
-   panelt magát fekvő és álló helyzetben is ki lehet olvasni. */
+/* A `data-warning-pending` osztályt az index.html FEJLÉCÉBEN álló szkript
+   teszi fel, modulon kívül — szándékosan. A modulok betöltése, a Three.js és
+   a Rapier felépítése, majd a manifest lekérése együtt több másodperc: mérve
+   az első festés 744 ms-nál volt, a panel viszont csak 4387-nél. Addig a
+   látogató a töltőképernyőt nézte, holott még el sem döntötte, kéri-e a
+   letöltést. Ha valaki a szkriptet "rendrakásból" a main.js-be tenné, ez a
+   villanás azonnal visszajönne.
+
+   Amíg a kérdés nyitva van, a töltőképernyő és az elfordítás-jelzés rejtve —
+   a panelt fekvő és álló helyzetben is ki lehet olvasni. */
 html.data-warning-pending #loading,
 html.data-warning-pending #orientationPrompt { display: none !important; }
 html.data-warning-pending #dataWarning { display: flex; }

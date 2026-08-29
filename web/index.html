@@ -9,21 +9,12 @@
 <link href="vendor/bootstrap.min.css" rel="stylesheet">
 <link href="style.css" rel="stylesheet">
 <script>
-// Ez a néhány sor SZÁNDÉKOSAN a fejlécben, modulon kívül fut: a modulok
-// betöltése, a Three.js és a Rapier felépítése, majd a manifest lekérése
-// együtt több másodperc. Addig a látogató a töltőképernyőt és az "elfordítás"
-// jelzést nézné, holott még el sem döntötte, hogy egyáltalán akar-e letölteni.
-// Mérve: az első festés 744 ms, a panel viszont csak 4387 ms-nál jött fel.
-//
-// Így a legelső festés már a kérdést mutatja, és semmi mást.
 (function () {
   try {
-    var kell = matchMedia('(hover: none) and (pointer: coarse)').matches
+    var needsWarning = matchMedia('(hover: none) and (pointer: coarse)').matches
       && localStorage.getItem('racing.dataWarningAck') !== '1';
-    if (kell) document.documentElement.classList.add('data-warning-pending');
-  } catch (e) { /* letiltott localStorage vagy régi böngésző: marad a normál menet */ }
-  // A manifest a méret forrása. Itt indítjuk, hogy a modulok betöltésével
-  // PÁRHUZAMOSAN érkezzen; a main.js ugyanezt a választ használja fel.
+    if (needsWarning) document.documentElement.classList.add('data-warning-pending');
+  } catch (e) { /* letiltott localStorage: marad a normál menet */ }
   try { window.__assetManifest = fetch('/api/assets').then(function (r) { return r.json(); }); }
   catch (e) { /* a main.js úgyis lekéri, ha ez nem sikerült */ }
 })();
@@ -46,25 +37,15 @@
   <div data-i18n="orientation.rotate">Fordítsd el a készüléket fekvő nézetbe a megfelelő élményhez!</div>
 </div>
 
-<!-- Mobilon a letöltés mérete valódi pénzbe kerülhet, ezért a nagy fájlok
-     ELŐTT kérdezünk rá. A méret nem tapasztalati becslés: a manifestből
-     számoljuk az induláshoz ténylegesen letöltendő pálya, autó és égbolt
-     összegét, és azt írjuk ki. -->
 <div id="dataWarning" role="dialog" aria-modal="true"
      aria-labelledby="dataWarningTitle">
   <div class="data-warning-box">
     <img class="data-warning-icon" src="favicon.svg" alt="" aria-hidden="true"
          width="64" height="64">
-    <!-- A cím MAGA a lényeg: a méret. Külön "Nagy letöltés következik"
-         felirat csak sort venne el anélkül, hogy bármit hozzátenne. A
-         szöveget a JS tölti ki, mert a szám a manifestből jön. -->
     <h2 id="dataWarningTitle"></h2>
     <p class="data-warning-note" data-i18n="dataWarning.note">
       Wifin ajánlott. Mobilneten ez érezhető adatforgalom lehet.
     </p>
-    <!-- Enélkül a fenti szám egyszeri költségnek látszana, pedig minden
-         pálya- és autóváltás újabb letöltés. A tartományt a manifestből
-         számoljuk, hogy új assetekkel se avuljon el. -->
     <p class="data-warning-note" id="dataWarningMore"></p>
     <label class="data-warning-remember">
       <input type="checkbox" id="dataWarningRemember" class="form-check-input">
