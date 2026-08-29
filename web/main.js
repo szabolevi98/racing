@@ -4330,8 +4330,10 @@ const mobilePointerQuery = window.matchMedia('(hover: none) and (pointer: coarse
 // eszközön, és a felhasználónak fogalma sem lenne, miért.
 async function askAboutMobileData(bytes, manifest) {
   const panel = document.getElementById('dataWarning');
-  if (!panel || !mobilePointerQuery.matches) return;
-  if (loadLastChoice('dataWarning', '0') === '1') return;
+  // A panelt az index.html fejlécbeli szkriptje nyitotta ki, még az első
+  // festés előtt; itt már csak a manifestből számolt szöveg hiányzik róla.
+  const nyitva = document.documentElement.classList.contains('data-warning-pending');
+  if (!panel || !nyitva) return;
 
   const mb = Math.max(1, Math.round(bytes / 1048576));
   document.getElementById('dataWarningTitle').textContent = t('dataWarning.body', { mb });
@@ -4358,12 +4360,12 @@ async function askAboutMobileData(bytes, manifest) {
   const remember = document.getElementById('dataWarningRemember');
   const contBtn = document.getElementById('dataWarningContinue');
   const cancelBtn = document.getElementById('dataWarningCancel');
-  panel.classList.remove('hidden');
   contBtn.focus();
 
   await new Promise((resolve) => {
     const folytat = () => {
       if (remember.checked) saveLastChoice('dataWarning', '1');
+      document.documentElement.classList.remove('data-warning-pending');
       panel.classList.add('hidden');
       resolve();
     };
@@ -5134,9 +5136,13 @@ function makeSearchableSelect(selectEl) {
 }
 
 async function init() {
-  const res = await fetch('/api/assets');
-  if (!res.ok) throw new Error('/api/assets HTTP ' + res.status);
-  manifest = await res.json();
+  // A kérést az index.html fejléce már elindította, a modulok betöltésével
+  // párhuzamosan. Ha az bármiért nem sikerült, itt pótoljuk.
+  manifest = await (window.__assetManifest || Promise.reject()).catch(async () => {
+    const res = await fetch('/api/assets');
+    if (!res.ok) throw new Error('/api/assets HTTP ' + res.status);
+    return res.json();
+  });
 
   if (!manifest.maps.length || !manifest.cars.length || !manifest.skyboxes.length) {
     setMenuStatus(t('error.missingAssets'));

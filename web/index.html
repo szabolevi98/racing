@@ -8,6 +8,26 @@
 <link rel="icon" type="image/svg+xml" href="favicon.svg" />
 <link href="vendor/bootstrap.min.css" rel="stylesheet">
 <link href="style.css" rel="stylesheet">
+<script>
+// Ez a néhány sor SZÁNDÉKOSAN a fejlécben, modulon kívül fut: a modulok
+// betöltése, a Three.js és a Rapier felépítése, majd a manifest lekérése
+// együtt több másodperc. Addig a látogató a töltőképernyőt és az "elfordítás"
+// jelzést nézné, holott még el sem döntötte, hogy egyáltalán akar-e letölteni.
+// Mérve: az első festés 744 ms, a panel viszont csak 4387 ms-nál jött fel.
+//
+// Így a legelső festés már a kérdést mutatja, és semmi mást.
+(function () {
+  try {
+    var kell = matchMedia('(hover: none) and (pointer: coarse)').matches
+      && localStorage.getItem('racing.dataWarningAck') !== '1';
+    if (kell) document.documentElement.classList.add('data-warning-pending');
+  } catch (e) { /* letiltott localStorage vagy régi böngésző: marad a normál menet */ }
+  // A manifest a méret forrása. Itt indítjuk, hogy a modulok betöltésével
+  // PÁRHUZAMOSAN érkezzen; a main.js ugyanezt a választ használja fel.
+  try { window.__assetManifest = fetch('/api/assets').then(function (r) { return r.json(); }); }
+  catch (e) { /* a main.js úgyis lekéri, ha ez nem sikerült */ }
+})();
+</script>
 </head>
 <body>
 <div id="loading">
@@ -30,7 +50,7 @@
      ELŐTT kérdezünk rá. A méret nem tapasztalati becslés: a manifestből
      számoljuk az induláshoz ténylegesen letöltendő pálya, autó és égbolt
      összegét, és azt írjuk ki. -->
-<div id="dataWarning" class="hidden" role="dialog" aria-modal="true"
+<div id="dataWarning" role="dialog" aria-modal="true"
      aria-labelledby="dataWarningTitle">
   <div class="data-warning-box">
     <img class="data-warning-icon" src="favicon.svg" alt="" aria-hidden="true"

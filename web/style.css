@@ -137,12 +137,23 @@ kbd.k {
    válaszolni rá. */
 #dataWarning {
   position: fixed; inset: 0; z-index: 90;
-  display: flex; align-items: center; justify-content: center;
+  /* Alapból rejtett; a fejlécbeli szkript `data-warning-pending` osztálya
+     kapcsolja be, még az első festés előtt. */
+  display: none; align-items: center; justify-content: center;
   padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
     max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
   background: rgba(11, 13, 18, .97); touch-action: none;
 }
-#dataWarning.hidden { display: none; }
+/* A fejlécbeli parányi szkript dönt, még az első festés ELŐTT. Amíg a kérdés
+   nyitva van, a töltőképernyő és az elfordítás-jelzés nem villanhat fel — a
+   panelt magát fekvő és álló helyzetben is ki lehet olvasni. */
+html.data-warning-pending #loading,
+html.data-warning-pending #orientationPrompt { display: none !important; }
+html.data-warning-pending #dataWarning { display: flex; }
+/* A méret a manifestből érkezik, tehát a címsor egy pillanatig üres. A hely
+   előre le van foglalva, különben a szám beugrásakor a gombok elugranának a
+   hüvelykujj alól. */
+.data-warning-box h2:empty { min-height: 2.7em; }
 .data-warning-box {
   width: min(420px, 100%); max-height: 100%; overflow-y: auto;
   text-align: center; color: var(--text);
