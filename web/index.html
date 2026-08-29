@@ -10,13 +10,12 @@
 <link href="style.css" rel="stylesheet">
 <script>
 (function () {
-  try {
-    var needsWarning = matchMedia('(hover: none) and (pointer: coarse)').matches
-      && localStorage.getItem('racing.dataWarningAck') !== '1';
-    if (needsWarning) document.documentElement.classList.add('data-warning-pending');
-  } catch (e) { /* letiltott localStorage: marad a normál menet */ }
-  try { window.__assetManifest = fetch('/api/assets').then(function (r) { return r.json(); }); }
-  catch (e) { /* a main.js úgyis lekéri, ha ez nem sikerült */ }
+  var acknowledged = false;
+  try { acknowledged = localStorage.getItem('racing.dataWarningAck') === '1'; }
+  catch (e) { acknowledged = false; }
+  var touchDevice = matchMedia('(hover: none) and (pointer: coarse)').matches;
+  if (touchDevice && !acknowledged) document.documentElement.classList.add('data-warning-pending');
+  window.__assetManifest = fetch('/api/assets').then(function (r) { return r.json(); });
 })();
 </script>
 </head>
