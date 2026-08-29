@@ -4331,12 +4331,15 @@ const mobilePointerQuery = window.matchMedia('(hover: none) and (pointer: coarse
 async function askAboutMobileData(bytes) {
   const panel = document.getElementById('dataWarning');
   // A panelt az index.html fejlécbeli szkriptje nyitotta ki, még az első
-  // festés előtt; itt már csak a manifestből számolt szöveg hiányzik róla.
+  // festés előtt. A címsor addig a valódi TARTOMÁNYT mondja (dataWarning.
+  // bodyRange), ami szintén igaz állítás; itt élesítjük a pontos számra.
+  // Ugyanaz a mondatszerkezet, ezért a sortörés és a gombok helye marad.
   const nyitva = document.documentElement.classList.contains('data-warning-pending');
   if (!panel || !nyitva) return;
 
-  const mb = Math.max(1, Math.round(bytes / 1048576));
-  document.getElementById('dataWarningTitle').textContent = t('dataWarning.body', { mb });
+  const cim = document.getElementById('dataWarningTitle');
+  cim.textContent = t('dataWarning.body', { mb: Math.max(1, Math.round(bytes / 1048576)) });
+  document.documentElement.classList.add('data-warning-ready');
 
   const remember = document.getElementById('dataWarningRemember');
   const contBtn = document.getElementById('dataWarningContinue');
@@ -5126,6 +5129,7 @@ async function init() {
   });
 
   if (!manifest.maps.length || !manifest.cars.length || !manifest.skyboxes.length) {
+    document.documentElement.classList.remove('data-warning-pending', 'data-warning-ready');
     setMenuStatus(t('error.missingAssets'));
     return;
   }
@@ -5277,6 +5281,10 @@ async function init() {
 
 init().catch((err) => {
   console.error('Init error', err);
+  // A hibaüzenet a töltőképernyőn jelenik meg, amit a letöltés-kérdés elrejt.
+  // Ha idáig jutottunk, a kérdésnek már nincs értelme: engedjük el a panelt,
+  // különben a látogató néma sötétséget nézne.
+  document.documentElement.classList.remove('data-warning-pending', 'data-warning-ready');
   loadingEl.textContent = t('error.startFailed') + err.message;
 });
 

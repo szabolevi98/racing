@@ -157,10 +157,11 @@ kbd.k {
 html.data-warning-pending #loading,
 html.data-warning-pending #orientationPrompt { display: none !important; }
 html.data-warning-pending #dataWarning { display: flex; }
-/* A méret a manifestből érkezik, tehát a címsor egy pillanatig üres. A hely
-   előre le van foglalva, különben a szám beugrásakor a gombok elugranának a
-   hüvelykujj alól. */
-.data-warning-box h2:empty { min-height: 2.7em; }
+/* Amíg a méret nincs meg, csak a sötét háttér látszik. A doboz így KÉSZEN
+   jelenik meg: nem kell találgatni, hány sorra tördel a szöveg az adott
+   nyelven, és semmi nem ugrik el a hüvelykujj alól. A visibility (nem
+   display) azért kell, hogy az elrendezés közben is felépüljön. */
+html.data-warning-pending:not(.data-warning-ready) .data-warning-box { visibility: hidden; }
 .data-warning-box {
   width: min(420px, 100%); max-height: 100%; overflow-y: auto;
   text-align: center; color: var(--text);
