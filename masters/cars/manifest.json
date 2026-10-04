@@ -1,7 +1,7 @@
 {
   "version": 4,
   "targetMb": 15,
-  "generatedAt": "2026-08-26T18:26:02.378Z",
+  "generatedAt": "2026-10-04T09:42:36.314Z",
   "cars": {
     "2008_bmw_sauber_f1.08": {
       "signature": "v2:4:41196616:15728640:053203ef9a6dbcd1e218761c0e6e868b30e208db12e8809d8a9872706892abf7",
@@ -881,25 +881,6 @@
       "imageBytes": 6602150,
       "geometryBytes": 8861384
     },
-    "2026_aston_martin_amr26": {
-      "signature": "v2:4:33698328:15728640:1317f1dc398ccdc9ee58f576c69261d8bc82953508526f458163fe70af7e9cb5",
-      "geometry": {
-        "ratio": 1,
-        "error": 0.001,
-        "cost": 0
-      },
-      "texture": {
-        "limit": 4096,
-        "quality": 10,
-        "cost": 1
-      },
-      "limitedBy": "geometria",
-      "bytes": 10667140,
-      "sourceBytes": 33698328,
-      "triangles": 275868,
-      "imageBytes": 4744218,
-      "geometryBytes": 5734180
-    },
     "2026_dacia_logan_ollis_garage_racing": {
       "signature": "v2:4:23803260:15728640:b20a483cfbd668eada651d59070bbebdcc86a0f1b695b018acf087a6de456502",
       "geometry": {
@@ -1366,6 +1347,176 @@
       "triangles": 257080,
       "imageBytes": 5289488,
       "geometryBytes": 7017884
+    },
+    "2026_aston_martin_amr26_2": {
+      "signature": "v2:4:33698328:15728640:1317f1dc398ccdc9ee58f576c69261d8bc82953508526f458163fe70af7e9cb5",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 10,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 10667140,
+      "sourceBytes": 33698328,
+      "triangles": 275868,
+      "imageBytes": 4744218,
+      "geometryBytes": 5734180
+    },
+    "2001_ferrari_f2001": {
+      "signature": "v2:4:23244652:15728640:cd69ca70cd7fc9b62eba4f80934777b3730fa7cfa47d0eff560a66edec393579",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "preserve": true,
+        "cost": 0
+      },
+      "limitedBy": "textúra",
+      "bytes": 15705988,
+      "sourceBytes": 23244652,
+      "triangles": 215072,
+      "imageBytes": 9762776,
+      "geometryBytes": 5882356
+    },
+    "2026_aston_martin_amr26": {
+      "signature": "v2:4:30091616:15728640:b244d5e5eecf2a094f4717e53f3b8b9c2635f351993a1a4eff2bfef9f0cefaad",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 9,
+        "cost": 2
+      },
+      "limitedBy": "textúra",
+      "bytes": 14869524,
+      "sourceBytes": 30091616,
+      "triangles": 271168,
+      "imageBytes": 9173144,
+      "geometryBytes": 5666800
+    },
+    "2026_audi_r26": {
+      "signature": "v2:4:33159460:15728640:a9d2cef16165e532a9cd85a96a3a155b0396de3fae32aa2718d04b4f8f96c732",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 2048,
+        "quality": 9,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 12107368,
+      "sourceBytes": 33159460,
+      "triangles": 265092,
+      "imageBytes": 5962280,
+      "geometryBytes": 6108560
+    },
+    "2026_cadillac_mac-26": {
+      "signature": "v2:4:32886496:15728640:2d3b1a0c0058dca0fa1bd913d82a9f0c1c1798c338397c69514779b53593f625",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 2048,
+        "quality": 9,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 11574252,
+      "sourceBytes": 32886496,
+      "triangles": 259715,
+      "imageBytes": 4922164,
+      "geometryBytes": 6617450
+    },
+    "2026_ferrari_sf-26": {
+      "signature": "v2:4:31244532:15728640:d953052effcd19484a563ce7823c1ecf70f0753a7575d2027ef4063846a4b751",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 9,
+        "cost": 2
+      },
+      "limitedBy": "textúra",
+      "bytes": 14937344,
+      "sourceBytes": 31244532,
+      "triangles": 272038,
+      "imageBytes": 8448730,
+      "geometryBytes": 6450648
+    },
+    "2026_mclaren_mcl40": {
+      "signature": "v2:4:30539744:15728640:b779393a9f435809bb2f69a7770bf3151eb0e6e12b5b3cd14cf83884357d00ce",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 9,
+        "cost": 2
+      },
+      "limitedBy": "textúra",
+      "bytes": 15515340,
+      "sourceBytes": 30539744,
+      "triangles": 276844,
+      "imageBytes": 8054168,
+      "geometryBytes": 7428820
+    },
+    "2026_mercedes_w17": {
+      "signature": "v2:4:30949488:15728640:174e53380d21a7205f72818be981fd7db819183a9440adbda4b750b1aad03a79",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 4096,
+        "quality": 9,
+        "cost": 2
+      },
+      "limitedBy": "textúra",
+      "bytes": 15557804,
+      "sourceBytes": 30949488,
+      "triangles": 267690,
+      "imageBytes": 9231028,
+      "geometryBytes": 6291744
+    },
+    "2026_redbull_rb22": {
+      "signature": "v2:4:30730112:15728640:6cab1901e475801024bce7f9fcfe694b3e45c4b740f6d068bccaa38859410cfb",
+      "geometry": {
+        "ratio": 1,
+        "error": 0.001,
+        "cost": 0
+      },
+      "texture": {
+        "limit": 2048,
+        "quality": 9,
+        "cost": 1
+      },
+      "limitedBy": "geometria",
+      "bytes": 11842044,
+      "sourceBytes": 30730112,
+      "triangles": 280939,
+      "imageBytes": 3945918,
+      "geometryBytes": 7865622
     }
   }
 }

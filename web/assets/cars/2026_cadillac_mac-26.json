@@ -1,0 +1,7 @@
+{
+  "_megjegyzes": "Kocsi-beállítások. A .glb mellé, ugyanazzal a névvel. Minden mező elhagyható.",
+  "_yawDegrees": "2026-10-04: ellenőrizve a modell geometriája alapján; az orr a játék +Z irányába néz. A helyi autótesztelőben a játékosmodell hibamentesen betöltött.",
+  "yawDegrees": 0,
+  "_wheelPattern": "Automatikusan generálva (tools/build-car-wheels.mjs). Mérés: nyomtáv 1.21, tengelytáv 2.75, 16 darab. 2026-10-04: a geometriai kerékellenőrzés szerint nincs kimaradt kerékalkatrész; a forgástengelyre merőleges kilengés a kerékátmérő 15%-a alatt marad.",
+  "wheelPattern": "tread|hub|discs|sidewall"
+}
