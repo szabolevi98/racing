@@ -230,6 +230,7 @@
   "spectate.nextKey": "다음 <kbd>V</kbd>",
   "meta.description": "브라우저에서 즐기는 자동차 레이싱. 싱글 플레이, 서버가 검증하는 타임 어택, 멀티 플레이를 지원하며 다양한 차량과 트랙을 수록했습니다.",
   "menu.githubProfile": "szabolevi98 의 GitHub 프로필",
+  "menu.sourceCode": "소스 코드 (AGPLv3)",
   "error.noCollisionFile": "이 트랙에는 준비된 충돌 파일(collision.bin)이 없어 멀티 플레이에서 사용할 수 없습니다 — 서버와 클라이언트의 형상이 서로 달라집니다.",
   "alert.highPing": "핑이 높습니다: {ping} ms — 연결이 끊길 수 있습니다.",
   "mp.roomCountOne": "방 1개",

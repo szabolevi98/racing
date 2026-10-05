@@ -230,6 +230,7 @@
   "spectate.nextKey": "Next <kbd>V</kbd>",
   "meta.description": "Browser-based car racing with single player, server-verified hot laps and multiplayer, with many cars and circuits.",
   "menu.githubProfile": "szabolevi98's GitHub profile",
+  "menu.sourceCode": "Source code (AGPLv3)",
   "error.noCollisionFile": "This track has no prepared collision file (collision.bin), so it cannot be used in multiplayer — the server and the clients would not share the same geometry.",
   "alert.highPing": "High ping: {ping} ms — the connection may stutter.",
   "mp.roomCountOne": "1 room",

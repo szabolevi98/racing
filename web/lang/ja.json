@@ -230,6 +230,7 @@
   "spectate.nextKey": "次へ <kbd>V</kbd>",
   "meta.description": "ブラウザーで遊べるカーレース。シングルプレイ、サーバーで検証されるタイムアタック、マルチプレイに対応し、多数の車とコースを収録。",
   "menu.githubProfile": "szabolevi98 の GitHub プロフィール",
+  "menu.sourceCode": "ソースコード (AGPLv3)",
   "error.noCollisionFile": "このコースには衝突ファイル（collision.bin）が用意されていないため、マルチプレイでは使えません — サーバーとクライアントで形状が一致しなくなります。",
   "alert.highPing": "ping が高い: {ping} ms — 接続が途切れることがあります。",
   "mp.roomCountOne": "1 ルーム",

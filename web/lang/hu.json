@@ -230,6 +230,7 @@
   "spectate.nextKey": "Következő <kbd>V</kbd>",
   "meta.description": "Böngészőben játszható autóverseny egyjátékos, szerverhiteles időmérő és többjátékos móddal, több autóval és versenypályával.",
   "menu.githubProfile": "szabolevi98 GitHub-profilja",
+  "menu.sourceCode": "Forráskód (AGPLv3)",
   "error.noCollisionFile": "Ehhez a pályához nincs bekészítve ütközési fájl (collision.bin), így multiplayerben nem használható — a szerver és a kliensek geometriája nem lenne azonos.",
   "alert.highPing": "Magas ping: {ping} ms — a kapcsolat akadozhat.",
   "mp.roomCountOne": "1 szoba",

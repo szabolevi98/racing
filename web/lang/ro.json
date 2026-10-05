@@ -230,6 +230,7 @@
   "spectate.nextKey": "Următorul <kbd>V</kbd>",
   "meta.description": "Curse de mașini în browser cu mod pentru un jucător, ture contra cronometru verificate de server și multiplayer, cu multe mașini și circuite.",
   "menu.githubProfile": "Profilul GitHub al lui szabolevi98",
+  "menu.sourceCode": "Cod sursă (AGPLv3)",
   "error.noCollisionFile": "Acest circuit nu are un fișier de coliziune pregătit (collision.bin), deci nu poate fi folosit în multiplayer — serverul și clienții nu ar avea aceeași geometrie.",
   "alert.highPing": "Ping ridicat: {ping} ms — conexiunea poate să sacadeze.",
   "mp.roomCountOne": "1 cameră",

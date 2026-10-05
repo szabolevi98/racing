@@ -230,6 +230,7 @@
   "spectate.nextKey": "Suivant <kbd>V</kbd>",
   "meta.description": "Course automobile dans le navigateur avec solo, tours chronométrés vérifiés par le serveur et multijoueur, avec de nombreuses voitures et circuits.",
   "menu.githubProfile": "Profil GitHub de szabolevi98",
+  "menu.sourceCode": "Code source (AGPLv3)",
   "error.noCollisionFile": "Ce circuit n'a pas de fichier de collision préparé (collision.bin), il ne peut donc pas servir en multijoueur — le serveur et les clients n'auraient pas la même géométrie.",
   "alert.highPing": "Ping élevé : {ping} ms — la connexion peut saccader.",
   "mp.roomCountOne": "1 salon",

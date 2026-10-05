@@ -230,6 +230,7 @@
   "spectate.nextKey": "Další <kbd>V</kbd>",
   "meta.description": "Automobilové závody v prohlížeči pro jednoho hráče, s koly na čas ověřenými serverem a hrou více hráčů, s mnoha auty a okruhy.",
   "menu.githubProfile": "GitHub profil uživatele szabolevi98",
+  "menu.sourceCode": "Zdrojový kód (AGPLv3)",
   "error.noCollisionFile": "Tento okruh nemá připravený kolizní soubor (collision.bin), takže ho nelze použít ve hře více hráčů — server a klienti by neměli stejnou geometrii.",
   "alert.highPing": "Vysoký ping: {ping} ms — spojení může sekat.",
   "mp.roomCountOne": "1 místnost",

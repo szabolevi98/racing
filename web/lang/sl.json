@@ -230,6 +230,7 @@
   "spectate.nextKey": "Naslednji <kbd>V</kbd>",
   "meta.description": "Avtomobilske dirke v brskalniku z igro za enega igralca, krogi na čas, ki jih preveri strežnik, in igro za več igralcev, z veliko avtomobili in stezami.",
   "menu.githubProfile": "GitHub profil uporabnika szabolevi98",
+  "menu.sourceCode": "Izvorna koda (AGPLv3)",
   "error.noCollisionFile": "Ta steza nima pripravljene datoteke trkov (collision.bin), zato je ni mogoče uporabiti v igri za več igralcev — strežnik in odjemalci ne bi imeli enake geometrije.",
   "alert.highPing": "Visok ping: {ping} ms — povezava lahko zatika.",
   "mp.roomCountOne": "1 soba",

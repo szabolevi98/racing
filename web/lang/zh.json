@@ -230,6 +230,7 @@
   "spectate.nextKey": "下一位 <kbd>V</kbd>",
   "meta.description": "可在浏览器中游玩的赛车游戏，含单人模式、由服务器校验的计时赛和多人对战，收录大量赛车与赛道。",
   "menu.githubProfile": "szabolevi98 的 GitHub 主页",
+  "menu.sourceCode": "源代码 (AGPLv3)",
   "error.noCollisionFile": "这条赛道没有准备好的碰撞文件（collision.bin），因此无法用于多人游戏 — 服务器和客户端的几何数据将不一致。",
   "alert.highPing": "延迟偏高：{ping} ms — 连接可能会卡顿。",
   "mp.roomCountOne": "1 个房间",

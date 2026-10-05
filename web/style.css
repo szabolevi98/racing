@@ -281,11 +281,12 @@ html.data-warning-pending:not(.data-warning-ready) .data-warning-box { visibilit
 .ss-option.ss-selected::after { content: ' ✓'; color: var(--accent); }
 #menuStatus { min-height: 1.4em; font-size: 12px; color: var(--muted); }
 #menuStatusText:empty { display: none; }
-#menuCopyright {
+#menuCopyright, #menuSource {
   display: inline-block; color: var(--muted); text-decoration: none;
   transition: color .15s ease;
 }
-#menuCopyright:hover, #menuCopyright:focus-visible { color: var(--text); }
+#menuCopyright:hover, #menuCopyright:focus-visible,
+#menuSource:hover, #menuSource:focus-visible { color: var(--text); }
 
 /* Nyelvválasztó: a panel jobb felső sarkában, nem a versenybeállítások között
    — nem a futamra vonatkozik, hanem az egész oldalra. Külön "Nyelv" felirata

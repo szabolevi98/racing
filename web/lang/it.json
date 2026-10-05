@@ -230,6 +230,7 @@
   "spectate.nextKey": "Successivo <kbd>V</kbd>",
   "meta.description": "Gare automobilistiche nel browser con giocatore singolo, giri cronometrati verificati dal server e multigiocatore, con tante auto e circuiti.",
   "menu.githubProfile": "Profilo GitHub di szabolevi98",
+  "menu.sourceCode": "Codice sorgente (AGPLv3)",
   "error.noCollisionFile": "Questo circuito non ha un file di collisione preparato (collision.bin), quindi non può essere usato in multigiocatore: il server e i client non avrebbero la stessa geometria.",
   "alert.highPing": "Ping alto: {ping} ms — la connessione potrebbe scattare.",
   "mp.roomCountOne": "1 stanza",

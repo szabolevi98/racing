@@ -230,6 +230,7 @@
   "spectate.nextKey": "Sledeći <kbd>V</kbd>",
   "meta.description": "Auto-trke u pregledaču sa igrom za jednog igrača, krugovima na vreme koje proverava server i igrom za više igrača, sa mnogo automobila i staza.",
   "menu.githubProfile": "GitHub profil korisnika szabolevi98",
+  "menu.sourceCode": "Izvorni kod (AGPLv3)",
   "error.noCollisionFile": "Ova staza nema pripremljenu datoteku sudara (collision.bin), pa ne može da se koristi u igri za više igrača — server i klijenti ne bi imali istu geometriju.",
   "alert.highPing": "Visok ping: {ping} ms — veza može da zastajkuje.",
   "mp.roomCountOne": "1 soba",

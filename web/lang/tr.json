@@ -230,6 +230,7 @@
   "spectate.nextKey": "Sonraki <kbd>V</kbd>",
   "meta.description": "Tarayıcıda araba yarışı: tek oyunculu, sunucu tarafından doğrulanan zamana karşı turlar ve çok oyunculu, bol araba ve pistle.",
   "menu.githubProfile": "szabolevi98 kullanıcısının GitHub profili",
+  "menu.sourceCode": "Kaynak kodu (AGPLv3)",
   "error.noCollisionFile": "Bu pistin hazır çarpışma dosyası (collision.bin) yok, bu yüzden çok oyunculuda kullanılamaz — sunucu ile istemcilerin geometrisi aynı olmazdı.",
   "alert.highPing": "Yüksek ping: {ping} ms — bağlantı takılabilir.",
   "mp.roomCountOne": "1 oda",

@@ -230,6 +230,7 @@
   "spectate.nextKey": "Volgende <kbd>V</kbd>",
   "meta.description": "Autoracen in de browser met singleplayer, door de server gecontroleerde tijdritten en multiplayer, met veel auto's en circuits.",
   "menu.githubProfile": "GitHub-profiel van szabolevi98",
+  "menu.sourceCode": "Broncode (AGPLv3)",
   "error.noCollisionFile": "Dit circuit heeft geen voorbereid botsingsbestand (collision.bin) en kan daarom niet in multiplayer worden gebruikt — server en clients zouden niet dezelfde geometrie hebben.",
   "alert.highPing": "Hoge ping: {ping} ms — de verbinding kan haperen.",
   "mp.roomCountOne": "1 kamer",

@@ -230,6 +230,7 @@
   "spectate.nextKey": "Weiter <kbd>V</kbd>",
   "meta.description": "Autorennen im Browser mit Einzelspieler, servergeprüften Zeitfahren und Mehrspieler, mit vielen Autos und Rennstrecken.",
   "menu.githubProfile": "GitHub-Profil von szabolevi98",
+  "menu.sourceCode": "Quellcode (AGPLv3)",
   "error.noCollisionFile": "Diese Strecke hat keine vorbereitete Kollisionsdatei (collision.bin) und kann deshalb nicht im Mehrspieler verwendet werden — Server und Clients hätten nicht dieselbe Geometrie.",
   "alert.highPing": "Hoher Ping: {ping} ms — die Verbindung kann stocken.",
   "mp.roomCountOne": "1 Raum",

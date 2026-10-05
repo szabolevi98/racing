@@ -2,7 +2,7 @@
   "name": "racing",
   "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "AGPL-3.0-only",
   "type": "module",
   "description": "Böngészős multiplayer autóverseny — Three.js kliens, Node játékszerver azonos Rapier fizikával.",
   "scripts": {

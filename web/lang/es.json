@@ -230,6 +230,7 @@
   "spectate.nextKey": "Siguiente <kbd>V</kbd>",
   "meta.description": "Carreras de coches en el navegador con un jugador, vueltas rápidas verificadas por el servidor y multijugador, con muchos coches y circuitos.",
   "menu.githubProfile": "Perfil de GitHub de szabolevi98",
+  "menu.sourceCode": "Código fuente (AGPLv3)",
   "error.noCollisionFile": "Este circuito no tiene archivo de colisiones preparado (collision.bin), así que no puede usarse en multijugador: el servidor y los clientes no compartirían la misma geometría.",
   "alert.highPing": "Ping alto: {ping} ms — la conexión puede entrecortarse.",
   "mp.roomCountOne": "1 sala",

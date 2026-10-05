@@ -418,10 +418,17 @@ Git pull nem viszi fel a GLB, BIN, HDR és többi nagy modellfájlt.
 
 ## Licenc
 
-A projekt saját forráskódja zárt, proprietary szoftver. Minden jog fenntartva;
-a kód használata, másolása, módosítása vagy terjesztése előzetes írásos engedély
-nélkül nem megengedett. A részletes feltételeket a [LICENSE](LICENSE) tartalmazza.
+Copyright © 2026 Levente Szabó (szabolevi98).
 
-A külső könyvtárak, valamint az autó-, pálya- és környezetmodellek nem tartoznak
-automatikusan ezen feltételek alá: azokra a saját licenceik és felhasználási
-feltételeik vonatkoznak.
+A projekt saját forráskódja a **GNU Affero General Public License, Version 3**
+alatt használható, módosítható és terjeszthető (`AGPL-3.0-only`). A teljes
+licencszöveget a [LICENSE](LICENSE) tartalmazza.
+
+Ha egy módosított változatot hálózaton keresztül mások számára elérhetővé teszel,
+a felhasználóinak jól látható módon fel kell ajánlanod az adott változathoz
+tartozó teljes forráskód ingyenes elérését, a licenc 13. szakasza szerint.
+A játék menüjében közvetlen [forráskódlink](https://github.com/szabolevi98/racing)
+található. Éles játék: [racing.levente.net](https://racing.levente.net).
+
+A külső könyvtárakra, valamint az autó-, pálya- és környezetmodellekre továbbra
+is a saját licenceik és felhasználási feltételeik vonatkoznak.

@@ -230,6 +230,7 @@
   "spectate.nextKey": "Następny <kbd>V</kbd>",
   "meta.description": "Wyścigi samochodowe w przeglądarce z trybem jednoosobowym, okrążeniami na czas weryfikowanymi przez serwer i trybem wieloosobowym, z wieloma samochodami i torami.",
   "menu.githubProfile": "Profil GitHub użytkownika szabolevi98",
+  "menu.sourceCode": "Kod źródłowy (AGPLv3)",
   "error.noCollisionFile": "Ten tor nie ma przygotowanego pliku kolizji (collision.bin), więc nie da się go użyć w trybie wieloosobowym — serwer i klienci nie mieliby tej samej geometrii.",
   "alert.highPing": "Wysoki ping: {ping} ms — połączenie może się zacinać.",
   "mp.roomCountOne": "1 pokój",
