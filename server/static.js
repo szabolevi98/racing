@@ -36,6 +36,7 @@ const MIME = {
   '.ktx2': 'image/ktx2',
   '.wasm': 'application/wasm',
   '.txt': 'text/plain; charset=utf-8',
+  '.xml': 'application/xml; charset=utf-8',
   '.ico': 'image/x-icon',
 };
 
@@ -48,7 +49,7 @@ const NO_CACHE = new Set(['.html', '.js', '.mjs', '.css', '.wasm']);
 // a textúrákat tartalmazó modellek már tömörítettek, azokon a gzip alig nyer,
 // viszont minden kérésnél CPU-t égetne. (Mért adat ebben a projektben:
 // collision.bin 49%-ot nyer, egy 59 MB-os pálya-glb viszont csak 20%-ot.)
-const COMPRESSIBLE = new Set(['.js', '.mjs', '.css', '.html', '.json', '.gltf', '.bin', '.svg', '.txt']);
+const COMPRESSIBLE = new Set(['.js', '.mjs', '.css', '.html', '.json', '.gltf', '.bin', '.svg', '.txt', '.xml']);
 // Ez alatt nem érdemes: a fejléc-többlet többe kerül, mint amennyit nyerünk.
 const MIN_COMPRESS_BYTES = 1024;
 let activeTransfers = 0;
